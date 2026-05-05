@@ -64,6 +64,20 @@ def copy_dir_contents(src, dst):
         else:
             shutil.copy2(s, d)
 
+def load_json(path):
+    if not os.path.exists(path):
+        return {}
+    with open(path, "r", encoding="utf-8") as f:
+        import json
+        return json.load(f)
+
+def save_json(path, data):
+    ensure_dir(os.path.dirname(path) or ".")
+    import json
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+
 def main():
     log("CK's Pi Code Agent Harness – Restore Configuration (Python)")
     log(f"Repo root: {REPO_ROOT}")
@@ -144,6 +158,13 @@ def main():
     if os.path.isdir(ext_src):
         clear_dir(ext_dst)
         copy_dir_contents(ext_src, ext_dst)
+
+    # models.json (v0.73+ format)
+    models_src = os.path.join(REPO_ROOT, "pi-config", "models.json")
+    models_dst = os.path.join(AGENT_DIR, "models.json")
+    if os.path.exists(models_src):
+        log("Restoring models.json to agent dir...")
+        shutil.copy2(models_src, models_dst)
 
     print()
     log("✅ Restore complete.")

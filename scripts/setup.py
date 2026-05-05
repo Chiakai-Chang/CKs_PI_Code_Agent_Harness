@@ -4,12 +4,12 @@
 #
 # Handles:
 # - Environment checks (Git, Python, Node/npm)
-# - Pi installation/update prompts
+# - Pi installation/update prompts (streaming output)
 # - Git Bash detection (Windows)
-# - Local LLM service detection (Ollama, LMStudio, etc.)
-# - Model selection
-# - Writing settings.json, model.json
-# - Running restore.sh
+# - Local LLM service detection (Ollama, LMStudio, llama.cpp, etc.)
+# - Model selection and models.json generation (v0.73+ format)
+# - Writing settings.json
+# - Running restore.py
 #
 
 import sys
@@ -26,9 +26,7 @@ import webbrowser
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 PI_CONFIG_DIR = os.path.join(REPO_ROOT, "pi-config")
 SETTINGS_PATH = os.path.join(PI_CONFIG_DIR, "settings.json")
-MODEL_JSON_PATH = os.path.join(PI_CONFIG_DIR, "model.json")
 HARNESS_CONFIG_PATH = os.path.join(PI_CONFIG_DIR, "harness-config.json")
-
 
 # ─── Utilities ──────────────────────────────────────────────
 
@@ -38,6 +36,26 @@ def run(cmd, check=False):
         return r.returncode == 0, r.stdout.strip(), r.stderr.strip()
     except Exception as e:
         return False, "", str(e)
+
+
+def run_stream(cmd):
+    """Run a command and stream its output so user sees progress."""
+    print(f"  $ {cmd.strip()}")
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True
+        )
+        for line in proc.stdout:
+            sys.stdout.write(line)
+            sys.stdout.flush()
+        proc.wait()
+        return proc.returncode == 0
+    except Exception:
+        return False
 
 
 def is_admin():
@@ -106,20 +124,16 @@ def suggest_node(p):
         print("     2. 下載最新 nvm-setup.exe 並安裝")
         print("     3. 重新開啟終端機，執行: nvm install 22")
         print("     4. 再次執行: install.bat")
-    elif p == "macos":
+    elif p in ("macos", "linux"):
         print("  => 建議使用 nvm 安裝 Node（推薦）：")
         print("     1. curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash")
         print("     2. source ~/.bashrc")
         print("     3. nvm install 22")
         print("     4. nvm use 22")
-        print("     5. 再次執行: bash install.sh")
-    elif p == "linux":
-        print("  => 建議使用 nvm 安裝 Node（推薦，避免系統 Node 衝突）：")
-        print("     1. curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash")
-        print("     2. source ~/.bashrc")
-        print("     3. nvm install 22")
-        print("     4. nvm use 22")
-        print("     5. 再次執行: bash install.sh")
+        if p == "macos":
+            print("     5. 再次執行: bash install.sh")
+        else:
+            print("     5. 再次執行: bash install.sh")
 
 
 # ─── Git Bash detection (Windows) ──────────────────────────
@@ -207,23 +221,20 @@ def load_json(path):
 
 
 def save_json(path, data):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
         f.write("\n")
 
 
 def parse_version(version_str):
-    # Best-effort parse x.y.z from strings like "0.73.0", "v0.73.0", etc. First three numeric parts.
     version_str = (version_str or "").strip().lstrip("vV")
     parts = []
     for segment in version_str.split("."):
         try:
             parts.append(int(segment))
         except ValueError:
-            # If non-numeric, stop parsing further
             break
-    # Pad to (major, minor, patch)
     while len(parts) < 3:
         parts.append(0)
     return tuple(parts[:3])
@@ -236,16 +247,13 @@ def get_harness_config():
 
 
 def check_harness_version():
-    # Non-blocking version check: warn if Pi version < recommended.
     harness_cfg = get_harness_config()
     min_recommended = harness_cfg.get("minRecommendedPiVersion", "0.73.0")
     harness_version = harness_cfg.get("harnessVersion", "unknown")
 
-    # Try to detect Pi version (pi --version or similar) – best effort
     ok, out, _ = run("pi --version")
     pi_version = None
     if ok and out.strip():
-        # take first token that looks version-like
         tokens = out.strip().split()
         for t in tokens:
             if any(c.isdigit() for c in t) and ("." in t or t.startswith("v")):
@@ -253,12 +261,10 @@ def check_harness_version():
                 break
 
     if pi_version is None:
-        # cannot reliably detect; just inform
         print(f"  [SETUP] Harness version: {harness_version} (recommended Pi >= {min_recommended})")
         print("  [SETUP] 無法確認 Pi 版本，若行為異常，建議先執行: pi update")
         return
 
-    # Compare versions
     pv = parse_version(pi_version)
     mv = parse_version(min_recommended)
 
@@ -275,25 +281,139 @@ def check_harness_version():
         print("  ✅ Pi 版本符合建議。")
 
 
+# ─── Intel Arc detection (for labeling) ────────────────────
+
+def has_intel_arc():
+    # Check env vars and common oneAPI paths
+    env_vars = ["ONEAPI_ROOT", "INTEL_ONEAPI_ROOT"]
+    for v in env_vars:
+        if os.environ.get(v):
+            return True
+    # Check common paths (best-effort)
+    paths = [
+        r"C:\Intel\oneAPI",
+        r"C:\Program Files\Intel\oneAPI",
+        "/opt/intel/oneapi",
+        r"C:\Program Files (x86)\Intel\oneAPI",
+    ]
+    for p in paths:
+        if os.path.exists(p):
+            return True
+    return False
+
+
+# ─── Model helper (v0.73+ models.json format) ─────────────
+
+def guess_max_tokens(model_id):
+    """
+    Provide a reasonable default maxTokens based on model name heuristics.
+    - If size is known, use a sensible fraction of context.
+    - Default: 8192 (safe for most local models).
+    """
+    mid = (model_id or "").lower()
+
+    # For Qwen3.6 and similar large reasoning models
+    if any(k in mid for k in ["qwen3.6", "qwen3_6", "qwen-3.6"]):
+        # Large models often 30B+ with 131k context
+        # 16k is a safe default for reasoning workloads
+        return 16384
+
+    # If it's a known large model (e.g. 70B)
+    if "70b" in mid or "70b" in mid:
+        return 16384
+
+    # For smaller models
+    if any(k in mid for k in ["7b", "8b", "9b", "14b"]):
+        return 8192
+
+    # Default
+    return 8192
+
+
+def build_models_json(selected_provider, selected_model, selected_api_base):
+    """
+    Build models.json in v0.73+ format:
+    {
+      "providers": {
+        "provider_id": {
+          "baseUrl": "...",
+          "api": "openai-completions",
+          "apiKey": "local",
+          "authHeader": true,
+          "compat": { "supportsDeveloperRole": false, "maxTokensField": "max_tokens" },
+          "models": [ { "id": "...", "name": "...", ... } ]
+        }
+      }
+    }
+    """
+    if not selected_provider or not selected_model or not selected_api_base:
+        return None
+
+    # Derive provider ID
+    if selected_provider == "ollama":
+        provider_id = "ollama-local"
+    else:
+        provider_id = "local-openai-compatible"
+
+    # Label: add Intel Arc tag if detected
+    model_label = selected_model
+    if has_intel_arc():
+        model_label += " (Intel Arc SYCL)"
+
+    # Max tokens heuristic
+    max_tokens = guess_max_tokens(selected_model)
+
+    # Detect if it's a reasoning/Qwen model
+    is_qwen = "qwen" in selected_model.lower()
+    compat_extra = {}
+    if is_qwen:
+        compat_extra["thinkingFormat"] = "qwen"
+
+    models_json = {
+        "providers": {
+            provider_id: {
+                "baseUrl": selected_api_base,
+                "api": "openai-completions",
+                "apiKey": "local",
+                "authHeader": True,
+                "compat": {
+                    "supportsDeveloperRole": False,
+                    "maxTokensField": "max_tokens"
+                },
+                "models": [
+                    {
+                        "id": selected_model,
+                        "name": model_label,
+                        "reasoning": True if is_qwen else False,
+                        "contextWindow": 131072 if is_qwen else 8192,
+                        "maxTokens": max_tokens,
+                        "compat": compat_extra if compat_extra else None
+                    }
+                ]
+            }
+        }
+    }
+
+    # Clean up None compat
+    m = models_json["providers"][provider_id]["models"][0]
+    if m.get("compat") is None:
+        del m["compat"]
+
+    return models_json
+
+
 # ─── Restore helper ─────────────────────────────────────────
 
 def run_restore(git_bash, p):
-    script = os.path.join(REPO_ROOT, "scripts", "restore.sh")
+    script = os.path.join(REPO_ROOT, "scripts", "restore.py")
     if not os.path.exists(script):
-        print("  [!] 找不到 scripts/restore.sh，跳過還原步驟。")
+        print("  [!] 找不到 scripts/restore.py，跳過還原步驟。")
         return
 
-    print("  正在執行 restore.sh ...")
+    print("  正在執行 restore.py ...")
 
-    if p == "windows":
-        if git_bash:
-            cmd = f'"{git_bash}" -c "cd \\"{REPO_ROOT}\\" && bash scripts/restore.sh"'
-        else:
-            # fallback; may require bash in PATH
-            cmd = f"bash {script}"
-        run(cmd)
-    else:
-        run(f"bash {script}")
+    python = sys.executable
+    run_stream(f'"{python}" "{script}"')
 
     print("  ✅ Restore 完成。")
 
@@ -301,7 +421,7 @@ def run_restore(git_bash, p):
     harness_cfg = get_harness_config()
     version_info = {
         "harnessVersion": harness_cfg.get("harnessVersion"),
-        "timestamp": "auto"  # can be enhanced if needed
+        "timestamp": "auto"
     }
     agent_dir = os.path.join(os.path.expanduser("~"), ".pi", "agent")
     version_file = os.path.join(agent_dir, "harness-version.json")
@@ -345,7 +465,6 @@ def main():
         import subprocess
         result = subprocess.run(["node", "-v"], capture_output=True, text=True, timeout=5)
         node_version_str = (result.stdout or "").strip().lstrip("v")
-        # Parse major version
         node_major = int(node_version_str.split(".")[0])
         if node_major < 20:
             print(f"❌ Node.js 版本過低（目前 v{node_version_str}），Pi 要求 Node >= 20。")
@@ -353,19 +472,18 @@ def main():
             print("請升級 Node 後重新執行此腳本。\n")
             sys.exit(1)
     except Exception:
-        # Fallback: if detection fails, still proceed (but warn)
         print("⚠️ 無法確認 Node.js 版本，若後續安裝失敗，請確認 Node >= 20。\n")
 
     print("✅ Node.js / npm 已就緒。")
     print()
 
-    # 4. Check Pi
+    # 4. Check Pi (stream output so user sees progress)
     if not has_command("pi"):
         print("❌ 未偵測到 pi 命令。")
         ans = input("  是否現在安裝 Pi？ (y/N): ").strip().lower()
         if ans in ("y", "yes"):
-            print("  正在安裝 Pi（全域）...")
-            ok, out, err = run("npm install -g @mariozechner/pi-coding-agent")
+            print("  正在安裝 Pi（全域）... 以下為安裝進度，請等待...")
+            ok = run_stream("npm install -g @mariozechner/pi-coding-agent")
             if not ok:
                 print("  ⚠️ 安裝失敗，可能需要管理員權限。")
                 if p == "windows":
@@ -382,8 +500,8 @@ def main():
     else:
         ans = input("  是否更新 Pi 到最新版？ (y/N): ").strip().lower()
         if ans in ("y", "yes"):
-            print("  正在更新 Pi ...")
-            run("pi update")
+            print("  正在更新 Pi ... 以下為更新進度，請等待...")
+            run_stream("pi update")
             print("  ✅ 完成。")
 
     # 4.1 Harness & Pi version check (non-blocking)
@@ -409,7 +527,7 @@ def main():
     selected_api_base = None
 
     if not all_models:
-        print("  未偵測到本地 LLM 服務或模型。你可以稍後手動調整 settings.json。")
+        print("  未偵測到本地 LLM 服務或模型。你可以稍後手動調整 models.json。")
     else:
         print("  發現以下模型:")
         for i, (prov, model) in enumerate(all_models, start=1):
@@ -432,6 +550,9 @@ def main():
             else:
                 selected_provider = prov  # e.g., "ollama"
             selected_model = model
+            # For ollama, set apiBase
+            if selected_provider == "ollama":
+                selected_api_base = "http://localhost:11434"
             print(f"  已選擇: {selected_model}")
         else:
             print("  未選擇模型，將保留原有設定或手動調整。")
@@ -451,7 +572,7 @@ def main():
         if selected_api_base:
             settings["apiBase"] = selected_api_base
 
-    # ensure packages list exists (if not present)
+    # ensure packages list exists
     if "packages" not in settings:
         settings["packages"] = [
             "npm:context-mode",
@@ -461,30 +582,29 @@ def main():
     save_json(SETTINGS_PATH, settings)
     print("✅ 已寫入 pi-config/settings.json")
 
-    # 8. (Optional) model.json
+    # 8. Generate models.json (v0.73+ format)
     if selected_provider:
-        model_cfg = {
-            "provider": settings.get("defaultProvider"),
-            "model": settings.get("defaultModel"),
-        }
-        if "apiBase" in settings:
-            model_cfg["apiBase"] = settings["apiBase"]
-        save_json(MODEL_JSON_PATH, model_cfg)
-        print("✅ 已寫入 pi-config/model.json")
+        models_data = build_models_json(selected_provider, selected_model, selected_api_base)
+        if models_data:
+            models_json_path = os.path.join(PI_CONFIG_DIR, "models.json")
+            save_json(models_json_path, models_data)
+            print("✅ 已寫入 pi-config/models.json (v0.73+ 格式)")
+    else:
+        print("  [INFO] 未選擇模型，models.json 尚未生成。你可稍後手動調整。")
 
     # 9. Ask to run restore
     run_restore_flag = input("  是否執行還原配置到 ~/.pi/agent？ (Y/n): ").strip().lower()
     if run_restore_flag not in ("n", "no"):
         run_restore(git_bash, p)
     else:
-        print("  已跳過還原步驟。你可稍後執行: bash scripts/restore.sh")
+        print("  已跳過還原步驟。你可稍後執行: python scripts/restore.py")
 
     print()
     print("=" * 60)
     print(" 下一步：")
     print("  1. 執行: pi")
     print("  2. 確認 Skills、Extensions 是否正常")
-    print("  3. 若需調整模型或路徑，可編輯 pi-config/settings.json")
+    print("  3. 若需調整模型或路徑，可編輯 pi-config/settings.json 或 models.json")
     print("=" * 60)
 
 
