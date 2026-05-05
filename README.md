@@ -12,15 +12,33 @@
 - 自動偵測本地 LLM（Ollama / LMStudio / llama.cpp 等），讓你直接選模型
 - 內建開發 skills、rules 與 extensions，支援程式開發、測試、除錯、Git 流程
 
-## 🧭 快速上手（3 步完成）
+## 🧭 快速上手（兩種方式，依需求選擇）
+
+### 方式 A：使用 Pi 原生安裝（推薦，若已安裝 Pi）
+
+若你已安裝 Pi，可直接用 Pi 原生套件管理：
+
+- pi install git:github.com:Chiakai-Chang/CKs_PI_Code_Agent_Harness
+
+Pi 會自動：
+- 下載本套件
+- 套用 skills / rules / extensions
+- 載入到 ~/.pi/agent
+
+適用場景：
+- 你已安裝 Pi
+- 想要最快速配置
+- 換電腦，且已重新安裝 Pi
+
+### 方式 B：完整一鍵安裝（若尚未安裝 Pi 或需要完整引導）
+
+若你尚未安裝 Pi，或需要完整環境引導（自動檢查 Git/Python/Node/Pi、偵測本地 LLM）：
 
 1) 克隆本專案
-
    - git clone git@github.com:Chiakai-Chang/CKs_PI_Code_Agent_Harness.git
    - cd CKs_PI_Code_Agent_Harness
 
 2) 執行一鍵安裝
-
    - Windows:
      - .\install.bat
    - macOS / Linux:
@@ -41,13 +59,20 @@
    依照畫面提示操作即可。
 
 3) 開啟 Pi 並確認
-
    - pi
 
    確認：
    - Skills 正常載入
    - Extensions 正常載入
    - 模型設定符合你的需求
+
+## 🤔 該選哪種方式？
+
+- 已安裝 Pi，只想快速套用配置 → 用「方式 A：pi install」
+- 尚未安裝 Pi，或需要完整環境引導 → 用「方式 B：完整一鍵安裝」
+- 貢獻者 / 想保留 git 控制 → 用「方式 B：git clone + install.bat」
+
+## 📖 更多說明
 
 如果你要更詳細的說明，可以展開下方內容。
 
@@ -207,7 +232,16 @@ Pi 與本配置是獨立維護的：
    - 執行: git pull
    - 重新執行: bash scripts/restore.sh（或 python scripts/restore.py）
 
-7) 如何取得除錯日誌
+7) 「Task 無法標記為 completed」（TaskUpdate 已知問題）
+   - 現象：TaskUpdate 驗證失敗，顯示 "status must match anyOf"，且 status 變成 "\"completed\""
+   - 原因：Pi 核心與 @tintinweb/pi-tasks 目前存在 status 參數序列化 bug
+   - 影響：所有 Pi 用戶皆可能遇到，非本 repo 問題
+   - 處理方式：
+     - 使用 Pi 的 /tasks 命令手動完成任務
+     - 或直接在 skill/流程中改用文字 to-do 清單
+   - 若上游已修復，本 repo 將隨之更新
+
+8) 如何取得除錯日誌
    - 本工具輸出會使用前綴：
      - [SETUP] 環境檢查與安裝
      - [RESTORE] 配置還原

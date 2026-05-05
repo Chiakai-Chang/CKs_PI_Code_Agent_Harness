@@ -40,3 +40,14 @@
   - 做了什麼
   - 為什麼要做
   - 影響哪些檔案
+
+## 5. 已知 Pi 限制（開發者注意）
+
+- TaskUpdate 狀態驗證問題：
+  - 現象：TaskUpdate(status="completed") 驗證失敗，status 變成 "\"completed\""
+  - 原因：Pi 核心與 @tintinweb/pi-tasks 的 schema / 序列化層存在 bug
+  - 影響範圍：所有 Pi 用戶（非本 repo 專屬）
+  - 建議做法：
+    - 開發 / 測試時，若 TaskUpdate 不可靠，改用 /tasks 或文字清單
+    - 避免將「TaskUpdate 一定成功」寫死在 skill 說明或自動化流程中
+  - 上游修復後，本 repo 會同步更新相關指引
