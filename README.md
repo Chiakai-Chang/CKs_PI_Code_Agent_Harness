@@ -148,12 +148,12 @@ Pi 本身：
   - git/.gitignore：Git 忽略設定
 
 - pi-skills/
-  - 包含所有 Pi skills，例如：
-    - 程式碼：test-driven-development、systematic-debugging
-    - 規劃與文件：planning-with-files、writing-plans
-    - 設計與 UI：design、ui-styling、ui-ux-pro-max
-    - 理解與分析：understand 系列
-  - 已修正命名衝突（移除 ckm: 前綴）
+  - 分為：
+    - core/（核心）：程式開發、測試、除錯、Git 流程、規劃、code review、understand 系列
+    - optional/（可選）：較重的設計與 UI 技能，例如 design、ui-styling、ui-ux-pro-max、slides、brand
+  - 還原時會：
+    - 自動套用 core
+    - 詢問是否套用 optional（可依需求跳過，讓環境更輕量）
 
 - pi-rules/
   - 開發規範與工作流程：

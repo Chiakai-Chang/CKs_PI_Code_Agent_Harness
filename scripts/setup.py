@@ -27,6 +27,7 @@ REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 PI_CONFIG_DIR = os.path.join(REPO_ROOT, "pi-config")
 SETTINGS_PATH = os.path.join(PI_CONFIG_DIR, "settings.json")
 MODEL_JSON_PATH = os.path.join(PI_CONFIG_DIR, "model.json")
+HARNESS_CONFIG_PATH = os.path.join(PI_CONFIG_DIR, "harness-config.json")
 
 
 # ─── Utilities ──────────────────────────────────────────────
@@ -205,6 +206,68 @@ def save_json(path, data):
         f.write("\n")
 
 
+def parse_version(version_str):
+    # Best-effort parse x.y.z from strings like "0.73.0", "v0.73.0", etc. First three numeric parts.
+    version_str = (version_str or "").strip().lstrip("vV")
+    parts = []
+    for segment in version_str.split("."):
+        try:
+            parts.append(int(segment))
+        except ValueError:
+            # If non-numeric, stop parsing further
+            break
+    # Pad to (major, minor, patch)
+    while len(parts) < 3:
+        parts.append(0)
+    return tuple(parts[:3])
+
+
+def get_harness_config():
+    if not os.path.exists(HARNESS_CONFIG_PATH):
+        return {}
+    return load_json(HARNESS_CONFIG_PATH)
+
+
+def check_harness_version():
+    # Non-blocking version check: warn if Pi version < recommended.
+    harness_cfg = get_harness_config()
+    min_recommended = harness_cfg.get("minRecommendedPiVersion", "0.73.0")
+    harness_version = harness_cfg.get("harnessVersion", "unknown")
+
+    # Try to detect Pi version (pi --version or similar) – best effort
+    ok, out, _ = run("pi --version")
+    pi_version = None
+    if ok and out.strip():
+        # take first token that looks version-like
+        tokens = out.strip().split()
+        for t in tokens:
+            if any(c.isdigit() for c in t) and ("." in t or t.startswith("v")):
+                pi_version = t.strip()
+                break
+
+    if pi_version is None:
+        # cannot reliably detect; just inform
+        print(f"  [SETUP] Harness version: {harness_version} (recommended Pi >= {min_recommended})")
+        print("  [SETUP] 無法確認 Pi 版本，若行為異常，建議先執行: pi update")
+        return
+
+    # Compare versions
+    pv = parse_version(pi_version)
+    mv = parse_version(min_recommended)
+
+    print(f"  [SETUP] Harness version: {harness_version}")
+    print(f"  [SETUP] 偵測到 Pi 版本: {pi_version}")
+
+    if pv < mv:
+        print(f"  ⚠️  目前 Pi 版本低於建議版本 ({min_recommended})，部分功能可能不穩定。")
+        print("     建議執行: pi update")
+        ans = input("  是否現在更新 Pi？(y/N): ").strip().lower()
+        if ans in ("y", "yes"):
+            run("pi update")
+    else:
+        print("  ✅ Pi 版本符合建議。")
+
+
 # ─── Restore helper ─────────────────────────────────────────
 
 def run_restore(git_bash, p):
@@ -226,6 +289,16 @@ def run_restore(git_bash, p):
         run(f"bash {script}")
 
     print("  ✅ Restore 完成。")
+
+    # Write harness version metadata into agent dir (for future checks)
+    harness_cfg = get_harness_config()
+    version_info = {
+        "harnessVersion": harness_cfg.get("harnessVersion"),
+        "timestamp": "auto"  # can be enhanced if needed
+    }
+    agent_dir = os.path.join(os.path.expanduser("~"), ".pi", "agent")
+    version_file = os.path.join(agent_dir, "harness-version.json")
+    save_json(version_file, version_info)
 
 
 # ─── Main Flow ──────────────────────────────────────────────
@@ -288,6 +361,9 @@ def main():
             print("  正在更新 Pi ...")
             run("pi update")
             print("  ✅ 完成。")
+
+    # 4.1 Harness & Pi version check (non-blocking)
+    check_harness_version()
     print()
 
     # 5. Detect Git Bash (Windows)

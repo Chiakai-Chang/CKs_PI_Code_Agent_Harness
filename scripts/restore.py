@@ -35,7 +35,7 @@ def confirm():
     log("This will overwrite:")
     log("  - settings.json")
     log("  - config.json")
-    log("  - skills/*")
+    log("  - skills/* (core + optionally design/heavy skills)")
     log("  - rules/*")
     log("  - extensions/*")
     log("  - git/.gitignore")
@@ -43,6 +43,26 @@ def confirm():
     print()
     ans = input("[RESTORE] Continue? (y/N): ").strip().lower()
     return ans in ("y", "yes")
+
+def clear_dir(path):
+    if not os.path.isdir(path):
+        return
+    for item in os.listdir(path):
+        src = os.path.join(path, item)
+        if os.path.isdir(src):
+            shutil.rmtree(src)
+        else:
+            os.remove(src)
+
+def copy_dir_contents(src, dst):
+    ensure_dir(dst)
+    for item in os.listdir(src):
+        s = os.path.join(src, item)
+        d = os.path.join(dst, item)
+        if os.path.isdir(s):
+            shutil.copytree(s, d, dirs_exist_ok=True)
+        else:
+            shutil.copy2(s, d)
 
 def main():
     log("CK's Pi Code Agent Harness – Restore Configuration (Python)")
@@ -71,8 +91,6 @@ def main():
     shutil.copy2(os.path.join(REPO_ROOT, "pi-config", "git", ".gitignore"),
                  os.path.join(AGENT_DIR, "git", ".gitignore"))
 
-    # Normalize TODO_NEW_MACHINE in config.json
-    log("Fixing paths in config.json...")
     cfg_path = os.path.join(AGENT_DIR, "config.json")
     if os.path.exists(cfg_path):
         with open(cfg_path, "r", encoding="utf-8") as f:
@@ -83,62 +101,49 @@ def main():
             with open(cfg_path, "w", encoding="utf-8") as f:
                 f.write(content)
 
-    # Skills
-    log("Restoring skills...")
-    skills_src = os.path.join(REPO_ROOT, "pi-skills")
+    # Core skills (always)
+    log("Restoring core skills...")
+    core_src = os.path.join(REPO_ROOT, "pi-skills", "core")
     skills_dst = os.path.join(AGENT_DIR, "skills")
-    if os.path.isdir(skills_src):
-        for item in os.listdir(skills_dst):
-            src = os.path.join(skills_dst, item)
-            if os.path.isdir(src):
-                shutil.rmtree(src)
-            else:
-                os.remove(src)
-        for item in os.listdir(skills_src):
-            src = os.path.join(skills_src, item)
-            dst = os.path.join(skills_dst, item)
-            if os.path.isdir(src):
-                shutil.copytree(src, dst, dirs_exist_ok=True)
-            else:
-                shutil.copy2(src, dst)
+    if os.path.isdir(core_src):
+        clear_dir(skills_dst)
+        copy_dir_contents(core_src, skills_dst)
+    else:
+        log("Core skills directory not found, skipping.")
+
+    # Optional skills (design / heavy) – prompt
+    optional_src = os.path.join(REPO_ROOT, "pi-skills", "optional")
+    restore_optional = True
+
+    if os.path.isdir(optional_src) and sys.stdin.isatty():
+        print()
+        log("This repo includes optional design/creative skills (heavier).")
+        log("Examples: design, ui-ux-pro-max, ui-styling, slides, brand, etc.")
+        ans = input("[RESTORE] Restore optional skills? (Y/n): ").strip().lower()
+        if ans in ("n", "no"):
+            restore_optional = False
+
+    if restore_optional and os.path.isdir(optional_src):
+        log("Restoring optional skills...")
+        copy_dir_contents(optional_src, skills_dst)
+    else:
+        log("Optional skills skipped.")
 
     # Rules
     log("Restoring rules...")
     rules_src = os.path.join(REPO_ROOT, "pi-rules")
     rules_dst = os.path.join(AGENT_DIR, "rules")
     if os.path.isdir(rules_src):
-        for item in os.listdir(rules_dst):
-            src = os.path.join(rules_dst, item)
-            if os.path.isdir(src):
-                shutil.rmtree(src)
-            else:
-                os.remove(src)
-        for item in os.listdir(rules_src):
-            src = os.path.join(rules_src, item)
-            dst = os.path.join(rules_dst, item)
-            if os.path.isdir(src):
-                shutil.copytree(src, dst, dirs_exist_ok=True)
-            else:
-                shutil.copy2(src, dst)
+        clear_dir(rules_dst)
+        copy_dir_contents(rules_src, rules_dst)
 
     # Extensions
     log("Restoring extensions...")
     ext_src = os.path.join(REPO_ROOT, "pi-extensions")
     ext_dst = os.path.join(AGENT_DIR, "extensions")
     if os.path.isdir(ext_src):
-        for item in os.listdir(ext_dst):
-            src = os.path.join(ext_dst, item)
-            if os.path.isdir(src):
-                shutil.rmtree(src)
-            else:
-                os.remove(src)
-        for item in os.listdir(ext_src):
-            src = os.path.join(ext_src, item)
-            dst = os.path.join(ext_dst, item)
-            if os.path.isdir(src):
-                shutil.copytree(src, dst, dirs_exist_ok=True)
-            else:
-                shutil.copy2(src, dst)
+        clear_dir(ext_dst)
+        copy_dir_contents(ext_src, ext_dst)
 
     print()
     log("✅ Restore complete.")

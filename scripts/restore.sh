@@ -5,7 +5,7 @@
 # This script only manages YOUR configuration (skills, rules, extensions, settings).
 # It does NOT install or manage Pi itself.
 #
-# Prereqs (user must install separately):
+# Prereqs:
 # - Node.js (LTS)
 # - Git
 # - Pi (e.g. npm install -g @mariozechner/pi-coding-agent)
@@ -15,8 +15,8 @@
 #
 # Behavior:
 # - Backs up existing ~/.pi/agent files to ~/.pi/agent.backup.<timestamp>
-# - Copies config from this repo into ~/.pi/agent
-# - Safe to run again when you want to sync config updates
+# - Restores core skills always
+# - Optionally restores design/heavy skills if requested
 #
 set -e
 
@@ -31,33 +31,29 @@ echo "[RESTORE] Pi dir:    $PI_DIR"
 echo "[RESTORE] Agent dir: $AGENT_DIR"
 echo ""
 
-# If Pi is not installed yet, warn but continue
 if ! command -v pi >/dev/null 2>&1; then
   echo "[RESTORE] ⚠️  'pi' not found in PATH. Make sure you've installed Pi first."
   echo "[RESTORE]    For example: npm install -g @mariozechner/pi-coding-agent"
   echo ""
 fi
 
-# 1. Ensure directories
 mkdir -p "$AGENT_DIR/skills"
 mkdir -p "$AGENT_DIR/rules"
 mkdir -p "$AGENT_DIR/extensions"
 mkdir -p "$AGENT_DIR/git"
 
-# 2. Backup existing agent folder (if present)
 if [ -d "$AGENT_DIR" ]; then
   BACKUP_DIR="${AGENT_DIR}.backup.${TIMESTAMP}"
   echo "[RESTORE] Backing up existing agent config to: $BACKUP_DIR"
   cp -r "$AGENT_DIR" "$BACKUP_DIR"
 fi
 
-# 3. Confirm overwrite (unless piped/non-interactive)
 if [ -t 0 ]; then
   echo ""
   echo "[RESTORE] This will overwrite:"
   echo "  - $AGENT_DIR/settings.json"
   echo "  - $AGENT_DIR/config.json"
-  echo "  - $AGENT_DIR/skills/*"
+  echo "  - $AGENT_DIR/skills/* (core + optionally design/heavy skills)"
   echo "  - $AGENT_DIR/rules/*"
   echo "  - $AGENT_DIR/extensions/*"
   echo "  - $AGENT_DIR/git/.gitignore"
@@ -74,33 +70,54 @@ if [ -t 0 ]; then
   esac
 fi
 
-# 4. Restore config
+# Config
 echo "[RESTORE] Restoring config..."
 cp "$REPO_ROOT/pi-config/settings.json" "$AGENT_DIR/settings.json"
 cp "$REPO_ROOT/pi-config/config.json"   "$AGENT_DIR/config.json"
 cp "$REPO_ROOT/pi-config/git/.gitignore" "$AGENT_DIR/git/.gitignore"
 
-# 5. Normalize TODO_NEW_MACHINE placeholders in config.json
-echo "[RESTORE] Fixing paths in config.json..."
 if grep -q "TODO_NEW_MACHINE" "$AGENT_DIR/config.json"; then
   sed -i "s|TODO_NEW_MACHINE|$HOME|g" "$AGENT_DIR/config.json"
 fi
 
-# 6. Restore skills
-echo "[RESTORE] Restoring skills..."
-if [ -d "$REPO_ROOT/pi-skills" ]; then
+# Core skills (always)
+echo "[RESTORE] Restoring core skills..."
+if [ -d "$REPO_ROOT/pi-skills/core" ]; then
   rm -rf "$AGENT_DIR/skills"/*
-  cp -r "$REPO_ROOT/pi-skills/"* "$AGENT_DIR/skills/"
+  cp -r "$REPO_ROOT/pi-skills/core/"* "$AGENT_DIR/skills/"
 fi
 
-# 7. Restore rules
+# Optional skills (design / heavy) – prompt
+RESTORE_OPTIONAL=true
+if [ -d "$REPO_ROOT/pi-skills/optional" ] && [ -t 0 ]; then
+  echo ""
+  echo "[RESTORE] This repo includes optional design/creative skills (heavier)."
+  echo "[RESTORE] Examples: design, ui-ux-pro-max, ui-styling, slides, brand, etc."
+  echo -n "[RESTORE] Restore optional skills? (Y/n): "
+  read -r ANS
+  if [[ "$ANS" == "n" || "$ANS" == "N" ]]; then
+    RESTORE_OPTIONAL=false
+  fi
+fi
+
+if [ "$RESTORE_OPTIONAL" = true ] && [ -d "$REPO_ROOT/pi-skills/optional" ]; then
+  echo "[RESTORE] Restoring optional skills..."
+  for dir in "$REPO_ROOT/pi-skills/optional"/*/; do
+    name=$(basename "$dir")
+    cp -r "$dir" "$AGENT_DIR/skills/$name"
+  done
+else
+  echo "[RESTORE] Optional skills skipped."
+fi
+
+# Rules
 echo "[RESTORE] Restoring rules..."
 if [ -d "$REPO_ROOT/pi-rules" ]; then
   rm -rf "$AGENT_DIR/rules"/*
   cp -r "$REPO_ROOT/pi-rules/"* "$AGENT_DIR/rules/"
 fi
 
-# 8. Restore extensions
+# Extensions
 echo "[RESTORE] Restoring extensions..."
 if [ -d "$REPO_ROOT/pi-extensions" ]; then
   rm -rf "$AGENT_DIR/extensions"/*
