@@ -1,0 +1,6 @@
+# Runtime / local-only
+pi-config/auth.json
+node_modules/
+*.db
+*.db-wal
+*.db-shm
