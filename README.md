@@ -1,10 +1,9 @@
 # 🚀 CK's Pi Code Agent Harness
 
-> 一鍵還原你的 Pi 開發環境 — 換電腦不手軟
+> 幫你一鍵架設 AI 程式開發助手（Pi）的配置套件 — 換電腦不手軟
 
-CK's Pi Code Agent Harness 是一套「可攜式 Pi 配置」，
-讓你在任何一台電腦上都能快速重建相同的 Pi 開發環境，
-並支援一鍵檢查環境、選擇本地模型、套用 skills 與 rules。
+這是一個「可攜式 Pi 配置」，讓你在任何一台電腦上，都能快速重建相同的 AI 開發環境：
+不用手動拷貝設定、不用重頭調整 skills 與 rules，跑一支指令即可還原。
 
 特色：
 
@@ -29,6 +28,33 @@ Pi 本身：
 - Python（建議 3.10+）
 - Node.js ≥ 18（推薦 LTS）
 - Pi（由腳本協助安裝或更新）
+
+## 🔌 版本建議與相容
+
+- 建議 Pi 版本：>= 0.73.0
+- 本 repo 的配置格式可能隨 Pi 版本演進調整：
+  - 若 Pi 升級後行為異常，建議：
+    - 先執行 pi update
+    - 再 git pull 本專案
+    - 重新執行 bash scripts/restore.sh
+- 若 Pi 官方文件格式變更，本 repo 將隨之更新，不會強制綁死特定版本。
+
+## 🛡️ 安全與信任
+
+- 本套件目前版本（截至 2025/11）：
+  - 不收集使用資料
+  - 不呼叫任何外部 API（除你選用的本地 LLM / 模型外）
+  - 不追蹤設備資訊
+- restore.sh 與 setup.py 會修改：
+  - ~/.pi/agent/settings.json
+  - ~/.pi/agent/config.json
+  - ~/.pi/agent/skills
+  - ~/.pi/agent/rules
+  - ~/.pi/agent/extensions
+  - ~/.pi/agent/git/.gitignore
+- 在覆蓋前，restore.sh 會自動備份至：
+  - ~/.pi/agent.backup.<timestamp>
+- 若你信任本 repo，才可放心執行。
 
 ## 🧭 快速上手（手把手教學）
 
@@ -214,7 +240,8 @@ Pi 與本配置是獨立維護的：
 4) 「restore.sh 無法執行」（Windows 沒有 bash）
 - 解法：
   - 安裝 Git（含 Git Bash）
-  - 或改用 install.bat，它會自動使用 Git Bash 來執行 restore.sh
+  - 或使用 Python 版還原（不依賴 bash）：
+    - python scripts/restore.py
 
 5) 「模型設定好像沒生效」
 - 檢查：
@@ -225,7 +252,15 @@ Pi 與本配置是獨立維護的：
 - 若出現 skill name 錯誤：
   - 確認使用的是本 repo 最新配置。
   - 執行: git pull
-  - 重新執行: bash scripts/restore.sh
+  - 重新執行: bash scripts/restore.sh（或 python scripts/restore.py）
+
+7) 如何取得除錯日誌
+- 本工具輸出會使用前綴：
+  - [SETUP] 環境檢查與安裝
+  - [RESTORE] 配置還原
+- 若需要請他人協助：
+  - 複製包含 [SETUP]/[RESTORE] 的完整輸出
+  - 附註：作業系統、Pi 版本（pi --version）
 
 ## 🙏 授權
 

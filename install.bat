@@ -53,5 +53,12 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo.
+REM Fallback restore if not run inside setup.py
+if exist scripts\restore.py (
+    echo.
+    echo [INFO] If restore was not run inside setup.py, run:
+    echo     python scripts\restore.py
+    echo.
+)
+
 pause
