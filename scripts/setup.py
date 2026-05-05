@@ -104,15 +104,22 @@ def suggest_node(p):
         print("     1. 開啟瀏覽器：")
         print("        https://github.com/coreybutler/nvm-windows/releases")
         print("     2. 下載最新 nvm-setup.exe 並安裝")
-        print("     3. 重新開啟終端機，執行: nvm install latest")
+        print("     3. 重新開啟終端機，執行: nvm install 22")
         print("     4. 再次執行: install.bat")
     elif p == "macos":
-        print("  => 建議使用 Homebrew 安裝 Node：")
-        print("     brew install node")
+        print("  => 建議使用 nvm 安裝 Node（推薦）：")
+        print("     1. curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash")
+        print("     2. source ~/.bashrc")
+        print("     3. nvm install 22")
+        print("     4. nvm use 22")
+        print("     5. 再次執行: bash install.sh")
     elif p == "linux":
-        print("  => 建議使用套件管理器安裝 Node（範例 apt）：")
-        print("     sudo apt update")
-        print("     sudo apt install -y nodejs npm")
+        print("  => 建議使用 nvm 安裝 Node（推薦，避免系統 Node 衝突）：")
+        print("     1. curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash")
+        print("     2. source ~/.bashrc")
+        print("     3. nvm install 22")
+        print("     4. nvm use 22")
+        print("     5. 再次執行: bash install.sh")
 
 
 # ─── Git Bash detection (Windows) ──────────────────────────
@@ -326,12 +333,29 @@ def main():
     # 2. Check Python (already running, but confirm)
     print("✅ Python 已就緒。")
 
-    # 3. Check Node/npm
+    # 3. Check Node/npm (require >= 20 for Pi)
     if not has_command("node") or not has_command("npm"):
         print("❌ 未偵測到 Node.js 或 npm。")
         suggest_node(p)
         print("請安裝完成並重新開啟終端機，再執行此腳本。\n")
         sys.exit(1)
+
+    # Check Node version
+    try:
+        import subprocess
+        result = subprocess.run(["node", "-v"], capture_output=True, text=True, timeout=5)
+        node_version_str = (result.stdout or "").strip().lstrip("v")
+        # Parse major version
+        node_major = int(node_version_str.split(".")[0])
+        if node_major < 20:
+            print(f"❌ Node.js 版本過低（目前 v{node_version_str}），Pi 要求 Node >= 20。")
+            suggest_node(p)
+            print("請升級 Node 後重新執行此腳本。\n")
+            sys.exit(1)
+    except Exception:
+        # Fallback: if detection fails, still proceed (but warn)
+        print("⚠️ 無法確認 Node.js 版本，若後續安裝失敗，請確認 Node >= 20。\n")
+
     print("✅ Node.js / npm 已就緒。")
     print()
 
