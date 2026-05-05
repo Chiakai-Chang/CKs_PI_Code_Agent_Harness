@@ -18,7 +18,7 @@
 
 若你已安裝 Pi，可直接用 Pi 原生套件管理：
 
-- pi install git:github.com:Chiakai-Chang/CKs_PI_Code_Agent_Harness
+- pi install "git:github.com/Chiakai-Chang/CKs_PI_Code_Agent_Harness"
 
 Pi 會自動：
 - 下載本套件
