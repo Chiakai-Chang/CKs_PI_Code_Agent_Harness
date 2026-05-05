@@ -180,6 +180,53 @@ Pi 與本配置是獨立維護的：
     請手動編輯 ~/.pi/agent/config.json 調整
 - 若出現 skill 命名警告，確認已使用本 repo 最新配置並重新還原
 
+## 🛠️ 常見問題與除錯
+
+如果你在使用時卡住，可依症狀快速檢查：
+
+1) 「pi 指令找不到」
+- 確認 Pi 已安裝：
+  - 執行: pi --help
+- 若找不到，請安裝：
+  - npm install -g @mariozechner/pi-coding-agent
+- 若剛安裝完 pi 仍找不到：
+  - 關閉所有終端機後重新開啟（讓 PATH 生效）
+  - 或重新執行: install.bat / install.sh
+
+2) 「npm install -g 權限不足」（Windows 常見）
+- 現象：安裝 Pi 失敗，出現 EACCES / 權限錯誤。
+- 解法：
+  - 右鍵 install.bat → 以系統管理員身分執行。
+  - 或手動：
+    - 以管理員開啟終端機
+    - 再執行: npm install -g @mariozechner/pi-coding-agent
+
+3) 「找不到 Ollama / LMStudio / 本地模型」
+- 確認服務已啟動：
+  - Ollama: 瀏覽器開啟 http://localhost:11434/api/tags
+  - LMStudio: 確認已啟動且啟用 local server
+- 若服務在跑但仍未偵測到：
+  - 手動編輯 pi-config/settings.json，填入對應 provider 與 model。
+- 常見 port：
+  - Ollama: 11434
+  - LMStudio / llama.cpp: 1234、8080、5000（視你設定）
+
+4) 「restore.sh 無法執行」（Windows 沒有 bash）
+- 解法：
+  - 安裝 Git（含 Git Bash）
+  - 或改用 install.bat，它會自動使用 Git Bash 來執行 restore.sh
+
+5) 「模型設定好像沒生效」
+- 檢查：
+  - pi-config/settings.json 中 defaultProvider / defaultModel 是否正確。
+  - 在 Pi 內確認當前使用的模型，必要時重新開啟 Pi。
+
+6) 「Skill 命名衝突」
+- 若出現 skill name 錯誤：
+  - 確認使用的是本 repo 最新配置。
+  - 執行: git pull
+  - 重新執行: bash scripts/restore.sh
+
 ## 🙏 授權
 
 本專案使用 MIT 授權（可自由修改與使用）。
