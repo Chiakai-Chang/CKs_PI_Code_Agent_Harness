@@ -10,8 +10,29 @@ Includes:
 - restore-commands.md: step-by-step restore guide
 - scripts/restore.sh: automated restore script
 
-Usage:
-- On a new machine:
-  1. Install Node, Git, and Pi.
-  2. Clone this repo.
-  3. Run restore-commands (or scripts/restore.sh).
+What was fixed:
+- 6 skill naming conflicts resolved:
+  - ckm:banner-design -> banner-design
+  - ckm:brand -> brand
+  - ckm:design -> design
+  - ckm:design-system -> design-system
+  - ckm:slides -> slides
+  - ckm:ui-styling -> ui-styling
+  Now all names match their folder and use only allowed characters.
+
+Usage (on a new machine):
+1. Install:
+   - Node.js
+   - Git
+   - Pi (via npm or official installer)
+2. Clone this repo:
+   - git clone git@github.com:Chiakai-Chang/CKs_PI_Code_Agent_Harness.git
+   - cd CKs_PI_Code_Agent_Harness
+3. Run:
+   - pi update
+4. Restore:
+   - Read restore-commands.md
+   - Or run: bash scripts/restore.sh
+5. Adjust local paths:
+   - In pi-config/config.json:
+     - Update paths that reference your local disks (e.g., D:/MyProject/...) to match your new machine.
