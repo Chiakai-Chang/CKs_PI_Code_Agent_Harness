@@ -1,9 +1,10 @@
-﻿{
-    "agents":  [
-                   "D:/MyProject/everything-claude-code/agents"
-               ],
-    "skills":  [
-                   "C:/Users/74221/.pi/agent/skills/caveman",
-                   "D:/MyProject/everything-claude-code/skills"
-               ]
+{
+  "//NOTE": "On a new machine, update any paths marked with TODO_NEW_MACHINE.",
+  "agents": [
+    "TODO_NEW_MACHINE:/path/to/everything-claude-code/agents"
+  ],
+  "skills": [
+    "TODO_NEW_MACHINE:/path/to/pi/agent/skills/caveman",
+    "TODO_NEW_MACHINE:/path/to/everything-claude-code/skills"
+  ]
 }

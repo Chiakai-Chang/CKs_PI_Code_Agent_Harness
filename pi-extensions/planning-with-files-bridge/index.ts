@@ -168,7 +168,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   // Before each agent turn: inject plan context into system prompt
-  pi.on("before_agent_start", (event, _ctx) => {
+  pi.on("before_agent_start", (event, ctx) => {
     if (!hasActivePlan(ctx.cwd) && !hasPlanningDir(ctx.cwd)) return;
 
     const planContext = injectPlanContext(ctx.cwd);
@@ -180,7 +180,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   // After Write/Edit: remind to update progress.md
-  pi.on("tool_result", async (event) => {
+  pi.on("tool_result", async (event, ctx) => {
     if (!hasActivePlan(ctx.cwd)) return;
     const tool = event.toolName;
     if (tool !== "write" && tool !== "edit") return;

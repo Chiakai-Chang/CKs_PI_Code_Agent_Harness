@@ -1,64 +1,49 @@
-# Restore Pi Harness on a New Machine
+# Manual Restore Guide for CK's Pi Code Agent Harness
 
-Run these steps after:
-- Installing Node.js
-- Installing Git
-- Installing Pi (via npm or official method)
+Use this only if you cannot run scripts/restore.sh, or want more control.
 
-## 1. Clone this repo
+Prereqs:
+- Node.js installed
+- Git installed
+- Pi installed (via npm or official method)
 
-git clone git@github.com:Chiakai-Chang/CKs_PI_Code_Agent_Harness.git
-cd CKs_PI_Code_Agent_Harness
-
-## 2. Install Pi packages (recommended)
-
-From the repo root:
-
-- Install context-mode (global npm package, if not yet installed):
-  - npm install -g context-mode
-
-- Run Pi update to ensure latest:
-  - pi update
-
-## 3. Restore Pi config
-
-Let:
+Assume:
+- REPO_ROOT = path to this repo
 - PI_DIR = ~/.pi
 - AGENT_DIR = ~/.pi/agent
 
-Create dirs (if missing):
-- mkdir -p "$PI_DIR/agent"
-- mkdir -p "$AGENT_DIR/skills"
-- mkdir -p "$AGENT_DIR/rules"
-- mkdir -p "$AGENT_DIR/extensions"
-- mkdir -p "$AGENT_DIR/git"
+1. Create directories:
 
-Copy config (adjust paths for your OS):
+   - mkdir -p "$AGENT_DIR/skills"
+   - mkdir -p "$AGENT_DIR/rules"
+   - mkdir -p "$AGENT_DIR/extensions"
+   - mkdir -p "$AGENT_DIR/git"
 
-- cp pi-config/settings.json "$AGENT_DIR/settings.json"
-- cp pi-config/config.json "$AGENT_DIR/config.json"
-- cp pi-config/git/.gitignore "$AGENT_DIR/git/.gitignore"
+2. Copy config:
 
-## 4. Restore skills
+   - cp "$REPO_ROOT/pi-config/settings.json" "$AGENT_DIR/settings.json"
+   - cp "$REPO_ROOT/pi-config/config.json"   "$AGENT_DIR/config.json"
+   - cp "$REPO_ROOT/pi-config/git/.gitignore" "$AGENT_DIR/git/.gitignore"
 
-- cp -r pi-skills/* "$AGENT_DIR/skills/"
+   Then edit "$AGENT_DIR/config.json":
+   - Replace any "TODO_NEW_MACHINE" prefixes with your actual HOME path.
+   - Adjust external paths (e.g., everything-claude-code) as needed.
 
-If you had external skills referenced in config.json (e.g., everything-claude-code),
-you must either:
-- Re-create those paths, or
-- Edit config.json to remove those references.
+3. Copy skills:
 
-## 5. Restore rules
+   - cp -r "$REPO_ROOT/pi-skills/"* "$AGENT_DIR/skills/"
 
-- cp -r pi-rules/* "$AGENT_DIR/rules/"
+4. Copy rules:
 
-## 6. Restore extensions
+   - cp -r "$REPO_ROOT/pi-rules/"* "$AGENT_DIR/rules/"
 
-- cp -r pi-extensions/* "$AGENT_DIR/extensions/"
+5. Copy extensions:
 
-## 7. Verify
+   - cp -r "$REPO_ROOT/pi-extensions/"* "$AGENT_DIR/extensions/"
 
-- Open Pi and confirm:
-  - No skill naming conflicts
-  - Extensions loaded
-  - Rules visible
+6. Finalize:
+
+   - pi update
+   - Open Pi and confirm:
+     - No skill naming conflicts
+     - Extensions loaded
