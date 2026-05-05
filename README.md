@@ -251,6 +251,31 @@ Pi 與本配置是獨立維護的：
 
 </details>
 
+## 🌟 技能來源與感謝
+
+本套件參考以下開源專案的 Skills 與 Plugins 進行強化：
+
+- 基礎技能（Core）：
+  - brainstorming, planning-with-files, systematic-debugging, test-driven-development, karpathy-guidelines, understanding 系列等，皆源自 Pi 原生 skills 或開源社群貢獻
+- 特殊用途：
+  - caveman（精簡模式）：參考 https://github.com/juliusbrussee/caveman
+  - karpathy-guidelines：參考 https://github.com/forrestchang/andrej-karpathy-skills
+  - dev-browser（瀏覽器自動化）：參考 https://github.com/SawyerHood/dev-browser
+  - chrome-cdp（Chrome DevTools 通訊）：參考 https://github.com/pasky/chrome-cdp-skill
+  - prompt-master（提示工程）：參考 https://github.com/nidhinjs/prompt-master
+  - superpowers（能力強化）：參考 https://github.com/obra/superpowers
+  - ui-ux-pro-max / ui-styling / design / brand / slides / banner-design：參考 https://github.com/nextlevelbuilder/ui-ux-pro-max-skill
+  - nothing-design：參考 https://github.com/dominikmartn/nothing-design-skill
+  - Understand 系列（程式碼理解）：參考 https://github.com/Lum1104/Understand-Anything
+  - Everything Claude Code（完整流程）：參考 https://github.com/affaan-m/everything-claude-code
+- 授權：
+  - 大部分技能採用 MIT 授權（可自由修改與使用）
+  - 若有標示作者或授權，皆依其原始條款使用
+- 用途：
+  - 這些技能可獨立使用，亦可搭配其他專案
+  - 我們希望透過整合，提供更完整的 AI 開發體驗
+  - 也鼓勵你參考這些專案，將它們應用到其他場景
+
 ## 🙏 感謝與來源
 
 - Pi (Coding Agent Harness)：
