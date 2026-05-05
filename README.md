@@ -217,6 +217,13 @@ Pi 與本配置是獨立維護的：
 
 </details>
 
-## 🙏 授權
+## 🙏 感謝與來源
+
+- Pi (Coding Agent Harness)：
+  - 原始專案：https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent
+- 本套件中的部分 skills、rules 與 utilities 源自開源社群與相關專案。
+  - 若有標示作者或授權，皆依其原始條款使用。
+
+## 📜 授權
 
 本專案使用 MIT 授權（可自由修改與使用）。
