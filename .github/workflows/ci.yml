@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check Python syntax (setup.py / restore.py)
+        run: |
+          python -m py_compile scripts/setup.py
+          python -m py_compile scripts/restore.py
+
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: shellcheck restore.sh
+        run: |
+          shellcheck scripts/restore.sh
+
+      - name: Validate JSON files
+        run: |
+          python -c "
+          import json, sys, pathlib
+          base = pathlib.Path('.').resolve()
+          errors = []
+          for p in list(base.glob('pi-config/**/*.json')) + list(base.glob('*.json')):
+              if not p.is_file():
+                  continue
+              try:
+                  json.loads(p.read_text())
+              except Exception as e:
+                  errors.append(f'{p}: {e}')
+          if errors:
+              print('JSON validation errors:')
+              for m in errors:
+                  print(m)
+              sys.exit(1)
+          print('All JSON files are valid.')
+          "
