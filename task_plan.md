@@ -5,7 +5,7 @@
 >
 > **Method:** 10-round MECE expert roundtable → concrete implementation plan.
 
-## Status: PLAN READY — awaiting execution
+## Status: DONE — P0 merged to main
 
 ## Phases
 
@@ -36,11 +36,11 @@ Derived from MECE discussion. Will be broken down into TDD-style tasks in Phase 
 
 | # | Task | Priority | Status |
 |---|------|----------|--------|
-| T1 | README 重構（3分鐘快速開始 + 信任檢查清單） | 🔴 P0 | pending |
-| T2 | install.bat 改進（信任聲明 + 進度 + 冪等） | 🔴 P0 | pending |
-| T3 | setup.py 改進（--auto 模式 + LLM 友善提示） | 🔴 P0 | pending |
-| T4 | 新增 uninstall.py | 🔴 P0 | pending |
-| T5 | install.sh 改進（對稱 install.bat） | 🔴 P0 | pending |
+| T1 | README 重構（3分鐘快速開始 + 信任檢查清單） | 🔴 P0 | ✅ done |
+| T2 | install.bat 改進（信任聲明 + 進度 + 冪等） | 🔴 P0 | ✅ done |
+| T3 | setup.py 改進（--auto 模式 + LLM 友善提示） | 🔴 P0 | ✅ done |
+| T4 | 新增 uninstall.py | 🔴 P0 | ✅ done |
+| T5 | install.sh 改進（對稱 install.bat） | 🔴 P0 | ✅ done |
 | T6 | Windows GUI 安裝器（setup.exe） | 🟡 P1 | pending |
 | T7 | macOS/Linux 一鍵腳本（brew bundle / apt） | 🟡 P1 | pending |
 | T8 | CI / Docker 範例 | 🟡 P1 | pending |
