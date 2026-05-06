@@ -22,11 +22,19 @@ import time
 import urllib.request
 import urllib.error
 import webbrowser
+import argparse
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 PI_CONFIG_DIR = os.path.join(REPO_ROOT, "pi-config")
 SETTINGS_PATH = os.path.join(PI_CONFIG_DIR, "settings.json")
 HARNESS_CONFIG_PATH = os.path.join(PI_CONFIG_DIR, "harness-config.json")
+
+AUTO_MODE = False
+
+def prompt_yes(prompt):
+    if AUTO_MODE:
+        return "y"
+    return input(prompt).strip().lower()
 
 # ─── Utilities ──────────────────────────────────────────────
 
@@ -274,7 +282,7 @@ def check_harness_version():
     if pv < mv:
         print(f"  ⚠️  目前 Pi 版本低於建議版本 ({min_recommended})，部分功能可能不穩定。")
         print("     建議執行: pi update")
-        ans = input("  是否現在更新 Pi？(y/N): ").strip().lower()
+        ans = prompt_yes("  是否現在更新 Pi？(y/N): ")
         if ans in ("y", "yes"):
             run("pi update")
     else:
@@ -431,6 +439,14 @@ def run_restore(git_bash, p):
 # ─── Main Flow ──────────────────────────────────────────────
 
 def main():
+    parser = argparse.ArgumentParser(description="CK's Pi Code Agent Harness - Setup")
+    parser.add_argument("--auto", action="store_true",
+                        help="Non-interactive mode with sensible defaults (for CI / advanced users)")
+    args = parser.parse_args()
+
+    global AUTO_MODE
+    AUTO_MODE = args.auto
+
     p = detect_platform()
 
     print("=" * 60)
@@ -480,7 +496,7 @@ def main():
     # 4. Check Pi (stream output so user sees progress)
     if not has_command("pi"):
         print("❌ 未偵測到 pi 命令。")
-        ans = input("  是否現在安裝 Pi？ (y/N): ").strip().lower()
+        ans = prompt_yes("  是否現在安裝 Pi？ (y/N): ")
         if ans in ("y", "yes"):
             print("  正在安裝 Pi（全域）... 以下為安裝進度，請等待...")
             ok = run_stream("npm install -g @mariozechner/pi-coding-agent")
@@ -498,7 +514,7 @@ def main():
             print("     npm install -g @mariozechner/pi-coding-agent")
             sys.exit(1)
     else:
-        ans = input("  是否更新 Pi 到最新版？ (y/N): ").strip().lower()
+        ans = prompt_yes("  是否更新 Pi 到最新版？ (y/N): ")
         if ans in ("y", "yes"):
             print("  正在更新 Pi ... 以下為更新進度，請等待...")
             run_stream("pi update")
@@ -527,7 +543,15 @@ def main():
     selected_api_base = None
 
     if not all_models:
-        print("  未偵測到本地 LLM 服務或模型。你可以稍後手動調整 models.json。")
+        print("  [INFO] No local LLM detected.")
+        print("  You can:")
+        print("    - Install Ollama (recommended): https://ollama.ai")
+        print("      Windows: winget install Ollama.Ollama")
+        print("      macOS:   brew install ollama")
+        print("      Then re-run this script to auto-configure.")
+        print("    - Or configure a cloud API key later (edit pi-config/settings.json)")
+        print("    - Or skip and configure manually.")
+        print("  This is not required to continue.")
     else:
         print("  發現以下模型:")
         for i, (prov, model) in enumerate(all_models, start=1):
@@ -593,7 +617,7 @@ def main():
         print("  [INFO] 未選擇模型，models.json 尚未生成。你可稍後手動調整。")
 
     # 9. Ask to run restore
-    run_restore_flag = input("  是否執行還原配置到 ~/.pi/agent？ (Y/n): ").strip().lower()
+    run_restore_flag = prompt_yes("  是否執行還原配置到 ~/.pi/agent？ (Y/n): ")
     if run_restore_flag not in ("n", "no"):
         run_restore(git_bash, p)
     else:

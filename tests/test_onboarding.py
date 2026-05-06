@@ -49,6 +49,24 @@ def test_install_bat_has_confirmation_prompt():
     assert "Continue?" in content or "繼續" in content, "install.bat must ask for confirmation"
 
 
+def test_setup_py_supports_auto_mode():
+    content = read_file("scripts/setup.py")
+    assert "argparse" in content, "setup.py should use argparse for --auto"
+    assert "--auto" in content, "setup.py must support --auto flag"
+
+
+def test_setup_py_has_llm_friendly_message():
+    content = read_file("scripts/setup.py")
+    assert any(kw in content for kw in [
+        "No local LLM",
+        "No LLM detected",
+        "未偵測到本地 LLM",
+        "install Ollama",
+        "稍後",
+        "skip"
+    ]), "setup.py must guide user when no LLM detected"
+
+
 def test_readme_shows_one_command():
     """README must show a single git clone + install command near top."""
     content = read_readme()
