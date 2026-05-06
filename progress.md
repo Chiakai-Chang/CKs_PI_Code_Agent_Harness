@@ -12,9 +12,10 @@
 - [x] Created progress.md (this file)
 
 ### Next
-- [ ] Commit + push planning artifacts
-- [ ] Write TDD-style implementation plan (writing-plans skill)
-- [ ] Execute via subagent-driven development
+- [x] Commit + push planning artifacts
+- [x] Write TDD-style implementation plan (writing-plans skill)
+- [ ] Create feature branch
+- [ ] Execute via subagent-driven development (or inline with executing-plans)
 
 ### Notes
 - P0 focus: new user, zero Pi experience, scared of terminal

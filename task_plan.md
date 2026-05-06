@@ -5,7 +5,7 @@
 >
 > **Method:** 10-round MECE expert roundtable → concrete implementation plan.
 
-## Status: PLANNING
+## Status: PLAN READY — awaiting execution
 
 ## Phases
 
@@ -16,13 +16,13 @@
 - [x] task_plan.md (this file)
 - [x] findings.md
 - [x] progress.md
-- [ ] Commit + push
+- [x] Commit + push
 
 ### Phase 2: Detailed Implementation Plan (writing-plans style)
-- [ ] Write TDD-style implementation plan:
+- [x] Write TDD-style implementation plan:
   - docs/superpowers/plans/2025-05-06-one-click-onboarding.md
   - Each task: exact files, exact tests, exact code, exact commands
-- [ ] Self-review plan
+- [x] Self-review plan
 
 ### Phase 3: Execute via Subagent-Driven Development
 - [ ] Create feature branch
