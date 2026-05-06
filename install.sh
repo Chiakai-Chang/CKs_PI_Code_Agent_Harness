@@ -15,6 +15,27 @@ echo "============================================================"
 echo " CK's Pi Code Agent Harness - One-Click Installer"
 echo "============================================================"
 echo ""
+echo "This script will:"
+echo "  - Check Git / Python / Node.js"
+echo "  - Install Pi (AI coding assistant)"
+echo "  - Apply dev skills and rules"
+echo "  - Scan local LLM services (Ollama, etc.)"
+echo ""
+echo "It will NOT:"
+echo "  - Collect personal data"
+echo "  - Call external tracking APIs"
+echo "  - Modify system environment variables"
+echo ""
+echo "Source:"
+echo "  GitHub: https://github.com/Chiakai-Chang/CKs_PI_Code_Agent_Harness"
+echo "  License: MIT"
+echo ""
+read -p "Continue? (y/N): " CONFIRM
+if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
+    echo "Installation cancelled."
+    exit 0
+fi
+echo ""
 
 if ! command -v python3 &> /dev/null; then
   echo "[!] python3 not found. Please install Python first:"

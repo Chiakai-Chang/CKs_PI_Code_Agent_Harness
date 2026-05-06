@@ -55,6 +55,18 @@ def test_setup_py_supports_auto_mode():
     assert "--auto" in content, "setup.py must support --auto flag"
 
 
+def test_install_sh_has_trust_statement():
+    content = read_file("install.sh")
+    assert any(kw in content for kw in [
+        "trust", "Trust", "MIT", "Source", "Source:"
+    ]), "install.sh must include a short trust/source statement"
+
+
+def test_install_sh_has_confirmation_prompt():
+    content = read_file("install.sh")
+    assert "Continue?" in content or "continue" in content.lower(), "install.sh must ask for confirmation"
+
+
 def test_uninstall_script_exists():
     path = os.path.join(ROOT, "scripts", "uninstall.py")
     assert os.path.isfile(path), "scripts/uninstall.py must exist"
