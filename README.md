@@ -5,6 +5,36 @@
 這是一個可攜式 Pi 配置，讓你在任何一台電腦上，都能快速重建相同的 AI 開發環境。
 不用手動拷貝設定、不用重頭調整 skills 與 rules，跑一支指令即可完成。
 
+## 🚀 3 分鐘快速開始
+
+如果你從未使用過 Pi，只需：
+
+1. 安裝 Git（若尚未安裝）
+2. 執行：
+
+   ```
+   git clone https://github.com/Chiakai-Chang/CKs_PI_Code_Agent_Harness.git
+   cd CKs_PI_Code_Agent_Harness
+   ```
+
+3. 執行：
+   - Windows: `.\\install.bat`
+   - macOS / Linux: `bash install.sh`
+4. 依照畫面提示操作
+5. 完成後，執行: `pi`
+
+就這樣！
+
+## ✅ 信任檢查清單
+
+- 開源（MIT 授權），程式碼可審計
+- 不收集使用資料
+- 不呼叫外部追蹤 API
+- 不修改系統環境變數
+- 不偷偷安裝不明軟體
+
+詳情與更多說明請向下捲動。
+
 ### 核心特色
 
 - 一鍵安裝與還原（Windows 為主，macOS / Linux 亦可）
