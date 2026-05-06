@@ -27,6 +27,28 @@ def test_readme_has_trust_section():
     ]), "README must have a trust checklist near top"
 
 
+def read_file(path):
+    with open(os.path.join(ROOT, path), "r", encoding="utf-8") as f:
+        return f.read()
+
+
+def test_install_bat_has_trust_statement():
+    content = read_file("install.bat")
+    assert any(kw in content for kw in [
+        "trust", "Trust", "MIT", "開源", "Source", "Source:"
+    ]), "install.bat must include a short trust/source statement"
+
+
+def test_install_bat_has_progress_indicators():
+    content = read_file("install.bat")
+    assert re.search(r"\[\d+/\d+\]", content), "install.bat should show progress markers"
+
+
+def test_install_bat_has_confirmation_prompt():
+    content = read_file("install.bat")
+    assert "Continue?" in content or "繼續" in content, "install.bat must ask for confirmation"
+
+
 def test_readme_shows_one_command():
     """README must show a single git clone + install command near top."""
     content = read_readme()
