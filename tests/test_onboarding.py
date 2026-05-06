@@ -55,6 +55,17 @@ def test_setup_py_supports_auto_mode():
     assert "--auto" in content, "setup.py must support --auto flag"
 
 
+def test_uninstall_script_exists():
+    path = os.path.join(ROOT, "scripts", "uninstall.py")
+    assert os.path.isfile(path), "scripts/uninstall.py must exist"
+
+
+def test_uninstall_script_is_executable_style():
+    content = read_file("scripts/uninstall.py")
+    assert "if __name__" in content, "uninstall.py must be runnable as script"
+    assert "backup" in content.lower() or "restore" in content.lower(), "uninstall.py must mention backup/restore"
+
+
 def test_setup_py_has_llm_friendly_message():
     content = read_file("scripts/setup.py")
     assert any(kw in content for kw in [
