@@ -310,13 +310,54 @@ def has_intel_arc():
     return False
 
 
+# ─── Hardware Detection ──────────────────────────────────────
+
+def get_hardware_info():
+    """
+    Gather basic RAM and VRAM info (zero-dependency).
+    """
+    info = {"ram": None, "vram": None}
+    sys_p = platform.system().lower()
+
+    # System RAM
+    try:
+        if sys_p == "windows":
+            # wmic is faster than systeminfo
+            ok, out, _ = run("wmic computersystem get TotalPhysicalMemory")
+            if ok:
+                val = re.search(r'\d+', out)
+                if val: info["ram"] = int(val.group()) // (1024**3)
+        elif sys_p == "macos":
+            ok, out, _ = run("sysctl hw.memsize")
+            if ok:
+                val = re.search(r'\d+', out)
+                if val: info["ram"] = int(val.group()) // (1024**3)
+        else: # Linux
+            with open("/proc/meminfo", "r") as f:
+                mem = f.readline()
+                val = re.search(r'\d+', mem)
+                if val: info["ram"] = int(val.group()) // (1024**2)
+    except: pass
+
+    # NVIDIA VRAM
+    try:
+        ok, out, _ = run("nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits")
+        if ok and out:
+            # Might have multiple GPUs, take the first one or sum them
+            vrams = [int(x) for x in re.findall(r'\d+', out)]
+            if vrams: info["vram"] = sum(vrams) // 1024
+    except: pass
+
+    return info
+
+
 # ─── Model helper (v0.73+ models.json format) ─────────────
 
 import re
 
-def get_recommended_specs(model_id):
+def get_recommended_specs(model_id, hw):
     """
-    Dynamically recommend specs based on model name patterns (e.g., 7b, 27b, qwen).
+    Dynamically recommend specs based on model patterns and hardware.
     """
     mid = (model_id or "").lower()
     
@@ -331,8 +372,8 @@ def get_recommended_specs(model_id):
     
     # 2. Detect Series Features
     if "qwen" in mid:
-        ctx = 32768 # Qwen usually supports larger context by default
-        reasoning = True # Qwen series in pi usually benefits from reasoning flag
+        ctx = 32768
+        reasoning = True
     
     # 3. Size-based heuristics
     match = re.search(r'([0-9]+)b', mid)
@@ -342,20 +383,30 @@ def get_recommended_specs(model_id):
             ctx = 32768
             max_t = 8192
         elif size >= 27:
-            ctx = 131072 # Modern mid-large models (27-35B) often target 128k
+            ctx = 131072
             max_t = 16384
     
-    # 4. Explicit latest models (e.g., Qwen 3.6)
+    # 4. Explicit latest models
     if "3.6" in mid:
         ctx = 196608
         max_t = 32768
+
+    # 5. Hardware Capping (Safety Rail)
+    # If VRAM is known and small, or RAM is small, be more conservative
+    vram = hw.get("vram")
+    ram = hw.get("ram")
+
+    if vram and vram < 12 and ctx > 32768:
+        ctx = 32768 # Cap for low VRAM
+    elif not vram and ram and ram < 16 and ctx > 16384:
+        ctx = 8192 # Cap for low RAM (CPU inference)
 
     return ctx, max_t, reasoning
 
 
 def build_models_json(selected_provider, selected_model, selected_api_base):
     """
-    Build models.json in v0.73+ format with user-validated heuristics.
+    Build models.json in v0.73+ format with hardware-aware heuristics.
     """
     if not selected_provider or not selected_model or not selected_api_base:
         return None
@@ -374,8 +425,11 @@ def build_models_json(selected_provider, selected_model, selected_api_base):
     if has_intel_arc():
         model_label += " (Intel Arc SYCL)"
 
+    # Hardware Check
+    hw = get_hardware_info()
+
     # Get recommended specs
-    rec_ctx, rec_max_t, rec_reasoning = get_recommended_specs(selected_model)
+    rec_ctx, rec_max_t, rec_reasoning = get_recommended_specs(selected_model, hw)
 
     # Interactive Step (Skip if in AUTO_MODE)
     final_ctx = rec_ctx
@@ -383,15 +437,20 @@ def build_models_json(selected_provider, selected_model, selected_api_base):
     final_reasoning = rec_reasoning
 
     if not AUTO_MODE:
-        print("\n" + "-" * 50)
-        print(f"  [智選模型配置] 針對：{selected_model}")
+        print("\n" + "=" * 50)
+        print(f"  [硬體偵測系統]")
+        if hw['ram']: print(f"  - 系統記憶體 (RAM): {hw['ram']} GB")
+        if hw['vram']: print(f"  - 顯示記憶體 (VRAM): {hw['vram']} GB (NVIDIA)")
+        else: print(f"  - 顯示記憶體 (VRAM): 未偵測到 NVIDIA GPU")
+        
+        print(f"\n  [智選模型建議] 針對：{selected_model}")
         print(f"  系統推薦參數：")
         print(f"    - Context Window: {rec_ctx}")
         print(f"    - Max Tokens:     {rec_max_t}")
         print(f"    - Reasoning Mode: {'開啟' if rec_reasoning else '關閉'}")
-        print("-" * 50)
+        print("=" * 50)
         
-        print("  說明：Context Window 取決於您的 VRAM/RAM，設太大可能導致運行緩慢。")
+        print("  說明：Context Window 與硬體呈正相關，設太大可能導致 OOM 或極慢。")
         ans = input("  是否套用推薦值？(Y/n) 或輸入 'm' 進行手動調整: ").strip().lower()
         
         if ans == 'm':
