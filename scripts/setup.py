@@ -599,200 +599,166 @@ def run_restore(git_bash, p):
 def main():
     parser = argparse.ArgumentParser(description="CK's Pi Code Agent Harness - Setup")
     parser.add_argument("--auto", action="store_true",
-                        help="Non-interactive mode with sensible defaults (for CI / advanced users)")
+                        help="Non-interactive mode with sensible defaults")
+    parser.add_argument("--mode", choices=["full", "model", "restore"], default="full",
+                        help="Operating mode: full setup, model switch only, or restore only")
     args = parser.parse_args()
 
     global AUTO_MODE
     AUTO_MODE = args.auto
+    mode = args.mode
 
     p = detect_platform()
 
     print("=" * 60)
-    print(" CK's Pi Code Agent Harness – 環境檢查與設定")
+    print(" CK's Pi Code Agent Harness – 環境與配置管理")
     print("=" * 60)
+    
+    if mode == "full":
+        print(f"  [模式] 完整環境檢查與安裝")
+    elif mode == "model":
+        print(f"  [模式] 僅切換/配置本地模型")
+    elif mode == "restore":
+        print(f"  [模式] 僅還原 Skills 與 Extensions")
+    
     print(f"  偵測系統: {platform.system()}")
     if not is_admin():
-        print("  目前非管理員/非 root（部分安裝指令可能需要提權）")
+        print("  目前非管理員/非 root（部分指令可能受限）")
     print()
 
-    # 1. Check Git
-    if not has_command("git"):
-        print("❌ 未偵測到 Git。")
-        suggest_git(p)
-        print("請安裝完成後，重新執行此腳本。\n")
-        sys.exit(1)
-    else:
-        print("✅ 已偵測到 Git。")
+    # --- Mode: Restore Only ---
+    if mode == "restore":
+        git_bash = detect_git_bash(p)
+        run_restore(git_bash, p)
+        return
 
-    # 2. Check Python (already running, but confirm)
-    print("✅ Python 已就緒。")
-
-    # 3. Check Node/npm (require >= 20 for Pi)
-    if not has_command("node") or not has_command("npm"):
-        print("❌ 未偵測到 Node.js 或 npm。")
-        suggest_node(p)
-        print("請安裝完成並重新開啟終端機，再執行此腳本。\n")
-        sys.exit(1)
-
-    # Check Node version
-    try:
-        import subprocess
-        result = subprocess.run(["node", "-v"], capture_output=True, text=True, timeout=5)
-        node_version_str = (result.stdout or "").strip().lstrip("v")
-        node_major = int(node_version_str.split(".")[0])
-        if node_major < 20:
-            print(f"❌ Node.js 版本過低（目前 v{node_version_str}），Pi 要求 Node >= 20。")
-            suggest_node(p)
-            print("請升級 Node 後重新執行此腳本。\n")
+    # --- Mode: Full (Environment Checks) ---
+    if mode == "full":
+        # 1. Check Git
+        if not has_command("git"):
+            print("❌ 未偵測到 Git。")
+            suggest_git(p)
             sys.exit(1)
-    except Exception:
-        print("⚠️ 無法確認 Node.js 版本，若後續安裝失敗，請確認 Node >= 20。\n")
-
-    print("✅ Node.js / npm 已就緒。")
-    print()
-
-    # 4. Check Pi (stream output so user sees progress)
-    if not has_command("pi"):
-        print("❌ 未偵測到 pi 命令。")
-        ans = prompt_yes("  是否現在安裝 Pi？ (y/N): ")
-        if ans in ("y", "yes"):
-            print("  正在安裝 Pi（全域）... 以下為安裝進度，請等待...")
-            ok = run_stream("npm install -g @mariozechner/pi-coding-agent")
-            if not ok:
-                print("  ⚠️ 安裝失敗，可能需要管理員權限。")
-                if p == "windows":
-                    print("     請嘗試：以系統管理員身分開啟終端機，重新執行 install.bat")
-                else:
-                    print("     請嘗試加上 sudo 重新執行 npm install -g @mariozechner/pi-coding-agent")
-                print()
-                sys.exit(1)
-            print("  ✅ Pi 安裝完成。")
         else:
-            print("  請手動安裝 Pi 後，重新執行此腳本。")
-            print("     npm install -g @mariozechner/pi-coding-agent")
+            print("✅ 已偵測到 Git。")
+
+        # 2. Check Python
+        print("✅ Python 已就緒。")
+
+        # 3. Check Node/npm
+        if not has_command("node") or not has_command("npm"):
+            print("❌ 未偵測到 Node.js 或 npm。")
+            suggest_node(p)
             sys.exit(1)
-    else:
-        ans = prompt_yes("  是否更新 Pi 到最新版？ (y/N): ")
-        if ans in ("y", "yes"):
-            print("  正在更新 Pi ... 以下為更新進度，請等待...")
-            run_stream("pi update")
-            print("  ✅ 完成。")
 
-    # 4.1 Harness & Pi version check (non-blocking)
-    check_harness_version()
-    print()
+        # Node version check
+        try:
+            result = subprocess.run(["node", "-v"], capture_output=True, text=True, timeout=5)
+            node_version_str = (result.stdout or "").strip().lstrip("v")
+            node_major = int(node_version_str.split(".")[0])
+            if node_major < 20:
+                print(f"❌ Node.js 版本過低 (v{node_version_str})，Pi 要求 >= 20。")
+                suggest_node(p)
+                sys.exit(1)
+        except: pass
+        print("✅ Node.js / npm 已就緒。")
 
-    # 5. Detect Git Bash (Windows)
-    git_bash = detect_git_bash(p)
-    if git_bash:
-        print(f"✅ 偵測到 Git Bash: {git_bash}")
-    else:
-        git_bash = None
-        if p == "windows":
-            print("⚠️ 未偵測到 Git Bash，settings.json 中的 shellPath 需手動設定。")
+        # 4. Check Pi
+        if not has_command("pi"):
+            print("❌ 未偵測到 pi 命令。")
+            ans = prompt_yes("  是否現在安裝 Pi？ (y/N): ")
+            if ans in ("y", "yes"):
+                run_stream("npm install -g @mariozechner/pi-coding-agent")
+            else:
+                sys.exit(1)
+        else:
+            ans = prompt_yes("  是否更新 Pi 到最新版？ (y/N): ")
+            if ans in ("y", "yes"):
+                run_stream("pi update")
+        
+        check_harness_version()
         print()
 
-    # 6. Detect Local LLM
-    print("  正在掃描本地 LLM 服務（Ollama / LMStudio / llama.cpp 等）...")
-    
-    # Check if user already has a config (for existing users migration)
-    agent_models_path = os.path.join(os.path.expanduser("~"), ".pi", "agent", "models.json")
-    has_existing_config = os.path.exists(agent_models_path)
-    
-    all_models = detect_llm_services()
+    # --- Mode: Full or Model (LLM Setup) ---
+    if mode in ["full", "model"]:
+        git_bash = detect_git_bash(p)
+        if mode == "full" and git_bash:
+            print(f"✅ 偵測到 Git Bash: {git_bash}")
 
-    selected_provider = None
-    selected_model = None
-    selected_api_base = None
-
-    if not all_models:
-        print("  [提示] 未偵測到運行中的本地 LLM 服務。")
-        if has_existing_config:
-            print("  [資訊] 您已有現存配置，將保留原樣。")
-        else:
-            print("  建議：\n    - 安裝 Ollama: https://ollama.ai\n    - 或啟動 LMStudio / llama.cpp\n    - 然後重新執行此腳本以進行智慧配置。")
-    else:
-        if has_existing_config:
-            print(f"  [偵測] 發現現有 Pi 配置。您可以選擇一個模型來「升級」或「切換」為 Harness 智慧參數。")
+        print("  正在掃描本地 LLM 服務...")
+        agent_models_path = os.path.join(os.path.expanduser("~"), ".pi", "agent", "models.json")
+        has_existing_config = os.path.exists(agent_models_path)
         
-        print("  發現以下模型:")
-        for i, (prov, model) in enumerate(all_models, start=1):
-            if prov.startswith("http"):
-                print(f"  [{i}] {model} (API: {prov})")
-            else:
-                print(f"  [{i}] {model} (Provider: {prov})")
-        print("  [0] 不自動設定，稍後手動調整")
+        all_models = detect_llm_services()
 
-        try:
-            choice_str = input("  請選擇模型編號: ").strip()
-            choice = int(choice_str) if choice_str else 0
-        except:
-            choice = 0
+        selected_provider = None
+        selected_model = None
+        selected_api_base = None
 
-        if choice != 0 and 0 < choice <= len(all_models):
-            prov, model = all_models[choice - 1]
-            if prov.startswith("http"):
-                selected_api_base = prov
-                selected_provider = "custom-openai-compatible"
-            else:
-                selected_provider = prov  # e.g., "ollama"
-            selected_model = model
-            # For ollama, set apiBase
-            if selected_provider == "ollama":
-                selected_api_base = "http://localhost:11434"
-            print(f"  已選擇: {selected_model}")
+        if not all_models:
+            print("  [提示] 未偵測到運行中的本地 LLM。")
+            if has_existing_config:
+                print("  [資訊] 將保留您現有的配置。")
         else:
-            print("  未選擇模型，將保留原有設定或手動調整。")
-    print()
+            if has_existing_config:
+                print(f"  [偵測] 發現現有配置。您可以選擇一個模型來「升級/切換」。")
+            
+            print("  發現以下模型:")
+            for i, (prov, model) in enumerate(all_models, start=1):
+                label = f"API: {prov}" if prov.startswith("http") else f"Provider: {prov}"
+                print(f"  [{i}] {model} ({label})")
+            print("  [0] 不自動設定，保持現狀")
 
-    # 7. Prepare settings.json
-    settings = load_json(SETTINGS_PATH)
+            try:
+                choice_str = input("  請選擇模型編號: ").strip()
+                choice = int(choice_str) if choice_str else 0
+            except: choice = 0
 
-    # shellPath
-    if git_bash:
-        settings["shellPath"] = git_bash
+            if choice != 0 and 0 < choice <= len(all_models):
+                prov, model = all_models[choice - 1]
+                selected_provider = "custom-openai-compatible" if prov.startswith("http") else prov
+                selected_model = model
+                selected_api_base = prov if prov.startswith("http") else ("http://localhost:11434" if prov == "ollama" else None)
+                print(f"  已選擇: {selected_model}")
+            else:
+                print("  未更動模型設定。")
 
-    # model
-    if selected_provider:
-        settings["defaultProvider"] = selected_provider
-        settings["defaultModel"] = selected_model
-        if selected_api_base:
-            settings["apiBase"] = selected_api_base
+        # Save configs
+        if selected_provider:
+            # Update settings.json
+            settings = load_json(SETTINGS_PATH)
+            if git_bash: settings["shellPath"] = git_bash
+            settings["defaultProvider"] = selected_provider
+            settings["defaultModel"] = selected_model
+            if selected_api_base: settings["apiBase"] = selected_api_base
+            if "packages" not in settings:
+                settings["packages"] = ["npm:context-mode", "npm:@tintinweb/pi-tasks"]
+            save_json(SETTINGS_PATH, settings)
+            print("✅ 已更新 pi-config/settings.json")
 
-    # ensure packages list exists
-    if "packages" not in settings:
-        settings["packages"] = [
-            "npm:context-mode",
-            "npm:@tintinweb/pi-tasks"
-        ]
+            # Update models.json
+            models_data = build_models_json(selected_provider, selected_model, selected_api_base)
+            if models_data:
+                save_json(os.path.join(PI_CONFIG_DIR, "models.json"), models_data)
+                print("✅ 已更新 pi-config/models.json")
 
-    save_json(SETTINGS_PATH, settings)
-    print("✅ 已寫入 pi-config/settings.json")
-
-    # 8. Generate models.json (v0.73+ format)
-    if selected_provider:
-        models_data = build_models_json(selected_provider, selected_model, selected_api_base)
-        if models_data:
-            models_json_path = os.path.join(PI_CONFIG_DIR, "models.json")
-            save_json(models_json_path, models_data)
-            print("✅ 已寫入 pi-config/models.json (v0.73+ 格式)")
-    else:
-        print("  [INFO] 未選擇模型，models.json 尚未生成。你可稍後手動調整。")
-
-    # 9. Ask to run restore
-    run_restore_flag = prompt_yes("  是否執行還原配置到 ~/.pi/agent？ (Y/n): ")
-    if run_restore_flag not in ("n", "no"):
-        run_restore(git_bash, p)
-    else:
-        print("  已跳過還原步驟。你可稍後執行: python scripts/restore.py")
+        # Finally, run restore if in full mode or if user switched models
+        if mode == "full":
+            run_restore_flag = prompt_yes("  是否執行還原配置到 ~/.pi/agent？ (Y/n): ")
+            if run_restore_flag not in ("n", "no"):
+                run_restore(git_bash, p)
+        elif selected_provider:
+            # If they just switched models, we MUST restore at least the config files
+            print("  正在同步新配置到 Pi 代理目錄...")
+            run_restore(git_bash, p)
 
     print()
     print("=" * 60)
-    print(" 下一步：")
+    print(" 完成！")
     print("  1. 執行: pi")
-    print("  2. 確認 Skills、Extensions 是否正常")
-    print("  3. 若需調整模型或路徑，可編輯 pi-config/settings.json 或 models.json")
+    print("  2. 確認 Skills 與模型是否如預期運作")
     print("=" * 60)
+
 
 
 if __name__ == "__main__":

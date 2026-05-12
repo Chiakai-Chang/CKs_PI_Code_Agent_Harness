@@ -1,101 +1,73 @@
 #!/usr/bin/env bash
 #
-# CK's Pi Code Agent Harness - One-Click Installer (macOS / Linux)
-#
-# Usage:
-#   ./install.sh
-#   or
-#   bash install.sh
+# CK's Pi Code Agent Harness - Environment Manager
 #
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-clear
-echo "============================================================"
-echo " CK's Pi Code Agent Harness - One-Click Installer"
-echo "============================================================"
-echo ""
-echo "This script will:"
-echo "  - Check Git / Python / Node.js"
-echo "  - Install Pi (AI coding assistant)"
-echo "  - Apply dev skills and rules"
-echo "  - Scan local LLM services (Ollama, etc.)"
-echo ""
-echo "It will NOT:"
-echo "  - Collect personal data"
-echo "  - Call external tracking APIs"
-echo "  - Modify system environment variables"
-echo ""
-echo "Source:"
-echo "  GitHub: https://github.com/Chiakai-Chang/CKs_PI_Code_Agent_Harness"
-echo "  License: MIT"
-echo ""
-read -p "Continue? (y/N): " CONFIRM
-if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
-    echo "Installation cancelled."
-    exit 0
-fi
-echo ""
-
-# Admin check (best-effort)
-if [[ $EUID -ne 0 ]]; then
-    echo "[!] Currently not running as root/sudo."
-    echo "    Some steps (e.g., npm install -g) may require it."
-    echo "    If later steps fail, re-run with sudo."
+show_menu() {
+    clear
+    echo "============================================================"
+    echo " CK's Pi Code Agent Harness - 管理與設定工具"
+    echo "============================================================"
     echo ""
-fi
-
-# [1/6] Initialize submodules
-echo "[1/6] Initializing git submodules (ECC hooks)..."
-git submodule update --init --recursive || {
-    echo "[!] Submodule init failed. ECC hooks will be unavailable."
-}
-echo "✅ Submodule init done."
-echo ""
-
-# [2/6] Check Python
-echo "[2/6] Checking Python..."
-if ! command -v python3 &> /dev/null; then
-  echo "[!] python3 not found. Please install Python first:"
-  echo "    macOS (Homebrew): brew install python"
-  echo "    Ubuntu/Debian:    sudo apt update && sudo apt install -y python3"
-  echo ""
-  echo "Then run again:"
-  echo "    bash install.sh"
-  exit 1
-fi
-echo "✅ Python OK."
-echo ""
-
-# [3/6] Run setup (handles Node, Pi, LLM, restore)
-echo "[3/6] Running environment setup..."
-python3 "$SCRIPT_DIR/scripts/setup.py" || {
+    echo "請選擇操作模式："
     echo ""
-    echo "[!] Setup failed or exited with error."
+    echo "  [1] 完整安裝 / 環境檢查 (新用戶推薦)"
+    echo "      - 檢查 Git/Python/Node"
+    echo "      - 安裝/更新 Pi 助手"
+    echo "      - 設定本地模型與智慧參數"
+    echo "      - 還原所有 Skills/Rules"
     echo ""
-    echo "Possible causes:"
-    echo "  - npm install -g requires sudo."
-    echo "  - Network or permission issues."
+    echo "  [2] 僅切換模型 (快速路徑)"
+    echo "      - 重新掃描 Ollama/llama.cpp"
+    echo "      - 重新生成 models.json 並套用"
     echo ""
-    exit 1
+    echo "  [3] 僅還原配置 (修復路徑)"
+    echo "      - 僅同步 Skills 與 Rules 到 Pi 目錄"
+    echo ""
+    echo "  [Q] 離開"
+    echo ""
+    read -p "請輸入編號 (1-3, Q): " CHOICE
+
+    case $CHOICE in
+        1) full_setup ;;
+        2) model_switch ;;
+        3) restore_only ;;
+        [Qq]) exit 0 ;;
+        *) show_menu ;;
+    esac
 }
 
-echo ""
-echo "[4/6] Environment setup complete."
-
-# [5/6] Fallback restore if not run inside setup.py
-if [ -f "$SCRIPT_DIR/scripts/restore.py" ]; then
-    echo "[5/6] If restore was not run inside setup.py, run:"
-    echo "    python3 scripts/restore.py"
+full_setup() {
     echo ""
-fi
+    echo "[1/6] Initializing git submodules (ECC hooks)..."
+    git submodule update --init --recursive || echo "[!] Submodule init failed."
 
-# [6/6] Done
-echo "[6/6] Done!"
+    echo "[2/6] Checking Python..."
+    if ! command -v python3 &> /dev/null; then
+        echo "[!] python3 not found."
+        exit 1
+    fi
+
+    echo "[3/6] Running full environment setup..."
+    python3 "$SCRIPT_DIR/scripts/setup.py" --mode full
+}
+
+model_switch() {
+    echo ""
+    echo "[*] Jumping to model detection..."
+    python3 "$SCRIPT_DIR/scripts/setup.py" --mode model
+}
+
+restore_only() {
+    echo ""
+    echo "[*] Restoring skills and extensions..."
+    python3 "$SCRIPT_DIR/scripts/setup.py" --mode restore
+}
+
+show_menu
 echo ""
-echo " Next steps:"
-echo "   1. Run: pi"
-echo "   2. Confirm Skills and Extensions loaded"
-echo "   3. If needed, adjust models in pi-config/settings.json or models.json"
+read -n 1 -s -r -p "按任意鍵結束..."
 echo ""

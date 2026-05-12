@@ -1,102 +1,69 @@
 @echo off
 setlocal enabledelayedexpansion
 
-title CK's Pi Code Agent Harness - One-Click Installer
+title CK's Pi Code Agent Harness - Environment Manager
 
+:menu
 cls
 echo ============================================================
-echo  CK's Pi Code Agent Harness - One-Click Installer (Windows)
+echo  CK's Pi Code Agent Harness - 管理與設定工具
 echo ============================================================
 echo.
-echo  This script will:
-echo    - Check Git / Python / Node.js
-echo    - Install Pi (AI coding assistant)
-echo    - Apply dev skills and rules
-echo    - Scan local LLM services (Ollama, etc.)
+echo  請選擇操作模式：
 echo.
-echo  It will NOT:
-echo    - Collect personal data
-echo    - Call external tracking APIs
-echo    - Modify system environment variables
+echo    [1] 完整安裝 / 環境檢查 (新用戶推薦)
+echo        - 檢查 Git/Python/Node
+echo        - 安裝/更新 Pi 助手
+echo        - 設定本地模型與智慧參數
+echo        - 還原所有 Skills/Rules
 echo.
-echo  Source:
-echo    GitHub: https://github.com/Chiakai-Chang/CKs_PI_Code_Agent_Harness
-echo    License: MIT
+echo    [2] 僅切換模型 (快速路徑)
+echo        - 重新掃描 Ollama/llama.cpp
+echo        - 重新生成 models.json 並套用
 echo.
-set /p "CONFIRM=Continue? (y/N): "
-if /i not "%CONFIRM%"=="y" (
-    echo Installation cancelled.
-    pause
-    exit /b 0
-)
+echo    [3] 僅還原配置 (修復路徑)
+echo        - 僅同步 Skills 與 Rules 到 Pi 目錄
 echo.
-REM Admin check (best-effort)
-net session >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [!] Currently not running as Administrator.
-    echo     Some steps ^(e.g., npm install -g^) may require it.
-    echo     If later steps fail, re-run as Administrator.
-    echo.
-)
+echo    [Q] 離開
+echo.
+set /p "CHOICE=請輸入編號 (1-3, Q): "
 
-REM [1/6] Init submodules
+if "%CHOICE%"=="1" goto full_setup
+if "%CHOICE%"=="2" goto model_switch
+if "%CHOICE%"=="3" goto restore_only
+if /i "%CHOICE%"=="q" exit /b 0
+goto menu
+
+:full_setup
+echo.
 echo [1/6] Initializing git submodules (ECC hooks)...
 git submodule update --init --recursive
-if errorlevel 1 (
-    echo [!] Submodule init failed. This is OK for first run.
-    echo     ECC hooks will be unavailable until submodule is initialized.
-)
-echo ✅ Submodule init done.
+if errorlevel 1 echo [!] Submodule init failed. 
 
-REM [2/6] Check Python
 echo [2/6] Checking Python...
 python --version >nul 2>&1
 if errorlevel 1 (
-    echo [!] Python not found. Please install Python first:
-    echo     winget install Python.Python.3.12
-    echo.
-    echo     After installation, open a new terminal and run:
-    echo     .\install.bat
-    echo.
-    pause
-    exit /b 1
-)
-echo ✅ Python OK.
-
-REM [3/6] Run setup (handles Node, Pi, LLM, restore)
-echo [3/6] Running environment setup...
-python scripts\setup.py
-if errorlevel 1 (
-    echo.
-    echo [!] Setup failed or exited with error.
-    echo.
-    echo  Possible causes:
-    echo  - npm install -g requires admin:
-    echo      Run install.bat as Administrator.
-    echo  - Just installed Node/Python but not yet effective:
-    echo      Close all terminals, reopen, then run .\install.bat
-    echo  - Network or permission issues:
-    echo      Try running as Administrator.
-    echo.
+    echo [!] Python not found. 
     pause
     exit /b 1
 )
 
-echo [4/6] Environment setup complete.
+echo [3/6] Running full environment setup...
+python scripts\setup.py --mode full
+goto end
 
-REM [5/6] Fallback restore if not run inside setup.py
-if exist scripts\restore.py (
-    echo [5/6] If restore was not run inside setup.py, run:
-    echo     python scripts\restore.py
-    echo.
-)
-
-REM [6/6] Done
-echo [6/6] Done!
+:model_switch
 echo.
-echo  Next steps:
-echo    1. Run: pi
-echo    2. Confirm Skills and Extensions loaded
-echo    3. If needed, adjust models in pi-config/settings.json or models.json
+echo [*] Jumping to model detection...
+python scripts\setup.py --mode model
+goto end
+
+:restore_only
+echo.
+echo [*] Restoring skills and extensions...
+python scripts\setup.py --mode restore
+goto end
+
+:end
 echo.
 pause
