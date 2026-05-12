@@ -4,6 +4,21 @@ setlocal enabledelayedexpansion
 REM Ensure we are in the script's directory
 cd /d "%~dp0"
 
+REM --- Git Health & Trust Check ---
+git status >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [*] 偵測到 Git 環境異常或權限安全性警告 (Dubious Ownership)。
+    echo [*] 正在嘗試自動將此目錄加入信任名單...
+    git config --global --add safe.directory "%~dp0"
+    if %errorlevel% neq 0 (
+        echo [!] 自動修復失敗。如果您使用的是外接磁碟，請手動執行：
+        echo     git config --global --add safe.directory "%~dp0"
+    ) else (
+        echo ✅ 已自動建立 Git 信任設定。
+    )
+    echo.
+)
+
 title CK's Pi Code Agent Harness - Environment Manager
 
 :menu
