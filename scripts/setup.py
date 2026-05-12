@@ -223,9 +223,18 @@ def detect_llm_services():
 
 def load_json(path):
     if not os.path.exists(path):
+        # Fallback to .example
+        example = path + ".example"
+        if os.path.exists(example):
+            path = example
+        else:
+            return {}
+    
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
         return {}
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
 
 
 def save_json(path, data):
@@ -777,14 +786,3 @@ def main():
 if __name__ == "__main__":
     main()
 
-    print()
-    print("=" * 60)
-    print(" 完成！")
-    print("  1. 執行: pi")
-    print("  2. 確認 Skills 與模型是否如預期運作")
-    print("=" * 60)
-
-
-
-if __name__ == "__main__":
-    main()

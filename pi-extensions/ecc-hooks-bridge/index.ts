@@ -10,11 +10,13 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { isToolCallEventType } from "@mariozechner/pi-coding-agent";
 
 import { join, dirname } from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
-// Dynamic path resolution for portability
-// Priority: 1. Environment variable (set by harness) 2. Relative to file (if running from repo)
-const HARNESS_ROOT = process.env.PI_HARNESS_ROOT || join(dirname(require.resolve("./package.json")), "../..");
+// Dynamic path resolution
+// Read from our own package.json which restore.py will patch
+const pkgPath = require.resolve("./package.json");
+const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+const HARNESS_ROOT = pkg["pi-harness"]?.root || join(dirname(pkgPath), "../..");
 const PROJECT_ROOT = HARNESS_ROOT;
 const ECC_ROOT = join(PROJECT_ROOT, "external/everything-claude-code");
 
@@ -312,5 +314,8 @@ export default function (pi: ExtensionAPI) {
         { profiles: "standard,strict", timeout: 10000 }
       );
     } catch {}
+  });
+}
+ {}
   });
 }

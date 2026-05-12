@@ -1,0 +1,11 @@
+{
+  "packages": [
+    "npm:context-mode",
+    "npm:@tintinweb/pi-tasks"
+  ],
+  "shellPath": "",
+  "lastChangelogVersion": "0.73.0",
+  "defaultProvider": "ollama",
+  "defaultModel": "llama3.2",
+  "apiBase": "http://localhost:11434"
+}

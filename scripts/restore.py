@@ -89,10 +89,19 @@ def copy_dir_contents(src, dst):
 
 def load_json(path):
     if not os.path.exists(path):
+        # Fallback to .example
+        example = path + ".example"
+        if os.path.exists(example):
+            path = example
+        else:
+            return {}
+    
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            import json
+            return json.load(f)
+    except:
         return {}
-    with open(path, "r", encoding="utf-8") as f:
-        import json
-        return json.load(f)
 
 def save_json(path, data):
     ensure_dir(os.path.dirname(path) or ".")
@@ -131,7 +140,7 @@ def main():
     
     # 1. Patch and sync settings.json
     settings_src = os.path.join(REPO_ROOT, "pi-config", "settings.json")
-    if os.path.exists(settings_src):
+    if os.path.exists(settings_src) or os.path.exists(settings_src + ".example"):
         settings = load_json(settings_src)
         if "env" not in settings: settings["env"] = {}
         settings["env"]["PI_HARNESS_ROOT"] = REPO_ROOT.replace("\\", "/")
@@ -139,15 +148,20 @@ def main():
     
     # 2. Sync models.json (CRITICAL)
     models_src = os.path.join(REPO_ROOT, "pi-config", "models.json")
-    if os.path.exists(models_src):
-        shutil.copy2(models_src, os.path.join(AGENT_DIR, "models.json"))
-        log("  - models.json synced")
+    if os.path.exists(models_src) or os.path.exists(models_src + ".example"):
+        models_data = load_json(models_src)
+        if models_data:
+            save_json(os.path.join(AGENT_DIR, "models.json"), models_data)
+            log("  - models.json synced")
 
     # 3. Sync other base configs
-    shutil.copy2(os.path.join(REPO_ROOT, "pi-config", "config.json"),
-                 os.path.join(AGENT_DIR, "config.json"))
-    shutil.copy2(os.path.join(REPO_ROOT, "pi-config", "git", ".gitignore"),
-                 os.path.join(AGENT_DIR, "git", ".gitignore"))
+    config_src = os.path.join(REPO_ROOT, "pi-config", "config.json")
+    if os.path.exists(config_src):
+        shutil.copy2(config_src, os.path.join(AGENT_DIR, "config.json"))
+    
+    gitignore_src = os.path.join(REPO_ROOT, "pi-config", "git", ".gitignore")
+    if os.path.exists(gitignore_src):
+        shutil.copy2(gitignore_src, os.path.join(AGENT_DIR, "git", ".gitignore"))
 
     cfg_path = os.path.join(AGENT_DIR, "config.json")
     if os.path.exists(cfg_path):
@@ -214,6 +228,15 @@ def main():
     if os.path.isdir(ext_src):
         clear_dir(ext_dst)
         copy_dir_contents(ext_src, ext_dst)
+        
+        # Patch ECC bridge with absolute path
+        ecc_pkg = os.path.join(ext_dst, "ecc-hooks-bridge", "package.json")
+        if os.path.exists(ecc_pkg):
+            pkg = load_json(ecc_pkg)
+            if "pi-harness" not in pkg: pkg["pi-harness"] = {}
+            pkg["pi-harness"]["root"] = REPO_ROOT.replace("\\", "/")
+            save_json(ecc_pkg, pkg)
+            log("  - ecc-hooks-bridge patched with absolute path")
 
     # models.json (v0.73+ format)
     models_src = os.path.join(REPO_ROOT, "pi-config", "models.json")
