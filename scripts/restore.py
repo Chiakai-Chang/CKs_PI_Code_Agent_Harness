@@ -46,14 +46,32 @@ def confirm():
     return ans in ("y", "yes")
 
 def clear_dir(path):
+    """
+    Safely clear a directory's contents, handling symlinks and junctions.
+    """
+    if not os.path.lexists(path):
+        return
+    
+    # If the path itself is a link, remove the link first
+    if os.path.islink(path):
+        os.remove(path)
+        os.makedirs(path, exist_ok=True)
+        return
+
     if not os.path.isdir(path):
         return
+
     for item in os.listdir(path):
-        src = os.path.join(path, item)
-        if os.path.isdir(src):
-            shutil.rmtree(src)
-        else:
-            os.remove(src)
+        item_path = os.path.join(path, item)
+        try:
+            if os.path.islink(item_path):
+                os.remove(item_path)
+            elif os.path.isdir(item_path):
+                shutil.rmtree(item_path)
+            else:
+                os.remove(item_path)
+        except Exception as e:
+            log(f"Warning: Failed to clear {item}: {e}")
 
 def copy_dir_contents(src, dst):
     ensure_dir(dst)
