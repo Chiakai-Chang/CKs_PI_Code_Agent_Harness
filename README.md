@@ -43,7 +43,10 @@ pi
 ## 🛠️ 核心特色
 
 *   **⚡ 全自動化安裝**：自動處理環境補全，缺什麼裝什麼，不再為 PATH 設定煩惱。
-*   **🕵️ 智慧模型配置**：點選式偵測本地 LLM 服務，自動產出 `models.json` (v0.73+ 格式)。
+*   **🕵️ 智慧模型配置 (Smart Detection)**：
+    *   **真值偵測**：深度對接 Ollama API 與 llama.cpp `/props`，自動擷取精準的 Context Window。
+    *   **硬體感知**：自動掃描系統 RAM 與 NVIDIA VRAM，根據硬體體質給出最佳參數建議。
+    *   **Enter-Centric UI**：一路按 Enter 即可完成專業配置，同時保留手動微調空間。
 *   **🔄 持久化計畫 (Manus-style)**：內建 `planning-with-files`，讓 AI 在多輪對話中擁有「外部硬碟級」的記憶力。
 *   **🌐 跨平台支援**：完美支援 Windows (Git Bash)、macOS 與 Linux。
 
