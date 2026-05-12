@@ -79,6 +79,10 @@ def save_json(path, data):
         f.write("\n")
 
 def main():
+    parser = argparse.ArgumentParser(description="CK's Pi Code Agent Harness - Restore")
+    parser.add_argument("--auto", action="store_true", help="Skip confirmation (for internal calls)")
+    args = parser.parse_args()
+
     log("CK's Pi Code Agent Harness – Restore Configuration (Python)")
     log(f"Repo root: {REPO_ROOT}")
     log(f"Agent dir: {AGENT_DIR}")
@@ -92,19 +96,28 @@ def main():
 
     backup_agent()
 
-    if not confirm():
+    if not args.auto and not confirm():
         log("Aborted by user.")
         sys.exit(0)
 
     # Config
-    log("Restoring config...")
+    log("Restoring config (settings, models, git)...")
     
-    # Load and patch settings.json with absolute harness path for global use
-    settings = load_json(os.path.join(REPO_ROOT, "pi-config", "settings.json"))
-    if "env" not in settings: settings["env"] = {}
-    settings["env"]["PI_HARNESS_ROOT"] = REPO_ROOT.replace("\\", "/")
-    save_json(os.path.join(AGENT_DIR, "settings.json"), settings)
+    # 1. Patch and sync settings.json
+    settings_src = os.path.join(REPO_ROOT, "pi-config", "settings.json")
+    if os.path.exists(settings_src):
+        settings = load_json(settings_src)
+        if "env" not in settings: settings["env"] = {}
+        settings["env"]["PI_HARNESS_ROOT"] = REPO_ROOT.replace("\\", "/")
+        save_json(os.path.join(AGENT_DIR, "settings.json"), settings)
     
+    # 2. Sync models.json (CRITICAL)
+    models_src = os.path.join(REPO_ROOT, "pi-config", "models.json")
+    if os.path.exists(models_src):
+        shutil.copy2(models_src, os.path.join(AGENT_DIR, "models.json"))
+        log("  - models.json synced")
+
+    # 3. Sync other base configs
     shutil.copy2(os.path.join(REPO_ROOT, "pi-config", "config.json"),
                  os.path.join(AGENT_DIR, "config.json"))
     shutil.copy2(os.path.join(REPO_ROOT, "pi-config", "git", ".gitignore"),

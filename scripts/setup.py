@@ -579,7 +579,7 @@ def run_restore(git_bash, p):
     print("  正在執行 restore.py ...")
 
     python = sys.executable
-    run_stream(f'"{python}" "{script}"')
+    run_stream(f'"{python}" "{script}" --auto')
 
     print("  ✅ Restore 完成。")
 
@@ -751,6 +751,18 @@ def main():
             # If they just switched models, we MUST restore at least the config files
             print("  正在同步新配置到 Pi 代理目錄...")
             run_restore(git_bash, p)
+
+    print()
+    print("=" * 60)
+    print(" 完成！")
+    print("  1. 執行: pi")
+    print("  2. 確認 Skills 與模型是否如預期運作")
+    print("=" * 60)
+
+
+
+if __name__ == "__main__":
+    main()
 
     print()
     print("=" * 60)
