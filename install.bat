@@ -30,12 +30,11 @@ if /i not "%CONFIRM%"=="y" (
     exit /b 0
 )
 echo.
-
 REM Admin check (best-effort)
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo [!] Currently not running as Administrator.
-    echo     Some steps (e.g., npm install -g) may require it.
+    echo     Some steps ^(e.g., npm install -g^) may require it.
     echo     If later steps fail, re-run as Administrator.
     echo.
 )
@@ -100,5 +99,4 @@ echo    1. Run: pi
 echo    2. Confirm Skills and Extensions loaded
 echo    3. If needed, adjust models in pi-config/settings.json or models.json
 echo.
-
 pause

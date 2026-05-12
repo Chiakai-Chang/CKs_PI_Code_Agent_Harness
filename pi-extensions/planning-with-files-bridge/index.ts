@@ -9,7 +9,7 @@
  */
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { spawn } from "node:child_process";
 
 const PLANNING_FILES = ["task_plan.md", "findings.md", "progress.md"];

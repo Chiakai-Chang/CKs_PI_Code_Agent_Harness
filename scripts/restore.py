@@ -109,11 +109,23 @@ def main():
     if os.path.exists(cfg_path):
         with open(cfg_path, "r", encoding="utf-8") as f:
             content = f.read()
-        if "TODO_NEW_MACHINE" in content:
-            home = os.path.expanduser("~").replace("\\", "/")
-            content = content.replace("TODO_NEW_MACHINE", home)
-            with open(cfg_path, "w", encoding="utf-8") as f:
-                f.write(content)
+        
+        # Resolve real paths for ECC and local skills
+        ecc_agents = os.path.join(REPO_ROOT, "external", "everything-claude-code", "agents").replace("\\", "/")
+        ecc_skills = os.path.join(REPO_ROOT, "external", "everything-claude-code", "skills").replace("\\", "/")
+        caveman_skill = os.path.join(AGENT_DIR, "skills", "caveman").replace("\\", "/")
+        
+        # More precise replacements
+        content = content.replace("TODO_NEW_MACHINE:/path/to/everything-claude-code/agents", ecc_agents)
+        content = content.replace("TODO_NEW_MACHINE:/path/to/everything-claude-code/skills", ecc_skills)
+        content = content.replace("TODO_NEW_MACHINE:/path/to/pi/agent/skills/caveman", caveman_skill)
+        
+        # Fallback for any other leftovers
+        home = os.path.expanduser("~").replace("\\", "/")
+        content = content.replace("TODO_NEW_MACHINE", home)
+        
+        with open(cfg_path, "w", encoding="utf-8") as f:
+            f.write(content)
 
     # Core skills (always)
     log("Restoring core skills...")

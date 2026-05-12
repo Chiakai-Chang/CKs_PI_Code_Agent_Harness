@@ -14,7 +14,7 @@ import { existsSync } from "node:fs";
 
 // Dynamic path resolution for portability
 const __dirname = dirname(require.resolve("./package.json"));
-const PROJECT_ROOT = join(__dirname, "../../..");
+const PROJECT_ROOT = join(__dirname, "../..");
 const ECC_ROOT = join(PROJECT_ROOT, "external/everything-claude-code");
 
 // Verify ECC exists
