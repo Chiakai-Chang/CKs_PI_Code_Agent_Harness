@@ -694,6 +694,11 @@ def main():
 
     # 6. Detect Local LLM
     print("  正在掃描本地 LLM 服務（Ollama / LMStudio / llama.cpp 等）...")
+    
+    # Check if user already has a config (for existing users migration)
+    agent_models_path = os.path.join(os.path.expanduser("~"), ".pi", "agent", "models.json")
+    has_existing_config = os.path.exists(agent_models_path)
+    
     all_models = detect_llm_services()
 
     selected_provider = None
@@ -701,16 +706,15 @@ def main():
     selected_api_base = None
 
     if not all_models:
-        print("  [INFO] No local LLM detected.")
-        print("  You can:")
-        print("    - Install Ollama (recommended): https://ollama.ai")
-        print("      Windows: winget install Ollama.Ollama")
-        print("      macOS:   brew install ollama")
-        print("      Then re-run this script to auto-configure.")
-        print("    - Or configure a cloud API key later (edit pi-config/settings.json)")
-        print("    - Or skip and configure manually.")
-        print("  This is not required to continue.")
+        print("  [提示] 未偵測到運行中的本地 LLM 服務。")
+        if has_existing_config:
+            print("  [資訊] 您已有現存配置，將保留原樣。")
+        else:
+            print("  建議：\n    - 安裝 Ollama: https://ollama.ai\n    - 或啟動 LMStudio / llama.cpp\n    - 然後重新執行此腳本以進行智慧配置。")
     else:
+        if has_existing_config:
+            print(f"  [偵測] 發現現有 Pi 配置。您可以選擇一個模型來「升級」或「切換」為 Harness 智慧參數。")
+        
         print("  發現以下模型:")
         for i, (prov, model) in enumerate(all_models, start=1):
             if prov.startswith("http"):
@@ -720,7 +724,8 @@ def main():
         print("  [0] 不自動設定，稍後手動調整")
 
         try:
-            choice = int(input("  請選擇模型編號: ").strip())
+            choice_str = input("  請選擇模型編號: ").strip()
+            choice = int(choice_str) if choice_str else 0
         except:
             choice = 0
 
