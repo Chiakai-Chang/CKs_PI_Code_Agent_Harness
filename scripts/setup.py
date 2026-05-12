@@ -377,15 +377,28 @@ def fetch_ollama_metadata(model_name):
 def fetch_llamacpp_metadata(base_url):
     """
     Try to fetch n_ctx from llama.cpp /props endpoint.
+    Supports root and /v1 paths, 127.0.0.1 fallback, and nested JSON.
     """
-    try:
-        url = f"{base_url.rstrip('/')}/props"
-        req = urllib.request.Request(url, method="GET")
-        with urllib.request.urlopen(req, timeout=2) as resp:
-            body = json.loads(resp.read().decode())
-            if "n_ctx" in body:
-                return {"ctx": int(body["n_ctx"])}
-    except: pass
+    urls = []
+    root_url = base_url.replace("/v1", "").rstrip("/")
+    urls.append(f"{root_url}/props")
+    if "localhost" in root_url:
+        urls.append(root_url.replace("localhost", "127.0.0.1") + "/props")
+    
+    for url in urls:
+        try:
+            req = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(req, timeout=1) as resp:
+                body = json.loads(resp.read().decode())
+                # Case 1: Standard top-level n_ctx
+                if "n_ctx" in body:
+                    return {"ctx": int(body["n_ctx"])}
+                # Case 2: Nested in default_generation_settings (Your instance)
+                if "default_generation_settings" in body:
+                    settings = body["default_generation_settings"]
+                    if "n_ctx" in settings:
+                        return {"ctx": int(settings["n_ctx"])}
+        except: pass
     return {}
 
 
