@@ -1,6 +1,9 @@
 @echo off
 setlocal enabledelayedexpansion
 
+REM Ensure we are in the script's directory
+cd /d "%~dp0"
+
 title CK's Pi Code Agent Harness - Environment Manager
 
 :menu
@@ -64,19 +67,19 @@ if errorlevel 1 (
 )
 
 echo [3/6] Running full environment setup...
-python scripts\setup.py --mode full
+python "%~dp0scripts\setup.py" --mode full
 goto end
 
 :model_switch
 echo.
 echo [*] Jumping to model detection...
-python scripts\setup.py --mode model
+python "%~dp0scripts\setup.py" --mode model
 goto end
 
 :restore_only
 echo.
 echo [*] Restoring skills and extensions...
-python scripts\setup.py --mode restore
+python "%~dp0scripts\setup.py" --mode restore
 goto end
 
 :end
