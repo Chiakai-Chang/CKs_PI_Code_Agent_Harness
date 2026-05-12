@@ -36,6 +36,21 @@ goto menu
 
 :full_setup
 echo.
+REM Admin check & Self-Elevation
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [!] 目前未以管理員身分執行。
+    echo     安裝全域套件 (npm install -g) 時可能會失敗。
+    echo.
+    set /p "RELEVATE=是否嘗試自動提權並重新啟動？ (y/N): "
+    if /i "!RELEVATE!"=="y" (
+        powershell -Command "Start-Process '%~f0' -Verb RunAs"
+        exit /b 0
+    )
+    echo [*] 繼續以目前權限執行...
+    echo.
+)
+
 echo [1/6] Initializing git submodules (ECC hooks)...
 git submodule update --init --recursive
 if errorlevel 1 echo [!] Submodule init failed. 

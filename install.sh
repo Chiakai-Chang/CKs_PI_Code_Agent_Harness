@@ -42,6 +42,20 @@ show_menu() {
 
 full_setup() {
     echo ""
+    # Admin check & Self-Elevation
+    if [[ $EUID -ne 0 ]]; then
+        echo "[!] 目前非以 root/sudo 身分執行。"
+        echo "    安裝全域套件時可能會受限。"
+        echo ""
+        read -p "是否嘗試使用 sudo 重新啟動以保證權限？ (y/N): " RSUDO
+        if [[ "$RSUDO" =~ ^[Yy]$ ]]; then
+            echo "正在請求 sudo 權限..."
+            exec sudo bash "$0" "$@"
+        fi
+        echo "[*] 繼續以目前權限執行..."
+        echo ""
+    fi
+
     echo "[1/6] Initializing git submodules (ECC hooks)..."
     git submodule update --init --recursive || echo "[!] Submodule init failed."
 
