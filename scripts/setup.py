@@ -315,44 +315,46 @@ def has_intel_arc():
 def guess_max_tokens(model_id):
     """
     Provide a reasonable default maxTokens based on model name heuristics.
-    - If size is known, use a sensible fraction of context.
-    - Default: 8192 (safe for most local models).
     """
     mid = (model_id or "").lower()
 
-    # For Qwen3.6 and similar large reasoning models
+    # Reasoning / Large models
+    if any(k in mid for k in ["qwen3.6", "qwen3_6", "qwen-3.6", "r1", "opus"]):
+        return 32768
+    
+    if "70b" in mid:
+        return 16384
+
+    # Mid-size
+    if any(k in mid for k in ["14b", "27b", "32b", "35b"]):
+        return 16384
+
+    # Standard
+    return 8192
+
+
+def guess_context_window(model_id):
+    """
+    Guess context window size.
+    """
+    mid = (model_id or "").lower()
+
+    # Modern large context models
     if any(k in mid for k in ["qwen3.6", "qwen3_6", "qwen-3.6"]):
-        # Large models often 30B+ with 131k context
-        # 16k is a safe default for reasoning workloads
-        return 16384
+        return 196608
+    
+    if "qwen" in mid or "r1" in mid:
+        return 131072
+    
+    if "llama-3.1" in mid or "llama-3.2" in mid or "llama3.1" in mid:
+        return 131072
 
-    # If it's a known large model (e.g. 70B)
-    if "70b" in mid or "70b" in mid:
-        return 16384
-
-    # For smaller models
-    if any(k in mid for k in ["7b", "8b", "9b", "14b"]):
-        return 8192
-
-    # Default
     return 8192
 
 
 def build_models_json(selected_provider, selected_model, selected_api_base):
     """
-    Build models.json in v0.73+ format:
-    {
-      "providers": {
-        "provider_id": {
-          "baseUrl": "...",
-          "api": "openai-completions",
-          "apiKey": "local",
-          "authHeader": true,
-          "compat": { "supportsDeveloperRole": false, "maxTokensField": "max_tokens" },
-          "models": [ { "id": "...", "name": "...", ... } ]
-        }
-      }
-    }
+    Build models.json in v0.73+ format with professional defaults.
     """
     if not selected_provider or not selected_model or not selected_api_base:
         return None
@@ -361,18 +363,25 @@ def build_models_json(selected_provider, selected_model, selected_api_base):
     if selected_provider == "ollama":
         provider_id = "ollama-local"
     else:
-        provider_id = "local-openai-compatible"
+        # Use a more descriptive ID for OpenAI-compatible
+        if "8080" in selected_api_base:
+            provider_id = "llama-cpp-local"
+        else:
+            provider_id = "local-openai-compatible"
 
     # Label: add Intel Arc tag if detected
     model_label = selected_model
     if has_intel_arc():
         model_label += " (Intel Arc SYCL)"
 
-    # Max tokens heuristic
+    # Heuristics
     max_tokens = guess_max_tokens(selected_model)
+    context_window = guess_context_window(selected_model)
 
-    # Detect if it's a reasoning/Qwen model
+    # Reasoning / Thinking format detection
     is_qwen = "qwen" in selected_model.lower()
+    is_reasoning = any(k in selected_model.lower() for k in ["qwen", "r1", "opus", "thought"])
+    
     compat_extra = {}
     if is_qwen:
         compat_extra["thinkingFormat"] = "qwen"
@@ -392,20 +401,25 @@ def build_models_json(selected_provider, selected_model, selected_api_base):
                     {
                         "id": selected_model,
                         "name": model_label,
-                        "reasoning": True if is_qwen else False,
-                        "contextWindow": 131072 if is_qwen else 8192,
+                        "reasoning": is_reasoning,
+                        "contextWindow": context_window,
                         "maxTokens": max_tokens,
-                        "compat": compat_extra if compat_extra else None
+                        "input": ["text"],
+                        "cost": {
+                            "input": 0,
+                            "output": 0,
+                            "cacheRead": 0,
+                            "cacheWrite": 0
+                        }
                     }
                 ]
             }
         }
     }
 
-    # Clean up None compat
-    m = models_json["providers"][provider_id]["models"][0]
-    if m.get("compat") is None:
-        del m["compat"]
+    # Add thinkingFormat if detected
+    if compat_extra:
+        models_json["providers"][provider_id]["models"][0]["compat"] = compat_extra
 
     return models_json
 
