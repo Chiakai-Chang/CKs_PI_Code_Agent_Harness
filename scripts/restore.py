@@ -8,6 +8,7 @@
 import sys
 import os
 import shutil
+import argparse
 from datetime import datetime
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
