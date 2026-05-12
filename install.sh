@@ -37,6 +37,14 @@ if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
 fi
 echo ""
 
+# [1/2] Initialize submodules
+echo "[1/2] Initializing git submodules (ECC hooks)..."
+git submodule update --init --recursive || {
+    echo "[!] Submodule init failed. ECC hooks will be unavailable."
+}
+echo "✅ Submodule init done."
+echo ""
+
 if ! command -v python3 &> /dev/null; then
   echo "[!] python3 not found. Please install Python first:"
   echo "    macOS (Homebrew): brew install python"

@@ -48,12 +48,14 @@
 
 若你已安裝 Pi，可直接用 Pi 原生套件管理：
 
-- pi install "git:github.com/Chiakai-Chang/CKs_PI_Code_Agent_Harness"
+```bash
+git clone https://github.com/Chiakai-Chang/CKs_PI_Code_Agent_Harness.git
+cd CKs_PI_Code_Agent_Harness
+git submodule update --init --recursive  # 初始化 ECC hooks
+git pull  # 更新到最新版本
+```
 
-Pi 會自動：
-- 下載本套件
-- 套用 skills / rules / extensions
-- 載入到 ~/.pi/agent
+然後執行安裝腳本（見方式 B），或直接使用 Pi 載入。
 
 適用場景：
 - 你已安裝 Pi
@@ -148,6 +150,12 @@ Pi 會自動：
 
 - pi-extensions/
   - 自訂 extensions，例如 planning-with-files 橋接
+  - ecc-hooks-bridge：連接 ECC (everything-claude-code) hooks
+
+- external/
+  - everything-claude-code：ECC 專案（git submodule）
+    - 自動同步最新 ECC hooks
+    - 執行 `git submodule update --remote` 更新
 
 </details>
 
@@ -182,6 +190,7 @@ Pi 與本配置是獨立維護的：
 - 更新本專案的配置（skills / rules / extensions）：
   - 在本 repo 資料夾中：
     - git pull
+    - git submodule update --remote  # 更新 ECC hooks
   - 重新套用配置：
     - bash scripts/restore.sh
     - 或 python scripts/restore.py

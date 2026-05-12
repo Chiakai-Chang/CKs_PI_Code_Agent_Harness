@@ -9,7 +9,18 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { isToolCallEventType } from "@mariozechner/pi-coding-agent";
 
-const ECC_ROOT = "D:/MyProject/everything-claude-code";
+import { join, dirname } from "node:path";
+import { existsSync } from "node:fs";
+
+// Dynamic path resolution for portability
+const __dirname = dirname(require.resolve("./package.json"));
+const PROJECT_ROOT = join(__dirname, "../../..");
+const ECC_ROOT = join(PROJECT_ROOT, "external/everything-claude-code");
+
+// Verify ECC exists
+if (!existsSync(ECC_ROOT)) {
+  console.warn(`[ecc-bridge] ECC not found. Run: git submodule update --init`);
+}
 
 function getProfile(): "minimal" | "standard" | "strict" {
   const env = process.env.ECC_HOOK_PROFILE?.trim().toLowerCase();

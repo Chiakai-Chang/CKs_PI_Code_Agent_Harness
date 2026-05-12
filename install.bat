@@ -40,8 +40,17 @@ if %errorlevel% neq 0 (
     echo.
 )
 
-REM [1/5] Check Python
-echo [1/5] Checking Python...
+REM [1/6] Init submodules
+echo [1/6] Initializing git submodules (ECC hooks)...
+git submodule update --init --recursive
+if errorlevel 1 (
+    echo [!] Submodule init failed. This is OK for first run.
+    echo     ECC hooks will be unavailable until submodule is initialized.
+)
+echo ✅ Submodule init done.
+
+REM [2/6] Check Python
+echo [2/6] Checking Python...
 python --version >nul 2>&1
 if errorlevel 1 (
     echo [!] Python not found. Please install Python first:
@@ -55,8 +64,8 @@ if errorlevel 1 (
 )
 echo ✅ Python OK.
 
-REM [2/5] Run setup (handles Node, Pi, LLM, restore)
-echo [2/5] Running environment setup...
+REM [3/6] Run setup (handles Node, Pi, LLM, restore)
+echo [3/6] Running environment setup...
 python scripts\setup.py
 if errorlevel 1 (
     echo.
@@ -74,17 +83,17 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [3/5] Environment setup complete.
+echo [4/6] Environment setup complete.
 
-REM [4/5] Fallback restore if not run inside setup.py
+REM [5/6] Fallback restore if not run inside setup.py
 if exist scripts\restore.py (
-    echo [4/5] If restore was not run inside setup.py, run:
+    echo [5/6] If restore was not run inside setup.py, run:
     echo     python scripts\restore.py
     echo.
 )
 
-REM [5/5] Done
-echo [5/5] Done!
+REM [6/6] Done
+echo [6/6] Done!
 echo.
 echo  Next steps:
 echo    1. Run: pi

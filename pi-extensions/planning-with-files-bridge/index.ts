@@ -111,14 +111,12 @@ function runCheckComplete(cwd: string): Promise<void> {
     if (!existsSync(planFile)) return resolve();
 
     // Prefer sh over powershell for Git Bash; fallback to ps1
-    const shScript = join(
-      "C:/Users/74221/.agents/skills/planning-with-files/scripts",
-      "check-complete.sh"
-    );
-    const ps1Script = join(
-      "C:/Users/74221/.agents/skills/planning-with-files/scripts",
-      "check-complete.ps1"
-    );
+    // Dynamic path resolution for portability
+    const __dirname = dirname(require.resolve("./package.json"));
+    const SCRIPTS_DIR = join(__dirname, "scripts");
+    
+    const shScript = join(SCRIPTS_DIR, "check-complete.sh");
+    const ps1Script = join(SCRIPTS_DIR, "check-complete.ps1");
 
     let cmd: string;
     let args: string[];
