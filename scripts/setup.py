@@ -355,9 +355,28 @@ def get_hardware_info():
 
 import re
 
-def get_recommended_specs(model_id, hw):
+def fetch_ollama_metadata(model_name):
     """
-    Dynamically recommend specs based on model patterns and hardware.
+    Try to fetch real metadata (like num_ctx) from Ollama API.
+    """
+    try:
+        url = "http://localhost:11434/api/show"
+        data = json.dumps({"name": model_name}).encode("utf-8")
+        req = urllib.request.Request(url, data=data, method="POST")
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            body = json.loads(resp.read().decode())
+            # Parse parameters string for num_ctx
+            params = body.get("parameters", "")
+            match = re.search(r'num_ctx\s+(\d+)', params)
+            if match:
+                return {"ctx": int(match.group(1))}
+    except: pass
+    return {}
+
+
+def get_recommended_specs(model_id, hw, provider=None):
+    """
+    Dynamically recommend specs. Prioritize real metadata for Ollama.
     """
     mid = (model_id or "").lower()
     
@@ -366,13 +385,19 @@ def get_recommended_specs(model_id, hw):
     max_t = 4096
     reasoning = False
 
+    # 0. Try Provider Metadata (e.g., Ollama)
+    if provider == "ollama":
+        meta = fetch_ollama_metadata(model_id)
+        if meta.get("ctx"):
+            ctx = meta["ctx"]
+
     # 1. Detect Reasoning
     if any(k in mid for k in ["r1", "thought", "opus", "deepseek"]):
         reasoning = True
     
     # 2. Detect Series Features
     if "qwen" in mid:
-        ctx = 32768
+        if ctx < 32768: ctx = 32768
         reasoning = True
     
     # 3. Size-based heuristics
@@ -380,33 +405,32 @@ def get_recommended_specs(model_id, hw):
     if match:
         size = int(match.group(1))
         if size >= 70:
-            ctx = 32768
+            if ctx < 32768: ctx = 32768
             max_t = 8192
         elif size >= 27:
-            ctx = 131072
+            if ctx < 131072: ctx = 131072
             max_t = 16384
     
-    # 4. Explicit latest models
+    # 4. Explicit latest models (Special override for Qwen 3.6)
     if "3.6" in mid:
         ctx = 196608
         max_t = 32768
 
     # 5. Hardware Capping (Safety Rail)
-    # If VRAM is known and small, or RAM is small, be more conservative
     vram = hw.get("vram")
     ram = hw.get("ram")
 
     if vram and vram < 12 and ctx > 32768:
-        ctx = 32768 # Cap for low VRAM
+        ctx = 32768
     elif not vram and ram and ram < 16 and ctx > 16384:
-        ctx = 8192 # Cap for low RAM (CPU inference)
+        ctx = 8192
 
     return ctx, max_t, reasoning
 
 
 def build_models_json(selected_provider, selected_model, selected_api_base):
     """
-    Build models.json in v0.73+ format with hardware-aware heuristics.
+    Build models.json in v0.73+ format with truth-based heuristics and Enter-centric UI.
     """
     if not selected_provider or not selected_model or not selected_api_base:
         return None
@@ -420,53 +444,43 @@ def build_models_json(selected_provider, selected_model, selected_api_base):
         else:
             provider_id = "local-openai-compatible"
 
-    # Label: add Intel Arc tag if detected
+    # Label
     model_label = selected_model
     if has_intel_arc():
         model_label += " (Intel Arc SYCL)"
 
-    # Hardware Check
+    # Hardware & Metadata
     hw = get_hardware_info()
+    rec_ctx, rec_max_t, rec_reasoning = get_recommended_specs(selected_model, hw, selected_provider)
 
-    # Get recommended specs
-    rec_ctx, rec_max_t, rec_reasoning = get_recommended_specs(selected_model, hw)
-
-    # Interactive Step (Skip if in AUTO_MODE)
+    # Simplified Enter-centric UI
     final_ctx = rec_ctx
     final_max_t = rec_max_t
     final_reasoning = rec_reasoning
 
     if not AUTO_MODE:
-        print("\n" + "=" * 50)
-        print(f"  [硬體偵測系統]")
-        if hw['ram']: print(f"  - 系統記憶體 (RAM): {hw['ram']} GB")
-        if hw['vram']: print(f"  - 顯示記憶體 (VRAM): {hw['vram']} GB (NVIDIA)")
-        else: print(f"  - 顯示記憶體 (VRAM): 未偵測到 NVIDIA GPU")
+        print("\n" + "=" * 60)
+        print(f"  [環境偵測] RAM: {hw['ram'] or '??'}GB | VRAM: {hw['vram'] or '??'}GB")
+        print(f"  [配置模型] {selected_model}")
+        print("-" * 60)
+        print("  請確認或修改以下參數 (直接按 Enter 使用推薦值)：")
         
-        print(f"\n  [智選模型建議] 針對：{selected_model}")
-        print(f"  系統推薦參數：")
-        print(f"    - Context Window: {rec_ctx}")
-        print(f"    - Max Tokens:     {rec_max_t}")
-        print(f"    - Reasoning Mode: {'開啟' if rec_reasoning else '關閉'}")
-        print("=" * 50)
+        try:
+            user_ctx = input(f"  1. Context Window [{rec_ctx}]: ").strip()
+            if user_ctx: final_ctx = int(user_ctx)
+            
+            user_max = input(f"  2. Max Tokens     [{rec_max_t}]: ").strip()
+            if user_max: final_max_t = int(user_max)
+            
+            r_prompt = "開啟" if rec_reasoning else "關閉"
+            user_r = input(f"  3. Reasoning Mode [{r_prompt}]: (y/n) ").strip().lower()
+            if user_r: final_reasoning = (user_r in ("y", "yes"))
+        except ValueError:
+            print("  [!] 輸入無效，將使用系統推薦值。")
         
-        print("  說明：Context Window 與硬體呈正相關，設太大可能導致 OOM 或極慢。")
-        ans = input("  是否套用推薦值？(Y/n) 或輸入 'm' 進行手動調整: ").strip().lower()
-        
-        if ans == 'm':
-            try:
-                final_ctx = int(input(f"    請輸入 Context Window (預設 {rec_ctx}): ").strip() or rec_ctx)
-                final_max_t = int(input(f"    請輸入 Max Tokens (預設 {rec_max_t}): ").strip() or rec_max_t)
-                r_ans = input(f"    是否開啟推理模式 (Reasoning)？(y/n, 預設 {'y' if rec_reasoning else 'n'}): ").strip().lower()
-                if r_ans:
-                    final_reasoning = (r_ans in ("y", "yes"))
-            except ValueError:
-                print("    輸入無效，將使用推薦值。")
-        elif ans in ("n", "no"):
-            print("    已跳過自動配置。")
-            return None
+        print("=" * 60)
 
-    # Detect if it's a Qwen-style thinking model for the compat flag
+    # Detect if it's a Qwen-style thinking model
     is_qwen = "qwen" in selected_model.lower()
     compat_extra = {}
     if is_qwen and final_reasoning:
@@ -492,10 +506,7 @@ def build_models_json(selected_provider, selected_model, selected_api_base):
                         "maxTokens": final_max_t,
                         "input": ["text"],
                         "cost": {
-                            "input": 0,
-                            "output": 0,
-                            "cacheRead": 0,
-                            "cacheWrite": 0
+                            "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0
                         }
                     }
                 ]
