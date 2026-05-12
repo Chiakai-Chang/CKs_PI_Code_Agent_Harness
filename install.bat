@@ -7,7 +7,7 @@ cd /d "%~dp0"
 REM --- Git Health & Trust Check ---
 git status >nul 2>&1
 if %errorlevel% neq 0 (
-    echo [*] 偵測到 Git 環境異常或權限安全性警告 (Dubious Ownership)。
+    echo [*] 偵測到 Git 環境異常或權限安全性警告 ^(Dubious Ownership^)。
     echo [*] 正在嘗試自動將此目錄加入信任名單...
     git config --global --add safe.directory "%~dp0"
     if %errorlevel% neq 0 (
@@ -60,7 +60,7 @@ if %errorlevel% neq 0 (
     echo [!] 目前未以管理員身分執行。
     echo     安裝全域套件 ^(npm install -g^) 時可能會失敗。
     echo.
-    set /p "RELEVATE=是否嘗試自動提權並重新啟動？ (y/N): "
+    set /p "RELEVATE=是否嘗試自動提權並重新啟動？ ^(y/N^): "
     if /i "!RELEVATE!"=="y" (
         powershell -Command "Start-Process '%~f0' -Verb RunAs"
         exit /b 0
