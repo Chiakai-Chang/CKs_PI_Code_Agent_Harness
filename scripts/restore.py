@@ -98,8 +98,13 @@ def main():
 
     # Config
     log("Restoring config...")
-    shutil.copy2(os.path.join(REPO_ROOT, "pi-config", "settings.json"),
-                 os.path.join(AGENT_DIR, "settings.json"))
+    
+    # Load and patch settings.json with absolute harness path for global use
+    settings = load_json(os.path.join(REPO_ROOT, "pi-config", "settings.json"))
+    if "env" not in settings: settings["env"] = {}
+    settings["env"]["PI_HARNESS_ROOT"] = REPO_ROOT.replace("\\", "/")
+    save_json(os.path.join(AGENT_DIR, "settings.json"), settings)
+    
     shutil.copy2(os.path.join(REPO_ROOT, "pi-config", "config.json"),
                  os.path.join(AGENT_DIR, "config.json"))
     shutil.copy2(os.path.join(REPO_ROOT, "pi-config", "git", ".gitignore"),

@@ -13,8 +13,9 @@ import { join, dirname } from "node:path";
 import { existsSync } from "node:fs";
 
 // Dynamic path resolution for portability
-const __dirname = dirname(require.resolve("./package.json"));
-const PROJECT_ROOT = join(__dirname, "../..");
+// Priority: 1. Environment variable (set by harness) 2. Relative to file (if running from repo)
+const HARNESS_ROOT = process.env.PI_HARNESS_ROOT || join(dirname(require.resolve("./package.json")), "../..");
+const PROJECT_ROOT = HARNESS_ROOT;
 const ECC_ROOT = join(PROJECT_ROOT, "external/everything-claude-code");
 
 // Verify ECC exists
