@@ -374,9 +374,43 @@ def fetch_ollama_metadata(model_name):
     return {}
 
 
-def get_recommended_specs(model_id, hw, provider=None):
+def fetch_llamacpp_metadata(base_url):
     """
-    Dynamically recommend specs. Prioritize real metadata for Ollama.
+    Try to fetch n_ctx from llama.cpp /props endpoint.
+    """
+    try:
+        url = f"{base_url.rstrip('/')}/props"
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            body = json.loads(resp.read().decode())
+            if "n_ctx" in body:
+                return {"ctx": int(body["n_ctx"])}
+    except: pass
+    return {}
+
+
+def fetch_openai_compat_metadata(base_url, model_id):
+    """
+    Try to find extended metadata in standard OpenAI model list.
+    Some providers (vLLM, LocalAI) add max_model_len or similar.
+    """
+    try:
+        url = f"{base_url.rstrip('/')}/v1/models"
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=2) as resp:
+            data = json.loads(resp.read().decode())
+            for m in data.get("data", []):
+                if m.get("id") == model_id:
+                    # Look for common extension keys
+                    for key in ["max_model_len", "context_length", "n_ctx", "context_window"]:
+                        if key in m: return {"ctx": int(m[key])}
+    except: pass
+    return {}
+
+
+def get_recommended_specs(model_id, hw, provider=None, api_base=None):
+    """
+    Dynamically recommend specs. Prioritize real metadata from providers.
     """
     mid = (model_id or "").lower()
     
@@ -384,20 +418,30 @@ def get_recommended_specs(model_id, hw, provider=None):
     ctx = 8192
     max_t = 4096
     reasoning = False
+    found_truth = False
 
-    # 0. Try Provider Metadata (e.g., Ollama)
+    # 0. DEEP DETECTION (Priority 1: Real Metadata)
+    meta = {}
     if provider == "ollama":
         meta = fetch_ollama_metadata(model_id)
-        if meta.get("ctx"):
-            ctx = meta["ctx"]
+    elif api_base:
+        # Try llama.cpp /props first
+        meta = fetch_llamacpp_metadata(api_base)
+        if not meta:
+            # Try OpenAI extensions
+            meta = fetch_openai_compat_metadata(api_base, model_id)
+    
+    if meta.get("ctx"):
+        ctx = meta["ctx"]
+        found_truth = True
 
     # 1. Detect Reasoning
     if any(k in mid for k in ["r1", "thought", "opus", "deepseek"]):
         reasoning = True
     
-    # 2. Detect Series Features
+    # 2. Detect Series Features (Apply if truth not found or too small)
     if "qwen" in mid:
-        if ctx < 32768: ctx = 32768
+        if not found_truth or ctx < 32768: ctx = 32768
         reasoning = True
     
     # 3. Size-based heuristics
@@ -405,32 +449,33 @@ def get_recommended_specs(model_id, hw, provider=None):
     if match:
         size = int(match.group(1))
         if size >= 70:
-            if ctx < 32768: ctx = 32768
+            if not found_truth or ctx < 32768: ctx = 32768
             max_t = 8192
         elif size >= 27:
-            if ctx < 131072: ctx = 131072
+            if not found_truth or ctx < 131072: ctx = 131072
             max_t = 16384
     
     # 4. Explicit latest models (Special override for Qwen 3.6)
     if "3.6" in mid:
-        ctx = 196608
+        if not found_truth or ctx < 196608: ctx = 196608
         max_t = 32768
 
-    # 5. Hardware Capping (Safety Rail)
-    vram = hw.get("vram")
-    ram = hw.get("ram")
+    # 5. Hardware Capping (Safety Rail - Only apply if truth NOT found)
+    # If we found truth, we assume the user/server already decided what's safe.
+    if not found_truth:
+        vram = hw.get("vram")
+        ram = hw.get("ram")
+        if vram and vram < 12 and ctx > 32768:
+            ctx = 32768
+        elif not vram and ram and ram < 16 and ctx > 16384:
+            ctx = 8192
 
-    if vram and vram < 12 and ctx > 32768:
-        ctx = 32768
-    elif not vram and ram and ram < 16 and ctx > 16384:
-        ctx = 8192
-
-    return ctx, max_t, reasoning
+    return ctx, max_t, reasoning, found_truth
 
 
 def build_models_json(selected_provider, selected_model, selected_api_base):
     """
-    Build models.json in v0.73+ format with truth-based heuristics and Enter-centric UI.
+    Build models.json with deep truth-based detection.
     """
     if not selected_provider or not selected_model or not selected_api_base:
         return None
@@ -449,9 +494,11 @@ def build_models_json(selected_provider, selected_model, selected_api_base):
     if has_intel_arc():
         model_label += " (Intel Arc SYCL)"
 
-    # Hardware & Metadata
+    # Deep Check
     hw = get_hardware_info()
-    rec_ctx, rec_max_t, rec_reasoning = get_recommended_specs(selected_model, hw, selected_provider)
+    rec_ctx, rec_max_t, rec_reasoning, is_truth = get_recommended_specs(
+        selected_model, hw, selected_provider, selected_api_base
+    )
 
     # Simplified Enter-centric UI
     final_ctx = rec_ctx
@@ -461,7 +508,8 @@ def build_models_json(selected_provider, selected_model, selected_api_base):
     if not AUTO_MODE:
         print("\n" + "=" * 60)
         print(f"  [環境偵測] RAM: {hw['ram'] or '??'}GB | VRAM: {hw['vram'] or '??'}GB")
-        print(f"  [配置模型] {selected_model}")
+        source_label = "API 實測值" if is_truth else "系統推薦值"
+        print(f"  [配置模型] {selected_model} ({source_label})")
         print("-" * 60)
         print("  請確認或修改以下參數 (直接按 Enter 使用推薦值)：")
         
@@ -472,7 +520,7 @@ def build_models_json(selected_provider, selected_model, selected_api_base):
             user_max = input(f"  2. Max Tokens     [{rec_max_t}]: ").strip()
             if user_max: final_max_t = int(user_max)
             
-            r_prompt = "開啟" if rec_reasoning else "關閉"
+            r_prompt = "開啟" if final_reasoning else "關閉"
             user_r = input(f"  3. Reasoning Mode [{r_prompt}]: (y/n) ").strip().lower()
             if user_r: final_reasoning = (user_r in ("y", "yes"))
         except ValueError:
