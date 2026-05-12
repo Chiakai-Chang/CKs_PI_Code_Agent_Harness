@@ -312,49 +312,50 @@ def has_intel_arc():
 
 # ─── Model helper (v0.73+ models.json format) ─────────────
 
-def guess_max_tokens(model_id):
+import re
+
+def get_recommended_specs(model_id):
     """
-    Provide a reasonable default maxTokens based on model name heuristics.
-    """
-    mid = (model_id or "").lower()
-
-    # Reasoning / Large models
-    if any(k in mid for k in ["qwen3.6", "qwen3_6", "qwen-3.6", "r1", "opus"]):
-        return 32768
-    
-    if "70b" in mid:
-        return 16384
-
-    # Mid-size
-    if any(k in mid for k in ["14b", "27b", "32b", "35b"]):
-        return 16384
-
-    # Standard
-    return 8192
-
-
-def guess_context_window(model_id):
-    """
-    Guess context window size.
+    Dynamically recommend specs based on model name patterns (e.g., 7b, 27b, qwen).
     """
     mid = (model_id or "").lower()
-
-    # Modern large context models
-    if any(k in mid for k in ["qwen3.6", "qwen3_6", "qwen-3.6"]):
-        return 196608
     
-    if "qwen" in mid or "r1" in mid:
-        return 131072
-    
-    if "llama-3.1" in mid or "llama-3.2" in mid or "llama3.1" in mid:
-        return 131072
+    # Defaults
+    ctx = 8192
+    max_t = 4096
+    reasoning = False
 
-    return 8192
+    # 1. Detect Reasoning
+    if any(k in mid for k in ["r1", "thought", "opus", "deepseek"]):
+        reasoning = True
+    
+    # 2. Detect Series Features
+    if "qwen" in mid:
+        ctx = 32768 # Qwen usually supports larger context by default
+        reasoning = True # Qwen series in pi usually benefits from reasoning flag
+    
+    # 3. Size-based heuristics
+    match = re.search(r'([0-9]+)b', mid)
+    if match:
+        size = int(match.group(1))
+        if size >= 70:
+            ctx = 32768
+            max_t = 8192
+        elif size >= 27:
+            ctx = 131072 # Modern mid-large models (27-35B) often target 128k
+            max_t = 16384
+    
+    # 4. Explicit latest models (e.g., Qwen 3.6)
+    if "3.6" in mid:
+        ctx = 196608
+        max_t = 32768
+
+    return ctx, max_t, reasoning
 
 
 def build_models_json(selected_provider, selected_model, selected_api_base):
     """
-    Build models.json in v0.73+ format with professional defaults.
+    Build models.json in v0.73+ format with user-validated heuristics.
     """
     if not selected_provider or not selected_model or not selected_api_base:
         return None
@@ -363,7 +364,6 @@ def build_models_json(selected_provider, selected_model, selected_api_base):
     if selected_provider == "ollama":
         provider_id = "ollama-local"
     else:
-        # Use a more descriptive ID for OpenAI-compatible
         if "8080" in selected_api_base:
             provider_id = "llama-cpp-local"
         else:
@@ -374,16 +374,43 @@ def build_models_json(selected_provider, selected_model, selected_api_base):
     if has_intel_arc():
         model_label += " (Intel Arc SYCL)"
 
-    # Heuristics
-    max_tokens = guess_max_tokens(selected_model)
-    context_window = guess_context_window(selected_model)
+    # Get recommended specs
+    rec_ctx, rec_max_t, rec_reasoning = get_recommended_specs(selected_model)
 
-    # Reasoning / Thinking format detection
+    # Interactive Step (Skip if in AUTO_MODE)
+    final_ctx = rec_ctx
+    final_max_t = rec_max_t
+    final_reasoning = rec_reasoning
+
+    if not AUTO_MODE:
+        print("\n" + "-" * 50)
+        print(f"  [智選模型配置] 針對：{selected_model}")
+        print(f"  系統推薦參數：")
+        print(f"    - Context Window: {rec_ctx}")
+        print(f"    - Max Tokens:     {rec_max_t}")
+        print(f"    - Reasoning Mode: {'開啟' if rec_reasoning else '關閉'}")
+        print("-" * 50)
+        
+        print("  說明：Context Window 取決於您的 VRAM/RAM，設太大可能導致運行緩慢。")
+        ans = input("  是否套用推薦值？(Y/n) 或輸入 'm' 進行手動調整: ").strip().lower()
+        
+        if ans == 'm':
+            try:
+                final_ctx = int(input(f"    請輸入 Context Window (預設 {rec_ctx}): ").strip() or rec_ctx)
+                final_max_t = int(input(f"    請輸入 Max Tokens (預設 {rec_max_t}): ").strip() or rec_max_t)
+                r_ans = input(f"    是否開啟推理模式 (Reasoning)？(y/n, 預設 {'y' if rec_reasoning else 'n'}): ").strip().lower()
+                if r_ans:
+                    final_reasoning = (r_ans in ("y", "yes"))
+            except ValueError:
+                print("    輸入無效，將使用推薦值。")
+        elif ans in ("n", "no"):
+            print("    已跳過自動配置。")
+            return None
+
+    # Detect if it's a Qwen-style thinking model for the compat flag
     is_qwen = "qwen" in selected_model.lower()
-    is_reasoning = any(k in selected_model.lower() for k in ["qwen", "r1", "opus", "thought"])
-    
     compat_extra = {}
-    if is_qwen:
+    if is_qwen and final_reasoning:
         compat_extra["thinkingFormat"] = "qwen"
 
     models_json = {
@@ -401,9 +428,9 @@ def build_models_json(selected_provider, selected_model, selected_api_base):
                     {
                         "id": selected_model,
                         "name": model_label,
-                        "reasoning": is_reasoning,
-                        "contextWindow": context_window,
-                        "maxTokens": max_tokens,
+                        "reasoning": final_reasoning,
+                        "contextWindow": final_ctx,
+                        "maxTokens": final_max_t,
                         "input": ["text"],
                         "cost": {
                             "input": 0,
@@ -417,7 +444,6 @@ def build_models_json(selected_provider, selected_model, selected_api_base):
         }
     }
 
-    # Add thinkingFormat if detected
     if compat_extra:
         models_json["providers"][provider_id]["models"][0]["compat"] = compat_extra
 
