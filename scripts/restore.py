@@ -80,8 +80,11 @@ def save_json(path, data):
 
 def main():
     parser = argparse.ArgumentParser(description="CK's Pi Code Agent Harness - Restore")
-    parser.add_argument("--auto", action="store_true", help="Skip confirmation (for internal calls)")
+    parser.add_argument("--auto", action="store_true", help="Skip confirmation")
     args = parser.parse_args()
+
+    # Check environment variable as a robust fallback for --auto
+    is_auto = args.auto or (os.environ.get("PI_AUTO_RESTORE") == "1")
 
     log("CK's Pi Code Agent Harness – Restore Configuration (Python)")
     log(f"Repo root: {REPO_ROOT}")
@@ -96,7 +99,7 @@ def main():
 
     backup_agent()
 
-    if not args.auto and not confirm():
+    if not is_auto and not confirm():
         log("Aborted by user.")
         sys.exit(0)
 
