@@ -47,18 +47,16 @@ def confirm():
 
 def clear_dir(path):
     """
-    Safely clear a directory's contents, handling symlinks and junctions.
+    Safely clear a directory's contents, handling symlinks, junctions, and read-only files.
     """
     if not os.path.lexists(path):
         return
     
-    # If the path itself is a link, remove the link first
-    if os.path.islink(path):
-        os.remove(path)
+    # If the path itself is a link/junction, just remove it
+    if os.path.islink(path) or not os.path.isdir(path):
+        try: os.remove(path)
+        except: pass
         os.makedirs(path, exist_ok=True)
-        return
-
-    if not os.path.isdir(path):
         return
 
     for item in os.listdir(path):
@@ -67,7 +65,13 @@ def clear_dir(path):
             if os.path.islink(item_path):
                 os.remove(item_path)
             elif os.path.isdir(item_path):
-                shutil.rmtree(item_path)
+                # On Windows, junctions are isdir=True but rmtree fails
+                try:
+                    shutil.rmtree(item_path)
+                except OSError:
+                    # Fallback for junctions
+                    try: os.remove(item_path)
+                    except: os.rmdir(item_path)
             else:
                 os.remove(item_path)
         except Exception as e:
