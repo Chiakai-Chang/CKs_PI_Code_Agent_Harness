@@ -301,6 +301,31 @@ export default function (pi: ExtensionAPI) {
         { profiles: "minimal,standard,strict", timeout: 30000 }
       );
     } catch {}
+
+    // hello-reflect: auto-detect learnings (distilled from claude-reflect)
+    try {
+      const { execSync } = await import("node:child_process");
+      const python = process.platform === "win32" ? "python" : "python3";
+      const captureScript = join(PROJECT_ROOT, "pi-skills/core/hello-reflect/scripts/capture.py");
+      
+      // Find latest session file (last modified in ~/.pi/agent/sessions/)
+      const sessionsDir = join(process.env.HOME || process.env.USERPROFILE || "", ".pi/agent/sessions");
+      const { readdirSync, statSync } = await import("node:fs");
+      const files = readdirSync(sessionsDir).filter(f => f.endsWith(".jsonl"));
+      if (files.length > 0) {
+        const latestFile = files.map(f => ({ name: f, time: statSync(join(sessionsDir, f)).mtime.getTime() }))
+                               .sort((a, b) => b.time - a.time)[0].name;
+        const sessionPath = join(sessionsDir, latestFile);
+        
+        const result = execSync(`"${python}" "${captureScript}" "${sessionPath}"`, { encoding: "utf-8" });
+        if (result.trim() && result.startsWith("[")) {
+          const learnings = JSON.parse(result);
+          if (learnings.length > 0) {
+            ctx.ui.notify(`📝 偵測到新學習點 (${learnings.length})。執行 /hello-reflect 以更新規範。`, "info");
+          }
+        }
+      }
+    } catch {}
   });
 
   // ========== PreCompact ==========
