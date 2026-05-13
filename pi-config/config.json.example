@@ -1,7 +1,9 @@
 {
   "//NOTE": "On a new machine, update any paths marked with TODO_NEW_MACHINE.",
   "agents": [
-    "TODO_NEW_MACHINE:/path/to/everything-claude-code/agents"
+    "TODO_NEW_MACHINE:/path/to/everything-claude-code/agents",
+    "TODO_NEW_MACHINE:/path/to/pi/agent/skills/understand/agents",
+    "TODO_NEW_MACHINE:/path/to/pi/agent/skills/dev-browser/agents"
   ],
   "skills": [
     "TODO_NEW_MACHINE:/path/to/pi/agent/skills/caveman",

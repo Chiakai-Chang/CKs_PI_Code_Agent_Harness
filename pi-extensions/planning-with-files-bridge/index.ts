@@ -110,30 +110,31 @@ function runCheckComplete(cwd: string): Promise<void> {
     const planFile = join(planDir, "task_plan.md");
     if (!existsSync(planFile)) return resolve();
 
-    // Prefer sh over powershell for Git Bash; fallback to ps1
     // Dynamic path resolution for portability
     const __dirname = dirname(require.resolve("./package.json"));
     const SCRIPTS_DIR = join(__dirname, "scripts");
     
+    const isWin = process.platform === "win32";
     const shScript = join(SCRIPTS_DIR, "check-complete.sh");
     const ps1Script = join(SCRIPTS_DIR, "check-complete.ps1");
 
     let cmd: string;
     let args: string[];
 
-    if (existsSync(shScript)) {
-      cmd = "sh";
-      args = ["-c", `cd "${cwd}" && "${shScript}" "${planFile}"`];
-    } else if (existsSync(ps1Script)) {
+    if (isWin && existsSync(ps1Script)) {
       cmd = "powershell.exe";
       args = [
         "-NoProfile",
+        "-NonInteractive",
         "-ExecutionPolicy",
         "Bypass",
         "-File",
         ps1Script,
         planFile,
       ];
+    } else if (existsSync(shScript)) {
+      cmd = "sh";
+      args = [shScript, planFile];
     } else {
       return resolve();
     }
