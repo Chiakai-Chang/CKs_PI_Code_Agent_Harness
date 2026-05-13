@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# CK's Pi Code Agent Harness - Unified Setup Script (v3.7)
+# CK's Pi Code Agent Harness - Unified Setup Script
 #
 # Handles:
 # - Environment checks (Git, Python, Node/npm)
@@ -23,7 +23,6 @@ import urllib.request
 import urllib.error
 import webbrowser
 import argparse
-import re
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 PI_CONFIG_DIR = os.path.join(REPO_ROOT, "pi-config")
@@ -39,18 +38,17 @@ def prompt_yes(prompt):
 
 # ─── Utilities ──────────────────────────────────────────────
 
-def run(cmd, check=False):
+def run(cmd):
     try:
-        # Use shell=True and handle encoding for Windows
-        r = subprocess.run(cmd, shell=True, capture_output=True, check=False)
-        # Try cp65001 for Windows UTF-8, then fall back to system default
-        try:
-            stdout = r.stdout.decode('cp65001').strip()
-            stderr = r.stderr.decode('cp65001').strip()
-        except:
-            stdout = r.stdout.decode(errors='replace').strip()
-            stderr = r.stderr.decode(errors='replace').strip()
-        return r.returncode == 0, stdout, stderr
+        r = subprocess.run(cmd, shell=True, capture_output=True, text=False, check=False)
+        # Try different encodings for Windows robustness
+        for enc in ['cp65001', 'utf-8', 'gbk']:
+            try:
+                stdout = r.stdout.decode(enc).strip()
+                stderr = r.stderr.decode(enc).strip()
+                return r.returncode == 0, stdout, stderr
+            except: continue
+        return r.returncode == 0, r.stdout.decode(errors='replace').strip(), r.stderr.decode(errors='replace').strip()
     except Exception as e:
         return False, "", str(e)
 
@@ -64,9 +62,7 @@ def run_stream(cmd):
             shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            text=True,
-            encoding='utf-8',
-            errors='replace'
+            text=True
         )
         for line in proc.stdout:
             sys.stdout.write(line)
@@ -160,17 +156,153 @@ def suggest_node(p):
 def detect_git_bash(p):
     if p != "windows":
         return None
-    
-    # Common paths for Git Bash
-    paths = [
-        os.path.join(os.environ.get("ProgramFiles", "C:\\Program Files"), "Git", "bin", "bash.exe"),
-        os.path.join(os.environ.get("ProgramFiles(x86)", "C:\\Program Files (x86)"), "Git", "bin", "bash.exe"),
-        os.path.join(os.environ.get("LocalAppData", ""), "Programs", "Git", "bin", "bash.exe"),
+    candidates = [
+        r"C:\Program Files\Git\bin\bash.exe",
+        r"C:\Program Files (x86)\Git\bin\bash.exe",
     ]
-    for path in paths:
-        if os.path.exists(path):
-            return path
+    for c in candidates:
+        if os.path.exists(c):
+            return c.replace("\\", "\\\\")  # escape for JSON
     return None
+
+
+# ─── Local LLM detection ───────────────────────────────────
+
+def fetch_json_get(url):
+    try:
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return json.loads(resp.read().decode())
+    except Exception:
+        return None
+
+
+def detect_ollama():
+    data = fetch_json_get("http://localhost:11434/api/tags")
+    if data and isinstance(data, dict):
+        models = []
+        for m in data.get("models", []):
+            name = m.get("name")
+            if name:
+                models.append(("ollama", name))
+        return models
+    return []
+
+
+def detect_openai_compat(base_url):
+    data = fetch_json_get(f"{base_url}/v1/models")
+    if data and isinstance(data, dict):
+        models = []
+        for m in data.get("data", []):
+            mid = m.get("id")
+            if mid:
+                models.append((base_url.rstrip("/"), mid))
+        return models
+    return []
+
+
+def detect_llm_services():
+    all_models = []
+
+    # Ollama
+    all_models.extend(detect_ollama())
+
+    # LMStudio / LocalAI / llama.cpp / generic OpenAI-compatible
+    endpoints = [
+        "http://localhost:1234",
+        "http://localhost:8080",
+        "http://localhost:5000",
+    ]
+    for url in endpoints:
+        all_models.extend(detect_openai_compat(url))
+
+    # deduplicate while preserving order
+    seen = set()
+    unique = []
+    for p, m in all_models:
+        if (p, m) not in seen:
+            seen.add((p, m))
+            unique.append((p, m))
+    return unique
+
+
+# ─── JSON helpers ───────────────────────────────────────────
+
+def load_json(path):
+    if not os.path.exists(path):
+        # Fallback to .example
+        example = path + ".example"
+        if os.path.exists(example):
+            path = example
+        else:
+            return {}
+    
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except:
+        return {}
+
+
+def save_json(path, data):
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+
+
+def parse_version(version_str):
+    version_str = (version_str or "").strip().lstrip("vV")
+    parts = []
+    for segment in version_str.split("."):
+        try:
+            parts.append(int(segment))
+        except ValueError:
+            break
+    while len(parts) < 3:
+        parts.append(0)
+    return tuple(parts[:3])
+
+
+def get_harness_config():
+    if not os.path.exists(HARNESS_CONFIG_PATH):
+        return {}
+    return load_json(HARNESS_CONFIG_PATH)
+
+
+def check_harness_version():
+    harness_cfg = get_harness_config()
+    min_recommended = harness_cfg.get("minRecommendedPiVersion", "0.73.0")
+    harness_version = harness_cfg.get("harnessVersion", "unknown")
+
+    ok, out, _ = run("pi --version")
+    pi_version = None
+    if ok and out.strip():
+        tokens = out.strip().split()
+        for t in tokens:
+            if any(c.isdigit() for c in t) and ("." in t or t.startswith("v")):
+                pi_version = t.strip()
+                break
+
+    if pi_version is None:
+        print(f"  [SETUP] Harness version: {harness_version} (recommended Pi >= {min_recommended})")
+        print("  [SETUP] 無法確認 Pi 版本，若行為異常，建議先執行: pi update")
+        return
+
+    pv = parse_version(pi_version)
+    mv = parse_version(min_recommended)
+
+    print(f"  [SETUP] Harness version: {harness_version}")
+    print(f"  [SETUP] 偵測到 Pi 版本: {pi_version}")
+
+    if pv < mv:
+        print(f"  ⚠️  目前 Pi 版本低於建議版本 ({min_recommended})，部分功能可能不穩定。")
+        print("     建議執行: pi update")
+        ans = prompt_yes("  是否現在更新 Pi？(y/N): ")
+        if ans in ("y", "yes"):
+            run("pi update")
+    else:
+        print("  ✅ Pi 版本符合建議。")
 
 
 # ─── Intel Arc detection (for labeling) ────────────────────
@@ -206,11 +338,11 @@ def get_hardware_info():
     # System RAM
     try:
         if sys_p == "windows":
-            # wmic is faster than systeminfo. Using findall to grab first big number.
+            # wmic is faster than systeminfo. Using findall and filtering for large numbers (> 1GB in bytes)
             ok, out, _ = run("wmic computersystem get TotalPhysicalMemory")
             if ok:
-                nums = re.findall(r'\d+', out)
-                if nums: info["ram"] = int(nums[0]) // (1024**3)
+                nums = [int(n) for n in re.findall(r'\d+', out) if int(n) > 1024**3]
+                if nums: info["ram"] = nums[0] // (1024**3)
         elif sys_p == "macos":
             ok, out, _ = run("sysctl hw.memsize")
             if ok:
@@ -218,10 +350,9 @@ def get_hardware_info():
                 if nums: info["ram"] = int(nums[0]) // (1024**3)
         else: # Linux
             with open("/proc/meminfo", "r") as f:
-                content = f.read()
-                match = re.search(r"MemTotal:\s+(\d+)\s+kB", content)
-                if match:
-                    info["ram"] = int(match.group(1)) // (1024**2)
+                mem = f.readline()
+                nums = re.findall(r'\d+', mem)
+                if nums: info["ram"] = int(nums[0]) // (1024**2)
     except: pass
 
     # NVIDIA VRAM
@@ -238,13 +369,14 @@ def get_hardware_info():
 
 # ─── Model helper (v0.73+ models.json format) ─────────────
 
+import re
+
 def fetch_ollama_metadata(model_name):
     """
     Try to fetch real metadata (like num_ctx) from Ollama API.
     """
     try:
-        # Use 127.0.0.1 for stability
-        url = "http://127.0.0.1:11434/api/show"
+        url = "http://localhost:11434/api/show"
         data = json.dumps({"name": model_name}).encode("utf-8")
         req = urllib.request.Request(url, data=data, method="POST")
         with urllib.request.urlopen(req, timeout=3) as resp:
@@ -294,6 +426,7 @@ def fetch_llamacpp_metadata(base_url):
 def fetch_openai_compat_metadata(base_url, model_id):
     """
     Try to find extended metadata in standard OpenAI model list.
+    Some providers (vLLM, LocalAI) add max_model_len or similar.
     """
     try:
         url = f"{base_url.rstrip('/')}/v1/models"
@@ -302,6 +435,7 @@ def fetch_openai_compat_metadata(base_url, model_id):
             data = json.loads(resp.read().decode())
             for m in data.get("data", []):
                 if m.get("id") == model_id:
+                    # Look for common extension keys
                     for key in ["max_model_len", "context_length", "n_ctx", "context_window"]:
                         if key in m: return {"ctx": int(m[key])}
     except: pass
@@ -325,8 +459,10 @@ def get_recommended_specs(model_id, hw, provider=None, api_base=None):
     if provider == "ollama":
         meta = fetch_ollama_metadata(model_id)
     elif api_base:
+        # Try llama.cpp /props first
         meta = fetch_llamacpp_metadata(api_base)
         if not meta:
+            # Try OpenAI extensions
             meta = fetch_openai_compat_metadata(api_base, model_id)
     
     if meta.get("ctx"):
@@ -337,28 +473,29 @@ def get_recommended_specs(model_id, hw, provider=None, api_base=None):
     if any(k in mid for k in ["r1", "thought", "opus", "deepseek"]):
         reasoning = True
     
-    # 2. Series Heuristics (Upscale if truth is too small or missing)
+    # 2. Detect Series Features (Apply if truth not found or too small)
     if "qwen" in mid:
+        if not found_truth or ctx < 32768: ctx = 32768
         reasoning = True
-        if not found_truth or ctx < 32768:
-            ctx = 32768 if not found_truth else max(ctx, 32768)
-
-    # 3. Model Size Heuristics
+    
+    # 3. Size-based heuristics
     match = re.search(r'([0-9]+)b', mid)
     if match:
         size = int(match.group(1))
-        if size >= 70 and (not found_truth or ctx < 32768):
-            ctx = 32768
+        if size >= 70:
+            if not found_truth or ctx < 32768: ctx = 32768
             max_t = 8192
-        elif size >= 27 and (not found_truth or ctx < 131072):
-            ctx = 131072
+        elif size >= 27:
+            if not found_truth or ctx < 131072: ctx = 131072
             max_t = 16384
     
-    # 4. Special Override (Qwen 3.6)
-    if "3.6" in mid and (not found_truth or ctx < 196608):
-        ctx = 196608
+    # 4. Explicit latest models (Special override for Qwen 3.6)
+    if "3.6" in mid:
+        if not found_truth or ctx < 196608: ctx = 196608
+        max_t = 32768
 
-    # 5. Hardware Safety Rail (ONLY if truth NOT found)
+    # 5. Hardware Capping (Safety Rail - Only apply if truth NOT found)
+    # If we found truth, we assume the user/server already decided what's safe.
     if not found_truth:
         vram = hw.get("vram")
         ram = hw.get("ram")
@@ -370,97 +507,60 @@ def get_recommended_specs(model_id, hw, provider=None, api_base=None):
     return ctx, max_t, reasoning, found_truth
 
 
-def probe_ollama():
-    try:
-        with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=1) as response:
-            data = json.loads(response.read().decode())
-            return [("ollama", m["name"]) for m in data.get("models", [])]
-    except:
-        return []
-
-def probe_llama_cpp(url):
-    """Deep probe for llama.cpp /props or /slots endpoint."""
-    try:
-        # Use 127.0.0.1 for stability
-        target = url.replace("localhost", "127.0.0.1")
-        target_props = target.rstrip("/") + "/props"
-            
-        with urllib.request.urlopen(target_props, timeout=1) as response:
-            data = json.loads(response.read().decode())
-            n_ctx = data.get("default_generation_settings", {}).get("n_ctx", 0)
-            if not n_ctx: n_ctx = data.get("n_ctx", 0)
-            
-            model_path = data.get("model_path", "unknown")
-            model_name = os.path.basename(model_path)
-            return {"name": model_name, "ctx": n_ctx}
-    except:
-        # Fallback to /slots
-        try:
-            target_slots = url.replace("localhost", "127.0.0.1").rstrip("/") + "/slots"
-            with urllib.request.urlopen(target_slots, timeout=1) as response:
-                data = json.loads(response.read().decode())
-                if isinstance(data, list) and len(data) > 0:
-                    n_ctx = data[0].get("n_ctx", 0)
-                    return {"name": "Detected Slot", "ctx": n_ctx}
-        except: pass
-    return None
-
-def detect_llm_services():
-    models = probe_ollama()
-    
-    # Common local LLM ports
-    ports = [11434, 1234, 8080, 8000, 3000]
-    for port in ports:
-        if port == 11434: continue # Already handled by probe_ollama
-        url = f"http://localhost:{port}"
-        try:
-            probe = probe_llama_cpp(url)
-            if probe:
-                models.append((url, probe["name"]))
-        except:
-            pass
-    return models
-
-
 def build_models_json(selected_provider, selected_model, selected_api_base):
     """
     Build models.json with deep truth-based detection.
     """
-    hw = get_hardware_info()
-    
-    rec_ctx, rec_max_t, is_reasoning, found_truth = get_recommended_specs(selected_model, hw, selected_provider, selected_api_base)
-    
-    truth_label = " (API 實測值)" if found_truth else ""
-    
-    print()
-    print("=" * 60)
-    ram_str = f"{hw['ram']}GB" if hw['ram'] else "??GB"
-    vram_str = f"{hw['vram']}GB" if hw['vram'] else "??GB"
-    print(f"  [環境偵測] RAM: {ram_str} | VRAM: {vram_str}")
-    print(f"  [配置模型] {selected_model}{truth_label}")
-    print("-" * 60)
-    print("  請確認或修改以下參數 (直接按 Enter 使用推薦值)：")
-    
-    try:
-        user_ctx = input(f"  1. Context Window [{rec_ctx}]: ").strip()
-        final_ctx = int(user_ctx) if user_ctx else rec_ctx
-        
-        user_max_t = input(f"  2. Max Tokens [{rec_max_t}]: ").strip()
-        final_max_t = int(user_max_t) if user_max_t else rec_max_t
-        
-        reasoning_str = "Y" if is_reasoning else "n"
-        user_reasoning = input(f"  3. Enable Reasoning/Thought [{reasoning_str}]: ").strip().lower()
-        if user_reasoning == "": final_reasoning = is_reasoning
-        else: final_reasoning = user_reasoning in ("y", "yes", "true")
-    except:
-        final_ctx, final_max_t, final_reasoning = rec_ctx, rec_max_t, is_reasoning
+    if not selected_provider or not selected_model or not selected_api_base:
+        return None
 
-    # Build unique IDs
-    provider_id = "local-server"
-    model_label = f"Local: {selected_model}"
+    # Derive provider ID
     if selected_provider == "ollama":
-        provider_id = "ollama"
-        model_label = f"Ollama: {selected_model}"
+        provider_id = "ollama-local"
+    else:
+        if "8080" in selected_api_base:
+            provider_id = "llama-cpp-local"
+        else:
+            provider_id = "local-openai-compatible"
+
+    # Label
+    model_label = selected_model
+    if has_intel_arc():
+        model_label += " (Intel Arc SYCL)"
+
+    # Deep Check
+    hw = get_hardware_info()
+    rec_ctx, rec_max_t, rec_reasoning, is_truth = get_recommended_specs(
+        selected_model, hw, selected_provider, selected_api_base
+    )
+
+    # Simplified Enter-centric UI
+    final_ctx = rec_ctx
+    final_max_t = rec_max_t
+    final_reasoning = rec_reasoning
+
+    if not AUTO_MODE:
+        print("\n" + "=" * 60)
+        print(f"  [環境偵測] RAM: {hw['ram'] or '??'}GB | VRAM: {hw['vram'] or '??'}GB")
+        source_label = "API 實測值" if is_truth else "系統推薦值"
+        print(f"  [配置模型] {selected_model} ({source_label})")
+        print("-" * 60)
+        print("  請確認或修改以下參數 (直接按 Enter 使用推薦值)：")
+        
+        try:
+            user_ctx = input(f"  1. Context Window [{rec_ctx}]: ").strip()
+            if user_ctx: final_ctx = int(user_ctx)
+            
+            user_max = input(f"  2. Max Tokens     [{rec_max_t}]: ").strip()
+            if user_max: final_max_t = int(user_max)
+            
+            r_prompt = "開啟" if final_reasoning else "關閉"
+            user_r = input(f"  3. Reasoning Mode [{r_prompt}]: (y/n) ").strip().lower()
+            if user_r: final_reasoning = (user_r in ("y", "yes"))
+        except ValueError:
+            print("  [!] 輸入無效，將使用系統推薦值。")
+        
+        print("=" * 60)
 
     # Detect if it's a Qwen-style thinking model
     is_qwen = "qwen" in selected_model.lower()
@@ -504,38 +604,6 @@ def build_models_json(selected_provider, selected_model, selected_api_base):
 
 # ─── Restore helper ─────────────────────────────────────────
 
-def load_json(path):
-    if not os.path.exists(path):
-        example = path + ".example"
-        if os.path.exists(example): path = example
-        else: return {}
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except: return {}
-
-def save_json(path, data):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-        f.write("\n")
-
-def get_harness_config():
-    return load_json(HARNESS_CONFIG_PATH)
-
-def check_harness_version():
-    cfg = get_harness_config()
-    print(f"  [SETUP] Harness version: {cfg.get('harnessVersion', 'unknown')}")
-    
-    # Also check pi version
-    ok, out, _ = run("pi --version")
-    if ok:
-        print(f"  [SETUP] 偵測到 Pi 版本: {out}")
-        if "0.7" in out:
-            print("  ✅ Pi 版本符合建議。")
-        else:
-            print("  ⚠️ 建議使用 v0.70+ 版本。")
-
 def run_restore(git_bash, p):
     script = os.path.join(REPO_ROOT, "scripts", "restore.py")
     if not os.path.exists(script):
@@ -549,7 +617,7 @@ def run_restore(git_bash, p):
 
     print("  ✅ Restore 完成。")
 
-    # Write harness version metadata
+    # Write harness version metadata into agent dir (for future checks)
     harness_cfg = get_harness_config()
     version_info = {
         "harnessVersion": harness_cfg.get("harnessVersion"),
@@ -651,8 +719,6 @@ def main():
 
     # --- Mode: Full (Environment Checks) ---
     if mode == "full":
-        print("🔍 正在檢查核心環境...")
-        
         # 1. Check Git
         if not has_command("git"):
             print("❌ 未偵測到 Git。")
@@ -785,5 +851,8 @@ def main():
     print("  2. 確認 Skills 與模型是否如預期運作")
     print("=" * 60)
 
+
+
 if __name__ == "__main__":
     main()
+
