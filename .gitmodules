@@ -7,3 +7,9 @@
 [submodule "external/planning-with-files"]
 	path = external/planning-with-files
 	url = https://github.com/OthmanAdi/planning-with-files
+[submodule "external/llm-wiki-plugin"]
+	path = external/llm-wiki-plugin
+	url = https://github.com/praneybehl/llm-wiki-plugin
+[submodule "external/superpowers"]
+	path = external/superpowers
+	url = https://github.com/obra/superpowers

@@ -168,6 +168,24 @@ def main():
         with open(cfg_path, "r", encoding="utf-8") as f:
             content = f.read()
         
+        # Resolve real paths for Superpowers
+        sp_root = os.path.join(REPO_ROOT, "external", "superpowers", "skills").replace("\\", "/")
+        sp_skills = {
+            "using-superpowers": os.path.join(sp_root, "using-superpowers"),
+            "brainstorming": os.path.join(sp_root, "brainstorming"),
+            "writing-plans": os.path.join(sp_root, "writing-plans"),
+            "test-driven-development": os.path.join(sp_root, "test-driven-development"),
+            "systematic-debugging": os.path.join(sp_root, "systematic-debugging"),
+            "subagent-driven-development": os.path.join(sp_root, "subagent-driven-development"),
+            "executing-plans": os.path.join(sp_root, "executing-plans"),
+            "verification-before-completion": os.path.join(sp_root, "verification-before-completion"),
+            "finishing-a-development-branch": os.path.join(sp_root, "finishing-a-development-branch"),
+            "receiving-code-review": os.path.join(sp_root, "receiving-code-review"),
+            "requesting-code-review": os.path.join(sp_root, "requesting-code-review"),
+            "using-git-worktrees": os.path.join(sp_root, "using-git-worktrees"),
+            "writing-skills": os.path.join(sp_root, "writing-skills"),
+        }
+        
         # Resolve real paths for ECC and local skills
         ecc_agents = os.path.join(REPO_ROOT, "external", "everything-claude-code", "agents").replace("\\", "/")
         ecc_skills = os.path.join(REPO_ROOT, "external", "everything-claude-code", "skills").replace("\\", "/")
@@ -178,12 +196,17 @@ def main():
         anthropic_docx = os.path.join(REPO_ROOT, "external", "anthropics-skills", "skills", "docx").replace("\\", "/")
         anthropic_creator = os.path.join(REPO_ROOT, "external", "anthropics-skills", "skills", "skill-creator").replace("\\", "/")
         upstream_planning = os.path.join(REPO_ROOT, "external", "planning-with-files").replace("\\", "/")
+        upstream_wiki = os.path.join(REPO_ROOT, "external", "llm-wiki-plugin", "skills", "llm-wiki").replace("\\", "/")
         
         understand_agents = os.path.join(AGENT_DIR, "skills", "understand", "agents").replace("\\", "/")
         browser_agents = os.path.join(AGENT_DIR, "skills", "dev-browser", "agents").replace("\\", "/")
         caveman_skill = os.path.join(AGENT_DIR, "skills", "caveman").replace("\\", "/")
         
         # More precise replacements
+        for name, path in sp_skills.items():
+            placeholder = f"TODO_NEW_MACHINE:/path/to/external/superpowers/skills/{name}"
+            content = content.replace(placeholder, path)
+
         content = content.replace("TODO_NEW_MACHINE:/path/to/everything-claude-code/agents", ecc_agents)
         content = content.replace("TODO_NEW_MACHINE:/path/to/everything-claude-code/skills", ecc_skills)
         content = content.replace("TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/mcp-builder", anthropic_mcp)
@@ -193,6 +216,7 @@ def main():
         content = content.replace("TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/docx", anthropic_docx)
         content = content.replace("TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/skill-creator", anthropic_creator)
         content = content.replace("TODO_NEW_MACHINE:/path/to/external/planning-with-files", upstream_planning)
+        content = content.replace("TODO_NEW_MACHINE:/path/to/external/llm-wiki-plugin/skills/llm-wiki", upstream_wiki)
         content = content.replace("TODO_NEW_MACHINE:/path/to/pi/agent/skills/understand/agents", understand_agents)
         content = content.replace("TODO_NEW_MACHINE:/path/to/pi/agent/skills/dev-browser/agents", browser_agents)
         content = content.replace("TODO_NEW_MACHINE:/path/to/pi/agent/skills/caveman", caveman_skill)

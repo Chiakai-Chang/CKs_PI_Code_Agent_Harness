@@ -8,12 +8,26 @@
   "skills": [
     "TODO_NEW_MACHINE:/path/to/pi/agent/skills/caveman",
     "TODO_NEW_MACHINE:/path/to/everything-claude-code/skills",
+    "TODO_NEW_MACHINE:/path/to/external/superpowers/skills/using-superpowers",
+    "TODO_NEW_MACHINE:/path/to/external/superpowers/skills/brainstorming",
+    "TODO_NEW_MACHINE:/path/to/external/superpowers/skills/writing-plans",
+    "TODO_NEW_MACHINE:/path/to/external/superpowers/skills/test-driven-development",
+    "TODO_NEW_MACHINE:/path/to/external/superpowers/skills/systematic-debugging",
+    "TODO_NEW_MACHINE:/path/to/external/superpowers/skills/subagent-driven-development",
+    "TODO_NEW_MACHINE:/path/to/external/superpowers/skills/executing-plans",
+    "TODO_NEW_MACHINE:/path/to/external/superpowers/skills/verification-before-completion",
+    "TODO_NEW_MACHINE:/path/to/external/superpowers/skills/finishing-a-development-branch",
+    "TODO_NEW_MACHINE:/path/to/external/superpowers/skills/receiving-code-review",
+    "TODO_NEW_MACHINE:/path/to/external/superpowers/skills/requesting-code-review",
+    "TODO_NEW_MACHINE:/path/to/external/superpowers/skills/using-git-worktrees",
+    "TODO_NEW_MACHINE:/path/to/external/superpowers/skills/writing-skills",
     "TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/mcp-builder",
     "TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/frontend-design",
     "TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/webapp-testing",
     "TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/pdf",
     "TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/docx",
     "TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/skill-creator",
-    "TODO_NEW_MACHINE:/path/to/external/planning-with-files"
+    "TODO_NEW_MACHINE:/path/to/external/planning-with-files",
+    "TODO_NEW_MACHINE:/path/to/external/llm-wiki-plugin/skills/llm-wiki"
   ]
 }
