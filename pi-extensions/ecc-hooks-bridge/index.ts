@@ -91,6 +91,19 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     const profile = getProfile();
     ctx.ui.setStatus("ecc", `ECC bridge (profile: ${profile})`);
+
+    // Health Probe
+    if (!existsSync(ECC_ROOT)) {
+      ctx.ui.notify(`⚠️ [ECC Bridge] 子模組缺失。請執行 git submodule update --init`, "warning");
+    } else {
+      try {
+        const versionPath = join(ECC_ROOT, "VERSION");
+        if (existsSync(versionPath)) {
+          const version = readFileSync(versionPath, "utf-8").trim();
+          console.log(`[ecc-bridge] ECC Submodule Version: ${version}`);
+        }
+      } catch {}
+    }
   });
 
   // ========== PreToolUse: Bash ==========
