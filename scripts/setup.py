@@ -698,6 +698,13 @@ def main():
             if ans in ("y", "yes"):
                 run_stream("pi update")
         
+        # 4.2 Check Optional Stealth Browser (Camofox)
+        if not has_command("camofox-browser"):
+            print("  [選配] 偵測到未安裝 Camofox 高隱身瀏覽器。")
+            ans = prompt_yes("  是否現在安裝？ (y/N) (需耗費較多空間): ")
+            if ans in ("y", "yes"):
+                run_stream("npm install -g camofox-browser")
+        
         check_harness_version()
         print()
 

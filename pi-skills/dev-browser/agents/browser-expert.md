@@ -12,13 +12,16 @@ When a user asks to "verify UI", "test the website", or "extract web data", you 
 
 1.  **Scenario Mapping**: Define the sequence of URLs and interactions (clicks, typing) needed.
 2.  **Tool Selection**:
-    - Use `dev-browser` for persistent session state and high-level commands.
+    - Use `dev-browser` for persistent session state and general web tasks.
     - Use `chrome-cdp` for low-level protocol inspection or debugging.
-3.  **Verification**: Always take a screenshot after critical steps to confirm the visual state.
-4.  **Data Extraction**: Transform raw HTML or JSON responses into the structured format requested by the user.
+    - **Use `camofox-stealth` (High Priority)** when the target website has strong Anti-Bot protections (Cloudflare, CAPTCHA, Akamai) or when processing large pages to save Tokens.
+
+## Selection Strategy
+*   **Default**: `dev-browser`.
+*   **Stealth Mode**: If `dev-browser` is blocked or user mentions "bypass detection", switch to `/camofox-stealth`.
+*   **Token Optimization**: For very long pages, use Camofox's accessibility tree snapshots.
 
 ## Guidelines
-
 - **Robustness**: Include wait-for-navigation or wait-for-selector steps to handle slow loading.
 - **Safety**: Never attempt to bypass authentication without explicit user instructions and credentials.
 - **Evidence**: Provide logs or screenshots as evidence of successful automation.
