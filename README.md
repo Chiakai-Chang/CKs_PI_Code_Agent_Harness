@@ -1,20 +1,39 @@
-# 🚀 CK's Pi Code Agent Harness
+# 🚀 CK's Pi Code Agent Harness (Flagship v3.7)
 
-> **一鍵重建頂級 AI 開發環境** —— 為你的 Pi 助手注入來自開源社群的強大「靈魂」。
+> **一鍵重建工業級 AI 開發環境** —— 為你的 Pi 助手注入全球頂尖專家的開發直覺與嚴謹紀律。
 
-`CK's Pi Code Agent Harness` 是一個專為 [Pi Coding Agent](https://github.com/badlogic/pi-mono) 設計的可攜式配置套件。它將散落在 GitHub 各處的強大 Skills、Rules 與 Extensions 整合為一個「一鍵式」的安裝流程，讓你無論在換電腦、切換工作環境時，都能在 3 分鐘內恢復完整的戰鬥力。
+`CK's Pi Code Agent Harness` 是一個專為 [Pi Coding Agent](https://github.com/badlogic/pi-mono) 打造的**旗艦級配置增強套件**。本專案不僅是配置的集結，更是一套深度的**智慧蒸餾系統**。它透過「原生映射 (Native Mapping)」技術，整合了 GitHub 12+ 個頂尖開源倉庫，讓您的 Pi 助手具備從需求分析、架構設計到自動化測試的全生命週期專家能力。
 
 ---
 
-## 🌟 為什麼要使用這個 Harness？
+## 🏗️ 七大技術支柱 (The 7 Pillars)
 
-不僅僅是配置拷貝，我們透過 **橋接技術 (Bridge Extension)** 深度整合了社群頂尖資源：
+基於 **`v3.7 蒸餾導則`**，我們為 Pi 構建了完整的開發大腦：
 
-*   **🛡️ 紀律強化 (ECC)**：自動觸發品質門檻 (Quality Gate)、配置保護與專業 Git 工作流。
-*   **🧠 專業直覺 (Superpowers)**：賦予 AI 「主動思考」與「工具自選」的專家行為準則。
-*   **🔍 深度解讀 (Understand-Anything)**：讓 AI 具備「圖論級」的代碼庫解讀能力，快速啃食大型專案。
-*   **🎨 美感注入 (UI-UX-Pro-Max)**：內建過百種專業設計規範與配色方案，讓 AI 寫出的介面更具質感。
-*   **🦖 極簡溝通 (Caveman)**：支援超壓縮溝通模式，在複雜任務中為你節省 50% 以上的 Token 消耗。
+1.  **🛡️ 紀律守護 (ECC Hooks)**：整合 50+ 專業代理人與自動化掛鉤，在 AI 闖禍前（如語法錯誤、金鑰洩漏）秒級攔截。
+2.  **🧠 專家直覺 (Superpowers)**：注入工業級工程紀律，強制 AI 實施 TDD 與系統化規劃。
+3.  **🔍 代碼 GPS (Understand)**：利用知識圖譜技術，讓 AI 具備解讀數萬行複雜專案的「上帝視角」。
+4.  **📚 專案大腦 (LLM Wiki)**：實作 Karpathy 模式，讓專案知識隨時間複利成長，建立持久的維基索引。
+5.  **📝 戰術持久 (Manus Planning)**：實體化任務計畫，確保斷點續傳，徹底解決長對話導致的 AI 「失憶」問題。
+6.  **🕵️ 硬體透視 (Smart Detect)**：自動偵測 VRAM、RAM 與 192k Context 真值，精準調優本地模型性能。
+7.  **🛠️ 自癒安裝 (Healing Setup)**：解決 Windows 權限、編碼亂碼與 Git 信任等雜症，實現真正的一鍵部署。
+
+---
+
+## 📂 整合生態系 (Integrated Masterpieces)
+
+本專案透過 Git Submodule 連結以下大師級資產，確保與上游 100% 同步：
+
+| 領域 | 來源專案 / 大師 | 賦予 Pi 的核心神力 |
+| :--- | :--- | :--- |
+| **工程紀律** | [ECC](https://github.com/affaan-m/everything-claude-code) | 自動品質門檻、安全審查、50+ 特種代理人。 |
+| **方法論** | [Superpowers](https://github.com/obra/superpowers) | TDD 驅動、系統化規劃、專家選擇直覺。 |
+| **行為準則** | [Karpathy](https://github.com/forrestchang/andrej-karpathy-skills) | 鎖定 Andrej Karpathy 觀察的 LLM 避坑開發指南。 |
+| **認知提取** | [Nuwa (女媧)](https://github.com/alchaincyf/nuwa-skill) | **專家工廠**：內建 15 位名家（賈伯斯、芒格等）思維框架。 |
+| **TS 專家** | [Matt Pocock](https://github.com/mattpocock/skills) | 宏觀架構導航、深模組化重構、TypeScript 深度偵錯。 |
+| **Web 權威** | [Addy Osmani](https://github.com/addyosmani/agent-skills) | Google 級效能審計、API 契約設計、懷疑驅動開發 (DDD)。 |
+| **提示工程** | [Prompt Master](https://github.com/nidhinjs/prompt-master) | 提示詞自動壓縮與跨模型指令翻譯，極致節省 Token。 |
+| **CLI 標準** | [Printing Press](https://github.com/mvanhorn/cli-printing-press) | 實施 **CK-Spec-01** 標準，打造 Agent-Native 精簡輸出。 |
 
 ---
 
@@ -22,101 +41,44 @@
 
 ### 1. 取得專案
 ```bash
-git clone https://github.com/Chiakai-Chang/CKs_PI_Code_Agent_Harness.git
+git clone --recursive https://github.com/Chiakai-Chang/CKs_PI_Code_Agent_Harness.git
 cd CKs_PI_Code_Agent_Harness
 ```
 
-### 2. 執行安裝
-*   **Windows**: 雙擊執行 `install.bat`（建議右鍵「以管理員身分執行」以獲得最佳體驗）。
-*   **macOS / Linux**: 執行 `bash install.sh`。
+### 2. 一鍵部署
+*   **Windows**: 雙擊 `install.bat` (建議管理員執行)。
+*   **macOS / Linux**: `bash install.sh`。
 
-> 安裝程式會自動檢查 Git/Python/Node 補全環境，並偵測您電腦上的 **Ollama** 或 **LMStudio** 模型。
+> 系統會自動執行 **Map-Driven Restore**，將所有專家路徑與 70+ 位代理人注入您的環境。
 
 ### 3. 開始開發
-安裝完成後，直接在終端機輸入：
 ```bash
 pi
 ```
 
 ---
 
-## 🛠️ 核心特色
+## 🛠️ 核心規格與自豪功能
 
-*   **⚡ 全自動化安裝**：自動處理環境補全，缺什麼裝什麼，不再為 PATH 設定煩惱。
-*   **🕵️ 智慧模型配置 (Smart Detection)**：
-    *   **真值偵測**：深度對接 Ollama API 與 llama.cpp `/props`，自動擷取精準的 Context Window。
-    *   **硬體感知**：自動掃描系統 RAM 與 NVIDIA VRAM，根據硬體體質給出最佳參數建議。
-    *   **Enter-Centric UI**：一路按 Enter 即可完成專業配置，同時保留手動微調空間。
-*   **🔄 持久化計畫 (Manus-style)**：內建 `planning-with-files`，讓 AI 在多輪對話中擁有「外部硬碟級」的記憶力。
-*   **🌐 跨平台支援**：完美支援 Windows (Git Bash)、macOS 與 Linux。
-
----
-
-## 📂 技能包與生態系 (Integrated Ecosystem)
-
-本專案透過整合以下開源專案，構建了目前最完整的 `pi` 技能圖譜：
-
-| 領域 | 參考來源 / 專案 | 核心功能 |
-| :--- | :--- | :--- |
-| **工作流管理** | [Everything Claude Code](https://github.com/affaan-m/everything-claude-code) | Hooks 橋接、品質檢查點、`/tdd`、`/plan`。 |
-| **行為強化** | [Superpowers](https://github.com/obra/superpowers) | 強迫 AI 在每一動之前尋找最佳專業技能。 |
-| **代碼解讀** | [Understand-Anything](https://github.com/Lum1104/Understand-Anything) | `/understand-onboard` 生成專案知識圖譜。 |
-| **視覺設計** | [UI-UX-Pro-Max](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) | 專業配色、字體配對與 UI 審查清單。 |
-| **瀏覽器自動化** | [dev-browser](https://github.com/SawyerHood/dev-browser) | 讓 AI 具備操作 Chrome 進行網頁驗證的能力。 |
-| **提示工程** | [prompt-master](https://github.com/nidhinjs/prompt-master) | 自動優化發送給其他 AI 模型的提示詞。 |
-
----
-
-## 📁 專案結構速覽
-
-```text
-├── install.bat / install.sh   # 多平台一鍵安裝入口
-├── pi-config/                 # 預設設定檔 (models.json, settings.json)
-├── pi-skills/                 # 核心技能 (Core) 與可選 UI 技能 (Optional)
-├── pi-extensions/             # 關鍵橋接擴充 (ECC Bridge, Planning Bridge)
-├── pi-rules/                  # 開發規範與工作流程指南
-├── scripts/                   # 底層安裝與還原邏輯 (setup.py, restore.py)
-└── external/                  # ECC 核心組件 (Git Submodule)
-```
+*   **⚡ Map-Driven Restore**：完全捨棄散裝複製，改用智慧映射，支援全域絕對路徑定位。
+*   **🧠 Hippocampus (海馬迴)**：整合 `hello-reflect`，自動從您的修正中學習並更新 `CLAUDE.md`。
+*   **🕵️ Stealth Force**：選配整合 `camofox-stealth`，具備繞過 Cloudflare 偵測的頂級隱身瀏覽力。
+*   **📑 Rationale Archive**：每一項整合都有專屬的 `RATIONALE.md`，決策背景透明、戰略脈絡可追溯。
 
 ---
 
 ## ✅ 隱私、安全與信任
 
-*   **完全開源**：所有安裝代碼透明可查，杜絕後門。
-*   **0 資料收集**：本套件不收集、不追蹤任何用戶行為。
-*   **本地優先**：優先支持本地 LLM (Ollama)，隱私資料不出門。
-*   **自動備份**：執行 `restore` 前會自動將您的 `~/.pi/agent` 備份。
-
----
-
-## ❓ 常見問題 (FAQ)
-
-<details>
-<summary><strong>如何更新 Harness 到最新版本？</strong></summary>
-在本資料夾執行：
-1. `git pull`
-2. `git submodule update --remote`
-3. `python scripts/restore.py`
-</details>
-
-<details>
-<summary><strong>安裝時出現權限錯誤？</strong></summary>
-Windows 用戶請確保以「系統管理員」身分執行終端機或 `install.bat`。
-</details>
-
-<details>
-<summary><strong>找不到本地 Ollama 模型？</strong></summary>
-請確保 Ollama 已啟動並在瀏覽器輸入 `http://localhost:11434` 確認服務正常運作，然後重新執行安裝腳本。
-</details>
+*   **本地優先**：針對 Ollama / llama.cpp 優化，代碼與智慧資產不出門。
+*   **安全攔截**：內建 ECC 防火牆，防止 AI 意外刪除 `.env` 或推送金鑰。
+*   **完全開源**：從腳本到 Prompts，一切透明。
 
 ---
 
 ## 🙏 感謝與授權
 
 *   本專案採用 **MIT 授權**。
-*   特別感謝 [badlogic/pi-mono](https://github.com/badlogic/pi-mono) 提供的強大基座。
-*   向所有在 **「技能來源」** 列表中出現的開源貢獻者致敬。
+*   向所有在「整合清單」中出現的開源大師致敬，你們的智慧是本專案的靈魂。
 
 ---
-**由 [CK (Chiakai Chang)](https://github.com/Chiakai-Chang) 維護與優化。**
+**由 [CK (Chiakai Chang)](https://github.com/Chiakai-Chang) 維護，旨在打造最強適應力的 AI 開發環境。**
