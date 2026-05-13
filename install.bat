@@ -2,6 +2,10 @@
 chcp 65001 > nul
 setlocal enabledelayedexpansion
 
+REM ============================================================
+REM  CK's Pi Code Agent Harness - Flagship Bootstrapper (v3.7.2)
+REM ============================================================
+
 REM --- 1. Find Python ---
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
@@ -10,7 +14,7 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-REM --- 2. Self-Elevation (if not admin) ---
+REM --- 2. Admin Check & Self-Elevation ---
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo [*] 正在請求管理員權限以確保安裝順利...
@@ -18,6 +22,6 @@ if %errorlevel% neq 0 (
     exit /b 0
 )
 
-REM --- 3. Launch the Brain (setup.py) ---
+REM --- 3. Run Setup Brain ---
 python "%~dp0scripts\setup.py"
 pause
