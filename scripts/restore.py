@@ -238,7 +238,7 @@ def main():
         path_map["/path/to/pi/agent/skills/dev-browser/agents"] = os.path.join(AGENT_DIR, "skills", "dev-browser", "agents")
         path_map["/path/to/pi/agent/skills/caveman"] = os.path.join(AGENT_DIR, "skills", "caveman")
         path_map["/path/to/pi/agent/skills/hello-reflect"] = os.path.join(AGENT_DIR, "skills", "hello-reflect")
-        path_map["/path/to/pi/agent/skills/camofox"] = os.path.join(AGENT_DIR, "skills", "camofox")
+        path_map["/path/to/pi/agent/skills/camofox-stealth"] = os.path.join(AGENT_DIR, "skills", "camofox-stealth")
 
         # --- EXECUTE REPLACEMENTS ---
         for placeholder, actual in path_map.items():
