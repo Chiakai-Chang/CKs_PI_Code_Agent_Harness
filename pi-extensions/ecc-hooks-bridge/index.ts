@@ -10,7 +10,7 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { isToolCallEventType } from "@mariozechner/pi-coding-agent";
 
 import { join, dirname } from "node:path";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 
 // Dynamic path resolution
 // Read from our own package.json which restore.py will patch
@@ -20,18 +20,13 @@ const HARNESS_ROOT = pkg["pi-harness"]?.root || join(dirname(pkgPath), "../..");
 const PROJECT_ROOT = HARNESS_ROOT;
 const ECC_ROOT = join(PROJECT_ROOT, "external/everything-claude-code");
 
-// Verify ECC exists
-if (!existsSync(ECC_ROOT)) {
-  console.warn(`[ecc-bridge] ECC not found. Run: git submodule update --init`);
-}
-
 function getProfile(): "minimal" | "standard" | "strict" {
   const env = process.env.ECC_HOOK_PROFILE?.trim().toLowerCase();
   if (env === "minimal" || env === "standard" || env === "strict") return env;
   return "standard";
 }
 
-function shouldEnable(id: string, profiles?: string): boolean {
+function shouldEnable(_id: string, profiles?: string): boolean {
   if (!profiles) return true;
   const profile = getProfile();
   return profiles.split(",").some(p => p.trim() === profile);
@@ -48,10 +43,15 @@ async function runHookScript(
   }
 
   const { spawn } = await import("node:child_process");
-  const fullPath = ECC_ROOT + "/" + script;
+  const fullPath = join(ECC_ROOT, script);
   const timeout = options?.timeout ?? 15000;
 
   return new Promise((resolve) => {
+    if (!existsSync(fullPath)) {
+      resolve({ stdout: "", stderr: `[ecc-bridge] Hook script not found: ${fullPath}\n`, exitCode: 0 });
+      return;
+    }
+
     const proc = spawn("node", [fullPath, ...args], {
       cwd: process.cwd(),
       timeout,
@@ -68,8 +68,8 @@ async function runHookScript(
     proc.on("exit", (code) => {
       resolve({ stdout, stderr, exitCode: code ?? 0 });
     });
-    proc.on("error", () => {
-      resolve({ stdout: "", stderr: `[ecc-bridge] Hook script error: ${script}\n`, exitCode: 0 });
+    proc.on("error", (err) => {
+      resolve({ stdout: "", stderr: `[ecc-bridge] Spawn error: ${err.message}\n`, exitCode: 0 });
     });
   });
 }
@@ -329,20 +329,22 @@ export default function (pi: ExtensionAPI) {
       const python = process.platform === "win32" ? "python" : "python3";
       const captureScript = join(PROJECT_ROOT, "pi-skills/core/hello-reflect/scripts/capture.py");
       
-      // Find latest session file (last modified in ~/.pi/agent/sessions/)
-      const sessionsDir = join(process.env.HOME || process.env.USERPROFILE || "", ".pi/agent/sessions");
-      const { readdirSync, statSync } = await import("node:fs");
-      const files = readdirSync(sessionsDir).filter(f => f.endsWith(".jsonl"));
-      if (files.length > 0) {
-        const latestFile = files.map(f => ({ name: f, time: statSync(join(sessionsDir, f)).mtime.getTime() }))
-                               .sort((a, b) => b.time - a.time)[0].name;
-        const sessionPath = join(sessionsDir, latestFile);
-        
-        const result = execSync(`"${python}" "${captureScript}" "${sessionPath}"`, { encoding: "utf-8" });
-        if (result.trim() && result.startsWith("[")) {
-          const learnings = JSON.parse(result);
-          if (learnings.length > 0) {
-            ctx.ui.notify(`📝 偵測到新學習點 (${learnings.length})。執行 /hello-reflect 以更新規範。`, "info");
+      const homeDir = process.env.HOME || process.env.USERPROFILE || "";
+      const sessionsDir = join(homeDir, ".pi/agent/sessions");
+      
+      if (existsSync(sessionsDir)) {
+        const files = readdirSync(sessionsDir).filter(f => f.endsWith(".jsonl"));
+        if (files.length > 0) {
+          const latestFile = files.map(f => ({ name: f, time: statSync(join(sessionsDir, f)).mtime.getTime() }))
+                                 .sort((a, b) => b.time - a.time)[0].name;
+          const sessionPath = join(sessionsDir, latestFile);
+          
+          const result = execSync(`"${python}" "${captureScript}" "${sessionPath}"`, { encoding: "utf-8" });
+          if (result.trim() && result.startsWith("[")) {
+            const learnings = JSON.parse(result);
+            if (learnings.length > 0) {
+              ctx.ui.notify(`📝 偵測到新學習點 (${learnings.length})。執行 /hello-reflect 以更新規範。`, "info");
+            }
           }
         }
       }
@@ -360,8 +362,5 @@ export default function (pi: ExtensionAPI) {
         { profiles: "standard,strict", timeout: 10000 }
       );
     } catch {}
-  });
-}
- {}
   });
 }
