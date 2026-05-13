@@ -54,6 +54,22 @@
     "TODO_NEW_MACHINE:/path/to/external/agent-skills/skills/api-and-interface-design",
     "TODO_NEW_MACHINE:/path/to/external/agent-skills/skills/deprecation-and-migration",
     "TODO_NEW_MACHINE:/path/to/external/agent-skills/skills/documentation-and-adrs",
-    "TODO_NEW_MACHINE:/path/to/external/agent-skills/skills/browser-testing-with-devtools"
+    "TODO_NEW_MACHINE:/path/to/external/agent-skills/skills/browser-testing-with-devtools",
+    "TODO_NEW_MACHINE:/path/to/external/nuwa-skill",
+    "TODO_NEW_MACHINE:/path/to/external/nuwa-skill/examples/andrej-karpathy-perspective",
+    "TODO_NEW_MACHINE:/path/to/external/nuwa-skill/examples/feynman-perspective",
+    "TODO_NEW_MACHINE:/path/to/external/nuwa-skill/examples/munger-perspective",
+    "TODO_NEW_MACHINE:/path/to/external/nuwa-skill/examples/taleb-perspective",
+    "TODO_NEW_MACHINE:/path/to/external/nuwa-skill/examples/paul-graham-perspective",
+    "TODO_NEW_MACHINE:/path/to/external/nuwa-skill/examples/naval-perspective",
+    "TODO_NEW_MACHINE:/path/to/external/nuwa-skill/examples/ilya-sutskever-perspective",
+    "TODO_NEW_MACHINE:/path/to/external/nuwa-skill/examples/elon-musk-perspective",
+    "TODO_NEW_MACHINE:/path/to/external/nuwa-skill/examples/steve-jobs-perspective",
+    "TODO_NEW_MACHINE:/path/to/external/nuwa-skill/examples/zhang-yiming-perspective",
+    "TODO_NEW_MACHINE:/path/to/external/nuwa-skill/examples/sun-yuchen-perspective",
+    "TODO_NEW_MACHINE:/path/to/external/nuwa-skill/examples/trump-perspective",
+    "TODO_NEW_MACHINE:/path/to/external/nuwa-skill/examples/zhangxuefeng-perspective",
+    "TODO_NEW_MACHINE:/path/to/external/nuwa-skill/examples/x-mastery-mentor",
+    "TODO_NEW_MACHINE:/path/to/external/nuwa-skill/examples/mrbeast-perspective"
   ]
 }

@@ -31,3 +31,6 @@
 [submodule "external/agent-skills"]
 	path = external/agent-skills
 	url = https://github.com/addyosmani/agent-skills
+[submodule "external/nuwa-skill"]
+	path = external/nuwa-skill
+	url = https://github.com/alchaincyf/nuwa-skill

@@ -231,6 +231,16 @@ def main():
             "browser-testing-with-devtools": os.path.join(addy_root, "browser-testing-with-devtools"),
         }
         
+        # Resolve real paths for Nuwa-Skill
+        nuwa_root = os.path.join(REPO_ROOT, "external", "nuwa-skill").replace("\\", "/")
+        nuwa_perspectives = [
+            "andrej-karpathy-perspective", "elon-musk-perspective", "feynman-perspective",
+            "ilya-sutskever-perspective", "mrbeast-perspective", "munger-perspective",
+            "naval-perspective", "paul-graham-perspective", "steve-jobs-perspective",
+            "sun-yuchen-perspective", "taleb-perspective", "trump-perspective",
+            "x-mastery-mentor", "zhang-yiming-perspective", "zhangxuefeng-perspective"
+        ]
+        
         karpathy_skills = os.path.join(REPO_ROOT, "external", "karpathy-skills", "skills", "karpathy-guidelines").replace("\\", "/")
         upstream_planning = os.path.join(REPO_ROOT, "external", "planning-with-files").replace("\\", "/")
         upstream_wiki = os.path.join(REPO_ROOT, "external", "llm-wiki-plugin", "skills", "llm-wiki").replace("\\", "/")
@@ -276,8 +286,13 @@ def main():
             placeholder = f"TODO_NEW_MACHINE:/path/to/external/agent-skills/skills/{name}"
             content = content.replace(placeholder, path)
 
-        content = content.replace("TODO_NEW_MACHINE:/path/to/external/karpathy-skills/skills/karpathy-guidelines", karpathy_skills)
+        content = content.replace("TODO_NEW_MACHINE:/path/to/external/nuwa-skill", nuwa_root)
+        for name in nuwa_perspectives:
+            placeholder = f"TODO_NEW_MACHINE:/path/to/external/nuwa-skill/examples/{name}"
+            path = os.path.join(nuwa_root, "examples", name).replace("\\", "/")
+            content = content.replace(placeholder, path)
 
+        content = content.replace("TODO_NEW_MACHINE:/path/to/external/karpathy-skills/skills/karpathy-guidelines", karpathy_skills)
         content = content.replace("TODO_NEW_MACHINE:/path/to/everything-claude-code/agents", ecc_agents)
         content = content.replace("TODO_NEW_MACHINE:/path/to/everything-claude-code/skills", ecc_skills)
         content = content.replace("TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/mcp-builder", anthropic_mcp)
