@@ -168,6 +168,18 @@ def main():
         with open(cfg_path, "r", encoding="utf-8") as f:
             content = f.read()
         
+        # Resolve real paths for Caveman
+        cv_root = os.path.join(REPO_ROOT, "external", "caveman", "skills").replace("\\", "/")
+        cv_skills = {
+            "caveman": os.path.join(cv_root, "caveman"),
+            "caveman-commit": os.path.join(cv_root, "caveman-commit"),
+            "caveman-review": os.path.join(cv_root, "caveman-review"),
+            "caveman-compress": os.path.join(cv_root, "caveman-compress"),
+            "caveman-stats": os.path.join(cv_root, "caveman-stats"),
+            "caveman-help": os.path.join(cv_root, "caveman-help"),
+            "cavecrew": os.path.join(cv_root, "cavecrew"),
+        }
+        
         # Resolve real paths for Superpowers
         sp_root = os.path.join(REPO_ROOT, "external", "superpowers", "skills").replace("\\", "/")
         sp_skills = {
@@ -195,6 +207,7 @@ def main():
         anthropic_pdf = os.path.join(REPO_ROOT, "external", "anthropics-skills", "skills", "pdf").replace("\\", "/")
         anthropic_docx = os.path.join(REPO_ROOT, "external", "anthropics-skills", "skills", "docx").replace("\\", "/")
         anthropic_creator = os.path.join(REPO_ROOT, "external", "anthropics-skills", "skills", "skill-creator").replace("\\", "/")
+        prompt_master = os.path.join(REPO_ROOT, "external", "prompt-master").replace("\\", "/")
         karpathy_skills = os.path.join(REPO_ROOT, "external", "karpathy-skills", "skills", "karpathy-guidelines").replace("\\", "/")
         upstream_planning = os.path.join(REPO_ROOT, "external", "planning-with-files").replace("\\", "/")
         upstream_wiki = os.path.join(REPO_ROOT, "external", "llm-wiki-plugin", "skills", "llm-wiki").replace("\\", "/")
@@ -216,6 +229,10 @@ def main():
         caveman_skill = os.path.join(AGENT_DIR, "skills", "caveman").replace("\\", "/")
         
         # More precise replacements
+        for name, path in cv_skills.items():
+            placeholder = f"TODO_NEW_MACHINE:/path/to/external/caveman/skills/{name}"
+            content = content.replace(placeholder, path)
+
         for name, path in sp_skills.items():
             placeholder = f"TODO_NEW_MACHINE:/path/to/external/superpowers/skills/{name}"
             content = content.replace(placeholder, path)
@@ -224,6 +241,7 @@ def main():
             placeholder = f"TODO_NEW_MACHINE:/path/to/external/ui-ux-pro-max-skill/.claude/skills/{name}"
             content = content.replace(placeholder, path)
 
+        content = content.replace("TODO_NEW_MACHINE:/path/to/external/prompt-master", prompt_master)
         content = content.replace("TODO_NEW_MACHINE:/path/to/external/karpathy-skills/skills/karpathy-guidelines", karpathy_skills)
 
         content = content.replace("TODO_NEW_MACHINE:/path/to/everything-claude-code/agents", ecc_agents)

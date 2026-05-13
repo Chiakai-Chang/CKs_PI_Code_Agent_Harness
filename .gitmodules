@@ -19,3 +19,9 @@
 [submodule "external/ui-ux-pro-max-skill"]
 	path = external/ui-ux-pro-max-skill
 	url = https://github.com/nextlevelbuilder/ui-ux-pro-max-skill
+[submodule "external/prompt-master"]
+	path = external/prompt-master
+	url = https://github.com/nidhinjs/prompt-master
+[submodule "external/caveman"]
+	path = external/caveman
+	url = https://github.com/JuliusBrussee/caveman

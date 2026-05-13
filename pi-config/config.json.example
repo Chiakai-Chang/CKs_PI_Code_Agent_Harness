@@ -6,7 +6,13 @@
     "TODO_NEW_MACHINE:/path/to/pi/agent/skills/dev-browser/agents"
   ],
   "skills": [
-    "TODO_NEW_MACHINE:/path/to/pi/agent/skills/caveman",
+    "TODO_NEW_MACHINE:/path/to/external/caveman/skills/caveman",
+    "TODO_NEW_MACHINE:/path/to/external/caveman/skills/caveman-commit",
+    "TODO_NEW_MACHINE:/path/to/external/caveman/skills/caveman-review",
+    "TODO_NEW_MACHINE:/path/to/external/caveman/skills/caveman-compress",
+    "TODO_NEW_MACHINE:/path/to/external/caveman/skills/caveman-stats",
+    "TODO_NEW_MACHINE:/path/to/external/caveman/skills/caveman-help",
+    "TODO_NEW_MACHINE:/path/to/external/caveman/skills/cavecrew",
     "TODO_NEW_MACHINE:/path/to/everything-claude-code/skills",
     "TODO_NEW_MACHINE:/path/to/external/superpowers/skills/using-superpowers",
     "TODO_NEW_MACHINE:/path/to/external/superpowers/skills/brainstorming",
@@ -36,6 +42,7 @@
     "TODO_NEW_MACHINE:/path/to/external/ui-ux-pro-max-skill/.claude/skills/design-system",
     "TODO_NEW_MACHINE:/path/to/external/ui-ux-pro-max-skill/.claude/skills/brand",
     "TODO_NEW_MACHINE:/path/to/external/ui-ux-pro-max-skill/.claude/skills/slides",
-    "TODO_NEW_MACHINE:/path/to/external/ui-ux-pro-max-skill/.claude/skills/banner-design"
+    "TODO_NEW_MACHINE:/path/to/external/ui-ux-pro-max-skill/.claude/skills/banner-design",
+    "TODO_NEW_MACHINE:/path/to/external/prompt-master"
   ]
 }
