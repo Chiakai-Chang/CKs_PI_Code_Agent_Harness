@@ -29,6 +29,13 @@
     "TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/docx",
     "TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/skill-creator",
     "TODO_NEW_MACHINE:/path/to/external/planning-with-files",
-    "TODO_NEW_MACHINE:/path/to/external/llm-wiki-plugin/skills/llm-wiki"
+    "TODO_NEW_MACHINE:/path/to/external/llm-wiki-plugin/skills/llm-wiki",
+    "TODO_NEW_MACHINE:/path/to/external/ui-ux-pro-max-skill/.claude/skills/ui-ux-pro-max",
+    "TODO_NEW_MACHINE:/path/to/external/ui-ux-pro-max-skill/.claude/skills/ui-styling",
+    "TODO_NEW_MACHINE:/path/to/external/ui-ux-pro-max-skill/.claude/skills/design",
+    "TODO_NEW_MACHINE:/path/to/external/ui-ux-pro-max-skill/.claude/skills/design-system",
+    "TODO_NEW_MACHINE:/path/to/external/ui-ux-pro-max-skill/.claude/skills/brand",
+    "TODO_NEW_MACHINE:/path/to/external/ui-ux-pro-max-skill/.claude/skills/slides",
+    "TODO_NEW_MACHINE:/path/to/external/ui-ux-pro-max-skill/.claude/skills/banner-design"
   ]
 }

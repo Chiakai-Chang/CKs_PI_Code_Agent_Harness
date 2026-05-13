@@ -16,3 +16,6 @@
 [submodule "external/karpathy-skills"]
 	path = external/karpathy-skills
 	url = https://github.com/forrestchang/andrej-karpathy-skills
+[submodule "external/ui-ux-pro-max-skill"]
+	path = external/ui-ux-pro-max-skill
+	url = https://github.com/nextlevelbuilder/ui-ux-pro-max-skill

@@ -199,6 +199,18 @@ def main():
         upstream_planning = os.path.join(REPO_ROOT, "external", "planning-with-files").replace("\\", "/")
         upstream_wiki = os.path.join(REPO_ROOT, "external", "llm-wiki-plugin", "skills", "llm-wiki").replace("\\", "/")
         
+        # Resolve real paths for UI/UX Pro Max
+        ui_root = os.path.join(REPO_ROOT, "external", "ui-ux-pro-max-skill", ".claude", "skills").replace("\\", "/")
+        ui_skills = {
+            "ui-ux-pro-max": os.path.join(ui_root, "ui-ux-pro-max"),
+            "ui-styling": os.path.join(ui_root, "ui-styling"),
+            "design": os.path.join(ui_root, "design"),
+            "design-system": os.path.join(ui_root, "design-system"),
+            "brand": os.path.join(ui_root, "brand"),
+            "slides": os.path.join(ui_root, "slides"),
+            "banner-design": os.path.join(ui_root, "banner-design"),
+        }
+        
         understand_agents = os.path.join(AGENT_DIR, "skills", "understand", "agents").replace("\\", "/")
         browser_agents = os.path.join(AGENT_DIR, "skills", "dev-browser", "agents").replace("\\", "/")
         caveman_skill = os.path.join(AGENT_DIR, "skills", "caveman").replace("\\", "/")
@@ -206,6 +218,10 @@ def main():
         # More precise replacements
         for name, path in sp_skills.items():
             placeholder = f"TODO_NEW_MACHINE:/path/to/external/superpowers/skills/{name}"
+            content = content.replace(placeholder, path)
+            
+        for name, path in ui_skills.items():
+            placeholder = f"TODO_NEW_MACHINE:/path/to/external/ui-ux-pro-max-skill/.claude/skills/{name}"
             content = content.replace(placeholder, path)
 
         content = content.replace("TODO_NEW_MACHINE:/path/to/external/karpathy-skills/skills/karpathy-guidelines", karpathy_skills)
