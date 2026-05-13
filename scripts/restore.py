@@ -195,6 +195,7 @@ def main():
         anthropic_pdf = os.path.join(REPO_ROOT, "external", "anthropics-skills", "skills", "pdf").replace("\\", "/")
         anthropic_docx = os.path.join(REPO_ROOT, "external", "anthropics-skills", "skills", "docx").replace("\\", "/")
         anthropic_creator = os.path.join(REPO_ROOT, "external", "anthropics-skills", "skills", "skill-creator").replace("\\", "/")
+        karpathy_skills = os.path.join(REPO_ROOT, "external", "karpathy-skills", "skills", "karpathy-guidelines").replace("\\", "/")
         upstream_planning = os.path.join(REPO_ROOT, "external", "planning-with-files").replace("\\", "/")
         upstream_wiki = os.path.join(REPO_ROOT, "external", "llm-wiki-plugin", "skills", "llm-wiki").replace("\\", "/")
         
@@ -206,6 +207,8 @@ def main():
         for name, path in sp_skills.items():
             placeholder = f"TODO_NEW_MACHINE:/path/to/external/superpowers/skills/{name}"
             content = content.replace(placeholder, path)
+
+        content = content.replace("TODO_NEW_MACHINE:/path/to/external/karpathy-skills/skills/karpathy-guidelines", karpathy_skills)
 
         content = content.replace("TODO_NEW_MACHINE:/path/to/everything-claude-code/agents", ecc_agents)
         content = content.replace("TODO_NEW_MACHINE:/path/to/everything-claude-code/skills", ecc_skills)
