@@ -219,6 +219,17 @@ def main():
             "grill-with-docs": os.path.join(mp_eng, "grill-with-docs"),
             "handoff": os.path.join(mp_prod, "handoff"),
         }
+
+        # Resolve real paths for Addy Osmani
+        addy_root = os.path.join(REPO_ROOT, "external", "agent-skills", "skills").replace("\\", "/")
+        addy_skills = {
+            "performance-optimization": os.path.join(addy_root, "performance-optimization"),
+            "doubt-driven-development": os.path.join(addy_root, "doubt-driven-development"),
+            "api-and-interface-design": os.path.join(addy_root, "api-and-interface-design"),
+            "deprecation-and-migration": os.path.join(addy_root, "deprecation-and-migration"),
+            "documentation-and-adrs": os.path.join(addy_root, "documentation-and-adrs"),
+            "browser-testing-with-devtools": os.path.join(addy_root, "browser-testing-with-devtools"),
+        }
         
         karpathy_skills = os.path.join(REPO_ROOT, "external", "karpathy-skills", "skills", "karpathy-guidelines").replace("\\", "/")
         upstream_planning = os.path.join(REPO_ROOT, "external", "planning-with-files").replace("\\", "/")
@@ -261,6 +272,10 @@ def main():
             placeholder = f"TODO_NEW_MACHINE:/path/to/external/mattpocock-skills/skills/{parent}/{name}"
             content = content.replace(placeholder, path)
             
+        for name, path in addy_skills.items():
+            placeholder = f"TODO_NEW_MACHINE:/path/to/external/agent-skills/skills/{name}"
+            content = content.replace(placeholder, path)
+
         content = content.replace("TODO_NEW_MACHINE:/path/to/external/karpathy-skills/skills/karpathy-guidelines", karpathy_skills)
 
         content = content.replace("TODO_NEW_MACHINE:/path/to/everything-claude-code/agents", ecc_agents)

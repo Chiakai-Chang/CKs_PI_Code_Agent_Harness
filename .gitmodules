@@ -28,3 +28,6 @@
 [submodule "external/mattpocock-skills"]
 	path = external/mattpocock-skills
 	url = https://github.com/mattpocock/skills
+[submodule "external/agent-skills"]
+	path = external/agent-skills
+	url = https://github.com/addyosmani/agent-skills
