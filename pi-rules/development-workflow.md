@@ -13,6 +13,7 @@ The Feature Implementation Workflow describes the development pipeline: research
    - **Check package registries:** Search npm, PyPI, crates.io, and other registries before writing utility code. Prefer battle-tested libraries over hand-rolled solutions.
    - **Search for adaptable implementations:** Look for open-source projects that solve 80%+ of the problem and can be forked, ported, or wrapped.
    - Prefer adopting or porting a proven approach over writing net-new code when it meets the requirement.
+   - **Tool Development**: Any new CLI scripts, helpers, or MCP servers created within this harness must follow the `Agent-Native CLI Standards` defined in `pi-rules/cli-standards.md` (CK-Spec-01) for optimal AI integration and Token efficiency.
 
 1. **Plan First**
    - Use **planner** agent to create implementation plan
