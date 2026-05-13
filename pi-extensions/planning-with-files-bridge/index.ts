@@ -112,11 +112,21 @@ function runCheckComplete(cwd: string): Promise<void> {
 
     // Dynamic path resolution for portability
     const __dirname = dirname(require.resolve("./package.json"));
-    const SCRIPTS_DIR = join(__dirname, "scripts");
+    const pkg = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf-8"));
+    const HARNESS_ROOT = pkg["pi-harness"]?.root || join(__dirname, "../..");
     
+    // Priority: 1. External submodule (upstream) 2. Local scripts (snapshot fallback)
+    const UPSTREAM_DIR = join(HARNESS_ROOT, "external/planning-with-files/scripts");
+    const LOCAL_DIR = join(__dirname, "scripts");
+
     const isWin = process.platform === "win32";
-    const shScript = join(SCRIPTS_DIR, "check-complete.sh");
-    const ps1Script = join(SCRIPTS_DIR, "check-complete.ps1");
+    
+    // Select the best script sources
+    let shScript = join(UPSTREAM_DIR, "check-complete.sh");
+    if (!existsSync(shScript)) shScript = join(LOCAL_DIR, "check-complete.sh");
+    
+    let ps1Script = join(UPSTREAM_DIR, "check-complete.ps1");
+    if (!existsSync(ps1Script)) ps1Script = join(LOCAL_DIR, "check-complete.ps1");
 
     let cmd: string;
     let args: string[];

@@ -177,6 +177,7 @@ def main():
         anthropic_pdf = os.path.join(REPO_ROOT, "external", "anthropics-skills", "skills", "pdf").replace("\\", "/")
         anthropic_docx = os.path.join(REPO_ROOT, "external", "anthropics-skills", "skills", "docx").replace("\\", "/")
         anthropic_creator = os.path.join(REPO_ROOT, "external", "anthropics-skills", "skills", "skill-creator").replace("\\", "/")
+        upstream_planning = os.path.join(REPO_ROOT, "external", "planning-with-files").replace("\\", "/")
         
         understand_agents = os.path.join(AGENT_DIR, "skills", "understand", "agents").replace("\\", "/")
         browser_agents = os.path.join(AGENT_DIR, "skills", "dev-browser", "agents").replace("\\", "/")
@@ -191,6 +192,7 @@ def main():
         content = content.replace("TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/pdf", anthropic_pdf)
         content = content.replace("TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/docx", anthropic_docx)
         content = content.replace("TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/skill-creator", anthropic_creator)
+        content = content.replace("TODO_NEW_MACHINE:/path/to/external/planning-with-files", upstream_planning)
         content = content.replace("TODO_NEW_MACHINE:/path/to/pi/agent/skills/understand/agents", understand_agents)
         content = content.replace("TODO_NEW_MACHINE:/path/to/pi/agent/skills/dev-browser/agents", browser_agents)
         content = content.replace("TODO_NEW_MACHINE:/path/to/pi/agent/skills/caveman", caveman_skill)
@@ -246,14 +248,15 @@ def main():
         clear_dir(ext_dst)
         copy_dir_contents(ext_src, ext_dst)
         
-        # Patch ECC bridge with absolute path
-        ecc_pkg = os.path.join(ext_dst, "ecc-hooks-bridge", "package.json")
-        if os.path.exists(ecc_pkg):
-            pkg = load_json(ecc_pkg)
-            if "pi-harness" not in pkg: pkg["pi-harness"] = {}
-            pkg["pi-harness"]["root"] = REPO_ROOT.replace("\\", "/")
-            save_json(ecc_pkg, pkg)
-            log("  - ecc-hooks-bridge patched with absolute path")
+        # Patch bridges with absolute path for global robustness
+        for bridge in ["ecc-hooks-bridge", "planning-with-files-bridge"]:
+            pkg_path = os.path.join(ext_dst, bridge, "package.json")
+            if os.path.exists(pkg_path):
+                pkg = load_json(pkg_path)
+                if "pi-harness" not in pkg: pkg["pi-harness"] = {}
+                pkg["pi-harness"]["root"] = REPO_ROOT.replace("\\", "/")
+                save_json(pkg_path, pkg)
+                log(f"  - {bridge} patched with absolute path")
 
     # models.json (v0.73+ format)
     models_src = os.path.join(REPO_ROOT, "pi-config", "models.json")

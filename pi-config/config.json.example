@@ -13,6 +13,7 @@
     "TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/webapp-testing",
     "TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/pdf",
     "TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/docx",
-    "TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/skill-creator"
+    "TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/skill-creator",
+    "TODO_NEW_MACHINE:/path/to/external/planning-with-files"
   ]
 }
