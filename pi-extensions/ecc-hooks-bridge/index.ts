@@ -123,6 +123,14 @@ export default function (pi: ExtensionAPI) {
       if (r.exitCode === 2) return { block: true, reason: "Blocked by ECC block-no-verify" };
     } catch {}
 
+    // Planning awareness: check for task_plan.md
+    try {
+      const planFile = join(process.cwd(), "task_plan.md");
+      if (!existsSync(planFile) && event.input.command.includes("git commit")) {
+        ctx.ui.notify(`💡 偵測到提交操作，但尚未建立 task_plan.md。建議使用 /plan 以強化任務追蹤。`, "info");
+      }
+    } catch {}
+
     // GateGuard fact-force: demand investigation before edits
     try {
       const r = await runWithFlags(

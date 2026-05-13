@@ -14,6 +14,7 @@ The Feature Implementation Workflow describes the development pipeline: research
    - **Search for adaptable implementations:** Look for open-source projects that solve 80%+ of the problem and can be forked, ported, or wrapped.
    - Prefer adopting or porting a proven approach over writing net-new code when it meets the requirement.
    - **Tool Development**: Any new CLI scripts, helpers, or MCP servers created within this harness must follow the `Agent-Native CLI Standards` defined in `pi-rules/cli-standards.md` (CK-Spec-01) for optimal AI integration and Token efficiency.
+   - **Instruction Engineering**: Use `/prompt-master` when creating complex instructions for sub-agents (@generalist) or other LLMs to ensure high-fidelity communication and minimal Token waste.
 
 1. **Plan First**
    - Use **planner** agent to create implementation plan

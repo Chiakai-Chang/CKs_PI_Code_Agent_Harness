@@ -168,151 +168,91 @@ def main():
         with open(cfg_path, "r", encoding="utf-8") as f:
             content = f.read()
         
-        # Resolve real paths for Caveman
-        cv_root = os.path.join(REPO_ROOT, "external", "caveman", "skills").replace("\\", "/")
-        cv_skills = {
-            "caveman": os.path.join(cv_root, "caveman"),
-            "caveman-commit": os.path.join(cv_root, "caveman-commit"),
-            "caveman-review": os.path.join(cv_root, "caveman-review"),
-            "caveman-compress": os.path.join(cv_root, "caveman-compress"),
-            "caveman-stats": os.path.join(cv_root, "caveman-stats"),
-            "caveman-help": os.path.join(cv_root, "caveman-help"),
-            "cavecrew": os.path.join(cv_root, "cavecrew"),
-        }
-        
-        # Resolve real paths for Superpowers
-        sp_root = os.path.join(REPO_ROOT, "external", "superpowers", "skills").replace("\\", "/")
-        sp_skills = {
-            "using-superpowers": os.path.join(sp_root, "using-superpowers"),
-            "brainstorming": os.path.join(sp_root, "brainstorming"),
-            "writing-plans": os.path.join(sp_root, "writing-plans"),
-            "test-driven-development": os.path.join(sp_root, "test-driven-development"),
-            "systematic-debugging": os.path.join(sp_root, "systematic-debugging"),
-            "subagent-driven-development": os.path.join(sp_root, "subagent-driven-development"),
-            "executing-plans": os.path.join(sp_root, "executing-plans"),
-            "verification-before-completion": os.path.join(sp_root, "verification-before-completion"),
-            "finishing-a-development-branch": os.path.join(sp_root, "finishing-a-development-branch"),
-            "receiving-code-review": os.path.join(sp_root, "receiving-code-review"),
-            "requesting-code-review": os.path.join(sp_root, "requesting-code-review"),
-            "using-git-worktrees": os.path.join(sp_root, "using-git-worktrees"),
-            "writing-skills": os.path.join(sp_root, "writing-skills"),
-        }
-        
-        # Resolve real paths for ECC and local skills
-        ecc_agents = os.path.join(REPO_ROOT, "external", "everything-claude-code", "agents").replace("\\", "/")
-        ecc_skills = os.path.join(REPO_ROOT, "external", "everything-claude-code", "skills").replace("\\", "/")
-        anthropic_mcp = os.path.join(REPO_ROOT, "external", "anthropics-skills", "skills", "mcp-builder").replace("\\", "/")
-        anthropic_frontend = os.path.join(REPO_ROOT, "external", "anthropics-skills", "skills", "frontend-design").replace("\\", "/")
-        anthropic_testing = os.path.join(REPO_ROOT, "external", "anthropics-skills", "skills", "webapp-testing").replace("\\", "/")
-        anthropic_pdf = os.path.join(REPO_ROOT, "external", "anthropics-skills", "skills", "pdf").replace("\\", "/")
-        anthropic_docx = os.path.join(REPO_ROOT, "external", "anthropics-skills", "skills", "docx").replace("\\", "/")
-        anthropic_creator = os.path.join(REPO_ROOT, "external", "anthropics-skills", "skills", "skill-creator").replace("\\", "/")
-        prompt_master = os.path.join(REPO_ROOT, "external", "prompt-master").replace("\\", "/")
-        
-        # Resolve real paths for Matt Pocock
-        mp_eng = os.path.join(REPO_ROOT, "external", "mattpocock-skills", "skills", "engineering").replace("\\", "/")
-        mp_prod = os.path.join(REPO_ROOT, "external", "mattpocock-skills", "skills", "productivity").replace("\\", "/")
-        mp_skills = {
-            "zoom-out": os.path.join(mp_eng, "zoom-out"),
-            "improve-codebase-architecture": os.path.join(mp_eng, "improve-codebase-architecture"),
-            "diagnose": os.path.join(mp_eng, "diagnose"),
-            "grill-with-docs": os.path.join(mp_eng, "grill-with-docs"),
-            "handoff": os.path.join(mp_prod, "handoff"),
-        }
+        # --- PATH RESOLUTION MAP (v3.7 Map-Driven Mode) ---
+        # Format: { "Placeholder": "Actual Path" }
+        path_map = {}
 
-        # Resolve real paths for Addy Osmani
-        addy_root = os.path.join(REPO_ROOT, "external", "agent-skills", "skills").replace("\\", "/")
-        addy_skills = {
-            "performance-optimization": os.path.join(addy_root, "performance-optimization"),
-            "doubt-driven-development": os.path.join(addy_root, "doubt-driven-development"),
-            "api-and-interface-design": os.path.join(addy_root, "api-and-interface-design"),
-            "deprecation-and-migration": os.path.join(addy_root, "deprecation-and-migration"),
-            "documentation-and-adrs": os.path.join(addy_root, "documentation-and-adrs"),
-            "browser-testing-with-devtools": os.path.join(addy_root, "browser-testing-with-devtools"),
-        }
+        # 1. External Submodules (Native Mapping)
+        ext_root = os.path.join(REPO_ROOT, "external")
         
-        # Resolve real paths for Nuwa-Skill
-        nuwa_root = os.path.join(REPO_ROOT, "external", "nuwa-skill").replace("\\", "/")
-        nuwa_perspectives = [
-            "andrej-karpathy-perspective", "elon-musk-perspective", "feynman-perspective",
-            "ilya-sutskever-perspective", "mrbeast-perspective", "munger-perspective",
-            "naval-perspective", "paul-graham-perspective", "steve-jobs-perspective",
-            "sun-yuchen-perspective", "taleb-perspective", "trump-perspective",
-            "x-mastery-mentor", "zhang-yiming-perspective", "zhangxuefeng-perspective"
-        ]
-        
-        karpathy_skills = os.path.join(REPO_ROOT, "external", "karpathy-skills", "skills", "karpathy-guidelines").replace("\\", "/")
-        upstream_planning = os.path.join(REPO_ROOT, "external", "planning-with-files").replace("\\", "/")
-        upstream_wiki = os.path.join(REPO_ROOT, "external", "llm-wiki-plugin", "skills", "llm-wiki").replace("\\", "/")
-        
-        # Resolve real paths for UI/UX Pro Max
-        ui_root = os.path.join(REPO_ROOT, "external", "ui-ux-pro-max-skill", ".claude", "skills").replace("\\", "/")
-        ui_skills = {
-            "ui-ux-pro-max": os.path.join(ui_root, "ui-ux-pro-max"),
-            "ui-styling": os.path.join(ui_root, "ui-styling"),
-            "design": os.path.join(ui_root, "design"),
-            "design-system": os.path.join(ui_root, "design-system"),
-            "brand": os.path.join(ui_root, "brand"),
-            "slides": os.path.join(ui_root, "slides"),
-            "banner-design": os.path.join(ui_root, "banner-design"),
-        }
-        
-        understand_agents = os.path.join(AGENT_DIR, "skills", "understand", "agents").replace("\\", "/")
-        browser_agents = os.path.join(AGENT_DIR, "skills", "dev-browser", "agents").replace("\\", "/")
-        caveman_skill = os.path.join(AGENT_DIR, "skills", "caveman").replace("\\", "/")
-        
-        # More precise replacements
-        for name, path in cv_skills.items():
-            placeholder = f"TODO_NEW_MACHINE:/path/to/external/caveman/skills/{name}"
-            content = content.replace(placeholder, path)
+        # Superpowers (13 skills)
+        sp_root = os.path.join(ext_root, "superpowers", "skills")
+        for name in ["using-superpowers", "brainstorming", "writing-plans", "test-driven-development", 
+                     "systematic-debugging", "subagent-driven-development", "executing-plans", 
+                     "verification-before-completion", "finishing-a-development-branch", 
+                     "receiving-code-review", "requesting-code-review", "using-git-worktrees", "writing-skills"]:
+            path_map[f"/path/to/external/superpowers/skills/{name}"] = os.path.join(sp_root, name)
 
-        for name, path in sp_skills.items():
-            placeholder = f"TODO_NEW_MACHINE:/path/to/external/superpowers/skills/{name}"
-            content = content.replace(placeholder, path)
-            
-        for name, path in ui_skills.items():
-            placeholder = f"TODO_NEW_MACHINE:/path/to/external/ui-ux-pro-max-skill/.claude/skills/{name}"
-            content = content.replace(placeholder, path)
+        # UI/UX Pro Max (7 skills)
+        ui_root = os.path.join(ext_root, "ui-ux-pro-max-skill", ".claude", "skills")
+        for name in ["ui-ux-pro-max", "ui-styling", "design", "design-system", "brand", "slides", "banner-design"]:
+            path_map[f"/path/to/external/ui-ux-pro-max-skill/.claude/skills/{name}"] = os.path.join(ui_root, name)
 
-        content = content.replace("TODO_NEW_MACHINE:/path/to/external/prompt-master", prompt_master)
+        # Matt Pocock (5 skills)
+        mp_root = os.path.join(ext_root, "mattpocock-skills", "skills")
+        for name, parent in [("zoom-out", "engineering"), ("improve-codebase-architecture", "engineering"), 
+                             ("diagnose", "engineering"), ("grill-with-docs", "engineering"), ("handoff", "productivity")]:
+            path_map[f"/path/to/external/mattpocock-skills/skills/{parent}/{name}"] = os.path.join(mp_root, parent, name)
+
+        # Addy Osmani (6 skills)
+        addy_root = os.path.join(ext_root, "agent-skills", "skills")
+        for name in ["performance-optimization", "doubt-driven-development", "api-and-interface-design", 
+                     "deprecation-and-migration", "documentation-and-adrs", "browser-testing-with-devtools"]:
+            path_map[f"/path/to/external/agent-skills/skills/{name}"] = os.path.join(addy_root, name)
+
+        # Nuwa-Skill (Engine + 15 perspectives)
+        nuwa_root = os.path.join(ext_root, "nuwa-skill")
+        path_map["/path/to/external/nuwa-skill"] = nuwa_root
+        for name in ["andrej-karpathy-perspective", "elon-musk-perspective", "feynman-perspective",
+                     "ilya-sutskever-perspective", "mrbeast-perspective", "munger-perspective",
+                     "naval-perspective", "paul-graham-perspective", "steve-jobs-perspective",
+                     "sun-yuchen-perspective", "taleb-perspective", "trump-perspective",
+                     "x-mastery-mentor", "zhang-yiming-perspective", "zhangxuefeng-perspective"]:
+            path_map[f"/path/to/external/nuwa-skill/examples/{name}"] = os.path.join(nuwa_root, "examples", name)
+
+        # ECC (Everything Claude Code)
+        ecc_root = os.path.join(ext_root, "everything-claude-code")
+        path_map["/path/to/everything-claude-code/agents"] = os.path.join(ecc_root, "agents")
+        path_map["/path/to/everything-claude-code/skills"] = os.path.join(ecc_root, "skills")
+
+        # Single Submodule Skills
+        path_map["/path/to/external/anthropics-skills/skills/mcp-builder"] = os.path.join(ext_root, "anthropics-skills", "skills", "mcp-builder")
+        path_map["/path/to/external/anthropics-skills/skills/frontend-design"] = os.path.join(ext_root, "anthropics-skills", "skills", "frontend-design")
+        path_map["/path/to/external/anthropics-skills/skills/webapp-testing"] = os.path.join(ext_root, "anthropics-skills", "skills", "webapp-testing")
+        path_map["/path/to/external/anthropics-skills/skills/pdf"] = os.path.join(ext_root, "anthropics-skills", "skills", "pdf")
+        path_map["/path/to/external/anthropics-skills/skills/docx"] = os.path.join(ext_root, "anthropics-skills", "skills", "docx")
+        path_map["/path/to/external/anthropics-skills/skills/skill-creator"] = os.path.join(ext_root, "anthropics-skills", "skills", "skill-creator")
+        path_map["/path/to/external/karpathy-skills/skills/karpathy-guidelines"] = os.path.join(ext_root, "karpathy-skills", "skills", "karpathy-guidelines")
+        path_map["/path/to/external/planning-with-files"] = os.path.join(ext_root, "planning-with-files")
+        path_map["/path/to/external/llm-wiki-plugin/skills/llm-wiki"] = os.path.join(ext_root, "llm-wiki-plugin", "skills", "llm-wiki")
+        path_map["/path/to/external/prompt-master"] = os.path.join(ext_root, "prompt-master")
         
-        for name, path in mp_skills.items():
-            # Handle different parent dirs
-            parent = "engineering" if name != "handoff" else "productivity"
-            placeholder = f"TODO_NEW_MACHINE:/path/to/external/mattpocock-skills/skills/{parent}/{name}"
-            content = content.replace(placeholder, path)
-            
-        for name, path in addy_skills.items():
-            placeholder = f"TODO_NEW_MACHINE:/path/to/external/agent-skills/skills/{name}"
-            content = content.replace(placeholder, path)
+        # Caveman (7 skills)
+        cv_root = os.path.join(ext_root, "caveman", "skills")
+        for name in ["caveman", "caveman-commit", "caveman-review", "caveman-compress", 
+                     "caveman-stats", "caveman-help", "cavecrew"]:
+            path_map[f"/path/to/external/caveman/skills/{name}"] = os.path.join(cv_root, name)
 
-        content = content.replace("TODO_NEW_MACHINE:/path/to/external/nuwa-skill", nuwa_root)
-        for name in nuwa_perspectives:
-            placeholder = f"TODO_NEW_MACHINE:/path/to/external/nuwa-skill/examples/{name}"
-            path = os.path.join(nuwa_root, "examples", name).replace("\\", "/")
-            content = content.replace(placeholder, path)
+        # 2. Local Ported Skills (Internal ~/.pi/agent/ paths)
+        path_map["/path/to/pi/agent/skills/understand/agents"] = os.path.join(AGENT_DIR, "skills", "understand", "agents")
+        path_map["/path/to/pi/agent/skills/dev-browser/agents"] = os.path.join(AGENT_DIR, "skills", "dev-browser", "agents")
+        path_map["/path/to/pi/agent/skills/caveman"] = os.path.join(AGENT_DIR, "skills", "caveman")
+        path_map["/path/to/pi/agent/skills/hello-reflect"] = os.path.join(AGENT_DIR, "skills", "hello-reflect")
+        path_map["/path/to/pi/agent/skills/camofox"] = os.path.join(AGENT_DIR, "skills", "camofox")
 
-        content = content.replace("TODO_NEW_MACHINE:/path/to/external/karpathy-skills/skills/karpathy-guidelines", karpathy_skills)
-        content = content.replace("TODO_NEW_MACHINE:/path/to/everything-claude-code/agents", ecc_agents)
-        content = content.replace("TODO_NEW_MACHINE:/path/to/everything-claude-code/skills", ecc_skills)
-        content = content.replace("TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/mcp-builder", anthropic_mcp)
-        content = content.replace("TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/frontend-design", anthropic_frontend)
-        content = content.replace("TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/webapp-testing", anthropic_testing)
-        content = content.replace("TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/pdf", anthropic_pdf)
-        content = content.replace("TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/docx", anthropic_docx)
-        content = content.replace("TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/skill-creator", anthropic_creator)
-        content = content.replace("TODO_NEW_MACHINE:/path/to/external/planning-with-files", upstream_planning)
-        content = content.replace("TODO_NEW_MACHINE:/path/to/external/llm-wiki-plugin/skills/llm-wiki", upstream_wiki)
-        content = content.replace("TODO_NEW_MACHINE:/path/to/pi/agent/skills/understand/agents", understand_agents)
-        content = content.replace("TODO_NEW_MACHINE:/path/to/pi/agent/skills/dev-browser/agents", browser_agents)
-        content = content.replace("TODO_NEW_MACHINE:/path/to/pi/agent/skills/caveman", caveman_skill)
+        # --- EXECUTE REPLACEMENTS ---
+        for placeholder, actual in path_map.items():
+            full_placeholder = f"TODO_NEW_MACHINE:{placeholder}"
+            resolved_path = actual.replace("\\", "/")
+            content = content.replace(full_placeholder, resolved_path)
         
-        # Fallback for any other leftovers
+        # Final fallback for generic TODO_NEW_MACHINE
         home = os.path.expanduser("~").replace("\\", "/")
         content = content.replace("TODO_NEW_MACHINE", home)
         
         with open(cfg_path, "w", encoding="utf-8") as f:
             f.write(content)
+        log("  - config.json path placeholders resolved (Map-Driven)")
 
     # Core skills (always)
     log("Restoring core skills...")

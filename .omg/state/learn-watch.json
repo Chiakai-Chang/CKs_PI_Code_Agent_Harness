@@ -1,0 +1,12 @@
+{
+  "last_session_id": "37c5b859-a35b-4b91-b279-116989afd53a",
+  "last_event_key": "37c5b859-a35b-4b91-b279-116989afd53a:transcript:0ce8712102b8b2ed786f32cc278c1cfb47f8d485fce6f01cca95c63a93577663",
+  "last_prompted_session_id": "",
+  "last_reason": "short-session",
+  "last_prompted_at": "",
+  "last_user_message_count": 0,
+  "last_actionable_message_count": 0,
+  "deep_interview_lock_active": false,
+  "deep_interview_lock_source": "D:\\MyProject\\CKs_PI_Code_Agent_Harness\\.omg\\state\\deep-interview.json",
+  "updated_at": "2026-05-13T05:58:27.488Z"
+}
