@@ -8,7 +8,7 @@
 
 ## 🏗️ 七大技術支柱 (The 7 Pillars)
 
-基於 **`v3.7 蒸餾導則`**，我們為 Pi 構建了完整的開發大腦：
+基於 [**核心設計理念 (CORE_CONCEPTS.md)**](docs/core/CORE_CONCEPTS.md) 與 [**v3.7 蒸餾導則**](docs/core/DISTILLATION_GUIDE.md)，我們為 Pi 構建了完整的開發大腦：
 
 1.  **🛡️ 紀律守護 (ECC Hooks)**：整合 50+ 專業代理人與自動化掛鉤，在 AI 闖禍前（如語法錯誤、金鑰洩漏）秒級攔截。
 2.  **🧠 專家直覺 (Superpowers)**：注入工業級工程紀律，強制 AI 實施 TDD 與系統化規劃。
@@ -17,6 +17,8 @@
 5.  **📝 戰術持久 (Manus Planning)**：實體化任務計畫，確保斷點續傳，徹底解決長對話導致的 AI 「失憶」問題。
 6.  **🕵️ 硬體透視 (Smart Detect)**：自動掃描系統資源 (RAM/VRAM)，動態配置最佳上下文視窗 (Context Window) 與推論參數，確保本地模型效能極致發揮。
 7.  **🛠️ 自癒安裝 (Healing Setup)**：解決 Windows 權限、編碼亂碼與 Git 信任等雜症，實現真正的一鍵部署。
+
+> ℹ️ 每一項整合的技術細節與決策背景，請參閱 [**🗺️ 戰略索引地圖 (STRATEGIC_MAP.md)**](docs/strategy/STRATEGIC_MAP.md)。
 
 ---
 
