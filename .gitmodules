@@ -13,9 +13,6 @@
 [submodule "external/superpowers"]
 	path = external/superpowers
 	url = https://github.com/obra/superpowers
-[submodule "external/karpathy-skills"]
-	path = external/karpathy-skills
-	url = https://github.com/forrestchang/andrej-karpathy-skills
 [submodule "external/ui-ux-pro-max-skill"]
 	path = external/ui-ux-pro-max-skill
 	url = https://github.com/nextlevelbuilder/ui-ux-pro-max-skill
@@ -34,3 +31,6 @@
 [submodule "external/nuwa-skill"]
 	path = external/nuwa-skill
 	url = https://github.com/alchaincyf/nuwa-skill
+[submodule "external/karpathy-skills"]
+	path = external/karpathy-skills
+	url = https://github.com/multica-ai/andrej-karpathy-skills
