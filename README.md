@@ -15,7 +15,7 @@
 3.  **🔍 代碼 GPS (Understand)**：利用知識圖譜技術，讓 AI 具備解讀數萬行複雜專案的「上帝視角」。
 4.  **📚 專案大腦 (LLM Wiki)**：實作 Karpathy 模式，讓專案知識隨時間複利成長，建立持久的維基索引。
 5.  **📝 戰術持久 (Manus Planning)**：實體化任務計畫，確保斷點續傳，徹底解決長對話導致的 AI 「失憶」問題。
-6.  **🕵️ 硬體透視 (Smart Detect)**：自動偵測 VRAM、RAM 與 192k Context 真值，精準調優本地模型性能。
+6.  **🕵️ 硬體透視 (Smart Detect)**：自動掃描系統資源 (RAM/VRAM)，動態配置最佳上下文視窗 (Context Window) 與推論參數，確保本地模型效能極致發揮。
 7.  **🛠️ 自癒安裝 (Healing Setup)**：解決 Windows 權限、編碼亂碼與 Git 信任等雜症，實現真正的一鍵部署。
 
 ---
