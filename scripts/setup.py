@@ -616,13 +616,58 @@ def run_restore(git_bash, p):
     save_json(version_file, version_info)
 
 
-# ─── Main Flow ──────────────────────────────────────────────
+# ─── Main Flow Helpers ──────────────────────────────────────
+
+def show_main_menu():
+    """Flagship Main Menu for the Harness."""
+    print("=" * 60)
+    print(" CK's Pi Code Agent Harness - 管理與設定工具 (v3.7)")
+    print("=" * 60)
+    print()
+    print(" 請選擇操作模式：")
+    print()
+    print("   [1] 完整安裝 / 環境檢查 (新用戶推薦)")
+    print("       * 檢查 Git/Python/Node")
+    print("       * 安裝/更新 Pi 助手")
+    print("       * 設定本地模型與智慧參數")
+    print("       * 還原所有 Skills/Rules")
+    print()
+    print("   [2] 僅切換模型 (快速路徑)")
+    print("       * 重新掃描 Ollama/llama.cpp")
+    print("       * 重新生成 models.json 並套用")
+    print()
+    print("   [3] 僅還原配置 (修復路徑)")
+    print("       * 僅同步 Skills 與 Rules 到 Pi 目錄")
+    print()
+    print("   [Q] 離開")
+    print()
+    
+    ans = input("請輸入編號 (1-3, Q): ").strip().lower()
+    if ans == "1": return "full"
+    if ans == "2": return "model"
+    if ans == "3": return "restore"
+    if ans in ("q", "quit", "exit"): sys.exit(0)
+    return None
+
+
+def init_git_harness():
+    """Ensure Git trust and submodules are initialized."""
+    print("[*] 正在初始化 Git 環境與子模組資產...")
+    
+    # 1. Add safe directory to fix 'dubious ownership' on some filesystems
+    run(f'git config --global --add safe.directory "{REPO_ROOT}"')
+    
+    # 2. Update submodules recursively to pull in all experts
+    print("    -> 正在拉取專家代理人資產 (Submodules)...")
+    if not run_stream("git submodule update --init --recursive"):
+        print("    [!] 子模組初始化失敗，部分專家功能可能無法使用。")
+
 
 def main():
     parser = argparse.ArgumentParser(description="CK's Pi Code Agent Harness - Setup")
     parser.add_argument("--auto", action="store_true",
                         help="Non-interactive mode with sensible defaults")
-    parser.add_argument("--mode", choices=["full", "model", "restore"], default="full",
+    parser.add_argument("--mode", choices=["full", "model", "restore"],
                         help="Operating mode: full setup, model switch only, or restore only")
     args = parser.parse_args()
 
@@ -630,23 +675,29 @@ def main():
     AUTO_MODE = args.auto
     mode = args.mode
 
+    # If no mode provided, show interactive menu
+    if not mode:
+        while not mode:
+            mode = show_main_menu()
+
     p = detect_platform()
 
+    print()
     print("=" * 60)
     print(" CK's Pi Code Agent Harness – 環境與配置管理")
     print("=" * 60)
     
-    if mode == "full":
-        print(f"  [模式] 完整環境檢查與安裝")
-    elif mode == "model":
-        print(f"  [模式] 僅切換/配置本地模型")
-    elif mode == "restore":
-        print(f"  [模式] 僅還原 Skills 與 Extensions")
-    
+    mode_map = {"full": "完整環境檢查與安裝", "model": "僅切換/配置本地模型", "restore": "僅還原 Skills 與 Extensions"}
+    print(f"  [模式] {mode_map.get(mode, mode)}")
     print(f"  偵測系統: {platform.system()}")
     if not is_admin():
         print("  目前非管理員/非 root（部分指令可能受限）")
     print()
+
+    # --- Git / Submodule Phase ---
+    if mode in ["full", "restore"]:
+        init_git_harness()
+        print()
 
     # --- Mode: Restore Only ---
     if mode == "restore":
