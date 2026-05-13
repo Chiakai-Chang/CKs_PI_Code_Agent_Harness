@@ -208,6 +208,18 @@ def main():
         anthropic_docx = os.path.join(REPO_ROOT, "external", "anthropics-skills", "skills", "docx").replace("\\", "/")
         anthropic_creator = os.path.join(REPO_ROOT, "external", "anthropics-skills", "skills", "skill-creator").replace("\\", "/")
         prompt_master = os.path.join(REPO_ROOT, "external", "prompt-master").replace("\\", "/")
+        
+        # Resolve real paths for Matt Pocock
+        mp_eng = os.path.join(REPO_ROOT, "external", "mattpocock-skills", "skills", "engineering").replace("\\", "/")
+        mp_prod = os.path.join(REPO_ROOT, "external", "mattpocock-skills", "skills", "productivity").replace("\\", "/")
+        mp_skills = {
+            "zoom-out": os.path.join(mp_eng, "zoom-out"),
+            "improve-codebase-architecture": os.path.join(mp_eng, "improve-codebase-architecture"),
+            "diagnose": os.path.join(mp_eng, "diagnose"),
+            "grill-with-docs": os.path.join(mp_eng, "grill-with-docs"),
+            "handoff": os.path.join(mp_prod, "handoff"),
+        }
+        
         karpathy_skills = os.path.join(REPO_ROOT, "external", "karpathy-skills", "skills", "karpathy-guidelines").replace("\\", "/")
         upstream_planning = os.path.join(REPO_ROOT, "external", "planning-with-files").replace("\\", "/")
         upstream_wiki = os.path.join(REPO_ROOT, "external", "llm-wiki-plugin", "skills", "llm-wiki").replace("\\", "/")
@@ -242,6 +254,13 @@ def main():
             content = content.replace(placeholder, path)
 
         content = content.replace("TODO_NEW_MACHINE:/path/to/external/prompt-master", prompt_master)
+        
+        for name, path in mp_skills.items():
+            # Handle different parent dirs
+            parent = "engineering" if name != "handoff" else "productivity"
+            placeholder = f"TODO_NEW_MACHINE:/path/to/external/mattpocock-skills/skills/{parent}/{name}"
+            content = content.replace(placeholder, path)
+            
         content = content.replace("TODO_NEW_MACHINE:/path/to/external/karpathy-skills/skills/karpathy-guidelines", karpathy_skills)
 
         content = content.replace("TODO_NEW_MACHINE:/path/to/everything-claude-code/agents", ecc_agents)
