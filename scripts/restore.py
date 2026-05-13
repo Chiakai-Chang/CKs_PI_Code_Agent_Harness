@@ -171,6 +171,7 @@ def main():
         # Resolve real paths for ECC and local skills
         ecc_agents = os.path.join(REPO_ROOT, "external", "everything-claude-code", "agents").replace("\\", "/")
         ecc_skills = os.path.join(REPO_ROOT, "external", "everything-claude-code", "skills").replace("\\", "/")
+        anthropic_mcp = os.path.join(REPO_ROOT, "external", "anthropics-skills", "skills", "mcp-builder").replace("\\", "/")
         understand_agents = os.path.join(AGENT_DIR, "skills", "understand", "agents").replace("\\", "/")
         browser_agents = os.path.join(AGENT_DIR, "skills", "dev-browser", "agents").replace("\\", "/")
         caveman_skill = os.path.join(AGENT_DIR, "skills", "caveman").replace("\\", "/")
@@ -178,6 +179,7 @@ def main():
         # More precise replacements
         content = content.replace("TODO_NEW_MACHINE:/path/to/everything-claude-code/agents", ecc_agents)
         content = content.replace("TODO_NEW_MACHINE:/path/to/everything-claude-code/skills", ecc_skills)
+        content = content.replace("TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/mcp-builder", anthropic_mcp)
         content = content.replace("TODO_NEW_MACHINE:/path/to/pi/agent/skills/understand/agents", understand_agents)
         content = content.replace("TODO_NEW_MACHINE:/path/to/pi/agent/skills/dev-browser/agents", browser_agents)
         content = content.replace("TODO_NEW_MACHINE:/path/to/pi/agent/skills/caveman", caveman_skill)

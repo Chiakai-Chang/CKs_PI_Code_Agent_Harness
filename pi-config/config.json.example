@@ -7,6 +7,7 @@
   ],
   "skills": [
     "TODO_NEW_MACHINE:/path/to/pi/agent/skills/caveman",
-    "TODO_NEW_MACHINE:/path/to/everything-claude-code/skills"
+    "TODO_NEW_MACHINE:/path/to/everything-claude-code/skills",
+    "TODO_NEW_MACHINE:/path/to/external/anthropics-skills/skills/mcp-builder"
   ]
 }
