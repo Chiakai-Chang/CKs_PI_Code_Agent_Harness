@@ -34,3 +34,27 @@
 [submodule "external/karpathy-skills"]
 	path = external/karpathy-skills
 	url = https://github.com/multica-ai/andrej-karpathy-skills
+[submodule "external/aixbdd"]
+	path = external/aixbdd
+	url = https://github.com/Waterball-Software-Academy/aixbdd
+[submodule "external/addyosmani-skills"]
+	path = external/addyosmani-skills
+	url = https://github.com/addyosmani/agent-skills
+[submodule "external/openpua"]
+	path = external/openpua
+	url = https://github.com/tanweai/pua
+[submodule "external/oh-my-claudecode"]
+	path = external/oh-my-claudecode
+	url = https://github.com/Yeachan-Heo/oh-my-claudecode
+[submodule "external/yes.md"]
+	path = external/yes.md
+	url = https://github.com/sstklen/yes.md
+[submodule "external/taste-skill"]
+	path = external/taste-skill
+	url = https://github.com/Leonxlnx/taste-skill
+[submodule "external/pm-skills"]
+	path = external/pm-skills
+	url = https://github.com/phuryn/pm-skills
+[submodule "external/evolver"]
+	path = external/evolver
+	url = https://github.com/EvoMap/evolver

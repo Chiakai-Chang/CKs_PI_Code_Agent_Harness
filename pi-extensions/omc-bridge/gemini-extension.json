@@ -1,0 +1,57 @@
+{
+  "name": "omc-bridge",
+  "description": "Bridge extension for oh-my-claudecode (OMC) Agent Factory.",
+  "version": "1.0.0",
+  "author": "CK's Pi Harness",
+  "agents": [
+    {
+      "name": "omc-sisyphus",
+      "description": "Persistent execution engine that loops through implementation and verification until success.",
+      "location": "external/oh-my-claudecode/agents/sisyphus.md"
+    },
+    {
+      "name": "omc-oracle",
+      "description": "High-level software architect for deep design, trade-offs, and system boundaries.",
+      "location": "external/oh-my-claudecode/agents/architect.md"
+    },
+    {
+      "name": "omc-ralph",
+      "description": "Resilient implementer focused on getting the job done with automatic error recovery.",
+      "location": "external/oh-my-claudecode/agents/executor.md"
+    },
+    {
+      "name": "omc-critic",
+      "description": "Rigorous plan and code reviewer that identifies gaps and non-compliance.",
+      "location": "external/oh-my-claudecode/agents/critic.md"
+    }
+  ],
+  "skills": [
+    {
+      "name": "omc-team-mode",
+      "description": "Orchestrate a multi-agent team workflow (Plan -> PRD -> Exec -> Verify).",
+      "location": "external/oh-my-claudecode/skills/team/SKILL.md"
+    },
+    {
+      "name": "omc-autopilot",
+      "description": "Fully autonomous execution of complex features.",
+      "location": "external/oh-my-claudecode/skills/autopilot/SKILL.md"
+    },
+    {
+      "name": "omc-deep-interview",
+      "description": "Socratic requirements gathering to turn ambiguity into spec.",
+      "location": "external/oh-my-claudecode/skills/deep-interview/SKILL.md"
+    }
+  ],
+  "commands": [
+    {
+      "name": "omg:team",
+      "description": "Start a multi-agent team mission.",
+      "location": "external/oh-my-claudecode/skills/team/SKILL.md"
+    },
+    {
+      "name": "omg:autopilot",
+      "description": "Enter fully autonomous pilot mode.",
+      "location": "external/oh-my-claudecode/skills/autopilot/SKILL.md"
+    }
+  ]
+}

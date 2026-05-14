@@ -1,0 +1,40 @@
+{
+  "name": "taste-bridge",
+  "description": "Bridge extension for Taste-Skill (Premium UI/UX Engineering)",
+  "version": "1.0.0",
+  "author": "CK's Pi Harness",
+  "skills": [
+    {
+      "name": "taste-design",
+      "description": "Architect premium digital interfaces and override default AI design biases.",
+      "location": "external/taste-skill/skills/taste-skill/SKILL.md"
+    },
+    {
+      "name": "taste-redesign",
+      "description": "Audit and upgrade existing UI project aesthetics and performance.",
+      "location": "external/taste-skill/skills/redesign-skill/SKILL.md"
+    },
+    {
+      "name": "taste-minimalist",
+      "description": "Apply high-end minimalist design principles and whitespace strategy.",
+      "location": "external/taste-skill/skills/minimalist-skill/SKILL.md"
+    },
+    {
+      "name": "taste-brutalist",
+      "description": "Apply bold, high-contrast brutalist UI patterns.",
+      "location": "external/taste-skill/skills/brutalist-skill/SKILL.md"
+    }
+  ],
+  "commands": [
+    {
+      "name": "taste:standard",
+      "description": "Set active design baseline to Standard/Premium (8, 6, 4).",
+      "location": "external/taste-skill/skills/taste-skill/SKILL.md"
+    },
+    {
+      "name": "taste:redesign",
+      "description": "Start a redesign audit for the current project.",
+      "location": "external/taste-skill/skills/redesign-skill/SKILL.md"
+    }
+  ]
+}

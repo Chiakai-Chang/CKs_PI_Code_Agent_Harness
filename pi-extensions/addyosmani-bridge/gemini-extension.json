@@ -1,0 +1,50 @@
+{
+  "name": "addyosmani-bridge",
+  "description": "Bridge extension for Addy Osmani's Agent Skills (Google-grade SDLC)",
+  "version": "1.0.0",
+  "author": "CK's Pi Harness",
+  "skills": [
+    {
+      "name": "performance-optimization",
+      "description": "Google-grade web performance audit and optimization.",
+      "location": "external/addyosmani-skills/skills/performance-optimization/SKILL.md"
+    },
+    {
+      "name": "security-and-hardening",
+      "description": "Security audit and system hardening protocols.",
+      "location": "external/addyosmani-skills/skills/security-and-hardening/SKILL.md"
+    },
+    {
+      "name": "code-simplification",
+      "description": "Advanced code simplification and cleanup.",
+      "location": "external/addyosmani-skills/skills/code-simplification/SKILL.md"
+    },
+    {
+      "name": "api-and-interface-design",
+      "description": "API contract design and interface integrity.",
+      "location": "external/addyosmani-skills/skills/api-and-interface-design/SKILL.md"
+    },
+    {
+      "name": "doubt-driven-development",
+      "description": "Validate assumptions and verify truth before implementing.",
+      "location": "external/addyosmani-skills/skills/doubt-driven-development/SKILL.md"
+    },
+    {
+      "name": "browser-testing-with-devtools",
+      "description": "Deep browser testing using Chrome DevTools MCP.",
+      "location": "external/addyosmani-skills/skills/browser-testing-with-devtools/SKILL.md"
+    }
+  ],
+  "commands": [
+    {
+      "name": "addy:code-simplify",
+      "description": "Simplify complex code using Addy's advanced patterns.",
+      "location": "external/addyosmani-skills/.gemini/commands/code-simplify.toml"
+    },
+    {
+      "name": "addy:performance",
+      "description": "Run a performance audit and optimization cycle.",
+      "location": "external/addyosmani-skills/skills/performance-optimization/SKILL.md"
+    }
+  ]
+}

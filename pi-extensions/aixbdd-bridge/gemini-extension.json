@@ -1,0 +1,43 @@
+{
+  "name": "aixbdd-bridge",
+  "description": "Bridge extension for Waterball AIxBDD (AI-Driven Behavior-Driven Development)",
+  "version": "1.0.0",
+  "author": "CK's Pi Harness",
+  "skills": [
+    {
+      "name": "aibdd-kickoff",
+      "description": "Initialize AIxBDD context and tech stack.",
+      "location": "external/aixbdd/.claude/skills/aibdd-kickoff/SKILL.md"
+    },
+    {
+      "name": "aibdd-discovery",
+      "description": "Discover facts, activities, and rules from requirements.",
+      "location": "external/aixbdd/.claude/skills/aibdd-discovery/SKILL.md"
+    },
+    {
+      "name": "aibdd-plan",
+      "description": "Transform discovery facts into technical implementation plans.",
+      "location": "external/aixbdd/.claude/skills/aibdd-plan/SKILL.md"
+    },
+    {
+      "name": "aibdd-tasks",
+      "description": "Generate task graph and sequence for implementation.",
+      "location": "external/aixbdd/.claude/skills/aibdd-tasks/SKILL.md"
+    },
+    {
+      "name": "aibdd-implement",
+      "description": "Orchestrate the RED-GREEN-REFACTOR implementation cycle.",
+      "location": "external/aixbdd/.claude/skills/aibdd-implement/SKILL.md"
+    },
+    {
+      "name": "aibdd-reconcile",
+      "description": "Handle requirement changes by cascading reconciliation through artifacts.",
+      "location": "external/aixbdd/.claude/skills/aibdd-reconcile/SKILL.md"
+    },
+    {
+      "name": "clarify-loop",
+      "description": "Continuously clarify ambiguous requirements before planning.",
+      "location": "external/aixbdd/.claude/skills/clarify-loop/SKILL.md"
+    }
+  ]
+}

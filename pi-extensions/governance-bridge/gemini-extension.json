@@ -1,0 +1,31 @@
+{
+  "name": "governance-bridge",
+  "description": "Bridge extension for YES.md (AI Governance Framework)",
+  "version": "1.0.0",
+  "author": "CK's Pi Harness",
+  "skills": [
+    {
+      "name": "gov-strict",
+      "description": "Activate strict AI governance, anti-slack, and safety gates.",
+      "location": "external/yes.md/skills/yes-zh/SKILL.md"
+    },
+    {
+      "name": "gov-ripple-check",
+      "description": "Enforce ripple effect analysis after any code modification.",
+      "location": "external/yes.md/hooks/post-edit-check.sh"
+    }
+  ],
+  "hooks": [
+    {
+      "trigger": "before-bash",
+      "script": "external/yes.md/hooks/pre-bash-guard.sh"
+    }
+  ],
+  "commands": [
+    {
+      "name": "gov:check",
+      "description": "Perform a self-audit against governance rules.",
+      "location": "external/yes.md/skills/yes-zh/SKILL.md"
+    }
+  ]
+}

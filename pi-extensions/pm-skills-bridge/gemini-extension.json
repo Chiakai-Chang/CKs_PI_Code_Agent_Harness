@@ -1,0 +1,40 @@
+{
+  "name": "pm-skills-bridge",
+  "description": "Library-mode bridge for PM Skills Marketplace. On-demand access to 100+ PM frameworks.",
+  "version": "1.0.0",
+  "author": "CK's Pi Harness",
+  "commands": [
+    {
+      "name": "pm:prd-audit",
+      "description": "Audit PRD for gaps using Marty Cagan's quality standards.",
+      "location": "external/pm-skills/pm-execution/skills/prd-review/SKILL.md"
+    },
+    {
+      "name": "pm:north-star",
+      "description": "Define and align North Star Metrics to avoid vanity metrics.",
+      "location": "external/pm-skills/pm-marketing-growth/skills/north-star-metric/SKILL.md"
+    },
+    {
+      "name": "pm:interview",
+      "description": "Synthesize user interviews into actionable insights.",
+      "location": "external/pm-skills/pm-product-discovery/skills/summarize-interview/SKILL.md"
+    },
+    {
+      "name": "pm:assumption",
+      "description": "Identify and prioritize high-risk product assumptions.",
+      "location": "external/pm-skills/pm-product-discovery/skills/identify-assumptions-new/SKILL.md"
+    },
+    {
+      "name": "pm:roadmap",
+      "description": "Generate outcome-driven roadmaps for stakeholders.",
+      "location": "external/pm-skills/pm-product-strategy/skills/product-strategy/SKILL.md"
+    }
+  ],
+  "skills": [
+    {
+      "name": "pm-dispatcher",
+      "description": "The Library Manager. Use this to find and load ANY skill from external/pm-skills/ based on context.",
+      "location": "pi-extensions/pm-skills-bridge/SKILL.md"
+    }
+  ]
+}
