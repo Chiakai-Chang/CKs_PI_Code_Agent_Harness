@@ -51,6 +51,10 @@ def map_gemini_cli():
     src = "bridges/gemini_cli/.gemini"
     dest = ".gemini"
     create_symlink(src, dest)
+    
+    # Also link root GEMINI.md for better discoverability
+    if os.path.exists("bridges/gemini_cli/.gemini/GEMINI.md"):
+        create_symlink("bridges/gemini_cli/.gemini/GEMINI.md", "GEMINI.md")
 
 def map_claude():
     print("🤖 Mapping Claude Code projection...")

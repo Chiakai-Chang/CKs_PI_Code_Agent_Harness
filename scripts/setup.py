@@ -225,7 +225,7 @@ def get_recommended_specs(model_id, hw, api_base=None, provider=None):
 
 def run_universal_harness_wave():
     """
-    Orchestrates the Wave 1-3 Universal Harness logic.
+    Orchestrates the Wave 1-3 Universal Harness logic with granular selection.
     """
     print("\n" + "=" * 60)
     print(" 🛠️  CK's Universal Harness v4.0 - 自動化適配中樞")
@@ -234,9 +234,53 @@ def run_universal_harness_wave():
     print("[*] 正在同步專家資產 (Submodules)...")
     subprocess.run("git submodule update --init --recursive", shell=True)
     
+    # 1. Detection
+    print("\n[*] 🔍 偵測系統環境...")
+    path_detector = os.path.join(REPO_ROOT, "scripts", "detector.py")
+    run(f'"{sys.executable}" "{path_detector}"')
+    
+    env = load_json(os.path.join(REPO_ROOT, ".harness_env.json"))
+    # The keys in env should be normalized: pi, gemini_cli, claude, codex
+    available = [(k, v) for k, v in env.items() if v]
+    
+    if not available:
+        print("❌ 未偵測到任何相容的 AI CLI (Claude, Gemini, Pi, Codex)。")
+        return False
+        
+    print("\n偵測到以下平台，請選擇要「套用 Harness」的對象 (多選請用逗號分隔，例如 1,2):")
+    for i, (k, v) in enumerate(available, 1):
+        print(f"  [{i}] {k.upper()}")
+    print(f"  [A] 全部套用 (All)")
+    
+    choice = input("\n請選擇編號: ").strip().lower()
+    selected_keys = []
+    if choice == 'a':
+        selected_keys = [k for k, v in available]
+    else:
+        try:
+            idxs = [int(x.strip()) - 1 for x in choice.split(",")]
+            selected_keys = [available[i][0] for i in idxs if 0 <= i < len(available)]
+        except:
+            print("❌ 無效的選擇。")
+            return False
+            
+    if not selected_keys:
+        print("[-] 未選擇任何平台。")
+        return False
+        
+    # Update env to only include selected platforms for downstream scripts
+    final_env = {p: (p in selected_keys) for p in env.keys()}
+    save_json(os.path.join(REPO_ROOT, ".harness_env.json"), final_env)
+
+    # 2. Purifier (Crucial for avoiding conflicts)
+    print(f"\n[*] 🧹 執行環境淨化與備份 (Purifier) - 目標: {', '.join(selected_keys).upper()}...")
+    print("    [!] 警告: 全域安裝的擴充功能會導致指令衝突。")
+    print("    [!] 建議選擇 'y' 來備份舊環境並建立純淨的開發基座。")
+    path_purifier = os.path.join(REPO_ROOT, "scripts", "purifier.py")
+    run_stream(f'"{sys.executable}" "{path_purifier}"')
+
+    # 3. Generator & Mapper
     scripts = [
-        ("purifier.py", "🧹 執行環境淨化與備份..."),
-        ("detector.py", "🔍 偵測 AI CLI 環境..."),
         ("generator.py", "🤖 生成平台投影 (Projection)..."),
         ("mapper.py", "🔗 執行智慧映射 (Mapping)...")
     ]
@@ -284,57 +328,74 @@ def main():
         if not run_universal_harness_wave():
             sys.exit(1)
 
+    # Load the updated selection state
+    env_state = load_json(os.path.join(REPO_ROOT, ".harness_env.json"))
+    pi_selected = env_state.get("pi", False)
+
     if mode == "full":
         print("\n🔍 正在檢查核心組件...")
-        # ... (rest of core check)
-
         for cmd in ["git", "python", "npm"]:
             if not has_command(cmd): print(f"❌ 找不到 {cmd}"); sys.exit(1)
         print("✅ 環境核心組件已就緒。")
-        if has_command("pi"): run_stream("pi update")
-        else: run_stream("npm install -g @mariozechner/pi-coding-agent")
+        
+        if pi_selected:
+            if has_command("pi"): run_stream("pi update")
+            else: run_stream("npm install -g @earendil-works/pi-coding-agent")
+        else:
+            print("[-] 跳過 Pi Coding Agent 更新 (未選取)。")
 
     if mode in ["full", "model"]:
-        models = detect_llm_services()
-        if not models:
-            print("[-] 未偵測到運行中的本地 LLM。將跳過模型配置。")
+        if pi_selected:
+            models = detect_llm_services()
+            if not models:
+                print("[-] 未偵測到運行中的本地 LLM。將跳過模型配置。")
+            else:
+                print("\n發現以下模型 (Pi 專用):")
+                for i, (p, m) in enumerate(models, 1): print(f"  [{i}] {m} ({p})")
+                idx = int(input("請選擇模型編號 (0 跳過): ") or 0)
+                if idx > 0:
+                    api_base, model_id = models[idx-1]
+                    hw = get_hardware_info()
+                    rec_ctx, rec_max_t, is_reasoning, found_truth = get_recommended_specs(model_id, hw, api_base=api_base, provider="ollama" if "11434" in api_base else "custom")
+                    
+                    print(f"\n  [硬體] RAM: {hw['ram'] or '??'}GB | VRAM: {hw['vram'] or '??'}GB")
+                    print(f"  [實測] {model_id}{' (API 實測值)' if found_truth else ''}")
+                    
+                    u_ctx = input(f"  1. Context Window [{rec_ctx}]: ").strip()
+                    final_ctx = int(u_ctx) if u_ctx else rec_ctx
+                    u_max = input(f"  2. Max Tokens     [{rec_max_t}]: ").strip()
+                    final_max = int(u_max) if u_max else rec_max_t
+                    u_res = input(f"  3. Enable Reasoning [Y/n]: ").strip().lower()
+                    final_res = is_reasoning if u_res == "" else (u_res == "y")
+
+                    # Update Settings
+                    settings = load_json(SETTINGS_PATH)
+                    settings["defaultModel"] = model_id
+                    settings["defaultProvider"] = "ollama" if "11434" in api_base else "local-server"
+                    if "11434" not in api_base: settings["apiBase"] = api_base
+                    gb = detect_git_bash()
+                    if gb: settings["shellPath"] = gb
+                    save_json(SETTINGS_PATH, settings)
+
+                    # Update Models JSON
+                    prov_id = settings["defaultProvider"]
+                    m_json = {"providers": {prov_id: {"baseUrl": api_base if prov_id != "ollama" else "http://127.0.0.1:11434", "api": "openai-completions", "apiKey": "local", "authHeader": True, "models": [{"id": model_id, "name": f"Local: {model_id}", "reasoning": final_res, "contextWindow": final_ctx, "maxTokens": final_max, "input": ["text"]}]}}}
+                    save_json(os.path.join(PI_CONFIG_DIR, "models.json"), m_json)
+                    print("✅ 已同步本地模型配置。")
         else:
-            print("\n發現以下模型:")
-            for i, (p, m) in enumerate(models, 1): print(f"  [{i}] {m} ({p})")
-            idx = int(input("請選擇模型編號 (0 跳過): ") or 0)
-            if idx > 0:
-                api_base, model_id = models[idx-1]
-                hw = get_hardware_info()
-                rec_ctx, rec_max_t, is_reasoning, found_truth = get_recommended_specs(model_id, hw, api_base=api_base, provider="ollama" if "11434" in api_base else "custom")
-                
-                print(f"\n  [硬體] RAM: {hw['ram'] or '??'}GB | VRAM: {hw['vram'] or '??'}GB")
-                print(f"  [實測] {model_id}{' (API 實測值)' if found_truth else ''}")
-                
-                u_ctx = input(f"  1. Context Window [{rec_ctx}]: ").strip()
-                final_ctx = int(u_ctx) if u_ctx else rec_ctx
-                u_max = input(f"  2. Max Tokens     [{rec_max_t}]: ").strip()
-                final_max = int(u_max) if u_max else rec_max_t
-                u_res = input(f"  3. Enable Reasoning [Y/n]: ").strip().lower()
-                final_res = is_reasoning if u_res == "" else (u_res == "y")
+            print("[-] 跳過本地模型配置 (未選取 Pi 平台)。")
 
-                # Update Settings
-                settings = load_json(SETTINGS_PATH)
-                settings["defaultModel"] = model_id
-                settings["defaultProvider"] = "ollama" if "11434" in api_base else "local-server"
-                if "11434" not in api_base: settings["apiBase"] = api_base
-                gb = detect_git_bash()
-                if gb: settings["shellPath"] = gb
-                save_json(SETTINGS_PATH, settings)
-
-                # Update Models JSON
-                prov_id = settings["defaultProvider"]
-                m_json = {"providers": {prov_id: {"baseUrl": api_base if prov_id != "ollama" else "http://127.0.0.1:11434", "api": "openai-completions", "apiKey": "local", "authHeader": True, "models": [{"id": model_id, "name": f"Local: {model_id}", "reasoning": final_res, "contextWindow": final_ctx, "maxTokens": final_max, "input": ["text"]}]}}}
-                save_json(os.path.join(PI_CONFIG_DIR, "models.json"), m_json)
-                print("✅ 已同步本地模型配置。")
-
-    print("[*] 正在執行資產還原 (restore.py)...")
-    run_stream(f'"{sys.executable}" "{os.path.join(REPO_ROOT, "scripts", "restore.py")}" --auto')
-    print("\n" + "=" * 60 + "\n 完成！請執行: pi\n" + "=" * 60)
+    if pi_selected:
+        print("[*] 正在執行資產還原 (restore.py)...")
+        run_stream(f'"{sys.executable}" "{os.path.join(REPO_ROOT, "scripts", "restore.py")}" --auto')
+    
+    # Final message based on selection
+    print("\n" + "=" * 60)
+    print(" 🎉 完成！")
+    if env_state.get("gemini_cli"): print("  - Gemini CLI 已就緒，請重啟或執行 'gemini'")
+    if env_state.get("claude"): print("  - Claude Code 已就緒，請重啟或執行 'claude'")
+    if pi_selected: print("  - Pi Coding Agent 已就緒，請執行 'pi'")
+    print("=" * 60)
 
 if __name__ == "__main__":
     main()

@@ -7,9 +7,10 @@ from datetime import datetime
 def get_home_dirs():
     home = os.path.expanduser("~")
     return {
-        "gemini": os.path.join(home, ".gemini"),
+        "gemini_cli": os.path.join(home, ".gemini"),
         "claude": os.path.join(home, ".claude"),
-        "codex": os.path.join(home, ".codex")
+        "codex": os.path.join(home, ".codex"),
+        "pi": os.path.join(home, ".pi")
     }
 
 def backup_legacy_env(platform_name, legacy_path):
@@ -69,23 +70,47 @@ def main():
     parser.add_argument("--force", action="store_true", help="Execute purification without prompt.")
     args = parser.parse_args()
     
+    # Load selection filter
+    env_path = ".harness_env.json"
+    selection = {}
+    if os.path.exists(env_path):
+        with open(env_path, "r") as f:
+            selection = json.load(f)
+            
     if not args.force:
         print("🔍 Scanning for legacy AI environments...")
         legacy_dirs = get_home_dirs()
-        found = [p for p, d in legacy_dirs.items() if os.path.exists(d)]
+        # Only show platforms that exist AND are selected (or if no selection file exists, show all that exist)
+        found = [p for p, d in legacy_dirs.items() if os.path.exists(d) and (not selection or selection.get(p))]
         
         if not found:
-            print("✅ No legacy environments detected. Clean slate.")
+            print("✅ No legacy environments detected for selected platforms. Clean slate.")
             return
             
-        print(f"Found existing environments: {', '.join(found)}")
-        ans = input("\nDo you want to perform a 'Clean Reinstall' (Backup + Sanitized Restore)? [y/N]: ").strip().lower()
+        print(f"Found existing environments for selected platforms: {', '.join(found)}")
+        print("\n[!] IMPORTANT: Existing extensions/commands may conflict with the Harness.")
+        print("    Choosing 'y' will backup your old environment and start with a clean slate")
+        print("    while keeping your essential credentials (auth, models, settings).")
+        
+        ans = input("\nDo you want to perform a 'Clean Reinstall' (Safe Backup + Sanitize)? [y/N]: ").strip().lower()
         if ans != 'y':
             print("Purification skipped.")
             return
 
-    results = run_purification(force=True)
-    print(f"\n🎉 Purification Complete: {len(results['purified'])} platforms cleaned, {results['restored_files']} configs inherited.")
+    # Filter purification to selected platforms
+    print("🧹 Starting Environment Purification...")
+    legacy_dirs = get_home_dirs()
+    summary = {"purified": [], "restored_files": 0}
+    
+    for platform, path in legacy_dirs.items():
+        if os.path.exists(path) and (not selection or selection.get(platform)):
+            backup = backup_legacy_env(platform, path)
+            if backup:
+                restored = restore_essential_configs(backup, path)
+                summary["purified"].append(platform)
+                summary["restored_files"] += restored
+                
+    print(f"\n🎉 Purification Complete: {len(summary['purified'])} platforms cleaned, {summary['restored_files']} configs inherited.")
 
 if __name__ == "__main__":
     main()
