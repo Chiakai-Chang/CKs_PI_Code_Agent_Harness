@@ -1,5 +1,7 @@
 # 🚀 CK's Pi Code Agent Harness (Flagship v3.8)
 
+<img src="demo.png" width="100%" alt="運行畫面">
+
 > **一鍵重建工業級 AI 開發環境** —— 為你的 Pi 助手注入全球頂尖專家的開發直覺與嚴謹紀律。
 
 `CK's Pi Code Agent Harness` 是一個專為 [Pi Coding Agent](https://github.com/badlogic/pi-mono) 打造的**旗艦級配置增強套件**。本專案不僅是配置的集結，更是一套深度的**智慧蒸餾系統**。它透過「原生映射 (Native Mapping)」技術，整合了 GitHub 15+ 個頂尖開源倉庫，讓您的 Pi 助手具備從產品決策、架構設計到自我進化的全生命週期專家能力。
