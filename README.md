@@ -6,20 +6,33 @@
 
 ---
 
-## 🧪 早期體驗：下一代全能裝束 (Universal Harness v4.0+)
+## 🧪 早期體驗：下一代「全能裝束」 (Universal v4.0+)
 
-我們正在開發具備 **「跨平台自動適配」** 與 **「環境一鍵自癒」** 能力的 v4.0 版本。若您想在 **Claude Code** 或 **Gemini CLI** 中使用，或是在存有舊環境的新電腦上進行**「零汙染重建」**，請切換至開發分支：
+**「如果您想在 Claude Code 或 Gemini CLI 之間切換，或是在新電腦上重新安裝，選這個就對了！」**
 
-### 1. 取得開發版
+我們正在開發 v4.0 版本，讓您的開發環境具備「跨平台自動適配」與「環境自癒」能力。
+
+### 1. 複製並執行（只需 30 秒）
 ```bash
+# 取得具備自癒能力的開發版
 git clone -b feat/universal-harness --recursive https://github.com/Chiakai-Chang/CKs_PI_Code_Agent_Harness.git
 cd CKs_PI_Code_Agent_Harness
+
+# Windows: 雙擊 install.bat (建議按右鍵管理員執行)
+# macOS / Linux: bash install.sh
 ```
 
-### 2. 核心進化
-*   **跨平台投影**：同一套大師技能，自動投影為 Claude 指令或 Pi 擴充。
-*   **環境淨化器**：一鍵備份舊環境，智慧繼承 API Key，徹底解決 Extension 衝突。
-*   **工具轉譯器**：自動化解 `read_file` 與 `Read` 等平台指令差異。
+### 2. 它會幫您做什麼？
+*   **🧹 環境自動大掃除**：偵測到舊的、混亂的 Extension？它會自動備份並為您建立最純淨的環境。
+*   **✨ 智慧遺產繼承**：您的 API Keys 與模型配置會被自動找回來並還原，**不需要重新設定**。
+*   **🤖 一次安裝，全家適用**：不論您目前啟動的是 `claude` 還是 `pi`，專家神力都會自動投影到對應的工具。
+
+### 3. 開始開發 (必試指令)
+安裝完成後，直接啟動您的 AI CLI (輸入 `pi` 或 `claude`)，體驗以下神力：
+*   **/omg:team**：召喚一支由架構師與執行者組成的專家團隊作戰。
+*   **/aibdd-kickoff**：啟動嚴謹的行為驅動開發 (BDD) 流程。
+*   **/pip:status**：當 AI 卡關時，強制啟動「極限求生」模式解決問題。
+*   **/pm:north-star**：校準產品價值，拒絕無效開發。
 
 ---
 
