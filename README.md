@@ -1,28 +1,29 @@
-# 🚀 CK's Pi Code Agent Harness (Flagship v3.8)
+# 🚀 CK's Universal Code Agent Harness (Flagship v4.0)
 
-> **一鍵重建工業級 AI 開發環境** —— 為你的 Pi 助手注入全球頂尖專家的開發直覺與嚴謹紀律。
+> **一鍵重建工業級 AI 開發環境** —— 為您的 AI 助手 (Claude, Codex, Gemini) 注入全球頂尖專家的開發直覺與嚴謹紀律。
 
-`CK's Pi Code Agent Harness` 是一個專為 [Pi Coding Agent](https://github.com/badlogic/pi-mono) 打造的**旗艦級配置增強套件**。本專案不僅是配置的集結，更是一套深度的**智慧蒸餾系統**。它透過「原生映射 (Native Mapping)」技術，整合了 GitHub 15+ 個頂尖開源倉庫，讓您的 Pi 助手具備從產品決策、架構設計到自我進化的全生命週期專家能力。
+`CK's Universal Code Agent Harness` 是一個專為 **AI 命令行工具** (如 [Claude Code](https://github.com/anthropic/claude-code), [Pi Gemini](https://github.com/badlogic/pi-mono)) 打造的**旗艦級配置增強套件**。本專案透過「適配器模式 (Adapter Pattern)」與「智慧映射 (Smart Mapping)」技術，整合了 GitHub 15+ 個頂尖開源倉庫，實現了「一套核心，多端投影」。
 
 ---
 
 ## 🏗️ 九大技術支柱 (The 9 Pillars)
 
-基於 [**核心設計理念 (CORE_CONCEPTS.md)**](docs/core/CORE_CONCEPTS.md) 與 [**v3.7 蒸餾導則**](docs/core/DISTILLATION_GUIDE.md)，我們為 Pi 構建了完整的開發大腦：
+基於 [**核心設計理念 (CORE_CONCEPTS.md)**](docs/core/CORE_CONCEPTS.md) 與 [**v4.0 投影導則**](docs/core/DISTILLATION_GUIDE.md)，我們構建了跨平台的開發大腦：
 
-1.  **🛡️ 紀律守護 (ECC Hooks)**：整合 70+ 專業代理人與自動化掛鉤，在 AI 闖禍前（如語法錯誤、金鑰洩漏）秒級攔截。
-2.  **🧠 專家直覺 (Superpowers)**：注入工業級工程紀律，強制 AI 實施 TDD 與系統化規劃。
+1.  **🛡️ 紀律守護 (Universal Hooks)**：整合 80+ 專業代理人與自動化掛鉤，在 AI 闖禍前（如語法錯誤、金鑰洩漏）秒級攔截，支援 Bash 與 Edit 掛鉤映射。
+2.  **🧠 專家直覺 (Superpowers)**：注入工業級工程紀律，強制 AI 實施 TDD 與系統化規劃，工具名自動隨平台轉譯。
 3.  **🔍 代碼 GPS (Understand)**：利用知識圖譜技術，讓 AI 具備解讀數萬行複雜專案的「上帝視角」。
 4.  **📚 專案大腦 (LLM Wiki)**：實作 Karpathy 模式，讓專案知識隨時間複利成長，建立持久的維基索引。
-5.  **📝 戰術持久 (Manus Planning)**：實體化任務計畫，確保斷點續傳，徹底解決長對話導致的 AI 「失憶」問題。
-6.  **🏭 代理工廠 (OMC Teams)**：建立多代理編排流水線，召喚架構師、執行者與審查員協同作戰。
+5.  **📝 戰術持久 (Manus Planning)**：實體化任務計畫，確保跨對話斷點續傳，徹底解決長對話導致的 AI 「失憶」問題。
+6.  **🏭 代理工廠 (OMC Teams)**：建立多代理編排流水線，召喚架構師、執行者與審查員協同作戰，適配多平台指令集。
 7.  **🧪 誠信工廠 (AIxBDD)**：實施嚴格的行為驅動開發 (BDD)，確保代碼與規格 100% 對齊。
 8.  **🧬 自我進化 (Evolver Engine)**：基於 GEP 協定，將成功修復固化為「基因」，實現跨會話的能力遺傳。
-9.  **🧭 產品決策 (PM Skills)**：內建 100+ 頂尖 PM 框架，從北極星指標到 PRD 審計，拒絕無效開發。
+9.  **🧭 產品決策 (PM Skills)**：內建 100+ 頂尖 PM 框架，從北極星指標到 PRD 審計，以「圖書館模式」按需調度。
 
 > ℹ️ 每一項整合的技術細節與決策背景，請參閱 [**🗺️ 戰略索引地圖 (STRATEGIC_MAP.md)**](docs/strategy/STRATEGIC_MAP.md)。
 
 ---
+
 
 ## 📂 整合生態系 (Integrated Masterpieces)
 
@@ -56,16 +57,16 @@ git clone --recursive https://github.com/Chiakai-Chang/CKs_PI_Code_Agent_Harness
 cd CKs_PI_Code_Agent_Harness
 ```
 
-### 2. 一鍵部署
+### 2. 一鍵適配
 *   **Windows**: 雙擊 `install.bat` (建議管理員執行)。
 *   **macOS / Linux**: `bash install.sh`。
 
-> 系統會自動執行 **Map-Driven Restore**，將所有專家路徑與 80+ 位代理人注入您的環境。
+> 系統會自動執行 **Universal Mapping**，偵測系統中安裝的 `claude` 或 `pi` 指令，並動態投影專家大腦。
 
 ### 3. 開始開發
-```bash
-pi
-```
+*   **Claude Code**: `claude`
+*   **Gemini CLI**: `pi`
+*   **Codex CLI**: `codex`
 
 ---
 

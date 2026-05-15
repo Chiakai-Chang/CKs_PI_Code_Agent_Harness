@@ -223,9 +223,38 @@ def get_recommended_specs(model_id, hw, api_base=None, provider=None):
 
 # --- Orchestration Domain ---
 
+def run_universal_harness_wave():
+    """
+    Orchestrates the Wave 1-3 Universal Harness logic.
+    """
+    print("\n" + "=" * 60)
+    print(" 🛠️  CK's Universal Harness v4.0 - 自動化適配中樞")
+    print("=" * 60)
+    
+    print("[*] 正在同步專家資產 (Submodules)...")
+    subprocess.run("git submodule update --init --recursive", shell=True)
+    
+    scripts = [
+        ("detector.py", "🔍 偵測 AI CLI 環境..."),
+        ("generator.py", "🤖 生成平台投影 (Projection)..."),
+        ("mapper.py", "🔗 執行智慧映射 (Mapping)...")
+    ]
+    
+    for script, desc in scripts:
+        print(f"\n[*] {desc}")
+        path = os.path.join(REPO_ROOT, "scripts", script)
+        ok, out, err = run(f'"{sys.executable}" "{path}"')
+        if not ok:
+            print(f"❌ 執行 {script} 失敗: {err}")
+            return False
+        print(out)
+        
+    print("\n✅ Universal Harness 適配完成。")
+    return True
+
 def show_main_menu():
-    print("=" * 60 + "\n CK's Pi Code Agent Harness - 管理與設定工具 (v3.7.2)\n" + "=" * 60)
-    print("\n [1] 完整安裝 [2] 切換模型 [3] 僅還原配置 [Q] 離開")
+    print("=" * 60 + "\n CK's Universal Code Agent Harness - 旗艦版 (v4.0)\n" + "=" * 60)
+    print("\n [1] 完整安裝 (Universal) [2] 切換模型 (Pi Only) [3] 僅投影配置 [Q] 離開")
     ans = input("\n請輸入編號 (1-3, Q): ").strip().lower()
     if ans == "1": return "full"
     if ans == "2": return "model"
@@ -248,12 +277,16 @@ def main():
 
     # Git Initialization
     run(f'git config --global --add safe.directory "{REPO_ROOT}"')
+    
+    # Wave 1-3: Universal Logic
     if mode in ["full", "restore"]:
-        print("[*] 正在拉取專家資產 (Submodules)...")
-        run_stream("git submodule update --init --recursive")
+        if not run_universal_harness_wave():
+            sys.exit(1)
 
     if mode == "full":
-        print("🔍 正在檢查核心組件...")
+        print("\n🔍 正在檢查核心組件...")
+        # ... (rest of core check)
+
         for cmd in ["git", "python", "npm"]:
             if not has_command(cmd): print(f"❌ 找不到 {cmd}"); sys.exit(1)
         print("✅ 環境核心組件已就緒。")

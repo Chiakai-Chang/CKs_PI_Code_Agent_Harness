@@ -1,0 +1,38 @@
+{
+  "name": "universal-harness-bridge",
+  "description": "Auto-generated universal bridge for Gemini CLI.",
+  "version": "4.0.0",
+  "author": "CK's Universal Harness",
+  "commands": [
+    {
+      "name": "omg:team",
+      "description": "Start a multi-agent team mission (Plan -> PRD -> Exec -> Verify).",
+      "location": "external/oh-my-claudecode/skills/team/SKILL.md"
+    },
+    {
+      "name": "aibdd:kickoff",
+      "description": "Initialize AIxBDD context and tech stack.",
+      "location": "external/aixbdd/.claude/skills/aibdd-kickoff/SKILL.md"
+    },
+    {
+      "name": "addy:performance",
+      "description": "Run a Google-grade performance audit and optimization cycle.",
+      "location": "external/addyosmani-skills/skills/performance-optimization/SKILL.md"
+    },
+    {
+      "name": "pip:status",
+      "description": "Report current task performance and agency level.",
+      "location": "core/skills/optional/pip-guardian/SKILL.md"
+    },
+    {
+      "name": "taste:standard",
+      "description": "Set active design baseline to Standard/Premium.",
+      "location": "external/taste-skill/skills/taste-skill/SKILL.md"
+    },
+    {
+      "name": "evolve:scan",
+      "description": "Scan session logs for error patterns and optimization signals.",
+      "location": "external/evolver/SKILL.md"
+    }
+  ]
+}

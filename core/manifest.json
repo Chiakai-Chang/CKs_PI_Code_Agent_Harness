@@ -1,0 +1,66 @@
+{
+  "version": "4.0.0",
+  "harness_name": "CK's Universal Code Agent Harness",
+  "commands": [
+    {
+      "id": "team",
+      "prefix": "omg",
+      "description": "Start a multi-agent team mission (Plan -> PRD -> Exec -> Verify).",
+      "source": "external/oh-my-claudecode/skills/team/SKILL.md",
+      "category": "orchestration"
+    },
+    {
+      "id": "kickoff",
+      "prefix": "aibdd",
+      "description": "Initialize AIxBDD context and tech stack.",
+      "source": "external/aixbdd/.claude/skills/aibdd-kickoff/SKILL.md",
+      "category": "engineering"
+    },
+    {
+      "id": "performance",
+      "prefix": "addy",
+      "description": "Run a Google-grade performance audit and optimization cycle.",
+      "source": "external/addyosmani-skills/skills/performance-optimization/SKILL.md",
+      "category": "performance"
+    },
+    {
+      "id": "status",
+      "prefix": "pip",
+      "description": "Report current task performance and agency level.",
+      "source": "core/skills/optional/pip-guardian/SKILL.md",
+      "category": "governance"
+    },
+    {
+      "id": "standard",
+      "prefix": "taste",
+      "description": "Set active design baseline to Standard/Premium.",
+      "source": "external/taste-skill/skills/taste-skill/SKILL.md",
+      "category": "design"
+    },
+    {
+      "id": "scan",
+      "prefix": "evolve",
+      "description": "Scan session logs for error patterns and optimization signals.",
+      "source": "external/evolver/SKILL.md",
+      "category": "evolution"
+    }
+  ],
+  "tool_mapping": {
+    "gemini": {
+      "READ": "read_file",
+      "WRITE": "write_file",
+      "EDIT": "replace",
+      "BASH": "run_shell_command",
+      "GREP": "grep_search",
+      "GLOB": "glob"
+    },
+    "claude": {
+      "READ": "Read",
+      "WRITE": "Write",
+      "EDIT": "Edit",
+      "BASH": "Bash",
+      "GREP": "Grep",
+      "GLOB": "Glob"
+    }
+  }
+}

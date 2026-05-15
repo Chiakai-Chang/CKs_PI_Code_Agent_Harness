@@ -1,3 +1,9 @@
+# Universal Harness v4.0 (Generated)
+.claude
+.codex
+gemini-extension.json
+.harness_env.json
+
 # Runtime / local-only
 pi-config/auth.json
 pi-config/settings.json
