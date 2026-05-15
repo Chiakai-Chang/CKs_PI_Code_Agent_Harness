@@ -235,6 +235,7 @@ def run_universal_harness_wave():
     subprocess.run("git submodule update --init --recursive", shell=True)
     
     scripts = [
+        ("purifier.py", "🧹 執行環境淨化與備份..."),
         ("detector.py", "🔍 偵測 AI CLI 環境..."),
         ("generator.py", "🤖 生成平台投影 (Projection)..."),
         ("mapper.py", "🔗 執行智慧映射 (Mapping)...")
