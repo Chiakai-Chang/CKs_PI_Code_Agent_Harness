@@ -1,5 +1,5 @@
 {
-  "version": "4.0.0",
+  "version": "4.1.0",
   "harness_name": "CK's Universal Code Agent Harness",
   "commands": [
     {
@@ -43,10 +43,25 @@
       "description": "Scan session logs for error patterns and optimization signals.",
       "source": "external/evolver/SKILL.md",
       "category": "evolution"
+    },
+    {
+      "id": "test",
+      "prefix": "neutral",
+      "description": "A neutral skill to test tool translation.",
+      "source": "core/skills/neutral-test.md",
+      "category": "test"
     }
   ],
   "tool_mapping": {
-    "gemini": {
+    "pi": {
+      "READ": "read_file",
+      "WRITE": "write_file",
+      "EDIT": "replace",
+      "BASH": "run_shell_command",
+      "GREP": "grep_search",
+      "GLOB": "glob"
+    },
+    "gemini_cli": {
       "READ": "read_file",
       "WRITE": "write_file",
       "EDIT": "replace",

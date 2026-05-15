@@ -8,14 +8,19 @@ def detect_platforms():
     Returns a dictionary of platform status.
     """
     platforms = {
-        "gemini": False,
+        "pi": False,
+        "gemini_cli": False,
         "claude": False,
         "codex": False
     }
     
-    # Detect 'pi' (Gemini CLI)
+    # Detect 'pi' (Pi Coding Agent)
     if shutil.which("pi"):
-        platforms["gemini"] = True
+        platforms["pi"] = True
+        
+    # Detect 'gemini' (Gemini CLI)
+    if shutil.which("gemini"):
+        platforms["gemini_cli"] = True
         
     # Detect 'claude' (Claude Code)
     if shutil.which("claude"):
@@ -33,7 +38,7 @@ def main():
     
     for platform, installed in status.items():
         icon = "✅" if installed else "❌"
-        print(f"{icon} {platform.capitalize()}")
+        print(f"{icon} {platform.upper()}")
         
     # Write detection result to a temp state file
     with open(".harness_env.json", "w") as f:

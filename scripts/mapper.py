@@ -27,7 +27,6 @@ def create_symlink(src, dest):
     print(f"  [+] Linking {src} -> {dest}")
     try:
         if platform.system().lower() == "windows":
-            # Use cmd /c mklink to handle directory vs file correctly
             is_dir = os.path.isdir(abs_src)
             cmd = ["cmd", "/c", "mklink"]
             if is_dir:
@@ -41,10 +40,16 @@ def create_symlink(src, dest):
         print(f"  ❌ Failed to create link: {e}")
         return False
 
-def map_gemini():
-    print("💎 Mapping Gemini CLI projection...")
-    src = "bridges/gemini/gemini-extension.json"
+def map_pi():
+    print("🥧 Mapping Pi Coding Agent projection...")
+    src = "bridges/pi/gemini-extension.json"
     dest = "gemini-extension.json"
+    create_symlink(src, dest)
+
+def map_gemini_cli():
+    print("💎 Mapping Gemini CLI projection...")
+    src = "bridges/gemini_cli/.gemini"
+    dest = ".gemini"
     create_symlink(src, dest)
 
 def map_claude():
@@ -59,15 +64,18 @@ def main():
         print("❌ Environment not detected. Run detector.py first.")
         return
         
-    print("🚀 Starting Smart Mapping...")
+    print("🚀 Starting Smart Mapping (Calibrated)...")
     
-    if env.get("gemini"):
-        map_gemini()
+    if env.get("pi"):
+        map_pi()
+        
+    if env.get("gemini_cli"):
+        map_gemini_cli()
         
     if env.get("claude"):
         map_claude()
         
-    print("\n✅ Wave 3.1: Mapping Complete.")
+    print("\n✅ Wave 3.1: Mapping Complete (Calibrated).")
 
 if __name__ == "__main__":
     main()

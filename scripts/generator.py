@@ -3,6 +3,9 @@ import os
 import re
 
 def load_config():
+    if not os.path.exists(".harness_env.json"):
+        print("❌ Environment not detected. Run detector.py first.")
+        return None, None
     with open(".harness_env.json", "r") as f:
         env = json.load(f)
     with open("core/manifest.json", "r") as f:
@@ -13,17 +16,20 @@ def translate_content(content, platform, mapping):
     """
     Translates neutral tool names like {{READ}} into platform-specific tool names.
     """
+    if platform not in mapping:
+        return content
+        
     for tool_key, tool_name in mapping[platform].items():
         pattern = r"\{\{" + tool_key + r"\}\}"
         content = re.sub(pattern, tool_name, content)
     return content
 
-def generate_gemini(manifest):
-    print("💎 Projecting for Gemini CLI...")
+def generate_pi(manifest):
+    print("🥧 Projecting for Pi Coding Agent...")
     ext_json = {
-        "name": "universal-harness-bridge",
-        "description": "Auto-generated universal bridge for Gemini CLI.",
-        "version": "4.0.0",
+        "name": "universal-harness-bridge-pi",
+        "description": "Auto-generated universal bridge for Pi Coding Agent.",
+        "version": "4.1.0",
         "author": "CK's Universal Harness",
         "commands": []
     }
@@ -35,10 +41,31 @@ def generate_gemini(manifest):
             "location": cmd["source"]
         })
         
-    os.makedirs("bridges/gemini", exist_ok=True)
-    with open("bridges/gemini/gemini-extension.json", "w") as f:
+    os.makedirs("bridges/pi", exist_ok=True)
+    with open("bridges/pi/gemini-extension.json", "w") as f:
         json.dump(ext_json, f, indent=2)
-    print("✅ Created bridges/gemini/gemini-extension.json")
+    print("✅ Created bridges/pi/gemini-extension.json")
+
+def generate_gemini_cli(manifest):
+    print("💎 Projecting for Gemini CLI...")
+    base_dir = "bridges/gemini_cli/.gemini"
+    cmd_dir = f"{base_dir}/commands"
+    os.makedirs(cmd_dir, exist_ok=True)
+    
+    for cmd in manifest["commands"]:
+        # Create a proxy command file for Gemini CLI (using .toml or .md depending on CLI version)
+        # We'll use .md as a proxy similar to Claude for now, but focus on the extension pattern if needed.
+        cmd_file = f"{cmd_dir}/{cmd['prefix']}-{cmd['id']}.md"
+        with open(cmd['source'], "r", encoding="utf-8") as src:
+            content = src.read()
+            
+        translated = translate_content(content, "gemini_cli", manifest["tool_mapping"])
+        
+        with open(cmd_file, "w", encoding="utf-8") as dest:
+            dest.write(f"--- \n# Auto-projected from {cmd['source']}\n---\n\n")
+            dest.write(translated)
+            
+    print(f"✅ Projected {len(manifest['commands'])} commands to {cmd_dir}")
 
 def generate_claude(manifest):
     print("🤖 Projecting for Claude Code...")
@@ -47,7 +74,6 @@ def generate_claude(manifest):
     os.makedirs(cmd_dir, exist_ok=True)
     
     for cmd in manifest["commands"]:
-        # Create a proxy command file for Claude
         cmd_file = f"{cmd_dir}/{cmd['prefix']}-{cmd['id']}.md"
         with open(cmd['source'], "r", encoding="utf-8") as src:
             content = src.read()
@@ -62,14 +88,18 @@ def generate_claude(manifest):
 
 def main():
     env, manifest = load_config()
+    if not env: return
     
-    if env.get("gemini"):
-        generate_gemini(manifest)
+    if env.get("pi"):
+        generate_pi(manifest)
+        
+    if env.get("gemini_cli"):
+        generate_gemini_cli(manifest)
         
     if env.get("claude"):
         generate_claude(manifest)
         
-    print("\n🎉 Wave 2: Projection Complete.")
+    print("\n🎉 Wave 2: Projection Complete (Calibrated).")
 
 if __name__ == "__main__":
     main()

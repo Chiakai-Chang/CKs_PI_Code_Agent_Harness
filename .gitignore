@@ -1,5 +1,6 @@
 # Universal Harness v4.0 (Generated)
 .claude
+.gemini
 .codex
 gemini-extension.json
 .harness_env.json
