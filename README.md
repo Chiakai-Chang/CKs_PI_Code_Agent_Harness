@@ -6,6 +6,23 @@
 
 ---
 
+## 🧪 早期體驗：下一代全能裝束 (Universal Harness v4.0+)
+
+我們正在開發具備 **「跨平台自動適配」** 與 **「環境一鍵自癒」** 能力的 v4.0 版本。若您想在 **Claude Code** 或 **Gemini CLI** 中使用，或是在存有舊環境的新電腦上進行**「零汙染重建」**，請切換至開發分支：
+
+### 1. 取得開發版
+```bash
+git clone -b feat/universal-harness --recursive https://github.com/Chiakai-Chang/CKs_PI_Code_Agent_Harness.git
+cd CKs_PI_Code_Agent_Harness
+```
+
+### 2. 核心進化
+*   **跨平台投影**：同一套大師技能，自動投影為 Claude 指令或 Pi 擴充。
+*   **環境淨化器**：一鍵備份舊環境，智慧繼承 API Key，徹底解決 Extension 衝突。
+*   **工具轉譯器**：自動化解 `read_file` 與 `Read` 等平台指令差異。
+
+---
+
 ## 🏗️ 九大技術支柱 (The 9 Pillars)
 
 基於 [**核心設計理念 (CORE_CONCEPTS.md)**](docs/core/CORE_CONCEPTS.md) 與 [**v3.7 蒸餾導則**](docs/core/DISTILLATION_GUIDE.md)，我們為 Pi 構建了完整的開發大腦：
