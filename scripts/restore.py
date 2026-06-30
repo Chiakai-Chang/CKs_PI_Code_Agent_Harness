@@ -110,17 +110,36 @@ def save_json(path, data):
         json.dump(data, f, indent=2, ensure_ascii=False)
         f.write("\n")
 
+def deep_merge(target, source):
+    for key, value in source.items():
+        if key in target:
+            if isinstance(target[key], dict) and isinstance(value, dict):
+                deep_merge(target[key], value)
+            elif isinstance(target[key], list) and isinstance(value, list):
+                for item in value:
+                    if item not in target[key]:
+                        target[key].append(item)
+            else:
+                # target value takes precedence
+                pass
+        else:
+            target[key] = value
+    return target
+
 def main():
     parser = argparse.ArgumentParser(description="CK's Pi Code Agent Harness - Restore")
     parser.add_argument("--auto", action="store_true", help="Skip confirmation")
+    parser.add_argument("--profile", choices=["minimal", "standard", "full"], default="standard", help="Skill profile to load")
     args = parser.parse_args()
 
     # Check environment variable as a robust fallback for --auto
     is_auto = args.auto or (os.environ.get("PI_AUTO_RESTORE") == "1")
+    profile = args.profile or os.environ.get("PI_HARNESS_PROFILE", "standard")
 
     log("CK's Pi Code Agent Harness – Restore Configuration (Python)")
     log(f"Repo root: {REPO_ROOT}")
     log(f"Agent dir: {AGENT_DIR}")
+    log(f"Profile:   {profile}")
     print()
 
     ensure_dir(AGENT_DIR)
@@ -138,121 +157,173 @@ def main():
     # Config
     log("Restoring config (settings, models, git)...")
     
-    # 1. Patch and sync settings.json
+    # 1. Load and merge settings.json
+    settings_dest = os.path.join(AGENT_DIR, "settings.json")
     settings_src = os.path.join(REPO_ROOT, "pi-config", "settings.json")
-    if os.path.exists(settings_src) or os.path.exists(settings_src + ".example"):
-        settings = load_json(settings_src)
-        if "env" not in settings: settings["env"] = {}
-        settings["env"]["PI_HARNESS_ROOT"] = REPO_ROOT.replace("\\", "/")
-        save_json(os.path.join(AGENT_DIR, "settings.json"), settings)
     
-    # 2. Sync models.json (CRITICAL)
-    models_src = os.path.join(REPO_ROOT, "pi-config", "models.json")
-    if os.path.exists(models_src) or os.path.exists(models_src + ".example"):
-        models_data = load_json(models_src)
-        if models_data:
-            save_json(os.path.join(AGENT_DIR, "models.json"), models_data)
-            log("  - models.json synced")
-
-    # 3. Sync other base configs
-    config_src = os.path.join(REPO_ROOT, "pi-config", "config.json")
-    if os.path.exists(config_src):
-        shutil.copy2(config_src, os.path.join(AGENT_DIR, "config.json"))
+    settings = {}
+    if os.path.exists(settings_dest):
+        settings = load_json(settings_dest)
     
-    gitignore_src = os.path.join(REPO_ROOT, "pi-config", "git", ".gitignore")
-    if os.path.exists(gitignore_src):
-        shutil.copy2(gitignore_src, os.path.join(AGENT_DIR, "git", ".gitignore"))
+    default_settings = load_json(settings_src)
+    settings = deep_merge(settings, default_settings)
+    
+    if "env" not in settings: settings["env"] = {}
+    settings["env"]["PI_HARNESS_ROOT"] = REPO_ROOT.replace("\\", "/")
+    
+    # 2. Dynamic Submodule Paths Resolution
+    ext_root = os.path.join(REPO_ROOT, "external").replace("\\", "/")
+    pi_skills_root = os.path.join(REPO_ROOT, "pi-skills").replace("\\", "/")
+    pi_extensions_root = os.path.join(REPO_ROOT, "pi-extensions").replace("\\", "/")
 
-    cfg_path = os.path.join(AGENT_DIR, "config.json")
-    if os.path.exists(cfg_path):
-        with open(cfg_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        
-        # --- PATH RESOLUTION MAP (v3.7 Map-Driven Mode) ---
-        # Format: { "Placeholder": "Actual Path" }
-        path_map = {}
+    profile_skills = []
+    profile_extensions = []
 
-        # 1. External Submodules (Native Mapping)
-        ext_root = os.path.join(REPO_ROOT, "external")
+    # Local core skills (always loaded)
+    profile_skills.append(os.path.join(pi_skills_root, "core").replace("\\", "/"))
+    profile_skills.append(os.path.join(pi_skills_root, "chrome-cdp").replace("\\", "/"))
+    profile_skills.append(os.path.join(pi_skills_root, "dev-browser").replace("\\", "/"))
+
+    # Minimal profile
+    if profile == "minimal":
+        profile_skills.append(os.path.join(ext_root, "caveman", "skills", "caveman").replace("\\", "/"))
+        profile_extensions.append(os.path.join(pi_extensions_root, "ecc-hooks-bridge").replace("\\", "/"))
+
+    # Standard profile (Default)
+    elif profile == "standard":
+        # Caveman skills
+        for name in ["caveman", "caveman-commit", "caveman-review", "caveman-compress", 
+                     "caveman-stats", "caveman-help", "cavecrew"]:
+            profile_skills.append(os.path.join(ext_root, "caveman", "skills", name).replace("\\", "/"))
         
-        # Superpowers (13 skills)
+        # Superpowers skills
         sp_root = os.path.join(ext_root, "superpowers", "skills")
         for name in ["using-superpowers", "brainstorming", "writing-plans", "test-driven-development", 
                      "systematic-debugging", "subagent-driven-development", "executing-plans", 
                      "verification-before-completion", "finishing-a-development-branch", 
                      "receiving-code-review", "requesting-code-review", "using-git-worktrees", "writing-skills"]:
-            path_map[f"/path/to/external/superpowers/skills/{name}"] = os.path.join(sp_root, name)
+            profile_skills.append(os.path.join(sp_root, name).replace("\\", "/"))
+            
+        profile_skills.append(os.path.join(ext_root, "karpathy-skills", "skills", "karpathy-guidelines").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "planning-with-files").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "llm-wiki-plugin", "skills", "llm-wiki").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "prompt-master").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "everything-claude-code", "skills").replace("\\", "/"))
 
-        # UI/UX Pro Max (7 skills)
+        # Extensions
+        profile_extensions.append(os.path.join(pi_extensions_root, "ecc-hooks-bridge").replace("\\", "/"))
+        profile_extensions.append(os.path.join(pi_extensions_root, "planning-with-files-bridge").replace("\\", "/"))
+        profile_extensions.append(os.path.join(pi_extensions_root, "pip-guardian").replace("\\", "/"))
+        profile_extensions.append(os.path.join(pi_extensions_root, "governance-bridge").replace("\\", "/"))
+        profile_extensions.append(os.path.join(pi_extensions_root, "evolution-bridge").replace("\\", "/"))
+        profile_extensions.append(os.path.join(pi_extensions_root, "aixbdd-bridge").replace("\\", "/"))
+
+    # Full profile
+    elif profile == "full":
+        # Caveman skills
+        for name in ["caveman", "caveman-commit", "caveman-review", "caveman-compress", 
+                     "caveman-stats", "caveman-help", "cavecrew"]:
+            profile_skills.append(os.path.join(ext_root, "caveman", "skills", name).replace("\\", "/"))
+        
+        # Superpowers skills
+        sp_root = os.path.join(ext_root, "superpowers", "skills")
+        for name in ["using-superpowers", "brainstorming", "writing-plans", "test-driven-development", 
+                     "systematic-debugging", "subagent-driven-development", "executing-plans", 
+                     "verification-before-completion", "finishing-a-development-branch", 
+                     "receiving-code-review", "requesting-code-review", "using-git-worktrees", "writing-skills"]:
+            profile_skills.append(os.path.join(sp_root, name).replace("\\", "/"))
+            
+        profile_skills.append(os.path.join(ext_root, "karpathy-skills", "skills", "karpathy-guidelines").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "planning-with-files").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "llm-wiki-plugin", "skills", "llm-wiki").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "prompt-master").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "everything-claude-code", "skills").replace("\\", "/"))
+
+        # UI/UX Pro Max
         ui_root = os.path.join(ext_root, "ui-ux-pro-max-skill", ".claude", "skills")
         for name in ["ui-ux-pro-max", "ui-styling", "design", "design-system", "brand", "slides", "banner-design"]:
-            path_map[f"/path/to/external/ui-ux-pro-max-skill/.claude/skills/{name}"] = os.path.join(ui_root, name)
+            profile_skills.append(os.path.join(ui_root, name).replace("\\", "/"))
 
-        # Matt Pocock (5 skills)
+        # Matt Pocock
         mp_root = os.path.join(ext_root, "mattpocock-skills", "skills")
         for name, parent in [("zoom-out", "engineering"), ("improve-codebase-architecture", "engineering"), 
                              ("diagnose", "engineering"), ("grill-with-docs", "engineering"), ("handoff", "productivity")]:
-            path_map[f"/path/to/external/mattpocock-skills/skills/{parent}/{name}"] = os.path.join(mp_root, parent, name)
+            profile_skills.append(os.path.join(mp_root, parent, name).replace("\\", "/"))
 
-        # Addy Osmani (6 skills)
+        # Addy Osmani
         addy_root = os.path.join(ext_root, "agent-skills", "skills")
         for name in ["performance-optimization", "doubt-driven-development", "api-and-interface-design", 
                      "deprecation-and-migration", "documentation-and-adrs", "browser-testing-with-devtools"]:
-            path_map[f"/path/to/external/agent-skills/skills/{name}"] = os.path.join(addy_root, name)
+            profile_skills.append(os.path.join(addy_root, name).replace("\\", "/"))
 
-        # Nuwa-Skill (Engine + 15 perspectives)
+        # Nuwa-Skill
         nuwa_root = os.path.join(ext_root, "nuwa-skill")
-        path_map["/path/to/external/nuwa-skill"] = nuwa_root
+        profile_skills.append(nuwa_root.replace("\\", "/"))
         for name in ["andrej-karpathy-perspective", "elon-musk-perspective", "feynman-perspective",
                      "ilya-sutskever-perspective", "mrbeast-perspective", "munger-perspective",
                      "naval-perspective", "paul-graham-perspective", "steve-jobs-perspective",
                      "sun-yuchen-perspective", "taleb-perspective", "trump-perspective",
                      "x-mastery-mentor", "zhang-yiming-perspective", "zhangxuefeng-perspective"]:
-            path_map[f"/path/to/external/nuwa-skill/examples/{name}"] = os.path.join(nuwa_root, "examples", name)
-
-        # ECC (Everything Claude Code)
-        ecc_root = os.path.join(ext_root, "everything-claude-code")
-        path_map["/path/to/everything-claude-code/agents"] = os.path.join(ecc_root, "agents")
-        path_map["/path/to/everything-claude-code/skills"] = os.path.join(ecc_root, "skills")
+            profile_skills.append(os.path.join(nuwa_root, "examples", name).replace("\\", "/"))
 
         # Single Submodule Skills
-        path_map["/path/to/external/anthropics-skills/skills/mcp-builder"] = os.path.join(ext_root, "anthropics-skills", "skills", "mcp-builder")
-        path_map["/path/to/external/anthropics-skills/skills/frontend-design"] = os.path.join(ext_root, "anthropics-skills", "skills", "frontend-design")
-        path_map["/path/to/external/anthropics-skills/skills/webapp-testing"] = os.path.join(ext_root, "anthropics-skills", "skills", "webapp-testing")
-        path_map["/path/to/external/anthropics-skills/skills/pdf"] = os.path.join(ext_root, "anthropics-skills", "skills", "pdf")
-        path_map["/path/to/external/anthropics-skills/skills/docx"] = os.path.join(ext_root, "anthropics-skills", "skills", "docx")
-        path_map["/path/to/external/anthropics-skills/skills/skill-creator"] = os.path.join(ext_root, "anthropics-skills", "skills", "skill-creator")
-        path_map["/path/to/external/karpathy-skills/skills/karpathy-guidelines"] = os.path.join(ext_root, "karpathy-skills", "skills", "karpathy-guidelines")
-        path_map["/path/to/external/planning-with-files"] = os.path.join(ext_root, "planning-with-files")
-        path_map["/path/to/external/llm-wiki-plugin/skills/llm-wiki"] = os.path.join(ext_root, "llm-wiki-plugin", "skills", "llm-wiki")
-        path_map["/path/to/external/prompt-master"] = os.path.join(ext_root, "prompt-master")
-        
-        # Caveman (7 skills)
-        cv_root = os.path.join(ext_root, "caveman", "skills")
-        for name in ["caveman", "caveman-commit", "caveman-review", "caveman-compress", 
-                     "caveman-stats", "caveman-help", "cavecrew"]:
-            path_map[f"/path/to/external/caveman/skills/{name}"] = os.path.join(cv_root, name)
+        for name in ["mcp-builder", "frontend-design", "webapp-testing", "pdf", "docx", "skill-creator"]:
+            profile_skills.append(os.path.join(ext_root, "anthropics-skills", "skills", name).replace("\\", "/"))
 
-        # 2. Local Ported Skills (Internal ~/.pi/agent/ paths)
-        path_map["/path/to/pi/agent/skills/understand/agents"] = os.path.join(AGENT_DIR, "skills", "understand", "agents")
-        path_map["/path/to/pi/agent/skills/dev-browser/agents"] = os.path.join(AGENT_DIR, "skills", "dev-browser", "agents")
-        path_map["/path/to/pi/agent/skills/caveman"] = os.path.join(AGENT_DIR, "skills", "caveman")
-        path_map["/path/to/pi/agent/skills/hello-reflect"] = os.path.join(AGENT_DIR, "skills", "hello-reflect")
-        path_map["/path/to/pi/agent/skills/camofox-stealth"] = os.path.join(AGENT_DIR, "skills", "camofox-stealth")
+        # Optional core skills
+        profile_skills.append(os.path.join(pi_skills_root, "optional").replace("\\", "/"))
 
-        # --- EXECUTE REPLACEMENTS ---
-        for placeholder, actual in path_map.items():
-            full_placeholder = f"TODO_NEW_MACHINE:{placeholder}"
-            resolved_path = actual.replace("\\", "/")
-            content = content.replace(full_placeholder, resolved_path)
-        
-        # Final fallback for generic TODO_NEW_MACHINE
-        home = os.path.expanduser("~").replace("\\", "/")
-        content = content.replace("TODO_NEW_MACHINE", home)
-        
-        with open(cfg_path, "w", encoding="utf-8") as f:
-            f.write(content)
-        log("  - config.json path placeholders resolved (Map-Driven)")
+        # Extensions
+        profile_extensions.append(os.path.join(pi_extensions_root, "ecc-hooks-bridge").replace("\\", "/"))
+        profile_extensions.append(os.path.join(pi_extensions_root, "planning-with-files-bridge").replace("\\", "/"))
+        profile_extensions.append(os.path.join(pi_extensions_root, "pip-guardian").replace("\\", "/"))
+        profile_extensions.append(os.path.join(pi_extensions_root, "governance-bridge").replace("\\", "/"))
+        profile_extensions.append(os.path.join(pi_extensions_root, "evolution-bridge").replace("\\", "/"))
+        profile_extensions.append(os.path.join(pi_extensions_root, "aixbdd-bridge").replace("\\", "/"))
+        profile_extensions.append(os.path.join(pi_extensions_root, "omc-bridge").replace("\\", "/"))
+        profile_extensions.append(os.path.join(pi_extensions_root, "addyosmani-bridge").replace("\\", "/"))
+        profile_extensions.append(os.path.join(pi_extensions_root, "pm-skills-bridge").replace("\\", "/"))
+        profile_extensions.append(os.path.join(pi_extensions_root, "taste-bridge").replace("\\", "/"))
+
+    # 3. Filter existing settings to keep user's custom skills/extensions not managed by Harness
+    existing_skills = settings.get("skills", [])
+    clean_skills = [p for p in existing_skills if not p.replace("\\", "/").startswith(REPO_ROOT.replace("\\", "/"))]
+    for s in profile_skills:
+        if s not in clean_skills:
+            clean_skills.append(s)
+    settings["skills"] = clean_skills
+
+    existing_extensions = settings.get("extensions", [])
+    clean_extensions = [p for p in existing_extensions if not p.replace("\\", "/").startswith(REPO_ROOT.replace("\\", "/"))]
+    for e in profile_extensions:
+        if e not in clean_extensions:
+            clean_extensions.append(e)
+    settings["extensions"] = clean_extensions
+
+    save_json(settings_dest, settings)
+    log("  - settings.json updated with submodule paths")
+
+    # Sync models.json (CRITICAL)
+    models_src = os.path.join(REPO_ROOT, "pi-config", "models.json")
+    if os.path.exists(models_src):
+        models_data = load_json(models_src)
+        if models_data:
+            save_json(os.path.join(AGENT_DIR, "models.json"), models_data)
+            log("  - models.json synced")
+
+    # Clean up deprecated config.json in ~/.pi/agent/
+    cfg_path = os.path.join(AGENT_DIR, "config.json")
+    if os.path.exists(cfg_path):
+        try:
+            os.remove(cfg_path)
+            log("  - Removed deprecated config.json")
+        except Exception as e:
+            log(f"  - Warning: Failed to remove config.json: {e}")
+
+    # Sync other base configs
+    gitignore_src = os.path.join(REPO_ROOT, "pi-config", "git", ".gitignore")
+    if os.path.exists(gitignore_src):
+        shutil.copy2(gitignore_src, os.path.join(AGENT_DIR, "git", ".gitignore"))
 
     # Core skills (always)
     log("Restoring core skills...")
@@ -268,7 +339,7 @@ def main():
     optional_src = os.path.join(REPO_ROOT, "pi-skills", "optional")
     restore_optional = True
 
-    if os.path.isdir(optional_src) and sys.stdin.isatty():
+    if os.path.isdir(optional_src) and sys.stdin.isatty() and profile == "full":
         print()
         log("This repo includes optional design/creative skills (heavier).")
         log("Examples: design, ui-ux-pro-max, ui-styling, slides, brand, etc.")
@@ -276,11 +347,11 @@ def main():
         if ans in ("n", "no"):
             restore_optional = False
 
-    if restore_optional and os.path.isdir(optional_src):
+    if restore_optional and os.path.isdir(optional_src) and profile == "full":
         log("Restoring optional skills...")
         copy_dir_contents(optional_src, skills_dst)
     else:
-        log("Optional skills skipped.")
+        log("Optional skills skipped (or not full profile).")
 
     # Rules
     log("Restoring rules...")
@@ -308,13 +379,6 @@ def main():
                 save_json(pkg_path, pkg)
                 log(f"  - {bridge} patched with absolute path")
 
-    # models.json (v0.73+ format)
-    models_src = os.path.join(REPO_ROOT, "pi-config", "models.json")
-    models_dst = os.path.join(AGENT_DIR, "models.json")
-    if os.path.exists(models_src):
-        log("Restoring models.json to agent dir...")
-        shutil.copy2(models_src, models_dst)
-
     print()
     log("✅ Restore complete.")
     print()
@@ -327,10 +391,6 @@ def main():
     log("     - Skills loaded without conflicts")
     log("     - Extensions loaded")
     print()
-    log("📌 If you use external paths (e.g., everything-claude-code),")
-    log("   edit ~/.pi/agent/config.json and adjust them for your machine.")
-    print()
-    log("If you encounter issues, copy the output above when asking for help.")
 
 if __name__ == "__main__":
     main()
