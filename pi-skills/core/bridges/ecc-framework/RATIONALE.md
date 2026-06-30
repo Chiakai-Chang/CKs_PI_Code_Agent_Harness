@@ -1,7 +1,7 @@
-# RATIONALE: affaan-m/everything-claude-code 整合決策理由書
+# RATIONALE: affaan-m/ECC 整合決策理由書
 
 ## 1. 決策背景
-*   **來源專案**：https://github.com/affaan-m/everything-claude-code
+*   **來源專案**：https://github.com/affaan-m/ECC
 *   **核心功能**：AI 開發全方位自動化掛鉤 (Hooks) 與超過 50 個專業代理人 (Agents)。
 *   **評估日期**：2026-05-13
 

@@ -62,7 +62,7 @@ cd CKs_PI_Code_Agent_Harness
 
 | 領域 | 來源專案 / 大師 | 賦予 Pi 的核心神力 |
 | :--- | :--- | :--- |
-| **工程紀律** | [ECC](https://github.com/affaan-m/everything-claude-code) | 自動品質門檻、安全審查、50+ 特種代理人。 |
+| **工程紀律** | [ECC](https://github.com/affaan-m/ECC) | 自動品質門檻、安全審查、50+ 特種代理人。 |
 | **方法論** | [Superpowers](https://github.com/obra/superpowers) | TDD 驅動、系統化規劃、專家選擇直覺。 |
 | **行為準則** | [Karpathy](https://github.com/forrestchang/andrej-karpathy-skills) | 鎖定 Andrej Karpathy 觀察的 LLM 避坑開發指南。 |
 | **認知提取** | [Nuwa (女媧)](https://github.com/alchaincyf/nuwa-skill) | **專家工廠**：內建 15 位名家（賈伯斯、芒格等）思維框架。 |
