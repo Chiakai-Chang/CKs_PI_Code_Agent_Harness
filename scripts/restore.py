@@ -273,6 +273,9 @@ def main():
         # Optional core skills
         profile_skills.append(os.path.join(pi_skills_root, "optional").replace("\\", "/"))
 
+        # Open Design skills
+        profile_skills.append(os.path.join(ext_root, "open-design", "skills").replace("\\", "/"))
+
         # Extensions
         profile_extensions.append(os.path.join(pi_extensions_root, "ecc-hooks-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "planning-with-files-bridge").replace("\\", "/"))

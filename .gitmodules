@@ -58,3 +58,6 @@
 [submodule "external/evolver"]
 	path = external/evolver
 	url = https://github.com/EvoMap/evolver
+[submodule "external/open-design"]
+	path = external/open-design
+	url = https://github.com/nexu-io/open-design.git
