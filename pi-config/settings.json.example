@@ -3,6 +3,8 @@
     "npm:context-mode",
     "npm:@tintinweb/pi-tasks"
   ],
+  "skills": [],
+  "extensions": [],
   "shellPath": "",
   "lastChangelogVersion": "0.73.0",
   "defaultProvider": "ollama",
