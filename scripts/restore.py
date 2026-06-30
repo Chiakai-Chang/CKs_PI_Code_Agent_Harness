@@ -208,7 +208,7 @@ def main():
         profile_skills.append(os.path.join(ext_root, "planning-with-files").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "llm-wiki-plugin", "skills", "llm-wiki").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "prompt-master").replace("\\", "/"))
-        profile_skills.append(os.path.join(ext_root, "everything-claude-code", "skills").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "ecc", "skills").replace("\\", "/"))
 
         # Extensions
         profile_extensions.append(os.path.join(pi_extensions_root, "ecc-hooks-bridge").replace("\\", "/"))
@@ -237,7 +237,7 @@ def main():
         profile_skills.append(os.path.join(ext_root, "planning-with-files").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "llm-wiki-plugin", "skills", "llm-wiki").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "prompt-master").replace("\\", "/"))
-        profile_skills.append(os.path.join(ext_root, "everything-claude-code", "skills").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "ecc", "skills").replace("\\", "/"))
 
         # UI/UX Pro Max
         ui_root = os.path.join(ext_root, "ui-ux-pro-max-skill", ".claude", "skills")

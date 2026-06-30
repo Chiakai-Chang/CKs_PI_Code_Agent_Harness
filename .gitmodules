@@ -1,5 +1,5 @@
-[submodule "external/everything-claude-code"]
-	path = external/everything-claude-code
+[submodule "external/ecc"]
+	path = external/ecc
 	url = https://github.com/affaan-m/ECC.git
 [submodule "external/anthropics-skills"]
 	path = external/anthropics-skills

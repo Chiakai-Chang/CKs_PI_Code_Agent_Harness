@@ -18,7 +18,7 @@ const pkgPath = require.resolve("./package.json");
 const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
 const HARNESS_ROOT = pkg["pi-harness"]?.root || join(dirname(pkgPath), "../..");
 const PROJECT_ROOT = HARNESS_ROOT;
-const ECC_ROOT = join(PROJECT_ROOT, "external/everything-claude-code");
+const ECC_ROOT = join(PROJECT_ROOT, "external/ecc");
 
 function getProfile(): "minimal" | "standard" | "strict" {
   const env = process.env.ECC_HOOK_PROFILE?.trim().toLowerCase();
