@@ -20,12 +20,8 @@
     ],
     "skills": [
       "pi-skills/core",
-      "pi-skills/caveman",
       "pi-skills/chrome-cdp",
       "pi-skills/dev-browser",
-      "pi-skills/using-superpowers",
-      "pi-skills/writing-skills",
-      "pi-skills/prompt-master",
       "pi-skills/optional"
     ],
     "readme": "README.md"
