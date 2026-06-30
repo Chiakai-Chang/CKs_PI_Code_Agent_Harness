@@ -292,14 +292,28 @@ def main():
                 if gb: settings["shellPath"] = gb
                 save_json(SETTINGS_PATH, settings)
 
-                # Update Models JSON
-                prov_id = settings["defaultProvider"]
-                m_json = {"providers": {prov_id: {"baseUrl": api_base if prov_id != "ollama" else "http://127.0.0.1:11434", "api": "openai-completions", "apiKey": "local", "authHeader": True, "models": [{"id": model_id, "name": f"Local: {model_id}", "reasoning": final_res, "contextWindow": final_ctx, "maxTokens": final_max, "input": ["text"]}]}}}
-                save_json(os.path.join(PI_CONFIG_DIR, "models.json"), m_json)
-                print("✅ 已同步本地模型配置。")
+                 # Update Models JSON
+                 prov_id = settings["defaultProvider"]
+                 m_json = {"providers": {prov_id: {"baseUrl": api_base if prov_id != "ollama" else "http://127.0.0.1:11434", "api": "openai-completions", "apiKey": "local", "authHeader": True, "models": [{"id": model_id, "name": f"Local: {model_id}", "reasoning": final_res, "contextWindow": final_ctx, "maxTokens": final_max, "input": ["text"]}]}}}
+                 save_json(os.path.join(PI_CONFIG_DIR, "models.json"), m_json)
+                 print("✅ 已同步本地模型配置。")
+
+    profile = "standard"
+    if mode in ["full", "restore"]:
+        print("\n請選擇安裝的技能設定檔 (Skill Profile):")
+        print("  [1] minimal (僅 Core 核心 + Caveman 極簡)")
+        print("  [2] standard (Core + Superpowers + Karpathy 軟體工程常用, 推薦)")
+        print("  [3] full (加載所有模組，包括 UI/UX、Matt Pocock、Addy Osmani、Nuwa)")
+        ans_profile = input("請輸入設定檔編號 [2]: ").strip()
+        if ans_profile == "1":
+            profile = "minimal"
+        elif ans_profile == "3":
+            profile = "full"
+        else:
+            profile = "standard"
 
     print("[*] 正在執行資產還原 (restore.py)...")
-    run_stream(f'"{sys.executable}" "{os.path.join(REPO_ROOT, "scripts", "restore.py")}" --auto')
+    run_stream(f'"{sys.executable}" "{os.path.join(REPO_ROOT, "scripts", "restore.py")}" --auto --profile {profile}')
     print("\n" + "=" * 60 + "\n 完成！請執行: pi\n" + "=" * 60)
 
 if __name__ == "__main__":
