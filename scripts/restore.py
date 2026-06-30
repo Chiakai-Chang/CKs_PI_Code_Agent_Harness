@@ -360,6 +360,12 @@ def main():
     if os.path.isdir(rules_src):
         clear_dir(rules_dst)
         copy_dir_contents(rules_src, rules_dst)
+        
+        # Copy global AGENTS.md natively supported by Pi
+        global_agents_md = os.path.join(rules_src, "AGENTS.md")
+        if os.path.exists(global_agents_md):
+            shutil.copy2(global_agents_md, os.path.join(AGENT_DIR, "AGENTS.md"))
+            log("  - Copied global AGENTS.md to agent dir")
 
     # Extensions
     log("Restoring extensions...")
