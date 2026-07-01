@@ -64,6 +64,3 @@
 [submodule "external/Local-Agent-Workspace"]
 	path = external/Local-Agent-Workspace
 	url = https://github.com/Chiakai-Chang/Local-Agent-Workspace.git
-[submodule "external/SkillOpt"]
-	path = external/SkillOpt
-	url = https://github.com/microsoft/SkillOpt.git
