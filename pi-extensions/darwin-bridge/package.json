@@ -1,9 +1,0 @@
-{
-  "name": "darwin-bridge",
-  "version": "1.0.0",
-  "description": "Bridge extension for Darwin Skill (Autonomous Skill Optimizer).",
-  "main": "index.js",
-  "pi-harness": {
-    "root": ""
-  }
-}

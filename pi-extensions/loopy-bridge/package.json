@@ -1,9 +1,0 @@
-{
-  "name": "loopy-bridge",
-  "version": "1.0.0",
-  "description": "Bridge extension for Loopy (Repeatable Loop Engineering & Playbooks).",
-  "main": "index.js",
-  "pi-harness": {
-    "root": ""
-  }
-}
