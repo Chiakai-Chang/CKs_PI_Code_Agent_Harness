@@ -49,7 +49,7 @@
 | **智慧演進** | [SkillClaw](https://github.com/AMAP-ML/SkillClaw) | Bridge (Path 2) | 跨會話軌跡去重與 SKILL.md 自動重構。 |
 | **圖譜導航** | [Graphify](https://github.com/safishamsi/graphify) | Bridge (Path 2) | 本機 AST 結構分析圖譜導航。 |
 | **循環工程** | [Loopy](https://github.com/Forward-Future/loopy) | Bridge (Path 2) | 工作流閉環控制 playbooks。 |
-| **環境治理** | [C.A.S.E.](https://github.com/Chiakai-Chang/Local-Agent-Workspace) | Bridge (Path 2) | 唯讀/讀寫沙盒結構與雙軌驗證協定。 |
+| **環境治理** | [C.A.S.E.](https://github.com/Chiakai-Chang/Local-Agent-Workspace/tree/main/C.A.S.E._Framework) | Bridge (Path 2) | 唯讀/讀寫沙盒結構與雙軌驗證協定。 |
 
 ---
 
