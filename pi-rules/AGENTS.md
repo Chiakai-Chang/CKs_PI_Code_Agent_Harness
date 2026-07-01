@@ -32,3 +32,9 @@ When accumulating knowledge, research papers, design decisions, or codebase arch
 *   **Compilation over RAG**: Treat the LLM as a librarian. When a new raw source or reference document is introduced, compile it once into a persistent, interlinked wiki in the `wiki/` directory rather than re-reading raw files repeatedly.
 *   **Keep it Atomic**: Ensure all wiki pages remain small (soft cap 400 lines) and are indexed in `wiki/index.md` or sharded indexes under `wiki/indexes/`.
 *   **Graph Linking**: Use standard markdown wikilinks `[[page-name]]` to build a semantic knowledge graph. Use frontmatter variables (`type`, `tags`, `sources`, `updated`) on every wiki page.
+
+## 6. Collective Skill Evolution (SkillClaw Protocol)
+When learning from sessions or optimizing local skills/rules:
+*   **History ledger priority**: Before editing any existing skill or configuration (e.g. `SKILL.md`), you MUST search for its history records (`history/v*.md` or past commits/rationales). Explicitly document: what changed in each prior version, what evidence drove it, and whether later sessions suggested it helped or hurt.
+*   **Summarize & Decide**: Group session logs/rationales. For any pattern, choose one exact action: `improve_skill` (fix missing/outdated instructions based on explicit evidence), `optimize_description` (fix false triggers by narrowing down frontmatter matcher), `create_skill` (create a distinct new skill for recurring patterns), or `skip` (when evidence is ambiguous). Prefer `skip` over speculative edits.
+*   **Rigorous Self-Validation**: Before finalizing any skill optimization, define 1-3 validation scenarios from session evidence. Run a dry run or static simulation to verify that the optimized skill/rule would have prevented the observed failure or guided the agent to success. Write validation logs to `history/v<N>_evidence.md`.

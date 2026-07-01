@@ -73,3 +73,6 @@
 [submodule "external/agents-best-practices"]
 	path = external/agents-best-practices
 	url = https://github.com/DenisSergeevitch/agents-best-practices.git
+[submodule "external/SkillClaw"]
+	path = external/SkillClaw
+	url = https://github.com/AMAP-ML/SkillClaw.git

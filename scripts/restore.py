@@ -216,6 +216,7 @@ def main():
         profile_skills.append(os.path.join(ext_root, "darwin-skill").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "qiushi-skill", "skills").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "agents-best-practices").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "SkillClaw", "evolve_server", "engines").replace("\\", "/"))
         ui_root = os.path.join(ext_root, "ui-ux-pro-max-skill", ".claude", "skills")
         for name in ["ui-ux-pro-max", "ui-styling"]:
             profile_skills.append(os.path.join(ui_root, name).replace("\\", "/"))
@@ -228,6 +229,7 @@ def main():
         profile_extensions.append(os.path.join(pi_extensions_root, "darwin-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "qiushi-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "best-practices-bridge").replace("\\", "/"))
+        profile_extensions.append(os.path.join(pi_extensions_root, "skillclaw-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "pip-guardian").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "governance-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "evolution-bridge").replace("\\", "/"))
@@ -259,6 +261,7 @@ def main():
         profile_skills.append(os.path.join(ext_root, "darwin-skill").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "qiushi-skill", "skills").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "agents-best-practices").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "SkillClaw", "evolve_server", "engines").replace("\\", "/"))
 
         # UI/UX Pro Max
         ui_root = os.path.join(ext_root, "ui-ux-pro-max-skill", ".claude", "skills")
@@ -305,6 +308,7 @@ def main():
         profile_extensions.append(os.path.join(pi_extensions_root, "darwin-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "qiushi-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "best-practices-bridge").replace("\\", "/"))
+        profile_extensions.append(os.path.join(pi_extensions_root, "skillclaw-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "pip-guardian").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "governance-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "evolution-bridge").replace("\\", "/"))
@@ -411,7 +415,7 @@ def main():
         copy_dir_contents(ext_src, ext_dst)
         
         # Patch bridges with absolute path for global robustness
-        for bridge in ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "darwin-bridge", "qiushi-bridge", "best-practices-bridge"]:
+        for bridge in ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "darwin-bridge", "qiushi-bridge", "best-practices-bridge", "skillclaw-bridge"]:
             pkg_path = os.path.join(ext_dst, bridge, "package.json")
             if os.path.exists(pkg_path):
                 pkg = load_json(pkg_path)

@@ -1,0 +1,13 @@
+{
+  "name": "skillclaw-bridge",
+  "description": "Bridge extension for SkillClaw (Collective Skill Evolution framework).",
+  "version": "1.0.0",
+  "author": "CK's Pi Harness",
+  "skills": [
+    {
+      "name": "skillclaw-evolution",
+      "description": "Understand and apply collective skill evolution (Summarize -> Aggregate -> Decide -> Validate -> Ledger).",
+      "location": "external/SkillClaw/evolve_server/engines/EVOLVE_AGENTS.md"
+    }
+  ]
+}
