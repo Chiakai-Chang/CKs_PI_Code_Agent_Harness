@@ -19,9 +19,10 @@ cd CKs_PI_Code_Agent_Harness
 
 ### 3. 模式選擇 (Profiles)
 安裝時可依需求選擇以下配置模式：
-*   **`minimal`** (極簡核心)：僅載入基礎防禦與 Caveman Token 壓縮。適合對 Token 敏感的輕量開發。
-*   **`standard`** (預設標準版)：加載 TDD 方法論、Debug 引導與 Wiki 知識庫。適合日常通用開發。
-
+*   **`minimal`** (極簡核心)：適合對對話 Token 敏感的輕量開發。
+    *   📦 **僅載入**：`Core 核心`（含 `hello-reflect` 自我演進）、`Caveman`（極簡對話防護）、`ECC`（通用工程實踐）。
+*   **`standard`** (預設標準版)：適合日常通用軟體開發。
+    *   📦 **載入項目**：包含本專案整合之**所有 16 個外部子模組**與所有本地擴充（TDD 方法論、Wiki 知識庫、AST 圖譜導航等）。
 ---
 
 ## 🛠️ 核心功能
