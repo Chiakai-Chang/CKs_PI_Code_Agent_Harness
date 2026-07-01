@@ -1,9 +1,6 @@
 [submodule "external/ecc"]
 	path = external/ecc
 	url = https://github.com/affaan-m/ECC.git
-[submodule "external/anthropics-skills"]
-	path = external/anthropics-skills
-	url = https://github.com/anthropics/skills
 [submodule "external/planning-with-files"]
 	path = external/planning-with-files
 	url = https://github.com/OthmanAdi/planning-with-files
@@ -13,54 +10,24 @@
 [submodule "external/superpowers"]
 	path = external/superpowers
 	url = https://github.com/obra/superpowers
-[submodule "external/ui-ux-pro-max-skill"]
-	path = external/ui-ux-pro-max-skill
-	url = https://github.com/nextlevelbuilder/ui-ux-pro-max-skill
 [submodule "external/prompt-master"]
 	path = external/prompt-master
 	url = https://github.com/nidhinjs/prompt-master
 [submodule "external/caveman"]
 	path = external/caveman
 	url = https://github.com/JuliusBrussee/caveman
-[submodule "external/mattpocock-skills"]
-	path = external/mattpocock-skills
-	url = https://github.com/mattpocock/skills
-[submodule "external/agent-skills"]
-	path = external/agent-skills
-	url = https://github.com/addyosmani/agent-skills
-[submodule "external/nuwa-skill"]
-	path = external/nuwa-skill
-	url = https://github.com/alchaincyf/nuwa-skill
 [submodule "external/karpathy-skills"]
 	path = external/karpathy-skills
 	url = https://github.com/multica-ai/andrej-karpathy-skills
-[submodule "external/aixbdd"]
-	path = external/aixbdd
-	url = https://github.com/Waterball-Software-Academy/aixbdd
-[submodule "external/addyosmani-skills"]
-	path = external/addyosmani-skills
-	url = https://github.com/addyosmani/agent-skills
-[submodule "external/openpua"]
-	path = external/openpua
-	url = https://github.com/tanweai/pua
-[submodule "external/oh-my-claudecode"]
-	path = external/oh-my-claudecode
-	url = https://github.com/Yeachan-Heo/oh-my-claudecode
 [submodule "external/yes.md"]
 	path = external/yes.md
 	url = https://github.com/sstklen/yes.md
 [submodule "external/taste-skill"]
 	path = external/taste-skill
 	url = https://github.com/Leonxlnx/taste-skill
-[submodule "external/pm-skills"]
-	path = external/pm-skills
-	url = https://github.com/phuryn/pm-skills
 [submodule "external/evolver"]
 	path = external/evolver
 	url = https://github.com/EvoMap/evolver
-[submodule "external/open-design"]
-	path = external/open-design
-	url = https://github.com/nexu-io/open-design.git
 [submodule "external/Local-Agent-Workspace"]
 	path = external/Local-Agent-Workspace
 	url = https://github.com/Chiakai-Chang/Local-Agent-Workspace.git
@@ -73,9 +40,6 @@
 [submodule "external/agents-best-practices"]
 	path = external/agents-best-practices
 	url = https://github.com/DenisSergeevitch/agents-best-practices.git
-[submodule "external/SkillClaw"]
-	path = external/SkillClaw
-	url = https://github.com/AMAP-ML/SkillClaw.git
 [submodule "external/graphify"]
 	path = external/graphify
 	url = https://github.com/safishamsi/graphify.git

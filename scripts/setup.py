@@ -301,12 +301,9 @@ def main():
         print("\n請選擇安裝的技能設定檔 (Skill Profile):")
         print("  [1] minimal (僅 Core 核心 + Caveman 極簡)")
         print("  [2] standard (Core + Superpowers + Karpathy 軟體工程常用, 推薦)")
-        print("  [3] full (加載所有模組，包括 UI/UX、Matt Pocock、Addy Osmani、Nuwa)")
         ans_profile = input("請輸入設定檔編號 [2]: ").strip()
         if ans_profile == "1":
             profile = "minimal"
-        elif ans_profile == "3":
-            profile = "full"
         else:
             profile = "standard"
 

@@ -15,10 +15,8 @@
 3.  **🔍 AST 程式碼結構圖譜 (Graphify)**：使用本機輕量 Tree-sitter 分析原始碼，產生 AST 拓撲關係，降低檢索程式碼時的 API Token 消耗。
 4.  **📚 專案 Wiki (LLM Wiki)**：將長篇參考文件或日誌整理為原子化的 Wiki 網頁，供 AI 按需檢索。
 5.  **📝 任務執行與狀態管理 (C.A.S.E. & PWF)**：結合 C.A.S.E. 任務管束與 Planning-with-Files 規劃，將注意力記憶檔案套疊於任務包中以防並行任務污染。
-6.  **🏭 多代理編排 (OMC Teams)**：設定多角色代理人範本，便於在需要時調用 Checker、Architect 等角色。
-7.  **🧪 矛盾對照分析 (Qiushi)**：引入矛盾論分析原則，要求對程式碼重構前後的行為建立嚴格對照組，進行行為核對。
-8.  **🧬 自演進實驗 (SkillClaw & Darwin)**：實驗性結合 SkillClaw（跨 session 軌跡清理與 SKILL.md 結構去重）與 Darwin（沙盒分支 Prompts 變異最佳化）。
-9.  **🧭 需求核對 (PM Skills)**：載入多種產品分析與需求驗收框架，用於在規劃階段對齊 Acceptance Criteria。
+6.  **🧪 矛盾對照分析 (Qiushi)**：引入矛盾論分析原則，要求對程式碼重構前後的行為建立嚴格對照組，進行行為核對。
+7.  **🧬 自演進與優化實驗 (Darwin & Evolver)**：實驗性結合 Evolver（抗體 Prompt 自演化）與 Darwin（沙盒分支 Prompts 變異最佳化）。
 
 ---
 
@@ -28,25 +26,16 @@
 
 | 領域 | 來源專案 | 導入方式 | 評估目的 / 預期功能 |
 | :--- | :--- | :--- | :--- |
-| **工程紀律** | [ECC](https://github.com/affaan-m/ECC) | Submodule (Path 1) | 特種代理人範本、文件安全審查與自動品質門檻。 |
-| **方法論** | [Superpowers](https://github.com/obra/superpowers) | Submodule (Path 1) | TDD 方法論、單元測試、Git 微步提交引導。 |
-| **行為準則** | [Karpathy](https://github.com/forrestchang/andrej-karpathy-skills) | Submodule (Path 1) | 避開常見 LLM 卡死與寫入衝突的開發指引。 |
-| **認知提取** | [Nuwa (女媧)](https://github.com/alchaincyf/nuwa-skill) | Submodule (Path 1) | 專家思維模型。 |
-| **TS 專家** | [Matt Pocock](https://github.com/mattpocock/skills) | Submodule (Path 1) | TypeScript 類型重構與診斷。 |
-| **Web 效能** | [Addy Osmani](https://github.com/addyosmani/agent-skills) | Submodule (Path 1) | 瀏覽器效能指標審查與 API 契約設計規則。 |
-| **提示工程** | [Prompt Master](https://github.com/nidhinjs/prompt-master) | Submodule (Path 1) | 提示詞優化與跨模型指令翻譯範本。 |
-| **CLI 標準** | [Printing Press](https://github.com/mvanhorn/cli-printing-press) | Submodule (Path 1) | 精簡代理人輸出，減少 Token 消耗量。 |
-| **BDD 實踐** | [AIxBDD](https://github.com/Waterball-Software-Academy/aixbdd) | Submodule (Path 1) | 行為驅動測試與規格自動對齊。 |
-| **能動性規範** | [PIP Guardian](https://github.com/tanweai/pua) | Submodule (Path 1) | 限制 AI 偷懶或敷衍指令。 |
-| **代理編排** | [OMC](https://github.com/Yeachan-Heo/oh-my-claudecode) | Submodule (Path 1) | 團隊協作與會話持久化管理。 |
+| **工程紀律** | [ECC](https://github.com/affaan-m/ECC) | Submodule (Path 1) | 文件安全審查與自動品質門檻限制。 |
+| **方法論** | [Superpowers](https://github.com/obra/superpowers) | Submodule (Path 1) | 通用 TDD 方法論、單元測試、Git 微步提交引導。 |
+| **行為準則** | [Karpathy](https://github.com/forrestchang/andrej-karpathy-skills) | Submodule (Path 1) | 避開常見寫入衝突的通用開發指引。 |
+| **提示工程** | [Prompt Master](https://github.com/nidhinjs/prompt-master) | Submodule (Path 1) | 通用提示詞優化範本。 |
 | **安全治理** | [YES.md](https://github.com/sstklen/yes.md) | Submodule (Path 1) | 命令安全性攔截與防呆 Hooks。 |
 | **美學/UX** | [Taste Engine](https://github.com/Leonxlnx/taste-skill) | Submodule (Path 1) | 載入設計樣式與視覺引導。 |
-| **產品分析** | [PM Skills](https://github.com/phuryn/pm-skills) | Submodule (Path 1) | 專案路線圖分析與驗收準則制定。 |
 | **基因優化** | [Evolver](https://github.com/EvoMap/evolver) | Submodule (Path 1) | 失敗模式掃描與抗體 prompt 演化。 |
 | **提示微調** | [Darwin](https://github.com/alchaincyf/darwin-skill) | Bridge (Path 2) | 實驗性 Prompt 演化演算法。 |
 | **辯證分析** | [Qiushi](https://github.com/HughYau/qiushi-skill) | Bridge (Path 2) | 控制組行為比對分析。 |
 | **除錯實踐** | [Best Practices](https://github.com/DenisSergeevitch/agents-best-practices) | Bridge (Path 2) | 系統化除錯與規則簡化引導。 |
-| **智慧演進** | [SkillClaw](https://github.com/AMAP-ML/SkillClaw) | Bridge (Path 2) | 跨會話軌跡去重與 SKILL.md 自動重構。 |
 | **圖譜導航** | [Graphify](https://github.com/safishamsi/graphify) | Bridge (Path 2) | 本機 AST 結構分析圖譜導航。 |
 | **循環工程** | [Loopy](https://github.com/Forward-Future/loopy) | Bridge (Path 2) | 工作流閉環控制 playbooks。 |
 | **環境治理** | [C.A.S.E.](https://github.com/Chiakai-Chang/Local-Agent-Workspace/tree/main/C.A.S.E._Framework) | Bridge (Path 2) | 憲法-架構-狀態-執行（C.A.S.E.）檔案驅動任務管束協定。 |
@@ -67,23 +56,11 @@ cd CKs_PI_Code_Agent_Harness
 
 > 安裝腳本會讀取 `pi-config/settings.json`，將 submodule 中的 skills/extensions 註冊並複製到 `~/.pi/agent` 中。
 
-### 3. 切換配置設定檔 (Switch Profiles) - 一鍵減重與增重
+### 3. 設定檔選擇 (Skill Profile)
 
-為了避免無謂的認知負擔與 Token 浪費，本專案將技能劃分為三種設定檔 (Profile)：
-*   **`minimal`** (極簡核心)：僅載入 Core 核心 + Caveman 極簡 Token 防禦。通用於所有程式語言，關注力最高。
-*   **`standard`** (預設標準版)：包含通用軟體工程紀律（TDD/Plan/Debug）與專案維基（LLM Wiki）等。**此模式已移除所有特定語言（如 TypeScript/Web）與 OMC 多代理編排，確保 100% 輕量與通用**。
-*   **`full`** (完整版)：加載所有模組。包括 UI/UX 設計、Matt Pocock TS 類型安全、Addy Osmani 效能指標、Nuwa 思考模型以及 OMC 多代理編排。
-
-您**不需要**重新執行安裝精靈，只需在專案目錄下執行一鍵切換指令：
-*   **Windows (CMD/PowerShell)**: 
-    ```cmd
-    switch-profile [minimal|standard|full]
-    ```
-*   **macOS / Linux**: 
-    ```bash
-    ./switch-profile.sh [minimal|standard|full]
-    ```
-*(切換後，系統會自動更新您的 Pi 實體配置，下次啟動 `pi` 時即會自動生效。)*
+本專案支援兩種設定檔，可於部署時在終端機中進行選擇：
+*   **`minimal`** (極簡核心)：僅載入 Core 核心 + Caveman 極簡 Token 防禦。通用於所有程式語言，最省 Token。
+*   **`standard`** (預設標準版)：包含上述通用軟體工程紀律與防禦規則，完全語言無關。
 
 ### 4. 開始開發
 ```bash
