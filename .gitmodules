@@ -64,3 +64,6 @@
 [submodule "external/Local-Agent-Workspace"]
 	path = external/Local-Agent-Workspace
 	url = https://github.com/Chiakai-Chang/Local-Agent-Workspace.git
+[submodule "external/darwin-skill"]
+	path = external/darwin-skill
+	url = https://github.com/alchaincyf/darwin-skill.git
