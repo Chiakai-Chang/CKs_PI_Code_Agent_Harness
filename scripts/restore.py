@@ -292,6 +292,7 @@ def main():
         profile_extensions.append(os.path.join(pi_extensions_root, "ecc-hooks-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "planning-with-files-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "case-bridge").replace("\\", "/"))
+        profile_extensions.append(os.path.join(pi_extensions_root, "taste-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "pip-guardian").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "governance-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "evolution-bridge").replace("\\", "/"))
