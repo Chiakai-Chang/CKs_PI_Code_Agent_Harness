@@ -1,0 +1,9 @@
+{
+  "name": "qiushi-bridge",
+  "version": "1.0.0",
+  "description": "Bridge extension for Qiushi Skill (Cognitive & Methodological OS).",
+  "main": "index.js",
+  "pi-harness": {
+    "root": ""
+  }
+}

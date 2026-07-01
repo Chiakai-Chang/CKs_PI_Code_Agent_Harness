@@ -1,0 +1,23 @@
+{
+  "name": "qiushi-bridge",
+  "description": "Bridge extension for Qiushi Skill (Cognitive & Methodological OS).",
+  "version": "1.0.0",
+  "author": "CK's Pi Harness",
+  "skills": [
+    {
+      "name": "qiushi-contradiction",
+      "description": "Isolate the principal contradiction to resolve conflicting trade-offs.",
+      "location": "external/qiushi-skill/skills/contradiction-analysis/SKILL.md"
+    },
+    {
+      "name": "qiushi-practice",
+      "description": "Iterative Practice-Cognition loop for verified step-by-step development.",
+      "location": "external/qiushi-skill/skills/practice-cognition/SKILL.md"
+    },
+    {
+      "name": "qiushi-focus",
+      "description": "Concentrate forces on principal blockers to save context/token waste.",
+      "location": "external/qiushi-skill/skills/concentrate-forces/SKILL.md"
+    }
+  ]
+}

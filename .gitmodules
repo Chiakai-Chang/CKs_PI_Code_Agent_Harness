@@ -67,3 +67,6 @@
 [submodule "external/darwin-skill"]
 	path = external/darwin-skill
 	url = https://github.com/alchaincyf/darwin-skill.git
+[submodule "external/qiushi-skill"]
+	path = external/qiushi-skill
+	url = https://github.com/HughYau/qiushi-skill.git
