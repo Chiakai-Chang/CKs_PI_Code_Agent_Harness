@@ -67,7 +67,25 @@ cd CKs_PI_Code_Agent_Harness
 
 > 安裝腳本會讀取 `pi-config/settings.json`，將 submodule 中的 skills/extensions 註冊並複製到 `~/.pi/agent` 中。
 
-### 3. 開始開發
+### 3. 切換配置設定檔 (Switch Profiles) - 一鍵減重與增重
+
+為了避免無謂的認知負擔與 Token 浪費，本專案將技能劃分為三種設定檔 (Profile)：
+*   **`minimal`** (極簡核心)：僅載入 Core 核心 + Caveman 極簡 Token 防禦。通用於所有程式語言，關注力最高。
+*   **`standard`** (預設標準版)：包含通用軟體工程紀律（TDD/Plan/Debug）與專案維基（LLM Wiki）等。**此模式已移除所有特定語言（如 TypeScript/Web）與 OMC 多代理編排，確保 100% 輕量與通用**。
+*   **`full`** (完整版)：加載所有模組。包括 UI/UX 設計、Matt Pocock TS 類型安全、Addy Osmani 效能指標、Nuwa 思考模型以及 OMC 多代理編排。
+
+您**不需要**重新執行安裝精靈，只需在專案目錄下執行一鍵切換指令：
+*   **Windows (CMD/PowerShell)**: 
+    ```cmd
+    switch-profile [minimal|standard|full]
+    ```
+*   **macOS / Linux**: 
+    ```bash
+    ./switch-profile.sh [minimal|standard|full]
+    ```
+*(切換後，系統會自動更新您的 Pi 實體配置，下次啟動 `pi` 時即會自動生效。)*
+
+### 4. 開始開發
 ```bash
 pi
 ```
