@@ -8,7 +8,7 @@
 
 ## 🏗️ 主要功能模組與特徵
 
-基於 [核心設計理念 (CORE_CONCEPTS.md)](docs/core/CORE_CONCEPTS.md) 與 [功能蒸餾指南 (DISTILLATION_GUIDE.md)](docs/core/DISTILLATION_GUIDE.md), 本環境配置嘗試整合以下功能：
+本專案嘗試在開發環境中整合以下功能特徵：
 
 1.  **🛡️ 紀律守護 (ECC Hooks)**：掛載預提交鉤子，在 AI 執行高風險操作（如語法錯誤、金鑰洩漏）前攔截並報錯。
 2.  **🧠 工程方法論 (Superpowers)**：引導 AI 採用 BDD/TDD 測試驅動與系統化規劃步驟。
