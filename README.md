@@ -35,7 +35,7 @@
 | **TS 專家** | [Matt Pocock](https://github.com/mattpocock/skills) | Submodule (Path 1) | TypeScript 類型重構與診斷。 |
 | **Web 效能** | [Addy Osmani](https://github.com/addyosmani/agent-skills) | Submodule (Path 1) | 瀏覽器效能指標審計與 API 契約設計規則。 |
 | **提示工程** | [Prompt Master](https://github.com/nidhinjs/prompt-master) | Submodule (Path 1) | 指令優化與跨模型指令翻譯模板。 |
-| **CLI 標準** | [Printing Press](https://github.com/mvanhorn/cli-printing-press) | Submodule (Path 1) | 精簡代理人輸出，減少金鑰使用量。 |
+| **CLI 標準** | [Printing Press](https://github.com/mvanhorn/cli-printing-press) | Submodule (Path 1) | 精簡代理人輸出，減少 Token 消耗量。 |
 | **BDD 實踐** | [AIxBDD](https://github.com/Waterball-Software-Academy/aixbdd) | Submodule (Path 1) | 行為驅動測試與規格自動對齊。 |
 | **能動性規範** | [PIP Guardian](https://github.com/tanweai/pua) | Submodule (Path 1) | 限制 AI 偷懶或敷衍指令。 |
 | **代理編排** | [OMC](https://github.com/Yeachan-Heo/oh-my-claudecode) | Submodule (Path 1) | 團隊協作與會話持久化管理。 |
