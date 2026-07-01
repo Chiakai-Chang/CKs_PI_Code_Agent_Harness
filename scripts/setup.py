@@ -288,8 +288,6 @@ def main():
                 settings["defaultModel"] = model_id
                 settings["defaultProvider"] = "ollama" if "11434" in api_base else "local-server"
                 if "11434" not in api_base: settings["apiBase"] = api_base
-                gb = detect_git_bash()
-                if gb: settings["shellPath"] = gb
                 save_json(SETTINGS_PATH, settings)
 
                  # Update Models JSON
@@ -311,6 +309,14 @@ def main():
             profile = "full"
         else:
             profile = "standard"
+
+    # Unconditionally detect and set Git Bash shell path on Windows
+    gb = detect_git_bash()
+    if gb:
+        settings = load_json(SETTINGS_PATH)
+        settings["shellPath"] = gb
+        save_json(SETTINGS_PATH, settings)
+        print(f"[*] 已自動設定 Windows Git Bash 路徑: {gb}")
 
     print("[*] 正在執行資產還原 (restore.py)...")
     run_stream(f'"{sys.executable}" "{os.path.join(REPO_ROOT, "scripts", "restore.py")}" --auto --profile {profile}')
