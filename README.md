@@ -26,22 +26,22 @@
 
 | 領域 | 來源專案 | 導入方式 | 評估目的 / 預期功能 |
 | :--- | :--- | :--- | :--- |
-| **工程紀律** | [ECC](https://github.com/affaan-m/ECC) | Submodule (Path 1) | 文件安全審查與自動品質門檻限制。 |
-| **工作流** | [Planning-with-Files](https://github.com/OthmanAdi/planning-with-files) | Submodule (Path 1) | 實體任務規劃檔案與會話狀態快照。 |
-| **專案知識** | [LLM Wiki](https://github.com/praneybehl/llm-wiki-plugin) | Submodule (Path 1) | 原子化知識庫沉澱與雙向鏈接文件。 |
-| **方法論** | [Superpowers](https://github.com/obra/superpowers) | Submodule (Path 1) | 通用 TDD 方法論、單元測試、Git 微步提交引導。 |
-| **資源防禦** | [Caveman](https://github.com/JuliusBrussee/caveman) | Submodule (Path 1) | 極簡語音壓縮，降低 Context 消耗量。 |
-| **行為準則** | [Karpathy](https://github.com/forrestchang/andrej-karpathy-skills) | Submodule (Path 1) | 避開常見寫入衝突的通用開發指引。 |
-| **提示工程** | [Prompt Master](https://github.com/nidhinjs/prompt-master) | Submodule (Path 1) | 通用提示詞優化範本。 |
-| **安全治理** | [YES.md](https://github.com/sstklen/yes.md) | Submodule (Path 1) | 命令安全性攔截與防呆 Hooks。 |
-| **美學/UX** | [Taste Engine](https://github.com/Leonxlnx/taste-skill) | Submodule (Path 1) | 載入設計樣式與視覺引導。 |
-| **基因優化** | [Evolver](https://github.com/EvoMap/evolver) | Submodule (Path 1) | 失敗模式掃描與抗體 prompt 演化。 |
-| **提示微調** | [Darwin](https://github.com/alchaincyf/darwin-skill) | Bridge (Path 2) | 實驗性 Prompt 演化演算法。 |
-| **辯證分析** | [Qiushi](https://github.com/HughYau/qiushi-skill) | Bridge (Path 2) | 控制組行為比對分析。 |
-| **除錯實踐** | [Best Practices](https://github.com/DenisSergeevitch/agents-best-practices) | Bridge (Path 2) | 系統化除錯與規則簡化引導。 |
-| **圖譜導航** | [Graphify](https://github.com/safishamsi/graphify) | Bridge (Path 2) | 本機 AST 結構分析圖譜導航。 |
-| **循環工程** | [Loopy](https://github.com/Forward-Future/loopy) | Bridge (Path 2) | 工作流閉環控制 playbooks。 |
-| **環境治理** | [C.A.S.E.](https://github.com/Chiakai-Chang/Local-Agent-Workspace/tree/main/C.A.S.E._Framework) | Bridge (Path 2) | 憲法-架構-狀態-執行（C.A.S.E.）檔案驅動任務管束協定。 |
+| **工程紀律** | [ECC](https://github.com/affaan-m/ECC) | Git Submodule | 文件安全審查與自動品質門檻限制。 |
+| **工作流** | [Planning-with-Files](https://github.com/OthmanAdi/planning-with-files) | Git Submodule | 實體任務規劃檔案與會話狀態快照。 |
+| **專案知識** | [LLM Wiki](https://github.com/praneybehl/llm-wiki-plugin) | Git Submodule | 原子化知識庫沉澱與雙向鏈接文件。 |
+| **方法論** | [Superpowers](https://github.com/obra/superpowers) | Git Submodule | 通用 TDD 方法論、單元測試、Git 微步提交引導。 |
+| **資源防禦** | [Caveman](https://github.com/JuliusBrussee/caveman) | Git Submodule | 極簡語音壓縮，降低 Context 消耗量。 |
+| **行為準則** | [Karpathy](https://github.com/forrestchang/andrej-karpathy-skills) | Git Submodule | 避開常見寫入衝突的通用開發指引。 |
+| **提示工程** | [Prompt Master](https://github.com/nidhinjs/prompt-master) | Git Submodule | 通用提示詞優化範本。 |
+| **安全治理** | [YES.md](https://github.com/sstklen/yes.md) | Git Submodule | 命令安全性攔截與防呆 Hooks。 |
+| **美學/UX** | [Taste Engine](https://github.com/Leonxlnx/taste-skill) | Git Submodule | 載入設計樣式與視覺引導。 |
+| **基因優化** | [Evolver](https://github.com/EvoMap/evolver) | Git Submodule | 失敗模式掃描與抗體 prompt 演化。 |
+| **提示微調** | [Darwin](https://github.com/alchaincyf/darwin-skill) | Bridge (橋接) | 實驗性 Prompt 演化演算法。 |
+| **辯證分析** | [Qiushi](https://github.com/HughYau/qiushi-skill) | Bridge (橋接) | 控制組行為比對分析。 |
+| **除錯實踐** | [Best Practices](https://github.com/DenisSergeevitch/agents-best-practices) | Bridge (橋接) | 系統化除錯與規則簡化引導。 |
+| **圖譜導航** | [Graphify](https://github.com/safishamsi/graphify) | Bridge (橋接) | 本機 AST 結構分析圖譜導航。 |
+| **循環工程** | [Loopy](https://github.com/Forward-Future/loopy) | Bridge (橋接) | 工作流閉環控制 playbooks。 |
+| **環境治理** | [C.A.S.E.](https://github.com/Chiakai-Chang/Local-Agent-Workspace/tree/main/C.A.S.E._Framework) | Bridge (橋接) | 憲法-架構-狀態-執行（C.A.S.E.）檔案驱动任務管束協定。 |
 
 ---
 
