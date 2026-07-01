@@ -213,6 +213,9 @@ def main():
         profile_skills.append(os.path.join(ext_root, "ecc", "skills").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "Local-Agent-Workspace").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "taste-skill", "skills").replace("\\", "/"))
+        ui_root = os.path.join(ext_root, "ui-ux-pro-max-skill", ".claude", "skills")
+        for name in ["ui-ux-pro-max", "ui-styling"]:
+            profile_skills.append(os.path.join(ui_root, name).replace("\\", "/"))
 
         # Extensions
         profile_extensions.append(os.path.join(pi_extensions_root, "ecc-hooks-bridge").replace("\\", "/"))
