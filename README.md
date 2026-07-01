@@ -14,7 +14,7 @@
 2.  **🧠 工程方法論 (Superpowers)**：引導 AI 採用 BDD/TDD 測試驅動與系統化規劃步驟。
 3.  **🔍 AST 程式碼結構圖譜 (Graphify)**：使用本機輕量 Tree-sitter 分析原始碼，產生 AST 拓撲關係，降低檢索程式碼時的 API Token 消耗。
 4.  **📚 專案 Wiki (LLM Wiki)**：將長篇參考文件或日誌整理為原子化的 Wiki 網頁，供 AI 按需檢索。
-5.  **📝 狀態與沙盒管理 (C.A.S.E. & PWF)**：套疊 Planning-with-Files 規劃文件於 C.A.S.E. 的 `02_Task_Queue` 沙盒任務包內，限制讀寫範圍，防止多任務並行時的記憶污染。
+5.  **📝 任務執行與狀態管理 (C.A.S.E. & PWF)**：結合 C.A.S.E. 任務管束與 Planning-with-Files 規劃，將注意力記憶檔案套疊於任務包中以防並行任務污染。
 6.  **🏭 多代理編排 (OMC Teams)**：設定多角色代理人範本，便於在需要時調用 Checker、Architect 等角色。
 7.  **🧪 矛盾對照分析 (Qiushi)**：引入矛盾論分析原則，要求對程式碼重構前後的行為建立嚴格對照組，進行行為核對。
 8.  **🧬 自演進實驗 (SkillClaw & Darwin)**：實驗性結合 SkillClaw（跨 session 軌跡清理與 SKILL.md 結構去重）與 Darwin（沙盒分支 Prompts 變異最佳化）。
@@ -49,7 +49,7 @@
 | **智慧演進** | [SkillClaw](https://github.com/AMAP-ML/SkillClaw) | Bridge (Path 2) | 跨會話軌跡去重與 SKILL.md 自動重構。 |
 | **圖譜導航** | [Graphify](https://github.com/safishamsi/graphify) | Bridge (Path 2) | 本機 AST 結構分析圖譜導航。 |
 | **循環工程** | [Loopy](https://github.com/Forward-Future/loopy) | Bridge (Path 2) | 工作流閉環控制 playbooks。 |
-| **環境治理** | [C.A.S.E.](https://github.com/Chiakai-Chang/Local-Agent-Workspace/tree/main/C.A.S.E._Framework) | Bridge (Path 2) | 唯讀/讀寫沙盒結構與雙軌驗證協定。 |
+| **環境治理** | [C.A.S.E.](https://github.com/Chiakai-Chang/Local-Agent-Workspace/tree/main/C.A.S.E._Framework) | Bridge (Path 2) | 憲法-架構-狀態-執行（C.A.S.E.）檔案驅動任務管束協定。 |
 
 ---
 
@@ -78,7 +78,7 @@ pi
 
 *   **⚡ Map-Driven Restore**：路徑動態解析，避免寫死本機路徑。
 *   **🧠 Context Kernel**：內建上下文剪裁與壓縮指引，以節省長對話中的 Token 費用。
-*   **🧠 C.A.S.E. 嵌套沙盒**：限制 AI 在指定任務目錄下讀寫，避免對整個 workspace 造成覆蓋。
+*   **🧠 C.A.S.E. 任務套疊**：將 PWF 的任務記憶檔案嵌套在 C.A.S.E. 任務包中，避免多任務並行時注意力干擾。
 *   **🧠 AST 圖譜分析 (Graphify)**：使用本機 Tree-sitter 提供程式碼結構導航。
 *   **🧠 Hippocampus (海馬迴)**：整合 `hello-reflect`，自動修正 `CLAUDE.md`。
 *   **🕵️ Stealth Force**：整合 `camofox-stealth` 的瀏覽器適應設定。
