@@ -25,6 +25,19 @@ cd CKs_PI_Code_Agent_Harness
     *   📦 **載入項目**：包含本專案整合之**所有 16 個外部子模組**與所有本地擴充（TDD 方法論、Wiki 知識庫、AST 圖譜導航等）。
 ---
 
+## 🤖 代理人相容性 (Agent Compatibility)
+
+本 Harness 雖然核心是為 **Pi Coding Agent (pi-mono)** 提供配置注入，但本專案本身**全面相容於各種主流 AI 編程代理與 IDE 工具**。
+
+我們在專案根目錄預先配置了對應各工具的規則引導檔，無論您使用哪種工具，皆能獲得相同的開發紀律約束與路徑規範：
+*   **Claude Code** ➜ 讀取 `CLAUDE.md` (開發命令與防呆規範)
+*   **Gemini CLI (Antigravity)** ➜ 讀取 `GEMINI.md` (Antigravity 執行指引)
+*   **Cursor** ➜ 讀取 `.cursorrules`
+*   **Windsurf** ➜ 讀取 `.windsurfrules`
+*   **Aider** ➜ 讀取 `.aider.instructions.md`
+
+---
+
 ## 🛠️ 核心功能
 
 本專案將 AI 增強功能分為三大維度，兼顧開發效率與系統安全性：
@@ -37,7 +50,7 @@ cd CKs_PI_Code_Agent_Harness
 ### 2. 🧠 工作流與上下文優化
 *   **任務管束 (C.A.S.E.)**：利用「憲法-架構-狀態-執行」檔案協定，為 AI 劃定清晰的任務邊界。
 *   **任務套疊 (CASE & PWF)**：解決並行開發時注意力污染的問題，將任務上下文獨立隔離。
-*   **海馬迴進化 (hello-reflect)**：自動從對話中提煉新知識並寫入 `CLAUDE.md`，實現規則自演進。
+*   **海馬迴進化 (hello-reflect)**：自動從對話中提煉新知識並寫入規範檔案（如 `CLAUDE.md`、`GEMINI.md`、`.cursorrules` 等），實現規則自演進。
 *   **Token 節約 (Caveman)**：對上下文進行無損語意壓縮，大幅延長長對話的 Token 生命期。
 
 ### 3. 🔍 本地化工具
@@ -69,7 +82,7 @@ cd CKs_PI_Code_Agent_Harness
 | **圖譜導航** | [Graphify](https://github.com/safishamsi/graphify) | Bridge (橋接) | AST 本地圖譜分析 | ❌ | ✅ |
 | **循環工程** | [Loopy](https://github.com/Forward-Future/loopy) | Bridge (橋接) | 工作流閉環控制 | ❌ | ✅ |
 | **環境治理** | [C.A.S.E.](https://github.com/Chiakai-Chang/Local-Agent-Workspace/tree/main/C.A.S.E._Framework) | Bridge (橋接) | C.A.S.E. 任務管束協定 | ❌ | ✅ |
-| **記憶進化** | [claude-reflect](https://github.com/BayramAnnakov/claude-reflect) | 本地移植 (蒸餾) | CLAUDE.md 規則自演進 | ✅ | ✅ |
+| **記憶進化** | [claude-reflect](https://github.com/BayramAnnakov/claude-reflect) | 本地移植 (蒸餾) | 專案規則檔案自演進 | ✅ | ✅ |
 
 ---
 
