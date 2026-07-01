@@ -1,89 +1,74 @@
-# 🚀 CK's Pi Code Agent Harness (Flagship v3.8)
+# CK's Pi Code Agent Harness
 
-<img src="demo.png" width="100%" alt="運行畫面">
+用於 [Pi Coding Agent](https://github.com/badlogic/pi-mono) 的配置增強與外部模組管理工具。
 
-> **一鍵重建工業級 AI 開發環境** —— 為你的 Pi 助手注入全球頂尖專家的開發直覺與嚴謹紀律。
-
-`CK's Pi Code Agent Harness` 是一個專為 [Pi Coding Agent](https://github.com/badlogic/pi-mono) 打造的**旗艦級配置增強套件**。本專案不僅是配置的集結，更是一套深度的**智慧蒸餾系統**。它透過「原生映射 (Native Mapping)」技術，整合了 GitHub 15+ 個頂尖開源倉庫，讓您的 Pi 助手具備從產品決策、架構設計到自我進化的全生命週期專家能力。
+本專案透過 `Git Submodule` 與 `Bridge Extension`（橋接擴充套件）方式，整合並載入多個外部 Agent 相關開源倉庫的方法論。這是一套實驗性的整合配置，旨在探索如何結合不同的控制迴圈、記憶體架構與工作流規範以協助 AI 執行任務。
 
 ---
 
-## 🧪 早期體驗：下一代「全能裝束」 (Universal v4.0+)
+## 🧪 實驗性分支：Universal
 
-**「如果您想在 Claude Code 或 Gemini CLI 之間切換，或是在新電腦上重新安裝，選這個就對了！」**
+我們正在 `feat/universal-harness` 分支中測試跨 CLI（如 Claude Code 或 Gemini CLI）的相容性與自動配置復原。
 
-我們正在開發 v4.0 版本，讓您的開發環境具備「跨平台自動適配」與「環境自癒」能力。
-
-### 1. 複製並執行（只需 30 秒）
+### 1. 複製並安裝
 ```bash
-# 取得具備自癒能力的開發版
 git clone -b feat/universal-harness --recursive https://github.com/Chiakai-Chang/CKs_PI_Code_Agent_Harness.git
 cd CKs_PI_Code_Agent_Harness
 
-# Windows: 雙擊 install.bat (建議按右鍵管理員執行)
-# macOS / Linux: bash install.sh
+# Windows: 執行 install.bat
+# macOS / Linux: 執行 bash install.sh
 ```
 
-### 2. 它會幫您做什麼？
-*   **🧹 環境自動大掃除**：偵測到舊的、混亂的 Extension？它會自動備份並為您建立最純淨的環境。
-*   **✨ 智慧遺產繼承**：您的 API Keys 與模型配置會被自動找回來並還原，**不需要重新設定**。
-*   **🤖 一次安裝，全家適用**：不論您目前啟動的是 `claude` 還是 `pi`，專家神力都會自動投影到對應的工具。
-
-### 3. 開始開發 (必試指令)
-安裝完成後，直接啟動您的 AI CLI (輸入 `pi` 或 `claude`)，體驗以下神力：
-*   **/omg:team**：召喚一支由架構師與執行者組成的專家團隊作戰。
-*   **/aibdd-kickoff**：啟動嚴謹的行為驅動開發 (BDD) 流程。
-*   **/pip:status**：當 AI 卡關時，強制啟動「極限求生」模式解決問題。
-*   **/pm:north-star**：校準產品價值，拒絕無效開發。
+### 2. 主要功能
+*   **配置備份與復原**：自動備份舊的 `~/.pi/agent` 或 `~/.claudecode` 目錄，並還原 API Keys 與模型設定。
+*   **橋接套件動態映射**：自動將 `.env` 中的 `PI_HARNESS_ROOT` 絕對路徑寫入 Extension 配置文件，解決跨磁碟分區尋址問題。
 
 ---
 
-## 🏗️ 九大技術支柱 (The 9 Pillars)
+## 🏗️ 主要功能模組與特徵
 
-基於 [**核心設計理念 (CORE_CONCEPTS.md)**](docs/core/CORE_CONCEPTS.md) 與 [**功能蒸餾指南 (DISTILLATION_GUIDE.md)**](docs/core/DISTILLATION_GUIDE.md)，我們為 Pi 構建了完整的開發大腦：
+基於 [核心設計理念 (CORE_CONCEPTS.md)](docs/core/CORE_CONCEPTS.md) 與 [功能蒸餾指南 (DISTILLATION_GUIDE.md)](docs/core/DISTILLATION_GUIDE.md), 本環境配置嘗試整合以下功能：
 
-1.  **🛡️ 紀律守護 (ECC Hooks)**：整合 70+ 專業代理人與自動化掛鉤，在 AI 闖禍前（如語法錯誤、金鑰洩漏）秒級攔截。
-2.  **🧠 專家直覺 (Superpowers)**：注入工業級工程紀律，強制 AI 實施 TDD 與系統化規劃。
-3.  **🔍 代碼 GPS (Graphify)**：利用 0-token 的 AST 代碼圖譜與 God Node 網路拓撲，讓 AI 瞬間看清數萬行複雜專案。
-4.  **📚 專案大腦 (LLM Wiki)**：實作 Karpathy 模式，讓專案知識隨時間複利成長，建立持久的維基索引。
-5.  **📝 戰術持久 (C.A.S.E. & PWF)**：實體化任務計畫，實施 C.A.S.E. 沙盒與 Planning-with-Files 空間套疊，防範跨任務記憶污染。
-6.  **🏭 代理工廠 (OMC Teams)**：建立多代理編排流水線，召喚架構師、執行者與審查員協同作戰。
-7.  **🧪 誠信工廠 (AIxBDD & Qiushi)**：實施行為驅動開發 (BDD) 與 Marx 矛盾對照分析，確保規格與代碼 100% 誠實對齊。
-8.  **🧬 自我進化 (Evolution Trio)**：結合 Evolver (抗體)、SkillClaw (軌跡演進) 與 Darwin (提示詞基因變異) 實現全自動適應成長。
-9.  **🧭 產品決策 (PM Skills)**：內建 100+ 頂尖 PM 框架，從北極星指標到 PRD 審計，拒絕無效開發。
-
-> ℹ️ 每一項整合的技術細節與決策背景，請參閱 [**🗺️ 戰略索引地圖 (STRATEGIC_MAP.md)**](docs/strategy/STRATEGIC_MAP.md)。
+1.  **🛡️ 紀律守護 (ECC Hooks)**：掛載預提交鉤子，在 AI 執行高風險操作（如語法錯誤、金鑰洩漏）前攔截並報錯。
+2.  **🧠 工程方法論 (Superpowers)**：引導 AI 採用 BDD/TDD 測試驅動與系統化規劃步驟。
+3.  **🔍 AST 代碼結構圖譜 (Graphify)**：使用本機輕量 Tree-sitter 分析原始碼，產生 AST 拓撲關係，降低搜尋時的 API Token 消耗。
+4.  **📚 專案 Wiki (LLM Wiki)**：將大篇幅參考文檔或日誌整理為原子化的 Wiki 網頁，供 AI 按需檢索。
+5.  **📝 狀態與沙盒管理 (C.A.S.E. & PWF)**：嵌套 Planning-with-Files 規劃檔案於 C.A.S.E. 的 `02_Task_Queue` 沙盒任務包內，限制讀寫範圍，防止多任務並行時的記憶污染。
+6.  **🏭 多代理編排 (OMC Teams)**：設定多角色代理人模板，便於在需要時調用 Checker、Architect 等角色。
+7.  **🧪 矛盾對照分析 (Qiushi)**：引入矛盾論分析原則，要求對代碼重構前後的行為建立嚴格對照組，進行行為核對。
+8.  **🧬 自演進實驗 (SkillClaw & Darwin)**：實驗性結合 SkillClaw（跨 session 軌跡清理與 SKILL.md 結構去重）與 Darwin（沙盒分支 Prompts 變異調優）。
+9.  **🧭 需求核對 (PM Skills)**：載入多種產品分析與需求驗收框架，用於在規劃階段對齊 Acceptance Criteria。
 
 ---
 
-## 📂 整合生態系 (Integrated Masterpieces)
+## 📂 已整合的外部模組與倉庫
 
-本專案透過 Git Submodule 連結以下大師級資產，確保與上游 100% 同步：
+本專案透過 Git Submodule 連結以下倉庫：
 
-| 領域 | 來源專案 / 大師 | 評估路徑 | 轉化後賦予 Pi 的核心神力 |
+| 領域 | 來源專案 | 導入方式 | 評估目的 / 預期功能 |
 | :--- | :--- | :--- | :--- |
-| **工程紀律** | [ECC](https://github.com/affaan-m/ECC) | Path 1 (Submodule) | 自動品質門檻、安全審查、50+ 特種代理人。 |
-| **方法論** | [Superpowers](https://github.com/obra/superpowers) | Path 1 (Submodule) | TDD 驅動、系統化規劃、專家選擇直覺。 |
-| **行為準則** | [Karpathy](https://github.com/forrestchang/andrej-karpathy-skills) | Path 1 (Submodule) | 鎖定 Andrej Karpathy 觀察的 LLM 避坑開發指南。 |
-| **認知提取** | [Nuwa (女媧)](https://github.com/alchaincyf/nuwa-skill) | Path 1 (Submodule) | **專家工廠**：內建 15 位名家（賈伯斯、芒格等）思維框架。 |
-| **TS 專家** | [Matt Pocock](https://github.com/mattpocock/skills) | Path 1 (Submodule) | 宏觀架構導航、深模組化重構、TypeScript 深度偵錯。 |
-| **Web 權威** | [Addy Osmani](https://github.com/addyosmani/agent-skills) | Path 1 (Submodule) | Google 級效能審計、API 契約設計、懷疑驅動開發 (DDD)。 |
-| **提示工程** | [Prompt Master](https://github.com/nidhinjs/prompt-master) | Path 1 (Submodule) | 提示詞自動壓縮與跨模型指令翻譯，極致節省 Token。 |
-| **CLI 標準** | [Printing Press](https://github.com/mvanhorn/cli-printing-press) | Path 1 (Submodule) | 實施 **CK-Spec-01** 標準，打造 Agent-Native 精簡輸出。 |
-| **BDD 專家** | [AIxBDD](https://github.com/Waterball-Software-Academy/aixbdd) | Path 1 (Submodule) | **誠信工廠**：RED-GREEN-REFACTOR 閉環、需求變更自動調和。 |
-| **能動性守護** | [PIP Guardian](https://github.com/tanweai/pua) | Path 1 (Submodule) | **生產力改進**：4 級壓力升級、14 種大廠方法論、拒絕偷懶。 |
-| **代理工廠** | [OMC](https://github.com/Yeachan-Heo/oh-my-claudecode) | Path 1 (Submodule) | **多代理編排**：32+ 專業角色、Sisyphus 持久化、團隊模式。 |
-| **安全治理** | [YES.md](https://github.com/sstklen/yes.md) | Path 1 (Submodule) | **六層防禦**：Anti-Slack 偵測、機器強制 Hooks、安全閘門。 |
-| **視覺美學** | [Taste Engine](https://github.com/Leonxlnx/taste-skill) | Path 1 (Submodule) | **視覺指揮官**：三旋鈕參數控制、反 AI 罐頭化、極致性能。 |
-| **產品決策** | [PM Skills](https://github.com/phuryn/pm-skills) | Path 1 (Submodule) | **戰略圖書館**：100+ 頂尖 PM 框架、北極星指標、需求審計。 |
-| **自我進化** | [Evolver](https://github.com/EvoMap/evolver) | Path 1 (Submodule) | **基因優化**：掃描失敗模式、固化抗體基因、實現長期成長。 |
-| **基因變異** | [Darwin](https://github.com/alchaincyf/darwin-skill) | Path 2 (Bridge) | **提示微調**：微觀 Prompt 遺傳演算與沙盒變異最佳化。 |
-| **辯證分析** | [Qiushi](https://github.com/HughYau/qiushi-skill) | Path 2 (Bridge) | **矛盾分析**：唯物辯證矛盾論對照分析，解決複雜系統決策衝突。 |
-| **最佳實踐** | [Best Practices](https://github.com/DenisSergeevitch/agents-best-practices) | Path 2 (Bridge) | **調試法則**：系統化調試與代理人規則最佳實踐。 |
-| **智慧演進** | [SkillClaw](https://github.com/AMAP-ML/SkillClaw) | Path 2 (Bridge) | **集體演進**：跨 session 軌跡自動聚合與重複技能自動清理。 |
-| **圖譜導航** | [Graphify](https://github.com/safishamsi/graphify) | Path 2 (Bridge) | **AST 圖譜**：零 Token 程式碼結構拓撲導航。 |
-| **循環工程** | [Loopy](https://github.com/Forward-Future/loopy) | Path 2 (Bridge) | **工作流閉環**：確定性循環 playbook 封裝與反饋控制。 |
-| **環境治理** | [C.A.S.E.](https://github.com/Chiakai-Chang/Local-Agent-Workspace) | Path 2 (Bridge) | **物理沙盒**：憲法-架構-狀態-執行三層沙盒與 Worker-Checker 解耦。 |
+| **工程紀律** | [ECC](https://github.com/affaan-m/ECC) | Submodule (Path 1) | 特種代理人模板、文件安全審查與自動品質門檻。 |
+| **方法論** | [Superpowers](https://github.com/obra/superpowers) | Submodule (Path 1) | TDD 方法論、單元測試、Git 微步提交引導。 |
+| **行為準則** | [Karpathy](https://github.com/forrestchang/andrej-karpathy-skills) | Submodule (Path 1) | 避開常見 LLM 卡死與寫入衝突的開發指南。 |
+| **認知提取** | [Nuwa (女媧)](https://github.com/alchaincyf/nuwa-skill) | Submodule (Path 1) | 專家視角思維模型。 |
+| **TS 專家** | [Matt Pocock](https://github.com/mattpocock/skills) | Submodule (Path 1) | TypeScript 類型重構與診斷。 |
+| **Web 效能** | [Addy Osmani](https://github.com/addyosmani/agent-skills) | Submodule (Path 1) | 瀏覽器效能指標審計與 API 契約設計規則。 |
+| **提示工程** | [Prompt Master](https://github.com/nidhinjs/prompt-master) | Submodule (Path 1) | 指令優化與跨模型指令翻譯模板。 |
+| **CLI 標準** | [Printing Press](https://github.com/mvanhorn/cli-printing-press) | Submodule (Path 1) | 精簡代理人輸出，減少金鑰使用量。 |
+| **BDD 實踐** | [AIxBDD](https://github.com/Waterball-Software-Academy/aixbdd) | Submodule (Path 1) | 行為驅動測試與規格自動對齊。 |
+| **能動性規範** | [PIP Guardian](https://github.com/tanweai/pua) | Submodule (Path 1) | 限制 AI 偷懶或敷衍指令。 |
+| **代理編排** | [OMC](https://github.com/Yeachan-Heo/oh-my-claudecode) | Submodule (Path 1) | 團隊協作與會話持久化管理。 |
+| **安全治理** | [YES.md](https://github.com/sstklen/yes.md) | Submodule (Path 1) | 命令安全性攔截與防呆 Hooks。 |
+| **美學/UX** | [Taste Engine](https://github.com/Leonxlnx/taste-skill) | Submodule (Path 1) | 載入設計樣式與視覺引導。 |
+| **產品分析** | [PM Skills](https://github.com/phuryn/pm-skills) | Submodule (Path 1) | 專案路線圖分析與驗收準則制定。 |
+| **基因優化** | [Evolver](https://github.com/EvoMap/evolver) | Submodule (Path 1) | 失敗模式掃描與抗體 prompt 演化。 |
+| **提示微調** | [Darwin](https://github.com/alchaincyf/darwin-skill) | Bridge (Path 2) | 實驗性 Prompt 演化算法。 |
+| **辯證分析** | [Qiushi](https://github.com/HughYau/qiushi-skill) | Bridge (Path 2) | 控制組行爲比對分析。 |
+| **除錯實踐** | [Best Practices](https://github.com/DenisSergeevitch/agents-best-practices) | Bridge (Path 2) | 系統化除錯與規則簡化引導。 |
+| **智慧演進** | [SkillClaw](https://github.com/AMAP-ML/SkillClaw) | Bridge (Path 2) | 跨會話軌跡去重與 SKILL.md 自動重構。 |
+| **圖譜導航** | [Graphify](https://github.com/safishamsi/graphify) | Bridge (Path 2) | 本機 AST 結構分析圖譜導航。 |
+| **循環工程** | [Loopy](https://github.com/Forward-Future/loopy) | Bridge (Path 2) | 工作流閉環控制 playbooks。 |
+| **環境治理** | [C.A.S.E.](https://github.com/Chiakai-Chang/Local-Agent-Workspace) | Bridge (Path 2) | 唯讀/讀寫沙盒結構與雙軌驗證協定。 |
 
 ---
 
@@ -95,11 +80,11 @@ git clone --recursive https://github.com/Chiakai-Chang/CKs_PI_Code_Agent_Harness
 cd CKs_PI_Code_Agent_Harness
 ```
 
-### 2. 一鍵部署
-*   **Windows**: 雙擊 `install.bat` (建議管理員執行)。
-*   **macOS / Linux**: `bash install.sh`。
+### 2. 部署配置
+*   **Windows**: 執行 `install.bat`。
+*   **macOS / Linux**: 執行 `bash install.sh`。
 
-> 系統會自動執行 **Map-Driven Restore**，將所有專家路徑與 80+ 位代理人注入您的環境。
+> 安裝腳本會讀取 `pi-config/settings.json`，將 submodule 中的 skills/extensions 註冊並複製到 `~/.pi/agent` 中。
 
 ### 3. 開始開發
 ```bash
@@ -108,31 +93,30 @@ pi
 
 ---
 
-## 🛠️ 核心規格與自豪功能
+## 🛠️ 核心功能特點
 
-*   **⚡ Map-Driven Restore**：完全捨棄散裝複製，改用智慧映射，支援全域絕對路徑定位。
-*   **🧠 Context Kernel**：內建「上下文內核協議」，自動管理注意力預算，長對話中 Token 經濟提升 40%。
-*   **🧠 C.A.S.E. 沙盒套疊**：將 PWF 的任務大腦檔案完整嵌套在 C.A.S.E. 任務包中，徹底消除跨並行任務的記憶污染。
-*   **🧠 AST 圖譜導航 (Graphify)**：免去雲端 API 費用，以 0-token 的本機 AST 解析，幫助代理人理清龐大系統調用鏈。
-*   **🧠 Hippocampus (海馬迴)**：整合 `hello-reflect`，自動從您的修正中學習並更新 `CLAUDE.md`。
-*   **🕵️ Stealth Force**：選配整合 `camofox-stealth`，具備繞過 Cloudflare 偵測的頂級隱身瀏覽力。
-*   **📑 Rationale Archive**：每一項整合都有專屬的 `RATIONALE.md`，決策背景透明、戰略脈絡可追溯。
+*   **⚡ Map-Driven Restore**：動態尋址映射，避免寫死本機路徑。
+*   **🧠 Context Kernel**：內建上下文剪裁與壓縮指引，以節省長對話中的 Token 費用。
+*   **🧠 C.A.S.E. 嵌套沙盒**：限制 AI 在指定任務目錄下讀寫，避免對整個 workspace 造成覆蓋。
+*   **🧠 AST 圖譜分析 (Graphify)**：使用本機 Tree-sitter 提供程式碼結構導航。
+*   **🧠 Hippocampus (海馬迴)**：整合 `hello-reflect`，自修復 `CLAUDE.md`。
+*   **🕵️ Stealth Force**：整合 `camofox-stealth` 的瀏覽適配。
+*   **📑 Rationale Archive**：每一項整合模組皆配有 `RATIONALE.md`，說明當初遷移與評估的決策。
 
 ---
 
-## ✅ 隱私、安全與信任
+## ✅ 隱私與安全
 
-*   **本地優先**：針對 Ollama / llama.cpp 優化，代碼與智慧資產不出門。
-*   **安全攔截**：內建 ECC 防火牆，防止 AI 意外刪除 `.env` 或推送金鑰。
-*   **完全開源**：從腳本到 Prompts，一切透明。
+*   **本地優先**：支援本地推理引擎（Ollama/llama.cpp）的配置適配。
+*   **安全防禦**：設定防寫目錄與預防刪除重要環境變數檔案（.env）的安全規則。
+*   **完全開源**：所有規則與腳本皆透明可見。
 
 ---
 
 ## 🙏 感謝與授權
 
 *   本專案採用 **MIT 授權**。
-*   向所有在「整合清單」中出現的開源大師致敬，你們的智慧是本專案的靈魂。
+*   感謝所有被整合倉庫的作者與開源貢獻者。
 
 ---
-**由 [CK (Chiakai Chang)](https://github.com/Chiakai-Chang) 維護，旨在打造最強適應力的 AI 開發環境。**
-
+**由 [CK (Chiakai Chang)](https://github.com/Chiakai-Chang) 維護。本專案純屬實驗性質，旨在探索 AI 開發流程的具體配置可能性。**
