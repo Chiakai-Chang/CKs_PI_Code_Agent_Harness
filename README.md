@@ -6,25 +6,6 @@
 
 ---
 
-## 🧪 實驗性分支：Universal
-
-我們正在 `feat/universal-harness` 分支中測試跨 CLI（如 Claude Code 或 Gemini CLI）的相容性與自動配置復原。
-
-### 1. 複製並安裝
-```bash
-git clone -b feat/universal-harness --recursive https://github.com/Chiakai-Chang/CKs_PI_Code_Agent_Harness.git
-cd CKs_PI_Code_Agent_Harness
-
-# Windows: 執行 install.bat
-# macOS / Linux: 執行 bash install.sh
-```
-
-### 2. 主要功能
-*   **配置備份與復原**：自動備份舊的 `~/.pi/agent` 或 `~/.claudecode` 目錄，並還原 API Keys 與模型設定。
-*   **橋接套件動態映射**：自動將 `.env` 中的 `PI_HARNESS_ROOT` 絕對路徑寫入 Extension 配置文件，解決跨磁碟分區尋址問題。
-
----
-
 ## 🏗️ 主要功能模組與特徵
 
 基於 [核心設計理念 (CORE_CONCEPTS.md)](docs/core/CORE_CONCEPTS.md) 與 [功能蒸餾指南 (DISTILLATION_GUIDE.md)](docs/core/DISTILLATION_GUIDE.md), 本環境配置嘗試整合以下功能：
