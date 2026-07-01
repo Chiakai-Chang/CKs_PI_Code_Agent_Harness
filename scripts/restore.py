@@ -408,6 +408,10 @@ def main():
                 save_json(pkg_path, pkg)
                 log(f"  - {bridge} patched with absolute path")
 
+    # SkillOpt verification
+    if os.path.exists(os.path.join(ext_root, "SkillOpt")):
+        log("  - SkillOpt submodule verified (Run scripts/bridge-skillopt.py to coordinate)")
+
     print()
     log("✅ Restore complete.")
     print()
