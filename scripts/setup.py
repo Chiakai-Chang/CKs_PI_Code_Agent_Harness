@@ -290,11 +290,11 @@ def main():
                 if "11434" not in api_base: settings["apiBase"] = api_base
                 save_json(SETTINGS_PATH, settings)
 
-                 # Update Models JSON
-                 prov_id = settings["defaultProvider"]
-                 m_json = {"providers": {prov_id: {"baseUrl": api_base if prov_id != "ollama" else "http://127.0.0.1:11434", "api": "openai-completions", "apiKey": "local", "authHeader": True, "models": [{"id": model_id, "name": f"Local: {model_id}", "reasoning": final_res, "contextWindow": final_ctx, "maxTokens": final_max, "input": ["text"]}]}}}
-                 save_json(os.path.join(PI_CONFIG_DIR, "models.json"), m_json)
-                 print("✅ 已同步本地模型配置。")
+                # Update Models JSON
+                prov_id = settings["defaultProvider"]
+                m_json = {"providers": {prov_id: {"baseUrl": api_base if prov_id != "ollama" else "http://127.0.0.1:11434", "api": "openai-completions", "apiKey": "local", "authHeader": True, "models": [{"id": model_id, "name": f"Local: {model_id}", "reasoning": final_res, "contextWindow": final_ctx, "maxTokens": final_max, "input": ["text"]}]}}}
+                save_json(os.path.join(PI_CONFIG_DIR, "models.json"), m_json)
+                print("✅ 已同步本地模型配置。")
 
     profile = "standard"
     if mode in ["full", "restore"]:
