@@ -333,13 +333,33 @@ export default function (pi: ExtensionAPI) {
       const sessionsDir = join(homeDir, ".pi/agent/sessions");
       
       if (existsSync(sessionsDir)) {
-        const files = readdirSync(sessionsDir).filter(f => f.endsWith(".jsonl"));
-        if (files.length > 0) {
-          const latestFile = files.map(f => ({ name: f, time: statSync(join(sessionsDir, f)).mtime.getTime() }))
-                                 .sort((a, b) => b.time - a.time)[0].name;
-          const sessionPath = join(sessionsDir, latestFile);
-          
-          const result = execSync(`"${python}" "${captureScript}" "${sessionPath}"`, { encoding: "utf-8" });
+        // Recursively find the newest modified .jsonl file in the sessions directory
+        let latestFile: string | null = null;
+        let latestTime = 0;
+        
+        const traverse = (currentDir: string) => {
+          if (!existsSync(currentDir)) return;
+          const entries = readdirSync(currentDir, { withFileTypes: true });
+          for (const entry of entries) {
+            const fullPath = join(currentDir, entry.name);
+            if (entry.isDirectory()) {
+              traverse(fullPath);
+            } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
+              try {
+                const mtime = statSync(fullPath).mtime.getTime();
+                if (mtime > latestTime) {
+                  latestTime = mtime;
+                  latestFile = fullPath;
+                }
+              } catch {}
+            }
+          }
+        };
+        
+        traverse(sessionsDir);
+        
+        if (latestFile) {
+          const result = execSync(`"${python}" "${captureScript}" "${latestFile}"`, { encoding: "utf-8" });
           if (result.trim() && result.startsWith("[")) {
             const learnings = JSON.parse(result);
             if (learnings.length > 0) {
