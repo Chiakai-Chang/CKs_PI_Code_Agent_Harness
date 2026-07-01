@@ -79,3 +79,6 @@
 [submodule "external/graphify"]
 	path = external/graphify
 	url = https://github.com/safishamsi/graphify.git
+[submodule "external/loopy"]
+	path = external/loopy
+	url = https://github.com/Forward-Future/loopy.git
