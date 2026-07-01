@@ -27,7 +27,10 @@
 | 領域 | 來源專案 | 導入方式 | 評估目的 / 預期功能 |
 | :--- | :--- | :--- | :--- |
 | **工程紀律** | [ECC](https://github.com/affaan-m/ECC) | Submodule (Path 1) | 文件安全審查與自動品質門檻限制。 |
+| **工作流** | [Planning-with-Files](https://github.com/OthmanAdi/planning-with-files) | Submodule (Path 1) | 實體任務規劃檔案與會話狀態快照。 |
+| **專案知識** | [LLM Wiki](https://github.com/praneybehl/llm-wiki-plugin) | Submodule (Path 1) | 原子化知識庫沉澱與雙向鏈接文件。 |
 | **方法論** | [Superpowers](https://github.com/obra/superpowers) | Submodule (Path 1) | 通用 TDD 方法論、單元測試、Git 微步提交引導。 |
+| **資源防禦** | [Caveman](https://github.com/JuliusBrussee/caveman) | Submodule (Path 1) | 極簡語音壓縮，降低 Context 消耗量。 |
 | **行為準則** | [Karpathy](https://github.com/forrestchang/andrej-karpathy-skills) | Submodule (Path 1) | 避開常見寫入衝突的通用開發指引。 |
 | **提示工程** | [Prompt Master](https://github.com/nidhinjs/prompt-master) | Submodule (Path 1) | 通用提示詞優化範本。 |
 | **安全治理** | [YES.md](https://github.com/sstklen/yes.md) | Submodule (Path 1) | 命令安全性攔截與防呆 Hooks。 |
@@ -76,7 +79,6 @@ pi
 *   **🧠 C.A.S.E. 任務套疊**：將 PWF 的任務記憶檔案嵌套在 C.A.S.E. 任務包中，避免多任務並行時注意力干擾。
 *   **🧠 AST 圖譜分析 (Graphify)**：使用本機 Tree-sitter 提供程式碼結構導航。
 *   **🧠 Hippocampus (海馬迴)**：整合 `hello-reflect`，自動修正 `CLAUDE.md`。
-*   **🕵️ Stealth Force**：整合 `camofox-stealth` 的瀏覽器適應設定。
 *   **📑 Rationale Archive**：每一項整合模組皆配有 `RATIONALE.md`，說明當初遷移與評估的決策。
 
 ---
