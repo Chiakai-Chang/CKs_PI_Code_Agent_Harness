@@ -211,10 +211,12 @@ def main():
         profile_skills.append(os.path.join(ext_root, "llm-wiki-plugin", "skills", "llm-wiki").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "prompt-master").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "ecc", "skills").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "Local-Agent-Workspace").replace("\\", "/"))
 
         # Extensions
         profile_extensions.append(os.path.join(pi_extensions_root, "ecc-hooks-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "planning-with-files-bridge").replace("\\", "/"))
+        profile_extensions.append(os.path.join(pi_extensions_root, "case-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "pip-guardian").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "governance-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "evolution-bridge").replace("\\", "/"))
@@ -241,6 +243,7 @@ def main():
         profile_skills.append(os.path.join(ext_root, "llm-wiki-plugin", "skills", "llm-wiki").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "prompt-master").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "ecc", "skills").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "Local-Agent-Workspace").replace("\\", "/"))
 
         # UI/UX Pro Max
         ui_root = os.path.join(ext_root, "ui-ux-pro-max-skill", ".claude", "skills")
@@ -282,6 +285,7 @@ def main():
         # Extensions
         profile_extensions.append(os.path.join(pi_extensions_root, "ecc-hooks-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "planning-with-files-bridge").replace("\\", "/"))
+        profile_extensions.append(os.path.join(pi_extensions_root, "case-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "pip-guardian").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "governance-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "evolution-bridge").replace("\\", "/"))
@@ -389,7 +393,7 @@ def main():
         copy_dir_contents(ext_src, ext_dst)
         
         # Patch bridges with absolute path for global robustness
-        for bridge in ["ecc-hooks-bridge", "planning-with-files-bridge"]:
+        for bridge in ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge"]:
             pkg_path = os.path.join(ext_dst, bridge, "package.json")
             if os.path.exists(pkg_path):
                 pkg = load_json(pkg_path)

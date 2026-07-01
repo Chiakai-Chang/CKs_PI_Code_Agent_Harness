@@ -61,3 +61,6 @@
 [submodule "external/open-design"]
 	path = external/open-design
 	url = https://github.com/nexu-io/open-design.git
+[submodule "external/Local-Agent-Workspace"]
+	path = external/Local-Agent-Workspace
+	url = https://github.com/Chiakai-Chang/Local-Agent-Workspace.git
