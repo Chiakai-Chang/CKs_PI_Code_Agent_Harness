@@ -220,15 +220,9 @@ def main():
         profile_skills.append(os.path.join(pi_skills_root, "graphify").replace("\\", "/"))
         profile_skills.append(os.path.join(pi_skills_root, "pip-guardian").replace("\\", "/"))
         profile_skills.append(os.path.join(pi_skills_root, "pm-dispatcher").replace("\\", "/"))
-        profile_skills.append(os.path.join(ext_root, "aixbdd", ".agents", "skills").replace("\\", "/"))
-        profile_skills.append(os.path.join(ext_root, "openpua", "skills").replace("\\", "/"))
-        profile_skills.append(os.path.join(ext_root, "oh-my-claudecode", "skills").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "evolver").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "yes.md", "skills").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "loopy", "skills").replace("\\", "/"))
-        ui_root = os.path.join(ext_root, "ui-ux-pro-max-skill", ".claude", "skills")
-        for name in ["ui-ux-pro-max", "ui-styling"]:
-            profile_skills.append(os.path.join(ui_root, name).replace("\\", "/"))
 
         # Extensions
         profile_extensions.append(os.path.join(pi_extensions_root, "ecc-hooks-bridge").replace("\\", "/"))
