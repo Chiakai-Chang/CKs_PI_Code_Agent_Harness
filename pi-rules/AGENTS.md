@@ -19,3 +19,9 @@ For complex tasks, delegate to specialised agents under `D:/MyProject/everything
 Follow compact output rules:
 *   Pass `--compact` or `--select` flags where supported to minimize data transfer.
 *   Check exit codes for automated retry strategies.
+
+## 4. Self-Correction & Bounded Optimization (SkillOpt Protocol)
+To prevent infinite loops and improve success rates during debugging or tool failures:
+*   **Rejected Memory**: If a command or test fails, record the failed approach and the exact error output in `.pi/rejected_attempts.json` or `findings.md`.
+*   **Bounded Correction**: Before retrying, read the rejected attempts to ensure the new approach does not repeat previous errors. Modify only the specific code or parameters that failed.
+*   **3-Strike Cap**: Limit consecutive retries of the same task to 3 attempts. On the 3rd failure, stop, write the failure log to `findings.md`, and escalate to the user with a summary.
