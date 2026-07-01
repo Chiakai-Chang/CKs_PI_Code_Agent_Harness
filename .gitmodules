@@ -76,3 +76,6 @@
 [submodule "external/SkillClaw"]
 	path = external/SkillClaw
 	url = https://github.com/AMAP-ML/SkillClaw.git
+[submodule "external/graphify"]
+	path = external/graphify
+	url = https://github.com/safishamsi/graphify.git

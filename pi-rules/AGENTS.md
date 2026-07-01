@@ -32,6 +32,7 @@ When accumulating knowledge, research papers, design decisions, or codebase arch
 *   **Compilation over RAG**: Treat the LLM as a librarian. When a new raw source or reference document is introduced, compile it once into a persistent, interlinked wiki in the `wiki/` directory rather than re-reading raw files repeatedly.
 *   **Keep it Atomic**: Ensure all wiki pages remain small (soft cap 400 lines) and are indexed in `wiki/index.md` or sharded indexes under `wiki/indexes/`.
 *   **Graph Linking**: Use standard markdown wikilinks `[[page-name]]` to build a semantic knowledge graph. Use frontmatter variables (`type`, `tags`, `sources`, `updated`) on every wiki page.
+*   **Code Graph Alignment (Graphify Integration)**: Before answering architecture or codebase questions, check whether `graphify-out/GRAPH_REPORT.md` exists. If so, read it first to navigate god nodes and community structures. If `wiki/index.md` exists alongside the graph, navigate the wiki instead of reading raw files. Run `graphify update .` (AST-only, no API cost) after code changes to keep the graph in sync.
 
 ## 6. Collective Skill Evolution (SkillClaw Protocol)
 When learning from sessions or optimizing local skills/rules:
