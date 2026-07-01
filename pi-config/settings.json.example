@@ -5,6 +5,7 @@
   ],
   "skills": [],
   "extensions": [],
+  "prompts": [],
   "shellPath": "",
   "lastChangelogVersion": "0.73.0",
   "defaultProvider": "ollama",

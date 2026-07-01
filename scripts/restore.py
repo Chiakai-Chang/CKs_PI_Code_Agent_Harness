@@ -178,6 +178,7 @@ def main():
 
     profile_skills = []
     profile_extensions = []
+    profile_prompts = []
 
     # Local core skills (always loaded)
     profile_skills.append(os.path.join(pi_skills_root, "core").replace("\\", "/"))
@@ -205,7 +206,8 @@ def main():
             profile_skills.append(os.path.join(sp_root, name).replace("\\", "/"))
             
         profile_skills.append(os.path.join(ext_root, "karpathy-skills", "skills", "karpathy-guidelines").replace("\\", "/"))
-        profile_skills.append(os.path.join(ext_root, "planning-with-files").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "planning-with-files", ".pi", "skills", "planning-with-files").replace("\\", "/"))
+        profile_prompts.append(os.path.join(ext_root, "planning-with-files", "commands").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "llm-wiki-plugin", "skills", "llm-wiki").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "prompt-master").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "ecc", "skills").replace("\\", "/"))
@@ -234,7 +236,8 @@ def main():
             profile_skills.append(os.path.join(sp_root, name).replace("\\", "/"))
             
         profile_skills.append(os.path.join(ext_root, "karpathy-skills", "skills", "karpathy-guidelines").replace("\\", "/"))
-        profile_skills.append(os.path.join(ext_root, "planning-with-files").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "planning-with-files", ".pi", "skills", "planning-with-files").replace("\\", "/"))
+        profile_prompts.append(os.path.join(ext_root, "planning-with-files", "commands").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "llm-wiki-plugin", "skills", "llm-wiki").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "prompt-master").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "ecc", "skills").replace("\\", "/"))
@@ -302,6 +305,13 @@ def main():
         if e not in clean_extensions:
             clean_extensions.append(e)
     settings["extensions"] = clean_extensions
+
+    existing_prompts = settings.get("prompts", [])
+    clean_prompts = [p for p in existing_prompts if not p.replace("\\", "/").startswith(REPO_ROOT.replace("\\", "/"))]
+    for pr in profile_prompts:
+        if pr not in clean_prompts:
+            clean_prompts.append(pr)
+    settings["prompts"] = clean_prompts
 
     save_json(settings_dest, settings)
     log("  - settings.json updated with submodule paths")
