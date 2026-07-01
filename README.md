@@ -51,24 +51,24 @@ cd CKs_PI_Code_Agent_Harness
 
 本專案整合了以下開源專案的最佳實踐：
 
-| 領域 | 來源倉庫 | 導入方式 | 核心功能 |
-| :--- | :--- | :--- | :--- |
-| **工程紀律** | [ECC](https://github.com/affaan-m/ECC) | Git Submodule | 安全審查與品質門檻 |
-| **工作流** | [Planning-with-Files](https://github.com/OthmanAdi/planning-with-files) | Git Submodule | 任務規劃與狀態快照 |
-| **專案知識** | [LLM Wiki](https://github.com/praneybehl/llm-wiki-plugin) | Git Submodule | 知識庫沉澱與鏈接文件 |
-| **方法論** | [Superpowers](https://github.com/obra/superpowers) | Git Submodule | TDD 方法論與微步提交 |
-| **資源防禦** | [Caveman](https://github.com/JuliusBrussee/caveman) | Git Submodule | Token 壓縮防禦 |
-| **行為準則** | [Karpathy](https://github.com/forrestchang/andrej-karpathy-skills) | Git Submodule | LLM 寫入防護指引 |
-| **提示工程** | [Prompt Master](https://github.com/nidhinjs/prompt-master) | Git Submodule | 提示詞優化範本 |
-| **安全治理** | [YES.md](https://github.com/sstklen/yes.md) | Git Submodule | 指令安全與攔截 Hooks |
-| **美學/UX** | [Taste Engine](https://github.com/Leonxlnx/taste-skill) | Git Submodule | 設計樣式與視覺引導 |
-| **基因優化** | [Evolver](https://github.com/EvoMap/evolver) | Git Submodule | 失敗模式與 Prompt 演化 |
-| **提示微調** | [Darwin](https://github.com/alchaincyf/darwin-skill) | Bridge (橋接) | Prompt 變異優化 |
-| **辯證分析** | [Qiushi](https://github.com/HughYau/qiushi-skill) | Bridge (橋接) | 重構前後對照分析 |
-| **除錯實踐** | [Best Practices](https://github.com/DenisSergeevitch/agents-best-practices) | Bridge (橋接) | 系統化除錯引導 |
-| **圖譜導航** | [Graphify](https://github.com/safishamsi/graphify) | Bridge (橋接) | AST 本地圖譜分析 |
-| **循環工程** | [Loopy](https://github.com/Forward-Future/loopy) | Bridge (橋接) | 工作流閉環控制 |
-| **環境治理** | [C.A.S.E.](https://github.com/Chiakai-Chang/Local-Agent-Workspace/tree/main/C.A.S.E._Framework) | Bridge (橋接) | C.A.S.E. 任務管束協定 |
+| 領域 | 來源倉庫 | 導入方式 | 核心功能 | 適用模式 |
+| :--- | :--- | :--- | :--- | :---: |
+| **工程紀律** | [ECC](https://github.com/affaan-m/ECC) | Git Submodule | 安全審查與品質門檻 | 兩者皆有 (部分) |
+| **工作流** | [Planning-with-Files](https://github.com/OthmanAdi/planning-with-files) | Git Submodule | 任務規劃與狀態快照 | Standard 專用 |
+| **專案知識** | [LLM Wiki](https://github.com/praneybehl/llm-wiki-plugin) | Git Submodule | 知識庫沉澱與鏈接文件 | Standard 專用 |
+| **方法論** | [Superpowers](https://github.com/obra/superpowers) | Git Submodule | TDD 方法論與微步提交 | Standard 專用 |
+| **資源防禦** | [Caveman](https://github.com/JuliusBrussee/caveman) | Git Submodule | Token 壓縮防禦 | 兩者皆有 (部分) |
+| **行為準則** | [Karpathy](https://github.com/forrestchang/andrej-karpathy-skills) | Git Submodule | LLM 寫入防護指引 | Standard 專用 |
+| **提示工程** | [Prompt Master](https://github.com/nidhinjs/prompt-master) | Git Submodule | 提示詞優化範本 | Standard 專用 |
+| **安全治理** | [YES.md](https://github.com/sstklen/yes.md) | Git Submodule | 指令安全與攔截 Hooks | Standard 專用 |
+| **美學/UX** | [Taste Engine](https://github.com/Leonxlnx/taste-skill) | Git Submodule | 設計樣式與視覺引導 | Standard 專用 |
+| **基因優化** | [Evolver](https://github.com/EvoMap/evolver) | Git Submodule | 失敗模式與 Prompt 演化 | Standard 專用 |
+| **提示微調** | [Darwin](https://github.com/alchaincyf/darwin-skill) | Bridge (橋接) | Prompt 變異優化 | Standard 專用 |
+| **辯證分析** | [Qiushi](https://github.com/HughYau/qiushi-skill) | Bridge (橋接) | 重構前後對照分析 | Standard 專用 |
+| **除錯實踐** | [Best Practices](https://github.com/DenisSergeevitch/agents-best-practices) | Bridge (橋接) | 系統化除錯引導 | Standard 專用 |
+| **圖譜導航** | [Graphify](https://github.com/safishamsi/graphify) | Bridge (橋接) | AST 本地圖譜分析 | Standard 專用 |
+| **循環工程** | [Loopy](https://github.com/Forward-Future/loopy) | Bridge (橋接) | 工作流閉環控制 | Standard 專用 |
+| **環境治理** | [C.A.S.E.](https://github.com/Chiakai-Chang/Local-Agent-Workspace/tree/main/C.A.S.E._Framework) | Bridge (橋接) | C.A.S.E. 任務管束協定 | Standard 專用 |
 
 ---
 
