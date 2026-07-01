@@ -1,0 +1,13 @@
+{
+  "name": "best-practices-bridge",
+  "description": "Bridge extension for Agent Harness Best Practices (Standard Alignment).",
+  "version": "1.0.0",
+  "author": "CK's Pi Harness",
+  "skills": [
+    {
+      "name": "harness-best-practices",
+      "description": "Verify and align agent execution flow against production-grade harness standards.",
+      "location": "external/agents-best-practices/SKILL.md"
+    }
+  ]
+}

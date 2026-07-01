@@ -1,0 +1,9 @@
+{
+  "name": "best-practices-bridge",
+  "version": "1.0.0",
+  "description": "Bridge extension for Agent Harness Best Practices.",
+  "main": "index.js",
+  "pi-harness": {
+    "root": ""
+  }
+}
