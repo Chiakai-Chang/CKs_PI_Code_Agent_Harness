@@ -92,6 +92,31 @@
 
 ---
 
+## 🧠 脈絡復盤與防誤區指南 (Lessons Learned & Anti-Patterns)
+
+專案在發展過程中曾經歷多次「非實證性設計」與「虛浮配置」的痛點。為了貫徹自我進化精神，以下記錄核心復盤脈絡，未來之 AI 代理與開發者必須嚴格遵守：
+
+### 1. 拒絕「過度宣稱與吹牛」 (Anti-Bragging)
+*   **歷史痛點**：過去的文檔曾出現「整合 GitHub 15+ 個頂尖開源倉庫」、「大師級資產」等無嚴謹實證的浮誇論述。這不僅對開發者無實質助益，更降低了開源專案的誠信度。
+*   **進化規則**：所有文檔必須直白、論述客觀。我們只說明**「選集原因」**（Why we chose it）與**「遷移做法」**（How we migrated it）。專案為實驗性質，不保證一定比原生好，只保證「盡量選集、實事求是」。
+
+### 2. 拒絕「空殼配置」 (No Passive/Zombie Configs)
+*   **歷史痛點**：在遷移過程中，為了應付配置模板，曾在 `settings.json` 中塞入許多「尚未實現或完全是空殼」的 TypeScript Extensions（如 `open-design-bridge`、`open-pua-bridge`）。這導致 `pi` 啟動時拋出無謂的載入警告，對系統穩定性造成隱患。
+*   **進化規則**：**嚴禁註冊空殼 Extension**。如果該模組僅有 Skills（純 Markdown 提示詞）而無實質的 TypeScript Hook 邏輯，應將其從 `settings.json` 的 `extensions` 列表中移除，直接將 Skills 目錄映射至 Pi 的 `skills` 中載入即可。每行註冊的配置都必須是「有代碼、有實質功用、經過測試」的。
+
+### 3. 避免「硬編碼跨平台衝突」 (Platform-Agnostic Defaults)
+*   **歷史痛點**：在共享的配置模板 `pi-config/settings.json` 中寫死了 Windows 特有的 Shell 路徑（`C:\\Program Files\\Git\\bin\\bash.exe`），導致 macOS / Linux 使用者複製專案後啟動即崩潰。
+*   **進化規則**：共享配置文件必須保持**平台無關性**。任何 OS-specific 的配置（如 Shell、路徑、環境變數）必須在運行期由 `setup.py` 動態偵測並寫入使用者的本地 `.pi/settings.json` 中，絕不應編碼進受版本控制的模板檔中。
+
+### 4. 嚴格執行「功能性審計」而非「文檔糊弄」 (Verify over Documenting)
+*   **歷史痛點**：當被質疑功能是否可用時，代碼代理人容易「僅修改 README 敷衍」，而忽略了代碼底層的真實狀態。
+*   **進化規則**：在宣稱任何功能（如 Hooks / 雙軌驗證）可用之前，必須撰寫獨立的腳本或直接審計全域安裝包（如 `node_modules/@earendil-works/pi-coding-agent` 的 `loader` 與 `runner`）來確認其支援的 Event API（例如 `before_agent_start`, `tool_call` 等）與虛擬別名機制（如虛擬映射 `@mariozechner/pi-coding-agent` 的別名），確保功能是真的「開箱即用」。
+
+### 5. 脈絡的可追溯性 (Canonical Links)
+*   **進化規則**：所有客製化的框架與理念（如 C.A.S.E. 框架），其跳轉連結必須指向精準、權威且擁有者持有的 Canonical URL（例如指向 [Chiakai-Chang/Local-Agent-Workspace](https://github.com/Chiakai-Chang/Local-Agent-Workspace/tree/main/C.A.S.E._Framework)），絕不能使用模糊的搜尋結果或第三方無關 Repo 連結。
+
+---
+
 ## 實戰心得：研究與分發的平衡
 *   **開發者研究用**：可以在本地隨意調整參數進行極限測試。
 *   **分發給他人用**：必須提供 `.example` 配置，並在 `setup.py` 中實作「硬體感知偵測」。
