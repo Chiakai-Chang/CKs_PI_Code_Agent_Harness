@@ -1,4 +1,4 @@
-# PRD: Flagship Setup & Configuration System v3.7.2
+# PRD: Flagship Setup & Configuration System
 
 ## 1. 核心願景 (Core Vision)
 建立一個具備「工業級穩定性」與「智慧自適應能力」的一鍵式環境恢復系統。

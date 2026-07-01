@@ -1,4 +1,4 @@
-# SAD: Setup v3.7.2 Architecture & Domains
+# SAD: Setup Architecture & Domains
 
 ## 1. 領域模型 (Domain Model - DDD)
 
