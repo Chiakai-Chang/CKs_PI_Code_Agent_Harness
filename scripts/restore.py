@@ -216,8 +216,15 @@ def main():
         profile_skills.append(os.path.join(ext_root, "darwin-skill").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "qiushi-skill", "skills").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "agents-best-practices").replace("\\", "/"))
-        profile_skills.append(os.path.join(ext_root, "SkillClaw", "evolve_server", "engines").replace("\\", "/"))
-        profile_skills.append(os.path.join(ext_root, "graphify", "graphify").replace("\\", "/"))
+        profile_skills.append(os.path.join(pi_skills_root, "skillclaw").replace("\\", "/"))
+        profile_skills.append(os.path.join(pi_skills_root, "graphify").replace("\\", "/"))
+        profile_skills.append(os.path.join(pi_skills_root, "pip-guardian").replace("\\", "/"))
+        profile_skills.append(os.path.join(pi_skills_root, "pm-dispatcher").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "aixbdd", ".agents", "skills").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "openpua", "skills").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "oh-my-claudecode", "skills").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "evolver").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "yes.md", "skills").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "loopy", "skills").replace("\\", "/"))
         ui_root = os.path.join(ext_root, "ui-ux-pro-max-skill", ".claude", "skills")
         for name in ["ui-ux-pro-max", "ui-styling"]:
@@ -228,16 +235,6 @@ def main():
         profile_extensions.append(os.path.join(pi_extensions_root, "planning-with-files-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "case-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "taste-bridge").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "darwin-bridge").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "qiushi-bridge").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "best-practices-bridge").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "skillclaw-bridge").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "graphify-bridge").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "loopy-bridge").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "pip-guardian").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "governance-bridge").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "evolution-bridge").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "aixbdd-bridge").replace("\\", "/"))
 
     # Full profile
     elif profile == "full":
@@ -265,8 +262,15 @@ def main():
         profile_skills.append(os.path.join(ext_root, "darwin-skill").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "qiushi-skill", "skills").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "agents-best-practices").replace("\\", "/"))
-        profile_skills.append(os.path.join(ext_root, "SkillClaw", "evolve_server", "engines").replace("\\", "/"))
-        profile_skills.append(os.path.join(ext_root, "graphify", "graphify").replace("\\", "/"))
+        profile_skills.append(os.path.join(pi_skills_root, "skillclaw").replace("\\", "/"))
+        profile_skills.append(os.path.join(pi_skills_root, "graphify").replace("\\", "/"))
+        profile_skills.append(os.path.join(pi_skills_root, "pip-guardian").replace("\\", "/"))
+        profile_skills.append(os.path.join(pi_skills_root, "pm-dispatcher").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "aixbdd", ".agents", "skills").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "openpua", "skills").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "oh-my-claudecode", "skills").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "evolver").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "yes.md", "skills").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "loopy", "skills").replace("\\", "/"))
 
         # UI/UX Pro Max
@@ -311,19 +315,6 @@ def main():
         profile_extensions.append(os.path.join(pi_extensions_root, "planning-with-files-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "case-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "taste-bridge").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "darwin-bridge").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "qiushi-bridge").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "best-practices-bridge").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "skillclaw-bridge").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "graphify-bridge").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "loopy-bridge").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "pip-guardian").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "governance-bridge").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "evolution-bridge").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "aixbdd-bridge").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "omc-bridge").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "addyosmani-bridge").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "pm-skills-bridge").replace("\\", "/"))
 
     # 3. Filter existing settings to keep user's custom skills/extensions not managed by Harness
     existing_skills = settings.get("skills", [])
@@ -423,7 +414,7 @@ def main():
         copy_dir_contents(ext_src, ext_dst)
         
         # Patch bridges with absolute path for global robustness
-        for bridge in ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "darwin-bridge", "qiushi-bridge", "best-practices-bridge", "skillclaw-bridge", "graphify-bridge", "loopy-bridge"]:
+        for bridge in ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge"]:
             pkg_path = os.path.join(ext_dst, bridge, "package.json")
             if os.path.exists(pkg_path):
                 pkg = load_json(pkg_path)
