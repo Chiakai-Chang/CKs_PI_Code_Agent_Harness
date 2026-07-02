@@ -17,3 +17,4 @@ Before planning any optimizations, refactoring, or modifications to this reposit
 * **No Marketing/Hyperbole**: Do not use boasting words like "master-class", "revolutionary", or "15+ top repos". Speak plain, objective engineering truths.
 * **No Zombie Configs**: Never register mock or empty extension files in `settings.json`. Every registered item must be active and tested.
 * **No OS-Specific Hardcoding**: Do not put machine-specific paths (e.g. `C:\Program Files\Git...`) inside shared template configuration files. Use `setup.py` for runtime injection.
+* **Shell & Execution**: Pi Coding Agent executes commands natively using `bash` (even on Windows). Ensure all harness configurations, scripts, and commands are strictly compatible with bash syntax rather than CMD/PowerShell.

@@ -10,3 +10,4 @@ Whenever initialized, you must immediately read:
 - **Config Hygiene**: Do not register empty/placeholder TypeScript extensions in `settings.json` templates.
 - **Cross-Platform Safety**: Windows paths (e.g. `C:\...`) must never be hardcoded in files under `pi-config/`. Instead, implement dynamic setup logic in `scripts/setup.py` and run it during install.
 - **C.A.S.E. Alignment**: Align extensions design with the C.A.S.E. Framework repository principles.
+- **Shell & Execution**: Pi Coding Agent executes commands natively using `bash` (even on Windows). Ensure all harness configurations, scripts, and commands are strictly compatible with bash syntax rather than CMD/PowerShell.
