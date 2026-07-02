@@ -25,21 +25,6 @@ cd CKs_PI_Code_Agent_Harness
     *   📦 **載入項目**：包含本專案整合之**所有 16 個外部子模組**與所有本地擴充（TDD 方法論、Wiki 知識庫、AST 圖譜導航等）。
 ---
 
-## 🤖 開發協作規約 (Developer Rules for AI Agents)
-
-> [!IMPORTANT]
-> **定位釐清**：本 Harness 的整合與配置目標依舊是、且僅是為 **Pi Coding Agent (pi-mono)** 提供增強與子模組注入。
-> 為了讓開發者在**維護與二次開發本倉庫**時，能使用自己喜好的 AI 輔助工具（如 Claude Code、Gemini CLI/Antigravity、Cursor、Windsurf、Aider）來修改程式碼，我們在根目錄提供了對應各工具的**開發引導規範 (Developer Guides)**。這能約束正在編輯此代碼的 AI 助手，使其嚴格遵循子模組防干擾原則與無誇大紀律。
-
-各輔助工具對應的引導規範：
-*   **Claude Code** ➜ 讀取 `CLAUDE.md` (開發命令與防呆規範)
-*   **Gemini CLI (Antigravity)** ➜ 讀取 `GEMINI.md` (Antigravity 執行指引)
-*   **Cursor** ➜ 讀取 `.cursorrules`
-*   **Windsurf** ➜ 讀取 `.windsurfrules`
-*   **Aider** ➜ 讀取 `.aider.instructions.md`
-
----
-
 ## 🛠️ 核心功能
 
 本專案將 AI 增強功能分為三大維度，兼顧開發效率與系統安全性：
