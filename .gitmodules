@@ -46,3 +46,6 @@
 [submodule "external/loopy"]
 	path = external/loopy
 	url = https://github.com/Forward-Future/loopy.git
+[submodule "external/mece-autopilot"]
+	path = external/mece-autopilot
+	url = https://github.com/Chiakai-Chang/MECE-Autopilot.git

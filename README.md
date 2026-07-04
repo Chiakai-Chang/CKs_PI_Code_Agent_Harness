@@ -5,6 +5,12 @@
 
 ---
 
+### 🛡️ 開源信任保證 (Trust & License)
+*   **100% 乾淨透明**：無任何封閉二進位檔案，所有配置與腳本完全公開。
+*   **MIT 授權許可**：本專案採用 MIT 授權，保障使用者之使用、修改與散布權益。
+
+---
+
 ## 🚀 快速上手 (Quick Start)
 
 ### 1. 取得專案
@@ -22,7 +28,7 @@ cd CKs_PI_Code_Agent_Harness
 *   **`minimal`** (極簡核心)：適合對對話 Token 敏感的輕量開發。
     *   📦 **僅載入**：`Core 核心`（含 `hello-reflect` 自我演進）、`Caveman`（極簡對話防護）、`ECC`（通用工程實踐）。
 *   **`standard`** (預設標準版)：適合日常通用軟體開發。
-    *   📦 **載入項目**：包含本專案整合之**所有 16 個外部子模組**與所有本地擴充（TDD 方法論、Wiki 知識庫、AST 圖譜導航等）。
+    *   📦 **載入項目**：包含本專案整合之**所有 17 個外部子模組**與所有本地擴充（TDD 方法論、Wiki 知識庫、AST 圖譜導航等）。
 ---
 
 ## 🛠️ 核心功能
@@ -37,7 +43,7 @@ cd CKs_PI_Code_Agent_Harness
 ### 2. 🧠 工作流與上下文優化
 *   **任務管束 (C.A.S.E.)**：利用「憲法-架構-狀態-執行」檔案協定，為 AI 劃定清晰的任務邊界。
 *   **任務套疊 (CASE & PWF)**：解決並行開發時注意力污染的問題，將任務上下文獨立隔離。
-*   **海馬迴進化 (hello-reflect)**：自動從對話中提煉新知識並寫入規範檔案（如 `CLAUDE.md`、`GEMINI.md`、`.cursorrules` 等），實現規則自演進。
+*   **海馬迴進化 (hello-reflect)**：自動從對話中提煉新知識並寫入規範檔案（如 `CLAUDE.md`、`.agents/AGENTS.md`、`.cursorrules` 等），實現規則自演進。
 *   **Token 節約 (Caveman)**：對上下文進行無損語意壓縮，大幅延長長對話的 Token 生命期。
 
 ### 3. 🔍 本地化工具
@@ -69,6 +75,7 @@ cd CKs_PI_Code_Agent_Harness
 | **圖譜導航** | [Graphify](https://github.com/safishamsi/graphify) | Bridge (橋接) | AST 本地圖譜分析 | ❌ | ✅ |
 | **循環工程** | [Loopy](https://github.com/Forward-Future/loopy) | Bridge (橋接) | 工作流閉環控制 | ❌ | ✅ |
 | **環境治理** | [C.A.S.E.](https://github.com/Chiakai-Chang/Local-Agent-Workspace/tree/main/C.A.S.E._Framework) | Bridge (橋接) | C.A.S.E. 任務管束協定 | ❌ | ✅ |
+| **多維推理** | [MECE-Autopilot](https://github.com/Chiakai-Chang/MECE-Autopilot) | Bridge (橋接) | 互斥窮盡多角色辯論與收斂 | ❌ | ✅ |
 | **記憶進化** | [claude-reflect](https://github.com/BayramAnnakov/claude-reflect) | 本地移植 (蒸餾) | 專案規則檔案自演進 | ✅ | ✅ |
 
 ---

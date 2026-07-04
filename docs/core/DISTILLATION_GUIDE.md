@@ -115,6 +115,22 @@
 ### 5. 脈絡的可追溯性 (Canonical Links)
 *   **進化規則**：所有客製化的框架與理念（如 C.A.S.E. 框架），其跳轉連結必須指向精準、權威且擁有者持有的 Canonical URL（例如指向 [Chiakai-Chang/Local-Agent-Workspace](https://github.com/Chiakai-Chang/Local-Agent-Workspace/tree/main/C.A.S.E._Framework)），絕不能使用模糊的搜尋結果或第三方無關 Repo 連結。
 
+### 6. 子模組與橋接代碼的徹底清理 (Dead Bridge Purging)
+*   **歷史痛點**：在對專案 submodule 進行修剪與刪除時，若只刪除了外部子模組，而未清理其在本地的橋接程式碼（如 `understand-framework`、`*-bridge`）與 `restore.py` 的路徑註冊，會導致新環境還原時拋出錯誤甚至啟動崩潰。
+*   **進化規則**：每次移除 Submodule 後，必須立刻在 [scripts/restore.py](file:///D:/Myproject/CKs_PI_Code_Agent_Harness/scripts/restore.py) 的註冊列表、`pi-extensions/` 橋接器與對應的架構文檔中進行「全鍊條清理」。
+
+### 7. 設計與測試的版本解耦 (Version-Agnostic File Naming)
+*   **歷史痛點**：設計規格（如 `specs/harness-setup-v3.7.2`）與測試套件（如 `tests/test_v372_setup.py`）如果帶有寫死的具體版本號，會導致工具迭代時，文檔命名與實際代碼進度發生漂移，徒增維護負擔。
+*   **進化規則**：文檔與測試檔案應使用**版本無關**的通用命名（如 [specs/harness-setup/](file:///D:/Myproject/CKs_PI_Code_Agent_Harness/specs/harness-setup/) 與 [tests/test_setup.py](file:///D:/Myproject/CKs_PI_Code_Agent_Harness/tests/test_setup.py)），並將具體版本作為文檔內部的元數據管理。
+
+### 8. 多供應商模型引導的智慧解耦 (Smart Multi-Provider Model Wizard)
+*   **歷史痛點**：原本的 setup 腳本只支援本地 LLM 偵測，若無本地執行中的 Ollama/Llama.cpp 則直接跳過模型配置，這限制了採用雲端 API 的開發者。
+*   **進化規則**：模型配置嚮導必須涵蓋本地（如動態查詢 Ollama 標籤）與雲端供應商（Anthropic, Google, OpenAI, OpenRouter, 自訂端點）的互動式引導。若設定非本地模型，需自動清除 settings.json 中的 `apiBase` 配置，防止 AI 行為混淆。
+
+### 9. 啟動腳本與 Onboarding 合規性 (Bootstrap Script Compliance)
+*   **歷史痛點**：初始化腳本（`install.bat` / `install.sh`）若過於簡化，容易因缺乏授權聲明、確認提示與進度標記，而無法通過專案合規測試。
+*   **進化規則**：確保所有引導腳本均包含明確的步驟進度提示、開源 MIT 授權聲明，以及使用者二次確認機制。
+
 ---
 
 ## 實戰心得：研究與分發的平衡

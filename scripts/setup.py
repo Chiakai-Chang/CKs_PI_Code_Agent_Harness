@@ -261,40 +261,152 @@ def main():
         else: run_stream("npm install -g @mariozechner/pi-coding-agent")
 
     if mode in ["full", "model"]:
-        models = detect_llm_services()
-        if not models:
-            print("[-] 未偵測到運行中的本地 LLM。將跳過模型配置。")
-        else:
-            print("\n發現以下模型:")
-            for i, (p, m) in enumerate(models, 1): print(f"  [{i}] {m} ({p})")
-            idx = int(input("請選擇模型編號 (0 跳過): ") or 0)
-            if idx > 0:
-                api_base, model_id = models[idx-1]
-                hw = get_hardware_info()
-                rec_ctx, rec_max_t, is_reasoning, found_truth = get_recommended_specs(model_id, hw, api_base=api_base, provider="ollama" if "11434" in api_base else "custom")
-                
-                print(f"\n  [硬體] RAM: {hw['ram'] or '??'}GB | VRAM: {hw['vram'] or '??'}GB")
-                print(f"  [實測] {model_id}{' (API 實測值)' if found_truth else ''}")
-                
-                u_ctx = input(f"  1. Context Window [{rec_ctx}]: ").strip()
-                final_ctx = int(u_ctx) if u_ctx else rec_ctx
-                u_max = input(f"  2. Max Tokens     [{rec_max_t}]: ").strip()
-                final_max = int(u_max) if u_max else rec_max_t
-                u_res = input(f"  3. Enable Reasoning [Y/n]: ").strip().lower()
-                final_res = is_reasoning if u_res == "" else (u_res == "y")
+        local_models = detect_llm_services()
+        print("\n請選擇模型提供商 (Model Provider):")
+        print("  [1] 偵測到的本地 LLM (如 Ollama / llama.cpp)")
+        print("  [2] Anthropic (Claude 雲端服務)")
+        print("  [3] Google (Gemini 雲端服務)")
+        print("  [4] OpenAI (ChatGPT 雲端服務)")
+        print("  [5] OpenRouter (聚合雲端服務)")
+        print("  [6] 自訂 OpenAI 相容伺服器 (如 DeepSeek, LM Studio, vLLM)")
+        print("  [0] 暫不設定 / 保留目前設定")
+        
+        provider_choice = input("請輸入提供商編號 [0]: ").strip() or "0"
+        
+        if provider_choice == "1":
+            if not local_models:
+                print("[-] 未偵測到本地 LLM (No LLM detected)。請手動輸入本地 API Base (如 http://127.0.0.1:11434):")
+                api_base = input("API Base URL: ").strip()
+                if api_base:
+                    model_id = input("請輸入本地 Model ID: ").strip()
+                    if model_id:
+                        local_models = [(api_base, model_id)]
+            
+            if local_models:
+                print("\n發現以下本地模型:")
+                for i, (p, m) in enumerate(local_models, 1): print(f"  [{i}] {m} ({p})")
+                idx = int(input("請選擇模型編號 (0 跳過): ") or 0)
+                if 0 < idx <= len(local_models):
+                    api_base, model_id = local_models[idx-1]
+                    hw = get_hardware_info()
+                    rec_ctx, rec_max_t, is_reasoning, found_truth = get_recommended_specs(model_id, hw, api_base=api_base, provider="ollama" if "11434" in api_base else "custom")
+                    
+                    print(f"\n  [硬體] RAM: {hw['ram'] or '??'}GB | VRAM: {hw['vram'] or '??'}GB")
+                    print(f"  [實測] {model_id}{' (API 實測值)' if found_truth else ''}")
+                    
+                    u_ctx = input(f"  1. Context Window [{rec_ctx}]: ").strip()
+                    final_ctx = int(u_ctx) if u_ctx else rec_ctx
+                    u_max = input(f"  2. Max Tokens     [{rec_max_t}]: ").strip()
+                    final_max = int(u_max) if u_max else rec_max_t
+                    u_res = input(f"  3. Enable Reasoning [Y/n]: ").strip().lower()
+                    final_res = is_reasoning if u_res == "" else (u_res == "y")
 
-                # Update Settings
+                    # Update Settings
+                    settings = load_json(SETTINGS_PATH)
+                    settings["defaultModel"] = model_id
+                    settings["defaultProvider"] = "ollama" if "11434" in api_base else "local-server"
+                    if "11434" not in api_base: settings["apiBase"] = api_base
+                    elif "apiBase" in settings: del settings["apiBase"]
+                    save_json(SETTINGS_PATH, settings)
+
+                    # Update Models JSON
+                    prov_id = settings["defaultProvider"]
+                    m_json = {"providers": {prov_id: {"baseUrl": api_base if prov_id != "ollama" else "http://127.0.0.1:11434", "api": "openai-completions", "apiKey": "local", "authHeader": True, "models": [{"id": model_id, "name": f"Local: {model_id}", "reasoning": final_res, "contextWindow": final_ctx, "maxTokens": final_max, "input": ["text"]}]}}}
+                    save_json(os.path.join(PI_CONFIG_DIR, "models.json"), m_json)
+                    print("✅ 已同步本地模型配置。")
+            else:
+                print("[-] 跳過本地模型配置。")
+
+        elif provider_choice == "2":
+            print("\n常見 Anthropic 模型:")
+            print("  [1] claude-3-5-sonnet-latest (預設推薦)")
+            print("  [2] claude-3-5-haiku-latest")
+            print("  [3] claude-3-opus-latest")
+            print("  [4] 自訂輸入")
+            m_choice = input("請選擇模型 [1]: ").strip() or "1"
+            if m_choice == "1": model_id = "claude-3-5-sonnet-latest"
+            elif m_choice == "2": model_id = "claude-3-5-haiku-latest"
+            elif m_choice == "3": model_id = "claude-3-opus-latest"
+            else: model_id = input("請輸入 Model ID: ").strip()
+            
+            if model_id:
                 settings = load_json(SETTINGS_PATH)
                 settings["defaultModel"] = model_id
-                settings["defaultProvider"] = "ollama" if "11434" in api_base else "local-server"
-                if "11434" not in api_base: settings["apiBase"] = api_base
+                settings["defaultProvider"] = "anthropic"
+                if "apiBase" in settings: del settings["apiBase"]
                 save_json(SETTINGS_PATH, settings)
+                print(f"✅ 已設定預設模型為: {model_id} (Provider: anthropic)")
+                print("⚠️  請記得在系統環境變數中設定 ANTHROPIC_API_KEY。")
 
-                # Update Models JSON
-                prov_id = settings["defaultProvider"]
-                m_json = {"providers": {prov_id: {"baseUrl": api_base if prov_id != "ollama" else "http://127.0.0.1:11434", "api": "openai-completions", "apiKey": "local", "authHeader": True, "models": [{"id": model_id, "name": f"Local: {model_id}", "reasoning": final_res, "contextWindow": final_ctx, "maxTokens": final_max, "input": ["text"]}]}}}
+        elif provider_choice == "3":
+            print("\n常見 Google Gemini 模型:")
+            print("  [1] gemini-2.0-flash (預設推薦)")
+            print("  [2] gemini-2.0-pro-exp-02-05")
+            print("  [3] gemini-1.5-pro")
+            print("  [4] 自訂輸入")
+            m_choice = input("請選擇模型 [1]: ").strip() or "1"
+            if m_choice == "1": model_id = "gemini-2.0-flash"
+            elif m_choice == "2": model_id = "gemini-2.0-pro-exp-02-05"
+            elif m_choice == "3": model_id = "gemini-1.5-pro"
+            else: model_id = input("請輸入 Model ID: ").strip()
+            
+            if model_id:
+                settings = load_json(SETTINGS_PATH)
+                settings["defaultModel"] = model_id
+                settings["defaultProvider"] = "google"
+                if "apiBase" in settings: del settings["apiBase"]
+                save_json(SETTINGS_PATH, settings)
+                print(f"✅ 已設定預設模型為: {model_id} (Provider: google)")
+                print("⚠️  請記得在系統環境變數中設定 GEMINI_API_KEY。")
+
+        elif provider_choice == "4":
+            print("\n常見 OpenAI 模型:")
+            print("  [1] gpt-4o (預設推薦)")
+            print("  [2] gpt-4o-mini")
+            print("  [3] o1-mini")
+            print("  [4] 自訂輸入")
+            m_choice = input("請選擇模型 [1]: ").strip() or "1"
+            if m_choice == "1": model_id = "gpt-4o"
+            elif m_choice == "2": model_id = "gpt-4o-mini"
+            elif m_choice == "3": model_id = "o1-mini"
+            else: model_id = input("請輸入 Model ID: ").strip()
+            
+            if model_id:
+                settings = load_json(SETTINGS_PATH)
+                settings["defaultModel"] = model_id
+                settings["defaultProvider"] = "openai"
+                if "apiBase" in settings: del settings["apiBase"]
+                save_json(SETTINGS_PATH, settings)
+                print(f"✅ 已設定預設模型為: {model_id} (Provider: openai)")
+                print("⚠️  請記得在系統環境變數中設定 OPENAI_API_KEY。")
+
+        elif provider_choice == "5":
+            model_id = input("請輸入 OpenRouter Model ID (如 anthropic/claude-3.5-sonnet): ").strip()
+            if model_id:
+                settings = load_json(SETTINGS_PATH)
+                settings["defaultModel"] = model_id
+                settings["defaultProvider"] = "openrouter"
+                if "apiBase" in settings: del settings["apiBase"]
+                save_json(SETTINGS_PATH, settings)
+                print(f"✅ 已設定預設模型為: {model_id} (Provider: openrouter)")
+                print("⚠️  請記得在系統環境變數中設定 OPENROUTER_API_KEY。")
+
+        elif provider_choice == "6":
+            api_base = input("請輸入相容 API 的 Base URL (如 https://api.deepseek.com/v1): ").strip()
+            model_id = input("請輸入 Model ID (如 deepseek-chat): ").strip()
+            api_key = input("請輸入 API Key (或者留空改以環境變數帶入): ").strip()
+            
+            if api_base and model_id:
+                settings = load_json(SETTINGS_PATH)
+                settings["defaultModel"] = model_id
+                settings["defaultProvider"] = "custom-openai"
+                if "apiBase" in settings: del settings["apiBase"]
+                save_json(SETTINGS_PATH, settings)
+                
+                # Write to models.json for custom provider
+                m_json = {"providers": {"custom-openai": {"baseUrl": api_base, "api": "openai-completions", "apiKey": api_key or "YOUR_API_KEY", "authHeader": True, "models": [{"id": model_id, "name": f"Custom: {model_id}", "contextWindow": 32768, "maxTokens": 4096, "input": ["text"]}]}}}
                 save_json(os.path.join(PI_CONFIG_DIR, "models.json"), m_json)
-                print("✅ 已同步本地模型配置。")
+                print(f"✅ 已設定自訂 OpenAI 相容服務為預設。")
 
     profile = "standard"
     if mode in ["full", "restore"]:

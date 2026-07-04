@@ -220,12 +220,14 @@ def main():
         profile_skills.append(os.path.join(ext_root, "evolver").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "yes.md", "skills").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "loopy", "skills").replace("\\", "/"))
+        profile_skills.append(os.path.join(ext_root, "mece-autopilot", "skills", "mece-autopilot").replace("\\", "/"))
 
         # Extensions
         profile_extensions.append(os.path.join(pi_extensions_root, "ecc-hooks-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "planning-with-files-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "case-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "taste-bridge").replace("\\", "/"))
+        profile_extensions.append(os.path.join(pi_extensions_root, "mece-autopilot-bridge").replace("\\", "/"))
 
 
 
@@ -290,7 +292,7 @@ def main():
     optional_src = os.path.join(REPO_ROOT, "pi-skills", "optional")
     restore_optional = True
 
-    if os.path.isdir(optional_src) and sys.stdin.isatty() and profile == "full":
+    if os.path.isdir(optional_src) and sys.stdin.isatty() and profile == "standard":
         print()
         log("This repo includes optional design/creative skills (heavier).")
         log("Examples: design, ui-ux-pro-max, ui-styling, slides, brand, etc.")
@@ -298,11 +300,11 @@ def main():
         if ans in ("n", "no"):
             restore_optional = False
 
-    if restore_optional and os.path.isdir(optional_src) and profile == "full":
+    if restore_optional and os.path.isdir(optional_src) and profile == "standard":
         log("Restoring optional skills...")
         copy_dir_contents(optional_src, skills_dst)
     else:
-        log("Optional skills skipped (or not full profile).")
+        log("Optional skills skipped (or not standard profile).")
 
     # Rules
     log("Restoring rules...")
@@ -327,7 +329,7 @@ def main():
         copy_dir_contents(ext_src, ext_dst)
         
         # Patch bridges with absolute path for global robustness
-        for bridge in ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge"]:
+        for bridge in ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge"]:
             pkg_path = os.path.join(ext_dst, bridge, "package.json")
             if os.path.exists(pkg_path):
                 pkg = load_json(pkg_path)

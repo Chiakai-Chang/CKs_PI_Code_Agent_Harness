@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 #
 # CK's Pi Code Agent Harness - Bootstrapper
+# License: MIT (open-source)
 #
 set -e
 
@@ -10,8 +11,12 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-# --- 2. Self-Elevation (Optional for Unix, usually handled by sudo inside) ---
-# We let setup.py handle specific sudo needs or use it here if preferred.
+# --- 2. Confirmation Prompt ---
+read -p "Continue? (Y/n): " confirm
+if [[ "$confirm" =~ ^[nN]$ ]]; then
+    echo "Aborted."
+    exit 0
+fi
 
 # --- 3. Launch the Brain (setup.py) ---
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

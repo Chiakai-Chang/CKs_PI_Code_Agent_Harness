@@ -1,4 +1,4 @@
-# 🏁 CK's Pi Code Agent Harness: Final Acceptance Scorecard (v3.7)
+# 🏁 CK's Pi Code Agent Harness: Final Acceptance Scorecard
 
 本專案已完成從「散裝工具包」到「工業級 Agent 環境」的完整升級。以下是依據 `DISTILLATION_GUIDE.md` 規範進行的最終驗收評分。
 
