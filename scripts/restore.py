@@ -204,7 +204,6 @@ def main():
     profile_prompts = []
 
     # Local core skills (always loaded)
-    profile_skills.append(os.path.join(pi_skills_root, "core").replace("\\", "/"))
     profile_skills.append(os.path.join(pi_skills_root, "chrome-cdp").replace("\\", "/"))
     profile_skills.append(os.path.join(pi_skills_root, "dev-browser").replace("\\", "/"))
 
