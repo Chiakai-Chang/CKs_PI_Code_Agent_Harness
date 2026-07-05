@@ -100,6 +100,42 @@ def clear_dir(path):
         except Exception as e:
             log(f"Warning: Failed to clear {item}: {e}")
 
+def delete_path(path):
+    """
+    Safely delete a file, directory, symlink or junction.
+    """
+    if not os.path.lexists(path):
+        return
+    
+    def remove_readonly(func, p, excinfo):
+        import stat
+        try:
+            os.chmod(p, stat.S_IWRITE)
+            func(p)
+        except:
+            pass
+
+    try:
+        if os.path.islink(path) or not os.path.isdir(path):
+            try:
+                os.remove(path)
+            except OSError:
+                import stat
+                try:
+                    os.chmod(path, stat.S_IWRITE)
+                    os.remove(path)
+                except:
+                    pass
+        else:
+            try:
+                shutil.rmtree(path, onerror=remove_readonly)
+            except OSError:
+                # Fallback for junctions
+                try: os.remove(path)
+                except: os.rmdir(path)
+    except Exception as e:
+        log(f"Warning: Failed to delete {path}: {e}")
+
 def copy_dir_contents(src, dst):
     ensure_dir(dst)
     for item in os.listdir(src):
@@ -313,8 +349,14 @@ def main():
     log("Restoring core skills...")
     core_src = os.path.join(REPO_ROOT, "pi-skills", "core")
     skills_dst = os.path.join(AGENT_DIR, "skills")
+    
+    # We selectively delete only the skills that are managed by the harness,
+    # rather than wiping the entire directory, to preserve user's own custom skills.
+    managed_skills = ["hello-reflect", "planning-with-files", "camofox", "camofox-stealth", "cua-commander", "nothing-design"]
+    for s_name in managed_skills:
+        delete_path(os.path.join(skills_dst, s_name))
+
     if os.path.isdir(core_src):
-        clear_dir(skills_dst)
         copy_dir_contents(core_src, skills_dst)
     else:
         log("Core skills directory not found, skipping.")
@@ -357,7 +399,10 @@ def main():
     ext_src = os.path.join(REPO_ROOT, "pi-extensions")
     ext_dst = os.path.join(AGENT_DIR, "extensions")
     if os.path.isdir(ext_src):
-        clear_dir(ext_dst)
+        # We selectively delete only the bridges managed by this harness to preserve other extensions.
+        for bridge in ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge"]:
+            delete_path(os.path.join(ext_dst, bridge))
+            
         for ext_path in profile_extensions:
             bridge = os.path.basename(ext_path)
             src_bridge = os.path.join(ext_src, bridge)
