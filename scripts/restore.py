@@ -59,21 +59,44 @@ def clear_dir(path):
         os.makedirs(path, exist_ok=True)
         return
 
+    def remove_readonly(func, p, excinfo):
+        import stat
+        try:
+            os.chmod(p, stat.S_IWRITE)
+            func(p)
+        except:
+            pass
+
     for item in os.listdir(path):
         item_path = os.path.join(path, item)
         try:
             if os.path.islink(item_path):
-                os.remove(item_path)
+                try:
+                    os.remove(item_path)
+                except OSError:
+                    try:
+                        os.chmod(item_path, stat.S_IWRITE)
+                        os.remove(item_path)
+                    except:
+                        pass
             elif os.path.isdir(item_path):
                 # On Windows, junctions are isdir=True but rmtree fails
                 try:
-                    shutil.rmtree(item_path)
+                    shutil.rmtree(item_path, onerror=remove_readonly)
                 except OSError:
                     # Fallback for junctions
                     try: os.remove(item_path)
                     except: os.rmdir(item_path)
             else:
-                os.remove(item_path)
+                try:
+                    os.remove(item_path)
+                except OSError:
+                    import stat
+                    try:
+                        os.chmod(item_path, stat.S_IWRITE)
+                        os.remove(item_path)
+                    except:
+                        pass
         except Exception as e:
             log(f"Warning: Failed to clear {item}: {e}")
 
@@ -240,10 +263,19 @@ def main():
     settings["skills"] = clean_skills
 
     existing_extensions = settings.get("extensions", [])
-    clean_extensions = [p for p in existing_extensions if not p.replace("\\", "/").startswith(REPO_ROOT.replace("\\", "/"))]
-    for e in profile_extensions:
-        if e not in clean_extensions:
-            clean_extensions.append(e)
+    internal_bridge_names = ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge"]
+    clean_extensions = []
+    for p in existing_extensions:
+        p_normalized = p.replace("\\", "/").lower()
+        if p_normalized.startswith(REPO_ROOT.replace("\\", "/").lower()):
+            continue
+        is_internal = False
+        for name in internal_bridge_names:
+            if name in p_normalized:
+                is_internal = True
+                break
+        if not is_internal:
+            clean_extensions.append(p)
     settings["extensions"] = clean_extensions
 
     existing_prompts = settings.get("prompts", [])
@@ -292,10 +324,11 @@ def main():
     optional_src = os.path.join(REPO_ROOT, "pi-skills", "optional")
     restore_optional = True
 
-    if os.path.isdir(optional_src) and sys.stdin.isatty() and profile == "standard":
+    if os.path.isdir(optional_src) and sys.stdin.isatty() and profile == "standard" and not is_auto:
         print()
         log("This repo includes optional design/creative skills (heavier).")
         log("Examples: design, ui-ux-pro-max, ui-styling, slides, brand, etc.")
+        sys.stdout.flush()
         ans = input("[RESTORE] Restore optional skills? (Y/n): ").strip().lower()
         if ans in ("n", "no"):
             restore_optional = False
@@ -326,17 +359,21 @@ def main():
     ext_dst = os.path.join(AGENT_DIR, "extensions")
     if os.path.isdir(ext_src):
         clear_dir(ext_dst)
-        copy_dir_contents(ext_src, ext_dst)
-        
-        # Patch bridges with absolute path for global robustness
-        for bridge in ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge"]:
-            pkg_path = os.path.join(ext_dst, bridge, "package.json")
-            if os.path.exists(pkg_path):
-                pkg = load_json(pkg_path)
-                if "pi-harness" not in pkg: pkg["pi-harness"] = {}
-                pkg["pi-harness"]["root"] = REPO_ROOT.replace("\\", "/")
-                save_json(pkg_path, pkg)
-                log(f"  - {bridge} patched with absolute path")
+        for ext_path in profile_extensions:
+            bridge = os.path.basename(ext_path)
+            src_bridge = os.path.join(ext_src, bridge)
+            dst_bridge = os.path.join(ext_dst, bridge)
+            if os.path.isdir(src_bridge):
+                shutil.copytree(src_bridge, dst_bridge, dirs_exist_ok=True)
+                
+                # Patch bridges with absolute path for global robustness
+                pkg_path = os.path.join(dst_bridge, "package.json")
+                if os.path.exists(pkg_path):
+                    pkg = load_json(pkg_path)
+                    if "pi-harness" not in pkg: pkg["pi-harness"] = {}
+                    pkg["pi-harness"]["root"] = REPO_ROOT.replace("\\", "/")
+                    save_json(pkg_path, pkg)
+                    log(f"  - {bridge} patched with absolute path")
 
     print()
     log("✅ Restore complete.")
