@@ -153,3 +153,25 @@
 - `python -m py_compile scripts/setup.py scripts/restore.py scripts/uninstall.py`
 - `python scripts/setup.py --mode restore --auto` 非互動完成（實際寫入 `~/.pi/agent`）
 - `grep -rn "D:/MyProject\|Myproject" --include="*.md" .`（排除 external/、docs/history、docs/superpowers 歷史計畫）無共享規則檔命中
+
+---
+
+## 執行結果（2026-07-07 完成）
+
+全部 7 個 Task 已完成並各自提交（branch: `fix/harness-audit-fixes`）。驗證：
+
+- 測試 29/29 通過（`python -m unittest discover -s tests`，零依賴）。
+- 沙盒（覆寫 `USERPROFILE`）端到端實測：minimal 還原、`--config-only` 模型切換（defaultModel 生效、殘留 apiBase 移除、技能清單不變）、選擇性 uninstall（使用者自訂 skills/extensions 存活）。
+- install.bat 提權引號/工作目錄修法已用等價 PowerShell 指令在含空格路徑下實測。
+
+### 執行中新發現（計畫外，已一併修復）
+
+| # | 位置 | 問題 | 修法 |
+|---|------|------|------|
+| A10 | setup.py / restore.py / uninstall.py | 在 cp950（繁中 Windows）主控台直接執行時，emoji 輸出觸發 `UnicodeEncodeError` 崩潰（install.bat 的 `chcp 65001` 保護不了 CLAUDE.md 記載的直接執行路徑） | 三個腳本開頭統一 `sys.stdout/stderr.reconfigure(encoding="utf-8", errors="replace")` |
+
+### 觀察項（未動，留待後續決策）
+
+- `docs/history/` 與 `docs/superpowers/plans/` 的歷史文件仍含舊絕對路徑連結——屬歷史紀錄，未清理。
+- `pi-extensions/planning-with-files-bridge` 在 Windows 走 `check-complete.ps1`（Node spawn powershell.exe，不經 bash）。功能正常，但與「嚴格 bash 相容」規則存在張力，可考慮統一走 Git Bash 執行 `.sh`。
+- `setup.py` 的 `"3.6" in mid → ctx=196608` 啟發式命名過於寬鬆（會誤中任何含 3.6 的模型名），現有測試依賴此行為，未動。
