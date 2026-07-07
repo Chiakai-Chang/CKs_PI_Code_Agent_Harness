@@ -485,7 +485,7 @@ def main():
     print()
     log("📌 Next steps:")
     log("  1) Ensure Pi is installed:")
-    log("     - npm install -g @mariozechner/pi-coding-agent")
+    log("     - npm install -g @earendil-works/pi-coding-agent")
     log("  2) Update Pi to latest:")
     log("     - pi update")
     log("  3) Open Pi and confirm:")

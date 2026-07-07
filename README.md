@@ -23,7 +23,16 @@ cd CKs_PI_Code_Agent_Harness
 *   **Windows**: 雙擊或執行 `install.bat`
 *   **macOS / Linux**: 執行 `bash install.sh`
 
-### 3. 模式選擇 (Profiles)
+### 3. 更新與升級 (Update)
+已安裝過的使用者，更新到最新版只需三步（設定與自訂技能都會被保留）：
+```bash
+git pull --recurse-submodules          # 1. 更新 Harness 與子模組
+python scripts/setup.py --mode restore # 2. 重新同步配置（冪等，保留使用者自訂）
+pi update                              # 3. 更新 Pi 本體與擴充套件
+```
+> 啟動時若見到 `[Skill conflicts]` 名稱警告，多為上游命名問題、技能仍正常載入，詳見 [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)。
+
+### 4. 模式選擇 (Profiles)
 安裝時可依需求選擇以下配置模式：
 *   **`minimal`** (極簡核心)：適合對對話 Token 敏感的輕量開發。
     *   📦 **僅載入**：`Core 核心`（含 `hello-reflect` 自我演進）、`Caveman`（極簡對話防護）、`ECC`（通用工程實踐）。

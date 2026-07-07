@@ -284,8 +284,11 @@ def main():
         for cmd in ["git", "npm"]:
             if not has_command(cmd): print(f"❌ 找不到 {cmd}"); sys.exit(1)
         print("✅ 環境核心組件已就緒。")
+        # Fresh installs use the new canonical scope (@mariozechner/* is
+        # deprecated and frozen at 0.73.1). Existing installs migrate via
+        # `pi update`, whose self-update handles the scope rename.
         if has_command("pi"): run_stream("pi update")
-        else: run_stream("npm install -g @mariozechner/pi-coding-agent")
+        else: run_stream("npm install -g @earendil-works/pi-coding-agent")
 
     if mode in ["full", "model"]:
         local_models = detect_llm_services()
@@ -325,7 +328,8 @@ def main():
                     final_ctx = int(u_ctx) if u_ctx else rec_ctx
                     u_max = input(f"  2. Max Tokens     [{rec_max_t}]: ").strip()
                     final_max = int(u_max) if u_max else rec_max_t
-                    u_res = input(f"  3. Enable Reasoning [Y/n]: ").strip().lower()
+                    res_hint = "Y/n" if is_reasoning else "y/N"
+                    u_res = input(f"  3. Enable Reasoning [{res_hint}]: ").strip().lower()
                     final_res = is_reasoning if u_res == "" else (u_res == "y")
 
                     # Update Settings

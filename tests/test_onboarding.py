@@ -109,6 +109,12 @@ class TestSetupScript(unittest.TestCase):
             "setup.py must guide user when no LLM detected",
         )
 
+    def test_setup_py_installs_canonical_pi_scope(self):
+        """Fresh installs must use @earendil-works (old @mariozechner scope is frozen at 0.73.1)."""
+        content = read_file("scripts/setup.py")
+        self.assertIn("npm install -g @earendil-works/pi-coding-agent", content)
+        self.assertNotIn("npm install -g @mariozechner/pi-coding-agent", content)
+
     def test_setup_py_does_not_require_python_on_path(self):
         """The interpreter runs the script; requiring 'python' breaks python3-only systems."""
         content = read_file("scripts/setup.py")
