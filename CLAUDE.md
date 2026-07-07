@@ -1,5 +1,8 @@
 # CK's Pi Code Agent Harness - Developer Guide
 
+## 🌐 Language
+中文回應一律使用臺灣慣用之正體中文（術語對照詳見 [pi-rules/AGENTS.md](pi-rules/AGENTS.md) 第 0 節）；程式碼與 commit 訊息維持英文。
+
 ## 🛠️ Build & Setup Commands
 * Run setup script: `python scripts/setup.py` (Interactive CLI)
 * Restore configurations directly: `python scripts/setup.py --mode restore`
