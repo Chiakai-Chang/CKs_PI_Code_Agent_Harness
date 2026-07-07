@@ -1,6 +1,10 @@
 # Agent Instructions
 
-## 1. Windows + Git Bash Environment Rules (CRITICAL)
+## 0. Language & Locale (中文回應規範)
+When responding in Chinese, ALWAYS use Traditional Chinese with Taiwan-standard terminology (正體中文，臺灣慣用語), never Simplified Chinese. Keep code, commit messages, and identifiers in English as usual.
+*   **字形**：一律使用正體字（繁體），嚴禁簡體字。
+*   **臺灣慣用術語對照**（遇到下列概念時使用左側用語）：檔案（非「文件」，document 才是文件）、程式碼（非「代码」）、軟體（非「软件」）、資料（非「数据」）、網路（非「网络」）、預設（非「默认」）、品質（非「质量」）、物件導向（非「面向对象」）、變數（非「变量」）、迴圈（非「循环」）、函式（非「函数」）、伺服器（非「服务器」）、記憶體（非「内存」）、硬碟（非「硬盘」）、影片（非「视频」）、專案（非「项目」）、支援（非「支持」，除非指精神上的支持）、最佳化（非「优化」）。
+*   **標點**：使用全形標點（，、。；：「」）於中文語句。
 Even though the operating system is Windows (e.g., CWD/paths look like `C:/...` or `D:/...`), the underlying shell for the `bash` tool is configured as **Git Bash (bash.exe)**.
 *   **Path Formatting**: ALWAYS use forward slashes (`/`) for paths when writing commands or referring to files (e.g., `ls src/core` instead of `ls src\core`).
 *   **UNIX Utilities**: ALWAYS use standard UNIX utilities (`ls`, `grep`, `find`, `cp`, `mv`, `rm`, `cat`, `mkdir`, `rmdir`, etc.) in the `bash` tool.
