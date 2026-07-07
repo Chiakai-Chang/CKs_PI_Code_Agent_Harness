@@ -10,6 +10,14 @@ import sys
 import shutil
 from glob import glob
 
+# Console output contains non-ASCII status marks; legacy Windows codepages
+# (e.g. cp950) crash on them when the script is run directly.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 AGENT_DIR = os.path.join(os.path.expanduser("~"), ".pi", "agent")
 
 

@@ -13,6 +13,14 @@ import shutil
 import argparse
 from datetime import datetime
 
+# Console output contains non-ASCII status marks; legacy Windows codepages
+# (e.g. cp950) crash on them when the script is run outside install.bat.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 PI_DIR = os.path.join(os.path.expanduser("~"), ".pi")
 AGENT_DIR = os.path.join(PI_DIR, "agent")

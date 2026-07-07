@@ -18,6 +18,14 @@ import webbrowser
 import argparse
 import re
 
+# Console output contains non-ASCII status marks; legacy Windows codepages
+# (e.g. cp950) crash on them when the script is run outside install.bat.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 # --- Globals & Paths ---
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 PI_CONFIG_DIR = os.path.join(REPO_ROOT, "pi-config")
@@ -27,10 +35,15 @@ AUTO_MODE = False
 
 # --- Core Utility Domain ---
 
-def run(cmd):
-    """Run shell command with triple-encoding fallback for cross-platform robustness."""
+def run(cmd, cwd=None):
+    """Run shell command with triple-encoding fallback for cross-platform robustness.
+
+    Always anchor to REPO_ROOT by default: the script may be launched from an
+    arbitrary cwd (e.g. an elevated console starting in System32), and git
+    operations must run inside the repository.
+    """
     try:
-        r = subprocess.run(cmd, shell=True, capture_output=True, text=False, check=False)
+        r = subprocess.run(cmd, shell=True, capture_output=True, text=False, check=False, cwd=cwd or REPO_ROOT)
         # Try different encodings for Windows (UTF-16 is common for wmic, CP65001 for UTF-8)
         for enc in ['cp65001', 'utf-16', 'utf-8', 'gbk']:
             try:
@@ -43,11 +56,11 @@ def run(cmd):
     except Exception as e:
         return False, "", str(e)
 
-def run_stream(cmd):
-    """Run command and stream output to terminal."""
+def run_stream(cmd, cwd=None):
+    """Run command and stream output to terminal (anchored to REPO_ROOT by default)."""
     print(f"  $ {cmd.strip()}")
     try:
-        proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace')
+        proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding='utf-8', errors='replace', cwd=cwd or REPO_ROOT)
         for line in proc.stdout:
             sys.stdout.write(line)
             sys.stdout.flush()
@@ -66,6 +79,16 @@ def is_admin():
 def has_command(cmd):
     ok, _, _ = run(f"{cmd} --version")
     return ok
+
+def ask(prompt, default=""):
+    """Interactive input that degrades to the default in --auto / non-tty runs."""
+    if AUTO_MODE or not sys.stdin.isatty():
+        print(f"{prompt}{default} (auto)")
+        return default
+    try:
+        return input(prompt).strip()
+    except EOFError:
+        return default
 
 def load_json(path):
     if not os.path.exists(path):
@@ -241,7 +264,9 @@ def main():
     
     global AUTO_MODE
     AUTO_MODE = args.auto
-    mode = args.mode or show_main_menu()
+    mode = args.mode
+    if not mode and (AUTO_MODE or not sys.stdin.isatty()):
+        mode = "restore"  # safe non-interactive default
     while not mode: mode = show_main_menu()
 
     print(f"\n[*] 模式: {mode} | 系統: {platform.system()}")
@@ -254,7 +279,9 @@ def main():
 
     if mode == "full":
         print("🔍 正在檢查核心組件...")
-        for cmd in ["git", "python", "npm"]:
+        # Python is running this script; only external tools need checking.
+        # (Checking "python" breaks macOS/Linux where only "python3" exists.)
+        for cmd in ["git", "npm"]:
             if not has_command(cmd): print(f"❌ 找不到 {cmd}"); sys.exit(1)
         print("✅ 環境核心組件已就緒。")
         if has_command("pi"): run_stream("pi update")
@@ -271,7 +298,7 @@ def main():
         print("  [6] 自訂 OpenAI 相容伺服器 (如 DeepSeek, LM Studio, vLLM)")
         print("  [0] 暫不設定 / 保留目前設定")
         
-        provider_choice = input("請輸入提供商編號 [0]: ").strip() or "0"
+        provider_choice = ask("請輸入提供商編號 [0]: ", "0") or "0"
         
         if provider_choice == "1":
             if not local_models:
@@ -319,15 +346,15 @@ def main():
 
         elif provider_choice == "2":
             print("\n常見 Anthropic 模型:")
-            print("  [1] claude-3-5-sonnet-latest (預設推薦)")
-            print("  [2] claude-3-5-haiku-latest")
-            print("  [3] claude-3-opus-latest")
+            print("  [1] claude-sonnet-4-5 (預設推薦)")
+            print("  [2] claude-haiku-4-5")
+            print("  [3] claude-opus-4-1")
             print("  [4] 自訂輸入")
-            m_choice = input("請選擇模型 [1]: ").strip() or "1"
-            if m_choice == "1": model_id = "claude-3-5-sonnet-latest"
-            elif m_choice == "2": model_id = "claude-3-5-haiku-latest"
-            elif m_choice == "3": model_id = "claude-3-opus-latest"
-            else: model_id = input("請輸入 Model ID: ").strip()
+            m_choice = ask("請選擇模型 [1]: ", "1") or "1"
+            if m_choice == "1": model_id = "claude-sonnet-4-5"
+            elif m_choice == "2": model_id = "claude-haiku-4-5"
+            elif m_choice == "3": model_id = "claude-opus-4-1"
+            else: model_id = ask("請輸入 Model ID: ")
             
             if model_id:
                 settings = load_json(SETTINGS_PATH)
@@ -340,15 +367,13 @@ def main():
 
         elif provider_choice == "3":
             print("\n常見 Google Gemini 模型:")
-            print("  [1] gemini-2.0-flash (預設推薦)")
-            print("  [2] gemini-2.0-pro-exp-02-05")
-            print("  [3] gemini-1.5-pro")
-            print("  [4] 自訂輸入")
-            m_choice = input("請選擇模型 [1]: ").strip() or "1"
-            if m_choice == "1": model_id = "gemini-2.0-flash"
-            elif m_choice == "2": model_id = "gemini-2.0-pro-exp-02-05"
-            elif m_choice == "3": model_id = "gemini-1.5-pro"
-            else: model_id = input("請輸入 Model ID: ").strip()
+            print("  [1] gemini-2.5-flash (預設推薦)")
+            print("  [2] gemini-2.5-pro")
+            print("  [3] 自訂輸入")
+            m_choice = ask("請選擇模型 [1]: ", "1") or "1"
+            if m_choice == "1": model_id = "gemini-2.5-flash"
+            elif m_choice == "2": model_id = "gemini-2.5-pro"
+            else: model_id = ask("請輸入 Model ID: ")
             
             if model_id:
                 settings = load_json(SETTINGS_PATH)
@@ -361,15 +386,15 @@ def main():
 
         elif provider_choice == "4":
             print("\n常見 OpenAI 模型:")
-            print("  [1] gpt-4o (預設推薦)")
-            print("  [2] gpt-4o-mini")
-            print("  [3] o1-mini")
+            print("  [1] gpt-5 (預設推薦)")
+            print("  [2] gpt-5-mini")
+            print("  [3] gpt-4o")
             print("  [4] 自訂輸入")
-            m_choice = input("請選擇模型 [1]: ").strip() or "1"
-            if m_choice == "1": model_id = "gpt-4o"
-            elif m_choice == "2": model_id = "gpt-4o-mini"
-            elif m_choice == "3": model_id = "o1-mini"
-            else: model_id = input("請輸入 Model ID: ").strip()
+            m_choice = ask("請選擇模型 [1]: ", "1") or "1"
+            if m_choice == "1": model_id = "gpt-5"
+            elif m_choice == "2": model_id = "gpt-5-mini"
+            elif m_choice == "3": model_id = "gpt-4o"
+            else: model_id = ask("請輸入 Model ID: ")
             
             if model_id:
                 settings = load_json(SETTINGS_PATH)
@@ -381,7 +406,7 @@ def main():
                 print("⚠️  請記得在系統環境變數中設定 OPENAI_API_KEY。")
 
         elif provider_choice == "5":
-            model_id = input("請輸入 OpenRouter Model ID (如 anthropic/claude-3.5-sonnet): ").strip()
+            model_id = ask("請輸入 OpenRouter Model ID (如 anthropic/claude-sonnet-4.5): ")
             if model_id:
                 settings = load_json(SETTINGS_PATH)
                 settings["defaultModel"] = model_id
@@ -392,9 +417,9 @@ def main():
                 print("⚠️  請記得在系統環境變數中設定 OPENROUTER_API_KEY。")
 
         elif provider_choice == "6":
-            api_base = input("請輸入相容 API 的 Base URL (如 https://api.deepseek.com/v1): ").strip()
-            model_id = input("請輸入 Model ID (如 deepseek-chat): ").strip()
-            api_key = input("請輸入 API Key (或者留空改以環境變數帶入): ").strip()
+            api_base = ask("請輸入相容 API 的 Base URL (如 https://api.deepseek.com/v1): ")
+            model_id = ask("請輸入 Model ID (如 deepseek-chat): ")
+            api_key = ask("請輸入 API Key (或者留空改以環境變數帶入): ")
             
             if api_base and model_id:
                 settings = load_json(SETTINGS_PATH)
@@ -413,13 +438,14 @@ def main():
         print("\n請選擇安裝的技能設定檔 (Skill Profile):")
         print("  [1] minimal (僅 Core 核心 + Caveman 極簡)")
         print("  [2] standard (Core + Superpowers + Karpathy 軟體工程常用, 推薦)")
-        ans_profile = input("請輸入設定檔編號 [2]: ").strip()
+        ans_profile = ask("請輸入設定檔編號 [2]: ", "2")
         if ans_profile == "1":
             profile = "minimal"
         else:
             profile = "standard"
 
     # Unconditionally detect and set Git Bash shell path on Windows
+    # (written to the gitignored pi-config/settings.json, never to the template)
     gb = detect_git_bash()
     if gb:
         settings = load_json(SETTINGS_PATH)
@@ -427,8 +453,14 @@ def main():
         save_json(SETTINGS_PATH, settings)
         print(f"[*] 已自動設定 Windows Git Bash 路徑: {gb}")
 
-    print("[*] 正在執行資產還原 (restore.py)...")
-    run_stream(f'"{sys.executable}" "{os.path.join(REPO_ROOT, "scripts", "restore.py")}" --auto --profile {profile}')
+    restore_script = os.path.join(REPO_ROOT, "scripts", "restore.py")
+    if mode == "model":
+        # Model switching must not reinstall skills or force a profile change
+        print("[*] 正在同步模型配置 (restore.py --config-only)...")
+        run_stream(f'"{sys.executable}" "{restore_script}" --auto --config-only')
+    else:
+        print("[*] 正在執行資產還原 (restore.py)...")
+        run_stream(f'"{sys.executable}" "{restore_script}" --auto --profile {profile}')
     print("\n" + "=" * 60 + "\n 完成！請執行: pi\n" + "=" * 60)
 
 if __name__ == "__main__":
