@@ -28,7 +28,7 @@ cd CKs_PI_Code_Agent_Harness
 ```bash
 git pull --recurse-submodules          # 1. 更新 Harness 與子模組
 python scripts/setup.py --mode restore # 2. 重新同步配置（冪等，保留使用者自訂）
-pi update                              # 3. 更新 Pi 本體與擴充套件
+pi update --all                        # 3. 更新 Pi 本體與擴充套件（僅更新本體用 pi update）
 ```
 > 啟動時若見到 `[Skill conflicts]` 名稱警告，多為上游命名問題、技能仍正常載入，詳見 [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)。
 
