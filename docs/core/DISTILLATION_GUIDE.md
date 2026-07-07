@@ -68,7 +68,7 @@
     *   **做法**：直接詢問被移植的 AI 代理其行為準則，檢查是否偏離了原始設計初衷。
     *   **目標**：確保 distilled agent 依然具備其原有的「專業靈魂」。
 
-### 第五步：研究隔離與防汙染 (Research Isolation)
+### 第六步：研究隔離與防汙染 (Research Isolation)
 在深入研究外部專案時，建議將其完整代碼 Clone 到本地進行分析，但必須嚴格遵守「隔離原則」：
 1.  **專屬研究目錄**：建議在本專案根目錄下建立 `research/` 資料夾，專門用來存放 `git clone` 回來的外部原始碼。
 2.  **嚴禁提交原始碼**：絕對不要將外部專案的原始程式碼直接 Git Add 到本專案。我們只需要其「蒸餾後的精華」。
@@ -117,11 +117,11 @@
 
 ### 6. 子模組與橋接代碼的徹底清理 (Dead Bridge Purging)
 *   **歷史痛點**：在對專案 submodule 進行修剪與刪除時，若只刪除了外部子模組，而未清理其在本地的橋接程式碼（如 `understand-framework`、`*-bridge`）與 `restore.py` 的路徑註冊，會導致新環境還原時拋出錯誤甚至啟動崩潰。
-*   **進化規則**：每次移除 Submodule 後，必須立刻在 [scripts/restore.py](file:///D:/Myproject/CKs_PI_Code_Agent_Harness/scripts/restore.py) 的註冊列表、`pi-extensions/` 橋接器與對應的架構文檔中進行「全鍊條清理」。
+*   **進化規則**：每次移除 Submodule 後，必須立刻在 [scripts/restore.py](../../scripts/restore.py) 的註冊列表、`pi-extensions/` 橋接器與對應的架構文檔中進行「全鍊條清理」。
 
 ### 7. 設計與測試的版本解耦 (Version-Agnostic File Naming)
 *   **歷史痛點**：設計規格（如 `specs/harness-setup-v3.7.2`）與測試套件（如 `tests/test_v372_setup.py`）如果帶有寫死的具體版本號，會導致工具迭代時，文檔命名與實際代碼進度發生漂移，徒增維護負擔。
-*   **進化規則**：文檔與測試檔案應使用**版本無關**的通用命名（如 [specs/harness-setup/](file:///D:/Myproject/CKs_PI_Code_Agent_Harness/specs/harness-setup/) 與 [tests/test_setup.py](file:///D:/Myproject/CKs_PI_Code_Agent_Harness/tests/test_setup.py)），並將具體版本作為文檔內部的元數據管理。
+*   **進化規則**：文檔與測試檔案應使用**版本無關**的通用命名（如 [specs/harness-setup/](../../specs/harness-setup/) 與 [tests/test_setup.py](../../tests/test_setup.py)），並將具體版本作為文檔內部的元數據管理。
 
 ### 8. 多供應商模型引導的智慧解耦 (Smart Multi-Provider Model Wizard)
 *   **歷史痛點**：原本的 setup 腳本只支援本地 LLM 偵測，若無本地執行中的 Ollama/Llama.cpp 則直接跳過模型配置，這限制了採用雲端 API 的開發者。

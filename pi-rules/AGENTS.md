@@ -8,7 +8,7 @@ Even though the operating system is Windows (e.g., CWD/paths look like `C:/...` 
 *   **Chaining Commands**: Use `&&`, `||`, and `;` to chain commands instead of PowerShell's `;` or CMD's `&`.
 
 ## 2. Agent Orchestration Routing
-For complex tasks, delegate to specialised agents under `D:/MyProject/everything-claude-code/agents`:
+For complex tasks, delegate to the specialised ECC agent personas bundled with this harness under `$PI_HARNESS_ROOT/external/ecc/agents` (the `PI_HARNESS_ROOT` env var is injected by `scripts/restore.py`):
 *   Use `planner` for implementation planning.
 *   Use `architect` for system design.
 *   Use `tdd-guide` for new features or bug fixes.

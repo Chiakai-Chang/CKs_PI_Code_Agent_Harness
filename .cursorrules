@@ -2,8 +2,8 @@
 
 ## Onboarding Instructions
 Whenever starting a new session or optimization task in this repository, you **MUST** read the following documents first to align with our engineering philosophy and constraints:
-- [CORE_CONCEPTS.md](file:///D:/Myproject/CKs_PI_Code_Agent_Harness/docs/core/CORE_CONCEPTS.md) (Engineering goals and submodules mapping)
-- [DISTILLATION_GUIDE.md](file:///D:/Myproject/CKs_PI_Code_Agent_Harness/docs/core/DISTILLATION_GUIDE.md) (Critical rules: Anti-Bragging, No passive configs, Platform-agnostic defaults)
+- [CORE_CONCEPTS.md](docs/core/CORE_CONCEPTS.md) (Engineering goals and submodules mapping)
+- [DISTILLATION_GUIDE.md](docs/core/DISTILLATION_GUIDE.md) (Critical rules: Anti-Bragging, No passive configs, Platform-agnostic defaults)
 
 ## Core Principles
 1. **Plain Technical Speech**: Avoid any marketing hyperbole, boasting, or speculative claims. Only state proven, functional facts.
