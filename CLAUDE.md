@@ -6,7 +6,7 @@
 * Pull/Update submodules: `git submodule update --init --recursive`
 
 ## 🧪 Testing Commands
-* Run tests: (Add testing command if applicable in future, currently experimental harness)
+* Run tests (zero-dependency, stdlib unittest): `python -m unittest discover -s tests`
 
 ## 📌 CRITICAL Guidelines & Philosophy (Must Read First)
 Before planning any optimizations, refactoring, or modifications to this repository, you **MUST** read and fully comprehend the following documentation to align with our engineering guidelines:
