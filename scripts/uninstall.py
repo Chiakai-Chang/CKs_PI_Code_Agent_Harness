@@ -7,6 +7,7 @@
 #
 import os
 import sys
+import json
 import shutil
 from glob import glob
 
@@ -18,7 +19,54 @@ for _stream in (sys.stdout, sys.stderr):
     except Exception:
         pass
 
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 AGENT_DIR = os.path.join(os.path.expanduser("~"), ".pi", "agent")
+
+# Must mirror the lists in scripts/restore.py: uninstall removes exactly what
+# the harness manages and leaves the user's own skills/extensions alone.
+MANAGED_SKILLS = ["hello-reflect", "planning-with-files", "camofox",
+                  "camofox-stealth", "cua-commander", "nothing-design", "bridges"]
+MANAGED_BRIDGES = ["ecc-hooks-bridge", "planning-with-files-bridge",
+                   "case-bridge", "taste-bridge", "mece-autopilot-bridge"]
+
+
+def remove_path(path):
+    if os.path.isdir(path):
+        shutil.rmtree(path, ignore_errors=True)
+        print(f"Removed: {path}")
+    elif os.path.exists(path):
+        os.remove(path)
+        print(f"Removed: {path}")
+
+
+def clean_settings():
+    """Strip harness-registered entries from settings.json, keep user entries."""
+    settings_path = os.path.join(AGENT_DIR, "settings.json")
+    if not os.path.exists(settings_path):
+        return
+    try:
+        with open(settings_path, "r", encoding="utf-8") as f:
+            settings = json.load(f)
+    except Exception as e:
+        print(f"Warning: could not read settings.json: {e}")
+        return
+
+    repo_prefix = REPO_ROOT.replace("\\", "/").lower()
+    for key in ("skills", "extensions", "prompts"):
+        entries = settings.get(key)
+        if isinstance(entries, list):
+            settings[key] = [
+                p for p in entries
+                if not p.replace("\\", "/").lower().startswith(repo_prefix)
+            ]
+    env = settings.get("env")
+    if isinstance(env, dict):
+        env.pop("PI_HARNESS_ROOT", None)
+
+    with open(settings_path, "w", encoding="utf-8") as f:
+        json.dump(settings, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    print("Cleaned harness entries from settings.json")
 
 
 def main():
@@ -28,11 +76,13 @@ def main():
     print()
     print("This will:")
     print("  - Remove skills, rules, extensions installed by this harness")
+    print("  - Remove harness entries from settings.json")
     print("  - Optionally remove Pi (AI coding assistant) itself")
     print()
     print("This will NOT:")
     print("  - Delete your projects")
     print("  - Delete your personal files")
+    print("  - Delete skills or extensions you installed yourself")
     print()
 
     ans = input("Continue? (y/N): ").strip().lower()
@@ -54,13 +104,17 @@ def main():
             print("Uninstall complete.")
             return
 
-    # Remove harness-installed directories
+    # Remove only harness-managed items, preserving the user's own assets
     if os.path.isdir(AGENT_DIR):
-        for d in ["skills", "rules", "extensions"]:
-            path = os.path.join(AGENT_DIR, d)
-            if os.path.isdir(path):
-                shutil.rmtree(path)
-                print(f"Removed: {path}")
+        for name in MANAGED_SKILLS:
+            remove_path(os.path.join(AGENT_DIR, "skills", name))
+        for name in MANAGED_BRIDGES:
+            remove_path(os.path.join(AGENT_DIR, "extensions", name))
+        # rules/ and the global AGENTS.md are fully harness-managed (restore.py
+        # clears and rewrites them wholesale)
+        remove_path(os.path.join(AGENT_DIR, "rules"))
+        remove_path(os.path.join(AGENT_DIR, "AGENTS.md"))
+        clean_settings()
 
     # Ask to remove Pi itself
     print()
