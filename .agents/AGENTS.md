@@ -2,8 +2,8 @@
 
 ## Mandatory Onboarding Steps
 Whenever initialized, you must immediately read:
-- [CORE_CONCEPTS.md](file:///D:/Myproject/CKs_PI_Code_Agent_Harness/docs/core/CORE_CONCEPTS.md) (Engineering goals and submodules mapping)
-- [DISTILLATION_GUIDE.md](file:///D:/Myproject/CKs_PI_Code_Agent_Harness/docs/core/DISTILLATION_GUIDE.md) (Core rules, platform agnostic rules, anti-bragging)
+- [CORE_CONCEPTS.md](../docs/core/CORE_CONCEPTS.md) (Engineering goals and submodules mapping)
+- [DISTILLATION_GUIDE.md](../docs/core/DISTILLATION_GUIDE.md) (Core rules, platform agnostic rules, anti-bragging)
 
 ## Key Constraints
 - **Anti-Bragging**: Refrain from using promotional adjectives or claims that lack functional evidence. Focus on experimental facts.

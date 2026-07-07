@@ -6,12 +6,12 @@
 * Pull/Update submodules: `git submodule update --init --recursive`
 
 ## 🧪 Testing Commands
-* Run tests: (Add testing command if applicable in future, currently experimental harness)
+* Run tests (zero-dependency, stdlib unittest): `python -m unittest discover -s tests`
 
 ## 📌 CRITICAL Guidelines & Philosophy (Must Read First)
 Before planning any optimizations, refactoring, or modifications to this repository, you **MUST** read and fully comprehend the following documentation to align with our engineering guidelines:
-1. **[Core Concepts (docs/core/CORE_CONCEPTS.md)](file:///D:/Myproject/CKs_PI_Code_Agent_Harness/docs/core/CORE_CONCEPTS.md)**: Understand the actual layout, integrated submodules, and CASE-aligned environment governance.
-2. **[Distillation Guide (docs/core/DISTILLATION_GUIDE.md)](file:///D:/Myproject/CKs_PI_Code_Agent_Harness/docs/core/DISTILLATION_GUIDE.md)**: Adhere strictly to the **Anti-Bragging**, **No passive/zombie config**, and **Platform-agnostic default** constraints.
+1. **[Core Concepts](docs/core/CORE_CONCEPTS.md)**: Understand the actual layout, integrated submodules, and CASE-aligned environment governance.
+2. **[Distillation Guide](docs/core/DISTILLATION_GUIDE.md)**: Adhere strictly to the **Anti-Bragging**, **No passive/zombie config**, and **Platform-agnostic default** constraints.
 
 ## 🚫 Forbidden Anti-Patterns
 * **No Marketing/Hyperbole**: Do not use boasting words like "master-class", "revolutionary", or "15+ top repos". Speak plain, objective engineering truths.

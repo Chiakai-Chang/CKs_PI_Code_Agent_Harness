@@ -7,9 +7,19 @@
 #
 import sys
 import os
+import json
+import stat
 import shutil
 import argparse
 from datetime import datetime
+
+# Console output contains non-ASCII status marks; legacy Windows codepages
+# (e.g. cp950) crash on them when the script is run outside install.bat.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 PI_DIR = os.path.join(os.path.expanduser("~"), ".pi")
@@ -34,12 +44,13 @@ def confirm():
         return True
     print()
     log("This will overwrite:")
-    log("  - settings.json")
-    log("  - config.json")
-    log("  - skills/* (core + optionally design/heavy skills)")
+    log("  - settings.json (merged; harness-managed keys updated)")
+    log("  - models.json (merged per provider)")
+    log("  - skills/* (harness-managed skills only)")
     log("  - rules/*")
-    log("  - extensions/*")
+    log("  - extensions/* (harness bridges only)")
     log("  - git/.gitignore")
+    log("  - config.json (deprecated; will be removed)")
     log(f"A backup has been saved to: {AGENT_DIR}.backup.{TIMESTAMP}")
     print()
     ans = input("[RESTORE] Continue? (y/N): ").strip().lower()
@@ -60,7 +71,6 @@ def clear_dir(path):
         return
 
     def remove_readonly(func, p, excinfo):
-        import stat
         try:
             os.chmod(p, stat.S_IWRITE)
             func(p)
@@ -91,7 +101,6 @@ def clear_dir(path):
                 try:
                     os.remove(item_path)
                 except OSError:
-                    import stat
                     try:
                         os.chmod(item_path, stat.S_IWRITE)
                         os.remove(item_path)
@@ -108,7 +117,6 @@ def delete_path(path):
         return
     
     def remove_readonly(func, p, excinfo):
-        import stat
         try:
             os.chmod(p, stat.S_IWRITE)
             func(p)
@@ -120,7 +128,6 @@ def delete_path(path):
             try:
                 os.remove(path)
             except OSError:
-                import stat
                 try:
                     os.chmod(path, stat.S_IWRITE)
                     os.remove(path)
@@ -136,9 +143,11 @@ def delete_path(path):
     except Exception as e:
         log(f"Warning: Failed to delete {path}: {e}")
 
-def copy_dir_contents(src, dst):
+def copy_dir_contents(src, dst, exclude=None):
     ensure_dir(dst)
     for item in os.listdir(src):
+        if exclude and item in exclude:
+            continue
         s = os.path.join(src, item)
         d = os.path.join(dst, item)
         if os.path.isdir(s):
@@ -154,17 +163,15 @@ def load_json(path):
             path = example
         else:
             return {}
-    
+
     try:
         with open(path, "r", encoding="utf-8") as f:
-            import json
             return json.load(f)
     except:
         return {}
 
 def save_json(path, data):
     ensure_dir(os.path.dirname(path) or ".")
-    import json
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
         f.write("\n")
@@ -185,10 +192,51 @@ def deep_merge(target, source):
             target[key] = value
     return target
 
+# Keys owned by the harness setup wizard (scripts/setup.py). When the real
+# pi-config/settings.json exists (user made explicit choices), these must win
+# over whatever is already in ~/.pi/agent/settings.json — otherwise model
+# switching would silently never apply.
+HARNESS_MANAGED_KEYS = ["defaultModel", "defaultProvider", "apiBase", "shellPath"]
+
+def merge_settings(existing, incoming, incoming_is_real):
+    """
+    Merge incoming (pi-config/settings.json) into existing (~/.pi/agent/settings.json).
+    User-custom keys always survive; harness-managed keys follow the wizard's
+    choices only when the incoming file is the real one (not the .example fallback).
+    A missing apiBase in the real incoming file means "cloud provider" — remove
+    any stale local apiBase to avoid routing confusion.
+    """
+    src = dict(incoming)
+    if not incoming_is_real:
+        # The .example template must never introduce provider/model defaults
+        for key in HARNESS_MANAGED_KEYS:
+            src.pop(key, None)
+    merged = deep_merge(existing, src)
+    if incoming_is_real:
+        for key in HARNESS_MANAGED_KEYS:
+            if key in incoming:
+                merged[key] = incoming[key]
+        if "apiBase" not in incoming and "apiBase" in merged:
+            del merged["apiBase"]
+    return merged
+
+def merge_models(existing, incoming):
+    """Merge models.json at provider granularity so user-defined providers survive."""
+    merged = dict(existing) if existing else {}
+    providers = dict(merged.get("providers", {}) or {})
+    providers.update(incoming.get("providers", {}) or {})
+    for k, v in incoming.items():
+        if k != "providers":
+            merged[k] = v
+    merged["providers"] = providers
+    return merged
+
 def main():
     parser = argparse.ArgumentParser(description="CK's Pi Code Agent Harness - Restore")
     parser.add_argument("--auto", action="store_true", help="Skip confirmation")
     parser.add_argument("--profile", choices=["minimal", "standard"], default="standard", help="Skill profile to load")
+    parser.add_argument("--config-only", action="store_true",
+                        help="Only sync settings.json / models.json; do not touch skills, rules, extensions or profile registration")
     args = parser.parse_args()
 
     # Check environment variable as a robust fallback for --auto
@@ -198,7 +246,7 @@ def main():
     log("CK's Pi Code Agent Harness – Restore Configuration (Python)")
     log(f"Repo root: {REPO_ROOT}")
     log(f"Agent dir: {AGENT_DIR}")
-    log(f"Profile:   {profile}")
+    log(f"Profile:   {profile}{' (config-only)' if args.config_only else ''}")
     print()
 
     ensure_dir(AGENT_DIR)
@@ -215,21 +263,24 @@ def main():
 
     # Config
     log("Restoring config (settings, models, git)...")
-    
+
     # 1. Load and merge settings.json
     settings_dest = os.path.join(AGENT_DIR, "settings.json")
     settings_src = os.path.join(REPO_ROOT, "pi-config", "settings.json")
-    
+
     settings = {}
     if os.path.exists(settings_dest):
         settings = load_json(settings_dest)
-    
+
+    # Only the real settings.json (written by setup.py after explicit user
+    # choices) may override harness-managed keys; the .example fallback must not.
+    settings_src_is_real = os.path.exists(settings_src)
     default_settings = load_json(settings_src)
-    settings = deep_merge(settings, default_settings)
-    
+    settings = merge_settings(settings, default_settings, settings_src_is_real)
+
     if "env" not in settings: settings["env"] = {}
     settings["env"]["PI_HARNESS_ROOT"] = REPO_ROOT.replace("\\", "/")
-    
+
     # 2. Dynamic Submodule Paths Resolution
     ext_root = os.path.join(REPO_ROOT, "external").replace("\\", "/")
     pi_skills_root = os.path.join(REPO_ROOT, "pi-skills").replace("\\", "/")
@@ -239,10 +290,6 @@ def main():
     profile_extensions = []
     profile_prompts = []
 
-    # Local core skills (always loaded)
-    profile_skills.append(os.path.join(pi_skills_root, "chrome-cdp").replace("\\", "/"))
-    profile_skills.append(os.path.join(pi_skills_root, "dev-browser").replace("\\", "/"))
-
     # Minimal profile
     if profile == "minimal":
         profile_skills.append(os.path.join(ext_root, "caveman", "skills", "caveman").replace("\\", "/"))
@@ -250,6 +297,10 @@ def main():
 
     # Standard profile (Default)
     elif profile == "standard":
+        # Local browser skills
+        profile_skills.append(os.path.join(pi_skills_root, "chrome-cdp").replace("\\", "/"))
+        profile_skills.append(os.path.join(pi_skills_root, "dev-browser").replace("\\", "/"))
+
         # Caveman skills
         for name in ["caveman", "caveman-commit", "caveman-review", "caveman-compress", 
                      "caveman-stats", "caveman-help", "cavecrew"]:
@@ -290,46 +341,50 @@ def main():
 
 
     # 3. Filter existing settings to keep user's custom skills/extensions not managed by Harness
-    existing_skills = settings.get("skills", [])
-    clean_skills = [p for p in existing_skills if not p.replace("\\", "/").startswith(REPO_ROOT.replace("\\", "/"))]
-    for s in profile_skills:
-        if s not in clean_skills:
-            clean_skills.append(s)
-    settings["skills"] = clean_skills
+    # (skipped in --config-only mode: keep whatever profile is already registered)
+    if not args.config_only:
+        existing_skills = settings.get("skills", [])
+        clean_skills = [p for p in existing_skills if not p.replace("\\", "/").startswith(REPO_ROOT.replace("\\", "/"))]
+        for s in profile_skills:
+            if s not in clean_skills:
+                clean_skills.append(s)
+        settings["skills"] = clean_skills
 
-    existing_extensions = settings.get("extensions", [])
-    internal_bridge_names = ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge"]
-    clean_extensions = []
-    for p in existing_extensions:
-        p_normalized = p.replace("\\", "/").lower()
-        if p_normalized.startswith(REPO_ROOT.replace("\\", "/").lower()):
-            continue
-        is_internal = False
-        for name in internal_bridge_names:
-            if name in p_normalized:
-                is_internal = True
-                break
-        if not is_internal:
-            clean_extensions.append(p)
-    settings["extensions"] = clean_extensions
+        existing_extensions = settings.get("extensions", [])
+        internal_bridge_names = ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge"]
+        clean_extensions = []
+        for p in existing_extensions:
+            p_normalized = p.replace("\\", "/").lower()
+            if p_normalized.startswith(REPO_ROOT.replace("\\", "/").lower()):
+                continue
+            is_internal = False
+            for name in internal_bridge_names:
+                if name in p_normalized:
+                    is_internal = True
+                    break
+            if not is_internal:
+                clean_extensions.append(p)
+        settings["extensions"] = clean_extensions
 
-    existing_prompts = settings.get("prompts", [])
-    clean_prompts = [p for p in existing_prompts if not p.replace("\\", "/").startswith(REPO_ROOT.replace("\\", "/"))]
-    for pr in profile_prompts:
-        if pr not in clean_prompts:
-            clean_prompts.append(pr)
-    settings["prompts"] = clean_prompts
+        existing_prompts = settings.get("prompts", [])
+        clean_prompts = [p for p in existing_prompts if not p.replace("\\", "/").startswith(REPO_ROOT.replace("\\", "/"))]
+        for pr in profile_prompts:
+            if pr not in clean_prompts:
+                clean_prompts.append(pr)
+        settings["prompts"] = clean_prompts
 
     save_json(settings_dest, settings)
-    log("  - settings.json updated with submodule paths")
+    log("  - settings.json updated" + ("" if args.config_only else " with submodule paths"))
 
-    # Sync models.json (CRITICAL)
+    # Sync models.json (merge per provider so user-defined providers survive)
     models_src = os.path.join(REPO_ROOT, "pi-config", "models.json")
     if os.path.exists(models_src):
         models_data = load_json(models_src)
         if models_data:
-            save_json(os.path.join(AGENT_DIR, "models.json"), models_data)
-            log("  - models.json synced")
+            models_dest = os.path.join(AGENT_DIR, "models.json")
+            existing_models = load_json(models_dest) if os.path.exists(models_dest) else {}
+            save_json(models_dest, merge_models(existing_models, models_data))
+            log("  - models.json synced (merged)")
 
     # Clean up deprecated config.json in ~/.pi/agent/
     cfg_path = os.path.join(AGENT_DIR, "config.json")
@@ -345,6 +400,11 @@ def main():
     if os.path.exists(gitignore_src):
         shutil.copy2(gitignore_src, os.path.join(AGENT_DIR, "git", ".gitignore"))
 
+    if args.config_only:
+        print()
+        log("✅ Config-only sync complete (skills/rules/extensions untouched).")
+        return
+
     # Core skills (always)
     log("Restoring core skills...")
     core_src = os.path.join(REPO_ROOT, "pi-skills", "core")
@@ -352,12 +412,13 @@ def main():
     
     # We selectively delete only the skills that are managed by the harness,
     # rather than wiping the entire directory, to preserve user's own custom skills.
-    managed_skills = ["hello-reflect", "planning-with-files", "camofox", "camofox-stealth", "cua-commander", "nothing-design"]
+    managed_skills = ["hello-reflect", "planning-with-files", "camofox", "camofox-stealth", "cua-commander", "nothing-design", "bridges"]
     for s_name in managed_skills:
         delete_path(os.path.join(skills_dst, s_name))
 
     if os.path.isdir(core_src):
-        copy_dir_contents(core_src, skills_dst)
+        # "bridges" holds RATIONALE decision docs, not skills — keep it out of the agent dir
+        copy_dir_contents(core_src, skills_dst, exclude={"bridges"})
     else:
         log("Core skills directory not found, skipping.")
 

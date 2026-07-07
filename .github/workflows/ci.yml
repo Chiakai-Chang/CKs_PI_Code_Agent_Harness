@@ -21,10 +21,15 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Check Python syntax (setup.py / restore.py)
+      - name: Check Python syntax (setup.py / restore.py / uninstall.py)
         run: |
           python -m py_compile scripts/setup.py
           python -m py_compile scripts/restore.py
+          python -m py_compile scripts/uninstall.py
+
+      - name: Run tests (unittest, zero-dependency)
+        run: |
+          python -m unittest discover -s tests -v
 
       - name: Install shellcheck
         run: |
