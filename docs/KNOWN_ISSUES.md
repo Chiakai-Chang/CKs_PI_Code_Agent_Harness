@@ -2,15 +2,15 @@
 
 記錄目前已知、且根因不在本專案可直接修復範圍內的問題。每項均附影響評估與處理方式。
 
-## 1. Pi 啟動時的 `[Skill conflicts]` 名稱不符警告（無害）
+## 1. Pi 啟動時的 `[Skill conflicts]` 名稱不符警告（僅舊版 pi；≥0.74.1 已消失）
 
-**現象**：`pi` 啟動時列出多條 `name "X" does not match parent directory "Y"` 警告，來源為 `external/` 子模組（ECC、taste-skill、evolver、Local-Agent-Workspace、planning-with-files）。
+**現象**：`pi` 0.73.x 及更舊版本啟動時列出多條 `name "X" does not match parent directory "Y"` 警告，來源為 `external/` 子模組（ECC、taste-skill、evolver、Local-Agent-Workspace、planning-with-files）。
 
-**根因**：這些上游專案的 `SKILL.md` frontmatter `name` 與資料夾名稱不一致，違反 [Agent Skills 標準](https://agentskills.io/specification)的命名規則。Pi 對此「警告但照常載入」（見 pi docs/skills.md Validation 一節）。
+**根因**：這些上游專案的 `SKILL.md` frontmatter `name` 與資料夾名稱不一致。Pi 舊版對此發出警告但照常載入。
 
-**影響**：純視覺噪音。技能實際以 frontmatter 名稱正常載入（可在 `[Skills]` 清單中確認）。
+**影響**：純視覺噪音。技能實際以 frontmatter 名稱正常載入。
 
-**處理**：不在本地修改子模組內容（違反 Submodule Respect 原則）。正確解法是向各上游回報／提交 PR 修正命名。若上游修正，執行更新流程（見 README「更新與升級」）即可消除。
+**處理**：**執行 `pi update` 即可**——pi 0.74.1 起已移除此警告（pi-mono #4534）。已實測 0.80.3 啟動不再出現。
 
 ## 2. ECC `loop-design-check` 技能載入失敗（上游 YAML 錯誤）
 
