@@ -220,6 +220,27 @@ def merge_settings(existing, incoming, incoming_is_real):
             del merged["apiBase"]
     return merged
 
+# Upstream skills that fail to parse in pi and would pollute startup with
+# [Skill conflicts] errors. Remove entries once fixed upstream (docs/KNOWN_ISSUES.md).
+ECC_BROKEN_SKILLS = {"loop-design-check"}  # invalid YAML in description (unquoted ': ')
+
+def ecc_skill_paths(ecc_skills_root):
+    """
+    Enumerate ECC skills individually so known-broken upstream skills can be
+    skipped without modifying the submodule. Falls back to registering the
+    root directory when the submodule is not initialized yet.
+    """
+    if not os.path.isdir(ecc_skills_root):
+        return [ecc_skills_root.replace("\\", "/")]
+    paths = []
+    for name in sorted(os.listdir(ecc_skills_root)):
+        if name in ECC_BROKEN_SKILLS:
+            continue
+        p = os.path.join(ecc_skills_root, name)
+        if os.path.isdir(p) and os.path.exists(os.path.join(p, "SKILL.md")):
+            paths.append(p.replace("\\", "/"))
+    return paths
+
 def merge_models(existing, incoming):
     """Merge models.json at provider granularity so user-defined providers survive."""
     merged = dict(existing) if existing else {}
@@ -319,7 +340,7 @@ def main():
         profile_prompts.append(os.path.join(ext_root, "planning-with-files", "commands").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "llm-wiki-plugin", "skills", "llm-wiki").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "prompt-master").replace("\\", "/"))
-        profile_skills.append(os.path.join(ext_root, "ecc", "skills").replace("\\", "/"))
+        profile_skills.extend(ecc_skill_paths(os.path.join(REPO_ROOT, "external", "ecc", "skills")))
         profile_skills.append(os.path.join(ext_root, "Local-Agent-Workspace").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "taste-skill", "skills").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "darwin-skill").replace("\\", "/"))

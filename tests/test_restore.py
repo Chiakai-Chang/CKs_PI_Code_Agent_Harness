@@ -55,6 +55,36 @@ class TestMergeSettings(unittest.TestCase):
         )
 
 
+class TestEccSkillPaths(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.tmp = tempfile.mkdtemp()
+        for name in ["good-skill", "loop-design-check", "another-skill"]:
+            d = os.path.join(self.tmp, name)
+            os.makedirs(d)
+            with open(os.path.join(d, "SKILL.md"), "w", encoding="utf-8") as f:
+                f.write("---\nname: x\ndescription: y\n---\n")
+        os.makedirs(os.path.join(self.tmp, "not-a-skill"))  # no SKILL.md
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_broken_skills_excluded(self):
+        """Known-broken upstream skills must not be registered (docs/KNOWN_ISSUES.md)."""
+        paths = restore.ecc_skill_paths(self.tmp)
+        names = [os.path.basename(p) for p in paths]
+        self.assertIn("good-skill", names)
+        self.assertIn("another-skill", names)
+        self.assertNotIn("loop-design-check", names)
+        self.assertNotIn("not-a-skill", names)
+
+    def test_missing_root_returns_root_fallback(self):
+        """Uninitialized submodule: fall back to registering the root dir."""
+        missing = os.path.join(self.tmp, "does-not-exist")
+        self.assertEqual(restore.ecc_skill_paths(missing), [missing.replace("\\", "/")])
+
+
 class TestMergeModels(unittest.TestCase):
     def test_other_providers_preserved(self):
         """同步 models.json 不得抹掉使用者其他自訂 provider。"""

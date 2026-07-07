@@ -20,7 +20,7 @@
 
 **影響**：僅此一個 ECC 技能無法使用，其餘 ECC 技能正常。
 
-**處理**：已確認升級子模組無法解決（上游未修）。待上游修正後透過子模組更新自然解決；亦可向上游回報（一行修正：description 值加引號）。
+**處理**：`scripts/restore.py` 已改為逐一註冊 ECC 技能並跳過 `ECC_BROKEN_SKILLS` 清單中的損壞項目（不修改子模組內容），啟動時不再出現此錯誤。執行更新流程（README「更新與升級」）即生效。待上游修正 YAML 後（一行修正：description 值加引號），自 `ECC_BROKEN_SKILLS` 移除該項即可恢復載入。
 
 ## 3. npm 安裝時的 deprecated 警告
 
