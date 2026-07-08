@@ -29,6 +29,10 @@ MANAGED_SKILLS = ["hello-reflect", "planning-with-files", "camofox",
 MANAGED_BRIDGES = ["ecc-hooks-bridge", "planning-with-files-bridge",
                    "case-bridge", "taste-bridge", "mece-autopilot-bridge"]
 
+# Note: the stealth-recon backend stores logged-in browser profiles and cookies
+# under ~/.camofox/ (session secrets). This is user data outside the harness —
+# it is intentionally NOT removed here; delete it manually if desired.
+
 
 def remove_path(path):
     if os.path.isdir(path):

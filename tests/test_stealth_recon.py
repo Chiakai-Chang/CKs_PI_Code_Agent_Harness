@@ -112,5 +112,21 @@ class TestSetupPrefetch(unittest.TestCase):
         self.assertIn("ask(", window, "prefetch prompt must use ask() for --auto safety")
 
 
+class TestDocs(unittest.TestCase):
+    def test_readme_lists_stealth_recon(self):
+        c = read_file("README.md")
+        self.assertIn("camofox", c.lower())
+        self.assertIn("stealth", c.lower())
+
+    def test_rationale_mentions_pin_and_update(self):
+        c = read_file("pi-skills/optional/camofox-stealth/RATIONALE.md")
+        self.assertIn("1.11.2", c)
+        self.assertTrue("釘版" in c or "更新" in c)
+
+    def test_uninstall_notes_user_data(self):
+        c = read_file("scripts/uninstall.py")
+        self.assertIn(".camofox", c)
+
+
 if __name__ == "__main__":
     unittest.main()
