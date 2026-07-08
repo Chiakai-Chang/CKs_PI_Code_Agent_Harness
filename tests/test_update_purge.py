@@ -33,6 +33,15 @@ class TestSetupUpdateMode(unittest.TestCase):
         self.assertIn('if mode == "update":', c)
         self.assertIn("run_update()", c)
 
+    def test_update_offers_prefetch(self):
+        """Updating users (update.bat / --mode update) must also get the opt-in
+        stealth-engine prefetch prompt, not only fresh installs."""
+        c = read_file("scripts/setup.py")
+        self.assertIn("def maybe_prefetch_stealth", c)
+        i = c.find("def run_update")
+        blk = c[i:i + 800]
+        self.assertIn("maybe_prefetch_stealth()", blk)
+
 
 class TestUpdateEntryScripts(unittest.TestCase):
     def test_update_bat(self):

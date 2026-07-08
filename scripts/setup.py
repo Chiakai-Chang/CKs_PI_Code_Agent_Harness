@@ -90,6 +90,19 @@ def ask(prompt, default=""):
     except EOFError:
         return default
 
+def maybe_prefetch_stealth():
+    """Opt-in, best-effort prefetch of the stealth-recon engine (Camoufox ~300MB).
+    Offered on both fresh install and update; --auto / non-tty skips it."""
+    cfg = load_json(HARNESS_CONFIG_PATH)
+    camofox_ver = cfg.get("camofoxBrowserVersion", "1.11.2")
+    pf = ask("是否預抓 stealth-recon 隱身瀏覽器引擎 Camoufox (~300MB, 可選)? [y/N]: ", "n")
+    if pf.strip().lower() == "y":
+        print("[*] 正在預抓 stealth 引擎 (best-effort)...")
+        # prefetch: triggers Camoufox binary download to ~/.camofox
+        run_stream(f"npx -y @askjo/camofox-browser@{camofox_ver} --version")
+    else:
+        print("[*] 略過 stealth 引擎預抓 (可日後執行 pi 時由 camofox-stealth 技能懶啟動)。")
+
 def run_update():
     """One-command update: pull repo+submodules, resync config, update Pi."""
     print("[*] 正在更新 Harness 與子模組 (git pull)...")
@@ -102,6 +115,7 @@ def run_update():
         run_stream("pi update --all")
     else:
         print("[*] 未偵測到 pi，略過。裝好後可自行執行: pi update --all")
+    maybe_prefetch_stealth()
     print("\n" + "=" * 60 + "\n 更新完成！請執行: pi\n" + "=" * 60)
 
 def load_json(path):
@@ -308,17 +322,8 @@ def main():
         if has_command("pi"): run_stream("pi update")
         else: run_stream("npm install -g @earendil-works/pi-coding-agent")
 
-        # Optional: prefetch the stealth-recon browser engine (Camoufox ~300MB).
-        # Opt-in and best-effort — never block install; --auto / non-tty skips it.
-        cfg = load_json(HARNESS_CONFIG_PATH)
-        camofox_ver = cfg.get("camofoxBrowserVersion", "1.11.2")
-        pf = ask(f"是否預抓 stealth-recon 隱身瀏覽器引擎 Camoufox (~300MB, 可選)? [y/N]: ", "n")
-        if pf.strip().lower() == "y":
-            print("[*] 正在預抓 stealth 引擎 (best-effort)...")
-            # prefetch: triggers Camoufox binary download to ~/.camofox
-            run_stream(f"npx -y @askjo/camofox-browser@{camofox_ver} --version")
-        else:
-            print("[*] 略過 stealth 引擎預抓 (可日後執行 pi 時由 camofox-stealth 技能懶啟動)。")
+        # Optional stealth-recon engine prefetch (opt-in, best-effort, --auto skips).
+        maybe_prefetch_stealth()
 
     if mode in ["full", "model"]:
         local_models = detect_llm_services()
