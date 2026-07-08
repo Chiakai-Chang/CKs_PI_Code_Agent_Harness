@@ -90,6 +90,20 @@ def ask(prompt, default=""):
     except EOFError:
         return default
 
+def run_update():
+    """One-command update: pull repo+submodules, resync config, update Pi."""
+    print("[*] 正在更新 Harness 與子模組 (git pull)...")
+    run_stream("git pull --recurse-submodules")
+    restore_script = os.path.join(REPO_ROOT, "scripts", "restore.py")
+    print("[*] 正在重新同步配置 (restore --auto，冪等、保留自訂)...")
+    run_stream(f'"{sys.executable}" "{restore_script}" --auto')
+    if has_command("pi"):
+        print("[*] 正在更新 Pi 本體與擴充 (pi update --all)...")
+        run_stream("pi update --all")
+    else:
+        print("[*] 未偵測到 pi，略過。裝好後可自行執行: pi update --all")
+    print("\n" + "=" * 60 + "\n 更新完成！請執行: pi\n" + "=" * 60)
+
 def load_json(path):
     if not os.path.exists(path):
         example = path + ".example"
@@ -248,17 +262,18 @@ def get_recommended_specs(model_id, hw, api_base=None, provider=None):
 
 def show_main_menu():
     print("=" * 60 + "\n CK's Pi Code Agent Harness - 管理與設定工具 (v3.7.2)\n" + "=" * 60)
-    print("\n [1] 完整安裝 [2] 切換模型 [3] 僅還原配置 [Q] 離開")
-    ans = input("\n請輸入編號 (1-3, Q): ").strip().lower()
+    print("\n [1] 完整安裝 [2] 切換模型 [3] 僅還原配置 [4] 更新 [Q] 離開")
+    ans = input("\n請輸入編號 (1-4, Q): ").strip().lower()
     if ans == "1": return "full"
     if ans == "2": return "model"
     if ans == "3": return "restore"
+    if ans == "4": return "update"
     if ans == "q": sys.exit(0)
     return None
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=["full", "model", "restore"])
+    parser.add_argument("--mode", choices=["full", "model", "restore", "update"])
     parser.add_argument("--auto", action="store_true")
     args = parser.parse_args()
     
@@ -273,6 +288,9 @@ def main():
 
     # Git Initialization
     run(f'git config --global --add safe.directory "{REPO_ROOT}"')
+    if mode == "update":
+        run_update()
+        return
     if mode in ["full", "restore"]:
         print("[*] 正在拉取專家資產 (Submodules)...")
         run_stream("git submodule update --init --recursive")
