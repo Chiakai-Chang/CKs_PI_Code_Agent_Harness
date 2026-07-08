@@ -48,5 +48,34 @@ class TestReconScript(unittest.TestCase):
             self.assertIn(marker, c, f"recon.sh must detect '{marker}'")
 
 
+class TestSkillMd(unittest.TestCase):
+    REL = "pi-skills/optional/camofox-stealth/SKILL.md"
+
+    def test_no_stale_api(self):
+        c = read_file(self.REL)
+        self.assertNotIn("3001", c, "must not reference the stale port 3001")
+        self.assertNotIn("/navigate", c, "must not reference the stale /navigate endpoint")
+
+    def test_current_api_and_workflow(self):
+        c = read_file(self.REL)
+        self.assertIn("/tabs", c)
+        self.assertIn("snapshot", c)
+        self.assertIn("recon.sh ensure", c)
+        self.assertIn("is_blocked", c)
+        self.assertIn("findings.md", c)
+        self.assertIn("9377", c)
+
+    def test_selection_guidance_and_honesty(self):
+        c = read_file(self.REL)
+        self.assertIn("dev-browser", c, "must guide when to use dev-browser vs stealth")
+        # honest fallback wording
+        self.assertTrue("誠實" in c or "不編造" in c)
+
+    def test_no_machine_paths(self):
+        import re
+        c = read_file(self.REL)
+        self.assertIsNone(re.search(r"file:///[A-Za-z]:/|[A-Za-z]:/MyProject|:8080", c))
+
+
 if __name__ == "__main__":
     unittest.main()
