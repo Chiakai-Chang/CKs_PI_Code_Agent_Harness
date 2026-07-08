@@ -54,12 +54,17 @@ class TestSkillMd(unittest.TestCase):
     def test_no_stale_api(self):
         c = read_file(self.REL)
         self.assertNotIn("3001", c, "must not reference the stale port 3001")
-        self.assertNotIn("/navigate", c, "must not reference the stale /navigate endpoint")
+        self.assertNotIn("localhost:3001", c)
+        # Current API drives navigation through a tab: /tabs/<id>/navigate.
+        # Only the STALE root-level POST /navigate is forbidden.
+        self.assertNotIn(":9377/navigate", c, "navigate must be under /tabs/<id>/, not root")
 
     def test_current_api_and_workflow(self):
         c = read_file(self.REL)
         self.assertIn("/tabs", c)
         self.assertIn("snapshot", c)
+        self.assertIn("/tabs/$TID/navigate", c)
+        self.assertIn("macro", c)
         self.assertIn("recon.sh ensure", c)
         self.assertIn("is_blocked", c)
         self.assertIn("findings.md", c)

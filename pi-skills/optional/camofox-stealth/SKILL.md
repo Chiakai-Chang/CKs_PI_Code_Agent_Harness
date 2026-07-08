@@ -22,11 +22,14 @@ sh $PI_HARNESS_ROOT/pi-skills/optional/camofox-stealth/recon.sh ensure
 
 ### 1. 搜尋 / 讀頁（內建 macro，免另裝搜尋工具）
 ```bash
-# 建立 tab 並取得快照
+# 建立 tab 並用搜尋 macro
 TID=$(curl -s -X POST http://127.0.0.1:9377/tabs \
   -H 'Content-Type: application/json' \
   -d '{"userId":"recon","sessionKey":"r1","url":"https://duckduckgo.com"}' | \
   sed -n 's/.*"tabId":"\([^"]*\)".*/\1/p')
+curl -s -X POST "http://127.0.0.1:9377/tabs/$TID/navigate" \
+  -H 'Content-Type: application/json' \
+  -d '{"userId":"recon","macro":"@duckduckgo_search","query":"<你的查詢>"}'
 curl -s "http://127.0.0.1:9377/tabs/$TID/snapshot?userId=recon" -o /tmp/recon-snap.txt
 ```
 （macro 也支援 `@google_search`；快照是無障礙樹，比 raw HTML 小約 90%，省 token。內建搜尋 macro 可直接對 tab 執行查詢操作。）
