@@ -3,12 +3,15 @@
 # CK's Pi Code Agent Harness – Uninstall Helper
 #
 # Usage:
-#   python scripts/uninstall.py
+#   python scripts/uninstall.py            # remove harness-managed items only
+#   python scripts/uninstall.py --purge    # full clean-slate (per-item confirm)
 #
 import os
 import sys
 import json
 import shutil
+import argparse
+import subprocess
 from glob import glob
 
 # Console output contains non-ASCII status marks; legacy Windows codepages
@@ -30,8 +33,8 @@ MANAGED_BRIDGES = ["ecc-hooks-bridge", "planning-with-files-bridge",
                    "case-bridge", "taste-bridge", "mece-autopilot-bridge"]
 
 # Note: the stealth-recon backend stores logged-in browser profiles and cookies
-# under ~/.camofox/ (session secrets). This is user data outside the harness —
-# it is intentionally NOT removed here; delete it manually if desired.
+# under ~/.camofox/ (session secrets). The default uninstall leaves it in place;
+# it is removed only under --purge, and only after an explicit y confirmation.
 
 
 def remove_path(path):
@@ -73,15 +76,58 @@ def clean_settings():
     print("Cleaned harness entries from settings.json")
 
 
+def ask(prompt, default="n"):
+    """Interactive y/N that degrades to default (no) in non-tty runs — never deletes unattended."""
+    if not sys.stdin.isatty():
+        print(f"{prompt}{default} (auto)")
+        return default
+    try:
+        return input(prompt).strip().lower()
+    except EOFError:
+        return default
+
+
+def _purge():
+    """Full clean-slate: each destructive step confirmed, default No."""
+    print()
+    print("[--purge] 完整刪除 — 逐項確認 (預設 N):")
+    home = os.path.expanduser("~")
+    if ask("刪除 ~/.camofox（登入 profile/cookies + Camoufox 快取）? [y/N]: ") in ("y", "yes"):
+        remove_path(os.path.join(home, ".camofox"))
+    if ask("刪除 restore 備份 ~/.pi/agent.backup.*? [y/N]: ") in ("y", "yes"):
+        for b in glob(os.path.join(home, ".pi", "agent.backup.*")):
+            remove_path(b)
+    if ask("執行 npm uninstall -g @earendil-works/pi-coding-agent? [y/N]: ") in ("y", "yes"):
+        try:
+            r = subprocess.run("npm uninstall -g @earendil-works/pi-coding-agent", shell=True)
+            if r.returncode != 0:
+                print("  npm uninstall 回傳非零（npm 可能未安裝）；可手動執行: npm uninstall -g @earendil-works/pi-coding-agent")
+        except Exception as e:
+            print(f"  npm uninstall 失敗: {e}；可手動執行。")
+    else:
+        print("  可手動執行: npm uninstall -g @earendil-works/pi-coding-agent")
+    print()
+    remaining = glob(os.path.join(home, ".pi", "agent.backup.*"))
+    if remaining:
+        print(f"（保留了 {len(remaining)} 份 ~/.pi/agent 備份；不需要可手動刪除。）")
+    print(f"最後一步（程式無法自刪所在目錄）：請手動刪除 repo 資料夾：{REPO_ROOT}")
+
+
 def main():
+    parser = argparse.ArgumentParser(description="CK's Pi Code Agent Harness - Uninstall")
+    parser.add_argument("--purge", action="store_true",
+                        help="Also remove ~/.camofox, restore backups, and optionally Pi itself")
+    args = parser.parse_args()
+
     print("=" * 60)
-    print(" CK's Pi Code Agent Harness - Uninstall")
+    print(" CK's Pi Code Agent Harness - Uninstall" + (" (--purge)" if args.purge else ""))
     print("=" * 60)
     print()
     print("This will:")
     print("  - Remove skills, rules, extensions installed by this harness")
     print("  - Remove harness entries from settings.json")
-    print("  - Optionally remove Pi (AI coding assistant) itself")
+    if args.purge:
+        print("  - [--purge] Also offer to remove ~/.camofox, backups, and Pi")
     print()
     print("This will NOT:")
     print("  - Delete your projects")
@@ -89,18 +135,17 @@ def main():
     print("  - Delete skills or extensions you installed yourself")
     print()
 
-    ans = input("Continue? (y/N): ").strip().lower()
-    if ans not in ("y", "yes"):
+    if ask("Continue? (y/N): ") not in ("y", "yes"):
         print("Uninstall cancelled.")
         sys.exit(0)
 
-    # Restore from latest backup if exists
+    # Restore from latest backup if exists (skipped under --purge: purge is a
+    # clean-slate path, not a restore).
     backups = sorted(glob(os.path.join(os.path.expanduser("~"), ".pi", "agent.backup.*")))
-    if backups:
+    if backups and not args.purge:
         latest = backups[-1]
         print(f"\nFound previous backup: {latest}")
-        ans = input("Restore from backup? (y/N): ").strip().lower()
-        if ans in ("y", "yes"):
+        if ask("Restore from backup? (y/N): ") in ("y", "yes"):
             if os.path.isdir(AGENT_DIR):
                 shutil.rmtree(AGENT_DIR)
             shutil.copytree(latest, AGENT_DIR)
@@ -120,14 +165,15 @@ def main():
         remove_path(os.path.join(AGENT_DIR, "AGENTS.md"))
         clean_settings()
 
-    # Ask to remove Pi itself
-    print()
-    ans = input("Remove Pi (pi command)? (y/N): ").strip().lower()
-    if ans in ("y", "yes"):
-        print("Run the following command to uninstall Pi:")
-        print("  npm uninstall -g @mariozechner/pi-coding-agent")
+    if args.purge:
+        _purge()
     else:
-        print("Pi kept.")
+        print()
+        if ask("Remove Pi (pi command)? (y/N): ") in ("y", "yes"):
+            print("Run the following command to uninstall Pi:")
+            print("  npm uninstall -g @earendil-works/pi-coding-agent")
+        else:
+            print("Pi kept.")
 
     print()
     print("✅ Uninstall complete.")
