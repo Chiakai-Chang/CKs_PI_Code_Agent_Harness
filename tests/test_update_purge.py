@@ -34,5 +34,24 @@ class TestSetupUpdateMode(unittest.TestCase):
         self.assertIn("run_update()", c)
 
 
+class TestUpdateEntryScripts(unittest.TestCase):
+    def test_update_bat(self):
+        c = read_file("update.bat")
+        self.assertIn("--mode update", c)
+        self.assertIn("chcp 65001", c)
+
+    def test_update_sh(self):
+        c = read_file("update.sh")
+        self.assertIn("--mode update", c)
+
+    def test_no_machine_paths(self):
+        import re
+        for f in ("update.bat", "update.sh"):
+            self.assertIsNone(
+                re.search(r"[A-Za-z]:/MyProject|file:///", read_file(f)),
+                f"{f} must not contain machine-specific paths",
+            )
+
+
 if __name__ == "__main__":
     unittest.main()
