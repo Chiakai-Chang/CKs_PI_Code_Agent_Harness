@@ -3,7 +3,8 @@
 # CK's Pi Code Agent Harness – Uninstall Helper
 #
 # Usage:
-#   python scripts/uninstall.py
+#   python scripts/uninstall.py            # remove harness-managed items only
+#   python scripts/uninstall.py --purge    # full clean-slate (per-item confirm)
 #
 import os
 import sys
@@ -32,8 +33,8 @@ MANAGED_BRIDGES = ["ecc-hooks-bridge", "planning-with-files-bridge",
                    "case-bridge", "taste-bridge", "mece-autopilot-bridge"]
 
 # Note: the stealth-recon backend stores logged-in browser profiles and cookies
-# under ~/.camofox/ (session secrets). This is user data outside the harness —
-# it is intentionally NOT removed here; delete it manually if desired.
+# under ~/.camofox/ (session secrets). The default uninstall leaves it in place;
+# it is removed only under --purge, and only after an explicit y confirmation.
 
 
 def remove_path(path):
@@ -98,12 +99,17 @@ def _purge():
             remove_path(b)
     if ask("執行 npm uninstall -g @earendil-works/pi-coding-agent? [y/N]: ") in ("y", "yes"):
         try:
-            subprocess.run("npm uninstall -g @earendil-works/pi-coding-agent", shell=True)
+            r = subprocess.run("npm uninstall -g @earendil-works/pi-coding-agent", shell=True)
+            if r.returncode != 0:
+                print("  npm uninstall 回傳非零（npm 可能未安裝）；可手動執行: npm uninstall -g @earendil-works/pi-coding-agent")
         except Exception as e:
             print(f"  npm uninstall 失敗: {e}；可手動執行。")
     else:
         print("  可手動執行: npm uninstall -g @earendil-works/pi-coding-agent")
     print()
+    remaining = glob(os.path.join(home, ".pi", "agent.backup.*"))
+    if remaining:
+        print(f"（保留了 {len(remaining)} 份 ~/.pi/agent 備份；不需要可手動刪除。）")
     print(f"最後一步（程式無法自刪所在目錄）：請手動刪除 repo 資料夾：{REPO_ROOT}")
 
 
