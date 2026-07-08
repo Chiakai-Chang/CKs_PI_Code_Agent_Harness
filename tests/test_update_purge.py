@@ -53,5 +53,29 @@ class TestUpdateEntryScripts(unittest.TestCase):
             )
 
 
+class TestUninstallPurge(unittest.TestCase):
+    REL = "scripts/uninstall.py"
+
+    def test_argparse_and_flag(self):
+        c = read_file(self.REL)
+        self.assertIn("import argparse", c)
+        self.assertIn('"--purge"', c)
+
+    def test_purge_targets(self):
+        c = read_file(self.REL)
+        self.assertIn(".camofox", c)
+        self.assertIn("agent.backup", c)
+
+    def test_scope_fixed(self):
+        c = read_file(self.REL)
+        self.assertIn("@earendil-works/pi-coding-agent", c)
+        self.assertNotIn("@mariozechner", c)
+
+    def test_ask_helper_nontty_safe(self):
+        c = read_file(self.REL)
+        self.assertIn("def ask", c)
+        self.assertIn("isatty", c)
+
+
 if __name__ == "__main__":
     unittest.main()
