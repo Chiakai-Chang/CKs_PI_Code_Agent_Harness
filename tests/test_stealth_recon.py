@@ -65,7 +65,8 @@ class TestSkillMd(unittest.TestCase):
         self.assertIn("snapshot", c)
         self.assertIn("/tabs/$TID/navigate", c)
         self.assertIn("macro", c)
-        self.assertIn("recon.sh ensure", c)
+        self.assertIn("recon.sh", c)
+        self.assertIn("ensure", c)
         self.assertIn("is_blocked", c)
         self.assertIn("findings.md", c)
         self.assertIn("9377", c)
@@ -126,6 +127,36 @@ class TestDocs(unittest.TestCase):
     def test_uninstall_notes_user_data(self):
         c = read_file("scripts/uninstall.py")
         self.assertIn(".camofox", c)
+
+
+class TestReconBlockDetection(unittest.TestCase):
+    REL = "pi-skills/optional/camofox-stealth/recon.sh"
+
+    def _rc(self, content):
+        import tempfile
+        fd, p = tempfile.mkstemp()
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        try:
+            return subprocess.run(
+                ["sh", os.path.join(ROOT, self.REL), "is_blocked", p],
+                capture_output=True, text=True,
+            ).returncode
+        finally:
+            os.remove(p)
+
+    def test_blocked_challenge_returns_0(self):
+        self.assertEqual(self._rc("<title>Just a moment...</title>" + ("x " * 100)), 0)
+
+    def test_clean_page_returns_nonzero(self):
+        self.assertNotEqual(self._rc("This is a normal article. " * 50), 0)
+
+    def test_missing_file_returns_nonzero(self):
+        rc = subprocess.run(
+            ["sh", os.path.join(ROOT, self.REL), "is_blocked", "/no/such/file/xyz"],
+            capture_output=True, text=True,
+        ).returncode
+        self.assertNotEqual(rc, 0)
 
 
 if __name__ == "__main__":

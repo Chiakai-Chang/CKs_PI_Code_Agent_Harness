@@ -25,7 +25,11 @@ ensure() {
   log "starting stealth server (detached): $START_CMD"
   # Detach so the server survives this tool-call shell. ENABLE_VNC lets the
   # user log in visually at http://localhost:6080 when a site needs auth.
-  ENABLE_VNC=1 CAMOFOX_PORT=9377 nohup $START_CMD >"$LOGFILE" 2>&1 &
+  # Derive the bind port from STEALTH_RECON_URL so a user override actually
+  # binds the server where health() will poll it. NOVNC_PORT is pinned per spec.
+  RECON_PORT=$(printf '%s' "$STEALTH_RECON_URL" | sed -n 's|.*:\([0-9][0-9]*\).*|\1|p')
+  [ -n "$RECON_PORT" ] || RECON_PORT=9377
+  ENABLE_VNC=1 CAMOFOX_PORT="$RECON_PORT" NOVNC_PORT=6080 nohup $START_CMD >"$LOGFILE" 2>&1 &
   echo "$!" > "$PIDFILE"
   i=0
   while [ "$i" -lt "$START_TIMEOUT" ]; do
