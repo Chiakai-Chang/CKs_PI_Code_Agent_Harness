@@ -82,5 +82,17 @@ class TestSkillMd(unittest.TestCase):
         self.assertIsNone(re.search(r"file:///[A-Za-z]:/|[A-Za-z]:/MyProject|:8080", c))
 
 
+class TestRule(unittest.TestCase):
+    REL = "pi-rules/stealth-recon.md"
+
+    def test_exists_and_bounded(self):
+        c = read_file(self.REL)
+        self.assertIn("findings.md", c)
+        self.assertIn("參考不照抄", c)
+        self.assertIn("camofox-stealth", c)
+        # bounded: mentions a cap so trivial tasks aren't dragged
+        self.assertTrue("上限" in c or "瑣碎" in c)
+
+
 if __name__ == "__main__":
     unittest.main()
