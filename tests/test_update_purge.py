@@ -77,5 +77,13 @@ class TestUninstallPurge(unittest.TestCase):
         self.assertIn("isatty", c)
 
 
+class TestReadmeUpdatePurge(unittest.TestCase):
+    def test_readme_mentions_update_and_uninstall(self):
+        c = read_file("README.md")
+        self.assertIn("update.bat", c)
+        self.assertIn("--mode update", c)
+        self.assertIn("--purge", c)
+
+
 if __name__ == "__main__":
     unittest.main()

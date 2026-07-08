@@ -24,13 +24,17 @@ cd CKs_PI_Code_Agent_Harness
 *   **macOS / Linux**: 執行 `bash install.sh`
 
 ### 3. 更新與升級 (Update)
-已安裝過的使用者，更新到最新版只需三步（設定與自訂技能都會被保留）：
-```bash
-git pull --recurse-submodules          # 1. 更新 Harness 與子模組
-python scripts/setup.py --mode restore # 2. 重新同步配置（冪等，保留使用者自訂）
-pi update --all                        # 3. 更新 Pi 本體與擴充套件（僅更新本體用 pi update）
-```
+已安裝過的使用者一鍵更新（設定與自訂技能都會保留）：
+*   **Windows**：雙擊 `update.bat`
+*   **macOS / Linux**：執行 `bash update.sh`
+*   **進階（等同上述）**：`python scripts/setup.py --mode update`
+    — 內部自動執行 `git pull --recurse-submodules` → `restore --auto` → `pi update --all`。
 > 啟動時若見到 `[Skill conflicts]` 名稱警告，多為上游命名問題、技能仍正常載入，詳見 [docs/KNOWN_ISSUES.md](docs/KNOWN_ISSUES.md)。
+
+### 解除安裝 (Uninstall)
+*   **只移除 harness 管理項**（保留你自己的技能與 `~/.camofox` 登入資料）：`python scripts/uninstall.py`
+*   **完整刪除、重來**（逐項確認，可額外刪 `~/.camofox`、備份、Pi 本體）：`python scripts/uninstall.py --purge`
+    — 最後會提示手動刪除 repo 資料夾。
 
 ### 4. 模式選擇 (Profiles)
 安裝時可依需求選擇以下配置模式：
