@@ -30,6 +30,6 @@
 
 **處理**：本專案 `setup.py` 全新安裝已改用 `@earendil-works/pi-coding-agent`。既有安裝執行 `pi update` 即自動遷移（0.73.1 起的自我更新支援改名，會移除舊全域套件並安裝新套件）。
 
-## 4. stealth-recon 後端需自架
+## 4. stealth-recon 後端首次自動安裝（~300MB）
 
-`camofox-stealth` 技能需要本地跑 `@askjo/camofox-browser@1.11.2`（首次下載 Camoufox ~300MB 到 `~/.camofox`，不含在 repo）。安裝時可選預抓，或執行 pi 時由技能懶啟動。最硬的 Akamai/Datadome 頂層可能仍需 residential proxy（本技能預設不掛 proxy，不在支援範圍）。
+`camofox-stealth` 技能的後端 `@askjo/camofox-browser@1.11.2` **會自動安裝，不需手動架設**：`recon.sh` 以 `npx -y` 取得套件，camofox-browser 首次啟動時再自動下載 Camoufox（~300MB 到 `~/.camofox`，一次性，不含在 repo）。第一次啟動會顯示下載提示並延長等待逾時（預設 600 秒）；之後啟動為秒級。也可在 `setup.py` 完整安裝時選擇預先下載。最硬的 Akamai/Datadome 頂層可能仍需 residential proxy（本技能預設不掛 proxy，不在支援範圍）。

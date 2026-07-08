@@ -22,6 +22,15 @@ ensure() {
     return 0
   fi
   mkdir -p "$CAMOFOX_HOME"
+  # First run auto-installs the engine (npx fetches the package; camofox-browser
+  # then downloads Camoufox ~300MB). That can exceed the normal wait, so we
+  # announce it and use a longer timeout the first time only.
+  INIT_MARKER="$CAMOFOX_HOME/.recon-initialized"
+  wait_timeout="$START_TIMEOUT"
+  if [ ! -f "$INIT_MARKER" ]; then
+    log "首次啟動：正在自動下載並安裝隱身瀏覽器引擎 Camoufox (~300MB, 一次性)，約需數分鐘，請稍候…"
+    wait_timeout="${STEALTH_RECON_FIRST_RUN_TIMEOUT:-600}"
+  fi
   log "starting stealth server (detached): $START_CMD"
   # Detach so the server survives this tool-call shell. ENABLE_VNC lets the
   # user log in visually at http://localhost:6080 when a site needs auth.
@@ -32,15 +41,16 @@ ensure() {
   ENABLE_VNC=1 CAMOFOX_PORT="$RECON_PORT" NOVNC_PORT=6080 nohup $START_CMD >"$LOGFILE" 2>&1 &
   echo "$!" > "$PIDFILE"
   i=0
-  while [ "$i" -lt "$START_TIMEOUT" ]; do
+  while [ "$i" -lt "$wait_timeout" ]; do
     if health; then
+      : > "$INIT_MARKER"
       log "server ready after ${i}s"
       return 0
     fi
     i=$((i + 1))
     sleep 1
   done
-  log "server did NOT become ready in ${START_TIMEOUT}s; see $LOGFILE"
+  log "server did NOT become ready in ${wait_timeout}s; see $LOGFILE"
   return 1
 }
 

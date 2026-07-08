@@ -159,5 +159,18 @@ class TestReconBlockDetection(unittest.TestCase):
         self.assertNotEqual(rc, 0)
 
 
+class TestReconFirstRun(unittest.TestCase):
+    REL = "pi-skills/optional/camofox-stealth/recon.sh"
+
+    def test_first_run_notice_and_longer_timeout(self):
+        c = read_file(self.REL)
+        # First-run auto-install must be announced and given a longer wait so the
+        # ~300MB Camoufox download does not falsely time out on the normal path.
+        self.assertIn(".recon-initialized", c)
+        self.assertIn("300MB", c)
+        self.assertIn("STEALTH_RECON_FIRST_RUN_TIMEOUT", c)
+        self.assertIn("wait_timeout", c)
+
+
 if __name__ == "__main__":
     unittest.main()
