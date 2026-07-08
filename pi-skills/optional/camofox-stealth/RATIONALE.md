@@ -23,5 +23,10 @@
 *   **運作邏輯**：Pi 作為客戶端，調用用戶本地啟動的 `camofox-browser` 伺服器。
 *   **聯動**：在 `browser-expert` 代理中注入選型邏輯（簡單網頁用 dev-browser，難搞網站用 camofox）。
 
+## 5. 升級與釘版 (2026-07-08)
+*   **釘版**：後端釘 `@askjo/camofox-browser@1.11.2`（記於 `pi-config/harness-config.json`），skill 對準此版 `/tabs`+snapshot API，杜絕 `npx latest` 移動標的與既有 `3001`/`/navigate` 漂移。
+*   **更新流**：後端升級＝改 `harness-config.json` 版本後重跑 `setup.py`；harness 其餘更新照 `git pull` → `setup.py --mode restore` → `pi update` 單一路徑。
+*   **生命週期**：`recon.sh` detached 啟動 + pidfile + health-check，解決 Windows/Git Bash 短命 tool-call 背景進程問題。
+
 ---
 **本文件依據 DISTILLATION_GUIDE v3.7 規範存檔。**

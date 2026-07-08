@@ -29,3 +29,7 @@
 **根因**：Pi 官方將 npm scope 從 `@mariozechner` 遷移至 `@earendil-works`；舊 scope 凍結在 0.73.1。
 
 **處理**：本專案 `setup.py` 全新安裝已改用 `@earendil-works/pi-coding-agent`。既有安裝執行 `pi update` 即自動遷移（0.73.1 起的自我更新支援改名，會移除舊全域套件並安裝新套件）。
+
+## 4. stealth-recon 後端需自架
+
+`camofox-stealth` 技能需要本地跑 `@askjo/camofox-browser@1.11.2`（首次下載 Camoufox ~300MB 到 `~/.camofox`，不含在 repo）。安裝時可選預抓，或執行 pi 時由技能懶啟動。最硬的 Akamai/Datadome 頂層可能仍需 residential proxy（本技能預設不掛 proxy，不在支援範圍）。

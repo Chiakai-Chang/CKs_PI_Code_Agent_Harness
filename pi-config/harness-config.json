@@ -1,5 +1,6 @@
 {
   "harnessVersion": "1.0.0",
   "minRecommendedPiVersion": "0.73.0",
+  "camofoxBrowserVersion": "1.11.2",
   "description": "CK's Pi Code Agent Harness configuration version"
 }

@@ -290,6 +290,18 @@ def main():
         if has_command("pi"): run_stream("pi update")
         else: run_stream("npm install -g @earendil-works/pi-coding-agent")
 
+        # Optional: prefetch the stealth-recon browser engine (Camoufox ~300MB).
+        # Opt-in and best-effort — never block install; --auto / non-tty skips it.
+        cfg = load_json(HARNESS_CONFIG_PATH)
+        camofox_ver = cfg.get("camofoxBrowserVersion", "1.11.2")
+        pf = ask(f"是否預抓 stealth-recon 隱身瀏覽器引擎 Camoufox (~300MB, 可選)? [y/N]: ", "n")
+        if pf.strip().lower() == "y":
+            print("[*] 正在預抓 stealth 引擎 (best-effort)...")
+            # prefetch: triggers Camoufox binary download to ~/.camofox
+            run_stream(f"npx -y @askjo/camofox-browser@{camofox_ver} --version")
+        else:
+            print("[*] 略過 stealth 引擎預抓 (可日後執行 pi 時由 camofox-stealth 技能懶啟動)。")
+
     if mode in ["full", "model"]:
         local_models = detect_llm_services()
         print("\n請選擇模型提供商 (Model Provider):")
