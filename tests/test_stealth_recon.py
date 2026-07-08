@@ -94,5 +94,23 @@ class TestRule(unittest.TestCase):
         self.assertTrue("上限" in c or "瑣碎" in c)
 
 
+class TestSetupPrefetch(unittest.TestCase):
+    REL = "scripts/setup.py"
+
+    def test_prefetch_present_and_optional(self):
+        c = read_file(self.REL)
+        self.assertIn("camofoxBrowserVersion", c, "setup must read pinned version")
+        self.assertIn("@askjo/camofox-browser", c)
+        # opt-in via ask() default "n" — must not force download
+        self.assertIn("prefetch", c.lower())
+
+    def test_prefetch_uses_ask_not_raw_input(self):
+        # the prefetch prompt must degrade in --auto/non-tty (uses ask(), not input())
+        c = read_file(self.REL)
+        idx = c.lower().find("prefetch")
+        window = c[max(0, idx - 400): idx + 400]
+        self.assertIn("ask(", window, "prefetch prompt must use ask() for --auto safety")
+
+
 if __name__ == "__main__":
     unittest.main()
