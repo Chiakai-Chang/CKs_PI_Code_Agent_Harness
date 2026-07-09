@@ -274,6 +274,39 @@ def heal_max_tokens(models):
                 healed.append(model.get("id"))
     return healed
 
+def check_models_against_server(models, probe=None):
+    """Compare declared model specs against the live local server's truth.
+
+    models.json is a snapshot; server restarts change reality (e.g. llama.cpp
+    -np 2 splits a 262144 context into 2 slots of 131072 each, and pi then
+    overruns the real per-request window without knowing). Probes only
+    localhost providers; a server that is not running is a normal situation
+    and stays silent. Returns human-readable warnings, never raises.
+    """
+    if probe is None:
+        from setup import probe_llama_cpp as probe  # same directory
+    warnings = []
+    for provider in (models.get("providers") or {}).values():
+        base = provider.get("baseUrl") or ""
+        if not ("127.0.0.1" in base or "localhost" in base):
+            continue
+        try:
+            live = probe(base)
+        except Exception:
+            live = None
+        if not live or not live.get("ctx"):
+            continue
+        for model in provider.get("models") or []:
+            declared = model.get("contextWindow") or 0
+            if declared > live["ctx"]:
+                warnings.append(
+                    f"{model.get('id')}: contextWindow {declared} exceeds the server's "
+                    f"current per-request context {live['ctx']} — long sessions will "
+                    f"overrun it. Lower contextWindow or restart the server with a "
+                    f"bigger context (fewer slots)."
+                )
+    return warnings
+
 def main():
     parser = argparse.ArgumentParser(description="CK's Pi Code Agent Harness - Restore")
     parser.add_argument("--auto", action="store_true", help="Skip confirmation")
@@ -432,6 +465,8 @@ def main():
             log("  - models.json synced (merged)")
             for mid in healed:
                 log(f"  - {mid}: maxTokens raised from legacy 4096 to fit contextWindow")
+            for warning in check_models_against_server(merged_models):
+                log(f"  ! {warning}")
 
     # Clean up deprecated config.json in ~/.pi/agent/
     cfg_path = os.path.join(AGENT_DIR, "config.json")

@@ -157,5 +157,56 @@ class TestHealMaxTokens(unittest.TestCase):
             restore.heal_max_tokens({"providers": {"x": {"models": [{}]}}}), [])
 
 
+class TestCheckModelsAgainstServer(unittest.TestCase):
+    """設定檔是快照，server 重啟參數會變（例如 -np 2 把 262144 平分成
+    2×131072）。restore 時必須拿 live 真值核對，錯配要警告。"""
+
+    def _models(self, ctx, max_t, base="http://127.0.0.1:8080"):
+        return {"providers": {"local-server": {"baseUrl": base, "models": [
+            {"id": "big.gguf", "contextWindow": ctx, "maxTokens": max_t}
+        ]}}}
+
+    def test_declared_ctx_exceeds_live_ctx_warns(self):
+        """實例：models.json 262144，server 每 slot 只有 131072。"""
+        probe = lambda url: {"name": "big.gguf", "ctx": 131072}
+        warnings = restore.check_models_against_server(
+            self._models(262144, 32768), probe=probe)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("262144", warnings[0])
+        self.assertIn("131072", warnings[0])
+
+    def test_matching_ctx_no_warning(self):
+        probe = lambda url: {"name": "big.gguf", "ctx": 131072}
+        self.assertEqual(restore.check_models_against_server(
+            self._models(131072, 16384), probe=probe), [])
+
+    def test_declared_ctx_below_live_is_fine(self):
+        """聲明值較小只是保守，不是錯誤。"""
+        probe = lambda url: {"name": "big.gguf", "ctx": 262144}
+        self.assertEqual(restore.check_models_against_server(
+            self._models(131072, 16384), probe=probe), [])
+
+    def test_server_down_silent(self):
+        """離線／沒跑 server 是正常情境，不得警告或當掉。"""
+        probe = lambda url: None
+        self.assertEqual(restore.check_models_against_server(
+            self._models(262144, 32768), probe=probe), [])
+
+    def test_remote_base_url_not_probed(self):
+        """只探本機 server；雲端 provider 一律跳過。"""
+        calls = []
+        def probe(url):
+            calls.append(url)
+            return {"name": "x", "ctx": 1}
+        restore.check_models_against_server(
+            self._models(262144, 32768, base="https://api.example.com"), probe=probe)
+        self.assertEqual(calls, [])
+
+    def test_no_base_url_skipped(self):
+        models = {"providers": {"p": {"models": [{"id": "m", "contextWindow": 999}]}}}
+        self.assertEqual(
+            restore.check_models_against_server(models, probe=lambda u: {"ctx": 1}), [])
+
+
 if __name__ == "__main__":
     unittest.main()
