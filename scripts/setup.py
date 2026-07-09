@@ -272,6 +272,12 @@ def get_recommended_specs(model_id, hw, api_base=None, provider=None):
         vram = hw.get("vram")
         if vram and vram < 12 and ctx > 32768: ctx = 32768
 
+    # 5. Scale output cap with the final context. Thinking models spend their
+    #    reasoning inside the output budget, so a large-context model stuck at
+    #    the 4096 default gets long responses truncated mid-answer ("maximum
+    #    output token limit"). Ceiling 32768 keeps a runaway local model bounded.
+    max_t = max(max_t, min(ctx // 8, 32768))
+
     return ctx, max_t, reasoning, is_truth
 
 # --- Orchestration Domain ---

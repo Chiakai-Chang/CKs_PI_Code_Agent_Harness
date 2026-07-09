@@ -1,6 +1,14 @@
+import os
+import sys
 import unittest
 import re
 import json
+from unittest import mock
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, "scripts"))
+
+import setup
 
 # Mock hardware info for testing logic
 MOCK_HW_GOOD = {"ram": 64, "vram": 24}
@@ -55,6 +63,33 @@ class TestSetupLogic(unittest.TestCase):
         ctx, _, _, found = mock_get_recommended_specs("large-model", MOCK_HW_LOW, found_ctx=None)
         # Assuming 32k cap for 8GB RAM in heuristics
         self.assertLessEqual(ctx, 32768)
+
+    def test_max_tokens_scales_with_probed_ctx(self):
+        """探到大 context 時，輸出上限必須跟著放大（ctx//8），
+        否則思考型模型長回應被 4096 預設值硬切。"""
+        with mock.patch.object(setup, "probe_llama_cpp", return_value={"ctx": 262144}):
+            ctx, max_t, _, truth = setup.get_recommended_specs(
+                "agents-a1.gguf", MOCK_HW_GOOD, api_base="http://127.0.0.1:8080", provider="custom")
+        self.assertTrue(truth)
+        self.assertEqual(ctx, 262144)
+        self.assertEqual(max_t, 32768)
+
+    def test_max_tokens_capped_for_huge_ctx(self):
+        """輸出上限有失控煞車：不超過 32768。"""
+        with mock.patch.object(setup, "probe_llama_cpp", return_value={"ctx": 1048576}):
+            _, max_t, _, _ = setup.get_recommended_specs(
+                "huge.gguf", MOCK_HW_GOOD, api_base="http://127.0.0.1:8080", provider="custom")
+        self.assertEqual(max_t, 32768)
+
+    def test_max_tokens_default_for_small_ctx(self):
+        """小 context（預設 8192）維持 4096，不縮小。"""
+        _, max_t, _, _ = setup.get_recommended_specs("tiny-model", MOCK_HW_GOOD)
+        self.assertEqual(max_t, 4096)
+
+    def test_size_heuristic_max_tokens_not_lowered(self):
+        """70B 啟發值 max_t=8192（ctx 32768）不得被 ctx//8=4096 拉低。"""
+        _, max_t, _, _ = setup.get_recommended_specs("llama-70b", MOCK_HW_GOOD)
+        self.assertEqual(max_t, 8192)
 
     def test_wmic_regex(self):
         """Verify the number extraction from messy Windows output."""

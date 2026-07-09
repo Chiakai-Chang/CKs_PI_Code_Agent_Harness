@@ -252,6 +252,28 @@ def merge_models(existing, incoming):
     merged["providers"] = providers
     return merged
 
+# Older setup.py wrote maxTokens=4096 regardless of context size; on
+# large-context (thinking) models that truncates long responses mid-answer
+# ("maximum output token limit").
+LEGACY_DEFAULT_MAX_TOKENS = 4096
+
+def heal_max_tokens(models):
+    """Raise maxTokens left at the legacy 4096 default on large-context models.
+
+    Scales to contextWindow // 8, ceiling 32768 (runaway-generation brake).
+    Only the exact legacy default is touched so user-chosen values survive.
+    Returns the ids of healed models.
+    """
+    healed = []
+    for provider in (models.get("providers") or {}).values():
+        for model in provider.get("models") or []:
+            ctx = model.get("contextWindow") or 0
+            scaled = min(ctx // 8, 32768)
+            if model.get("maxTokens") == LEGACY_DEFAULT_MAX_TOKENS and scaled > LEGACY_DEFAULT_MAX_TOKENS:
+                model["maxTokens"] = scaled
+                healed.append(model.get("id"))
+    return healed
+
 def main():
     parser = argparse.ArgumentParser(description="CK's Pi Code Agent Harness - Restore")
     parser.add_argument("--auto", action="store_true", help="Skip confirmation")
@@ -404,8 +426,12 @@ def main():
         if models_data:
             models_dest = os.path.join(AGENT_DIR, "models.json")
             existing_models = load_json(models_dest) if os.path.exists(models_dest) else {}
-            save_json(models_dest, merge_models(existing_models, models_data))
+            merged_models = merge_models(existing_models, models_data)
+            healed = heal_max_tokens(merged_models)
+            save_json(models_dest, merged_models)
             log("  - models.json synced (merged)")
+            for mid in healed:
+                log(f"  - {mid}: maxTokens raised from legacy 4096 to fit contextWindow")
 
     # Clean up deprecated config.json in ~/.pi/agent/
     cfg_path = os.path.join(AGENT_DIR, "config.json")

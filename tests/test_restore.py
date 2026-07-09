@@ -105,5 +105,57 @@ class TestMergeModels(unittest.TestCase):
         self.assertIn("ollama", merged["providers"])
 
 
+class TestHealMaxTokens(unittest.TestCase):
+    """舊版 setup.py 對大 context 模型仍寫入預設 maxTokens=4096，導致長回應
+    被硬切（maximum output token limit）。restore 時必須自動治癒該組合。"""
+
+    def _models(self, ctx, max_t):
+        return {"providers": {"local-server": {"models": [
+            {"id": "big.gguf", "contextWindow": ctx, "maxTokens": max_t}
+        ]}}}
+
+    def test_legacy_default_on_large_ctx_raised(self):
+        models = self._models(262144, 4096)
+        healed = restore.heal_max_tokens(models)
+        self.assertEqual(
+            models["providers"]["local-server"]["models"][0]["maxTokens"], 32768)
+        self.assertEqual(healed, ["big.gguf"])
+
+    def test_huge_ctx_capped_at_32768(self):
+        """思考型模型需要大輸出額度，但仍須有失控煞車：上限 32768。"""
+        models = self._models(1048576, 4096)
+        restore.heal_max_tokens(models)
+        self.assertEqual(
+            models["providers"]["local-server"]["models"][0]["maxTokens"], 32768)
+
+    def test_user_chosen_value_untouched(self):
+        """非 4096 的值視為使用者自選，不得覆蓋。"""
+        models = self._models(262144, 5000)
+        healed = restore.heal_max_tokens(models)
+        self.assertEqual(
+            models["providers"]["local-server"]["models"][0]["maxTokens"], 5000)
+        self.assertEqual(healed, [])
+
+    def test_small_ctx_untouched(self):
+        """ctx 32768 以下，4096 已是合理比例（ctx//8），不動。"""
+        models = self._models(32768, 4096)
+        healed = restore.heal_max_tokens(models)
+        self.assertEqual(
+            models["providers"]["local-server"]["models"][0]["maxTokens"], 4096)
+        self.assertEqual(healed, [])
+
+    def test_mid_ctx_scaled_not_capped(self):
+        models = self._models(65536, 4096)
+        restore.heal_max_tokens(models)
+        self.assertEqual(
+            models["providers"]["local-server"]["models"][0]["maxTokens"], 8192)
+
+    def test_empty_or_malformed_no_crash(self):
+        self.assertEqual(restore.heal_max_tokens({}), [])
+        self.assertEqual(restore.heal_max_tokens({"providers": {"x": {}}}), [])
+        self.assertEqual(
+            restore.heal_max_tokens({"providers": {"x": {"models": [{}]}}}), [])
+
+
 if __name__ == "__main__":
     unittest.main()
