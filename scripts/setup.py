@@ -97,9 +97,11 @@ def maybe_prefetch_stealth():
     camofox_ver = cfg.get("camofoxBrowserVersion", "1.11.2")
     pf = ask("是否預抓 stealth-recon 隱身瀏覽器引擎 Camoufox (~300MB, 可選)? [y/N]: ", "n")
     if pf.strip().lower() == "y":
-        print("[*] 正在預抓 stealth 引擎 (best-effort)...")
-        # prefetch: triggers Camoufox binary download to ~/.camofox
-        run_stream(f"npx -y @askjo/camofox-browser@{camofox_ver} --version")
+        print("[*] 正在預抓 stealth 引擎 (best-effort，數分鐘)...")
+        # Prefetch via global install: the package postinstall downloads the
+        # Camoufox binary and EXITS. (Do NOT use `npx ... --version` here — that
+        # build boots a persistent server and would hang the installer.)
+        run_stream(f"npm install -g @askjo/camofox-browser@{camofox_ver}")
     else:
         print("[*] 略過 stealth 引擎預抓 (可日後執行 pi 時由 camofox-stealth 技能懶啟動)。")
 
