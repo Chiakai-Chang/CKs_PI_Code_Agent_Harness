@@ -7,14 +7,21 @@ STEALTH_RECON_URL="${STEALTH_RECON_URL:-http://127.0.0.1:9377}"
 CAMOFOX_HOME="${CAMOFOX_HOME:-$HOME/.camofox}"
 PIDFILE="$CAMOFOX_HOME/recon.pid"
 LOGFILE="$CAMOFOX_HOME/recon.log"
-# Wrapper is pinned to @askjo/camofox-browser@1.11.2, but its playwright-core
-# range (^1.58.0) floats up to 1.61+, whose Browser.setDefaultViewport sends a
-# viewport.isMobile field the bundled Camoufox juggler rejects — that breaks
-# every tab create. We install into a local prefix with an npm override forcing
-# playwright-core to the camoufox-js-tested 1.53.x, so the engine stays
-# compatible regardless of what floats to latest upstream. (Replaces bare
-# `npx -y`, which always grabbed the broken latest.)
-CAMOFOX_PKG="@askjo/camofox-browser@1.11.2"
+# Wrapper version is the single-source-of-truth pin in pi-config/harness-config.json
+# (camofoxBrowserVersion). Read it relative to this script's own location, with a
+# hardcoded fallback so recon never hard-breaks if the config is unreadable.
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" 2>/dev/null && pwd)
+HARNESS_CONFIG="${SCRIPT_DIR:-.}/../../../pi-config/harness-config.json"
+CAMOFOX_VER=$(sed -n 's/.*"camofoxBrowserVersion"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$HARNESS_CONFIG" 2>/dev/null | head -1)
+[ -n "$CAMOFOX_VER" ] || CAMOFOX_VER="1.11.2"
+CAMOFOX_PKG="@askjo/camofox-browser@$CAMOFOX_VER"
+# The wrapper's playwright-core range (^1.58.0) floats up to 1.61+, whose
+# Browser.setDefaultViewport sends a viewport.isMobile field the bundled Camoufox
+# juggler rejects — that breaks every tab create. We install into a local prefix
+# with an npm override forcing playwright-core to the camoufox-js-tested 1.53.x,
+# so the engine stays compatible regardless of what floats to latest upstream.
+# (Replaces bare `npx -y`, which always grabbed the broken latest.) This pin is
+# an engine-compat implementation detail, so it lives here, not in the config.
 PINNED_PLAYWRIGHT="1.53.1"
 SERVER_DIR="$CAMOFOX_HOME/pinned-server"
 SERVER_JS="$SERVER_DIR/node_modules/@askjo/camofox-browser/server.js"

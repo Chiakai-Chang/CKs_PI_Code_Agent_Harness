@@ -37,6 +37,15 @@ class TestReconScript(unittest.TestCase):
         self.assertIn("recon.pid", c)
         self.assertNotIn(":8080", c)
 
+    def test_wrapper_version_read_from_config(self):
+        """Wrapper version is single-sourced from harness-config.json
+        (camofoxBrowserVersion), read relative to the script, with a hardcoded
+        fallback so recon never hard-breaks if the config is unreadable."""
+        c = read_file(self.REL)
+        self.assertIn("camofoxBrowserVersion", c)
+        self.assertIn("harness-config.json", c)
+        self.assertIn('CAMOFOX_VER="1.11.2"', c, "must keep a safe hardcoded fallback")
+
     def test_pins_playwright_core_engine(self):
         """The wrapper's ^1.58.0 range resolves to playwright-core 1.61+, which
         sends a viewport.isMobile field the Camoufox juggler rejects, breaking
