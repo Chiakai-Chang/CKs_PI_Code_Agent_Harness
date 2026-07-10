@@ -7,7 +7,17 @@ STEALTH_RECON_URL="${STEALTH_RECON_URL:-http://127.0.0.1:9377}"
 CAMOFOX_HOME="${CAMOFOX_HOME:-$HOME/.camofox}"
 PIDFILE="$CAMOFOX_HOME/recon.pid"
 LOGFILE="$CAMOFOX_HOME/recon.log"
-START_CMD="npx -y @askjo/camofox-browser@1.11.2"
+# Wrapper is pinned to @askjo/camofox-browser@1.11.2, but its playwright-core
+# range (^1.58.0) floats up to 1.61+, whose Browser.setDefaultViewport sends a
+# viewport.isMobile field the bundled Camoufox juggler rejects — that breaks
+# every tab create. We install into a local prefix with an npm override forcing
+# playwright-core to the camoufox-js-tested 1.53.x, so the engine stays
+# compatible regardless of what floats to latest upstream. (Replaces bare
+# `npx -y`, which always grabbed the broken latest.)
+CAMOFOX_PKG="@askjo/camofox-browser@1.11.2"
+PINNED_PLAYWRIGHT="1.53.1"
+SERVER_DIR="$CAMOFOX_HOME/pinned-server"
+SERVER_JS="$SERVER_DIR/node_modules/@askjo/camofox-browser/server.js"
 START_TIMEOUT="${STEALTH_RECON_TIMEOUT:-40}"
 
 log() { printf '[recon] %s\n' "$*" >&2; }
@@ -16,13 +26,35 @@ health() {
   curl -sf "$STEALTH_RECON_URL/health" >/dev/null 2>&1
 }
 
+# install_server: create the pinned local install if the server entry is absent.
+# Idempotent — skips entirely once node_modules is in place.
+install_server() {
+  [ -f "$SERVER_JS" ] && return 0
+  log "安裝釘版隱身伺服器 ($CAMOFOX_PKG, playwright-core $PINNED_PLAYWRIGHT)…"
+  mkdir -p "$SERVER_DIR" || return 1
+  cat > "$SERVER_DIR/package.json" <<EOF
+{
+  "name": "camofox-pinned",
+  "private": true,
+  "dependencies": { "$(printf '%s' "$CAMOFOX_PKG" | sed 's/@[^@]*$//')": "$(printf '%s' "$CAMOFOX_PKG" | sed 's/.*@//')" },
+  "overrides": { "playwright-core": "$PINNED_PLAYWRIGHT" }
+}
+EOF
+  ( cd "$SERVER_DIR" && npm install --no-audit --no-fund --foreground-scripts >>"$LOGFILE" 2>&1 ) || {
+    log "npm install 失敗，見 $LOGFILE"; return 1;
+  }
+  # better-sqlite3 ships a native addon; ensure it built even if npm gated scripts.
+  ( cd "$SERVER_DIR" && npm rebuild better-sqlite3 >>"$LOGFILE" 2>&1 ) || true
+  [ -f "$SERVER_JS" ]
+}
+
 ensure() {
   if health; then
     log "server already up at $STEALTH_RECON_URL"
     return 0
   fi
   mkdir -p "$CAMOFOX_HOME"
-  # First run auto-installs the engine (npx fetches the package; camofox-browser
+  # First run auto-installs the engine (npm fetches the pinned package; camofox
   # then downloads Camoufox ~300MB). That can exceed the normal wait, so we
   # announce it and use a longer timeout the first time only.
   INIT_MARKER="$CAMOFOX_HOME/.recon-initialized"
@@ -31,14 +63,15 @@ ensure() {
     log "首次啟動：正在自動下載並安裝隱身瀏覽器引擎 Camoufox (~300MB, 一次性)，約需數分鐘，請稍候…"
     wait_timeout="${STEALTH_RECON_FIRST_RUN_TIMEOUT:-600}"
   fi
-  log "starting stealth server (detached): $START_CMD"
+  install_server || { log "server install failed; see $LOGFILE"; return 1; }
+  log "starting stealth server (detached): node server.js (pinned)"
   # Detach so the server survives this tool-call shell. ENABLE_VNC lets the
   # user log in visually at http://localhost:6080 when a site needs auth.
   # Derive the bind port from STEALTH_RECON_URL so a user override actually
   # binds the server where health() will poll it. NOVNC_PORT is pinned per spec.
   RECON_PORT=$(printf '%s' "$STEALTH_RECON_URL" | sed -n 's|.*:\([0-9][0-9]*\).*|\1|p')
   [ -n "$RECON_PORT" ] || RECON_PORT=9377
-  ENABLE_VNC=1 CAMOFOX_PORT="$RECON_PORT" NOVNC_PORT=6080 nohup $START_CMD >"$LOGFILE" 2>&1 &
+  ENABLE_VNC=1 CAMOFOX_PORT="$RECON_PORT" NOVNC_PORT=6080 nohup node "$SERVER_JS" >"$LOGFILE" 2>&1 &
   echo "$!" > "$PIDFILE"
   i=0
   while [ "$i" -lt "$wait_timeout" ]; do

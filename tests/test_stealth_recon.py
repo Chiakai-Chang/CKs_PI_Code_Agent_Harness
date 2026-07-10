@@ -37,6 +37,17 @@ class TestReconScript(unittest.TestCase):
         self.assertIn("recon.pid", c)
         self.assertNotIn(":8080", c)
 
+    def test_pins_playwright_core_engine(self):
+        """The wrapper's ^1.58.0 range resolves to playwright-core 1.61+, which
+        sends a viewport.isMobile field the Camoufox juggler rejects, breaking
+        every tab. Pin playwright-core to the camoufox-js-tested 1.53.x via an
+        npm override so a fresh install stays compatible."""
+        c = read_file(self.REL)
+        self.assertIn("playwright-core", c)
+        self.assertIn("1.53.1", c)
+        self.assertIn("overrides", c,
+                      "must install with an npm override, not bare npx-latest")
+
     def test_has_functions(self):
         c = read_file(self.REL)
         for token in ["ensure", "is_blocked", "STEALTH_RECON_URL", "ENABLE_VNC"]:

@@ -28,5 +28,10 @@
 *   **更新流**：後端升級＝改 `harness-config.json` 版本後重跑 `setup.py`；harness 其餘更新照 `git pull` → `setup.py --mode restore` → `pi update` 單一路徑。
 *   **生命週期**：`recon.sh` detached 啟動 + pidfile + health-check，解決 Windows/Git Bash 短命 tool-call 背景進程問題。
 
+## 6. 傳遞依賴釘版 (2026-07-10)
+*   **問題**：釘 wrapper 版本仍不夠——`@askjo/camofox-browser@1.11.2` 的 `playwright-core: ^1.58.0` 會浮動到 1.61+，其 `Browser.setDefaultViewport` 送 `viewport.isMobile`，Camoufox juggler 引擎不認，導致**每次建 tab 都失敗**（`recon.sh ensure` 起得來、health OK，但 `POST /tabs` 回 protocol error）。
+*   **修法**：改用本地釘版安裝（`$CAMOFOX_HOME/pinned-server`，npm `overrides` 鎖 `playwright-core` 至 camoufox-js 實測相容的 `1.53.1`），`recon.sh` 以 `node server.js` 啟動，取代 `npx -y`（後者永遠抓壞掉的 latest）。實測建 tab + snapshot 恢復正常。
+*   **教訓**：釘直接依賴不等於釘傳遞依賴；引擎相容性由 `playwright-core` × Camoufox 版本共同決定，兩者都要鎖。
+
 ---
 **本文件依據 DISTILLATION_GUIDE v3.7 規範存檔。**
