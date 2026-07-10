@@ -27,9 +27,19 @@ health() {
 }
 
 # install_server: create the pinned local install if the server entry is absent.
-# Idempotent — skips entirely once node_modules is in place.
+# Idempotent — skips entirely once node_modules + engine are in place.
+#
+# We install with --ignore-scripts for determinism: modern npm gates dependency
+# lifecycle scripts (prompting "allow-scripts") which stalls a non-interactive
+# install, and playwright-core's own postinstall would fetch Chromium/Firefox we
+# do not use. We then run only the two scripts we actually need, explicitly:
+#   1. better-sqlite3 native rebuild (the server's only native addon)
+#   2. the wrapper's postinstall.js — downloads the ~300MB Camoufox engine and
+#      verifies the binary cache; skipping it leaves the server crashing at
+#      startup with "Version information not found".
 install_server() {
-  [ -f "$SERVER_JS" ] && return 0
+  ENGINE_POSTINSTALL="$SERVER_DIR/node_modules/@askjo/camofox-browser/scripts/postinstall.js"
+  [ -f "$SERVER_JS" ] && engine_present && return 0
   log "安裝釘版隱身伺服器 ($CAMOFOX_PKG, playwright-core $PINNED_PLAYWRIGHT)…"
   mkdir -p "$SERVER_DIR" || return 1
   cat > "$SERVER_DIR/package.json" <<EOF
@@ -40,12 +50,31 @@ install_server() {
   "overrides": { "playwright-core": "$PINNED_PLAYWRIGHT" }
 }
 EOF
-  ( cd "$SERVER_DIR" && npm install --no-audit --no-fund --foreground-scripts >>"$LOGFILE" 2>&1 ) || {
+  ( cd "$SERVER_DIR" && npm install --no-audit --no-fund --ignore-scripts >>"$LOGFILE" 2>&1 ) || {
     log "npm install 失敗，見 $LOGFILE"; return 1;
   }
-  # better-sqlite3 ships a native addon; ensure it built even if npm gated scripts.
-  ( cd "$SERVER_DIR" && npm rebuild better-sqlite3 >>"$LOGFILE" 2>&1 ) || true
-  [ -f "$SERVER_JS" ]
+  ( cd "$SERVER_DIR" && npm rebuild better-sqlite3 >>"$LOGFILE" 2>&1 ) || {
+    log "better-sqlite3 原生建置失敗，見 $LOGFILE"; return 1;
+  }
+  ( cd "$SERVER_DIR" && node "$ENGINE_POSTINSTALL" >>"$LOGFILE" 2>&1 ) || true
+  if [ ! -f "$SERVER_JS" ]; then
+    log "server 進入點缺失，見 $LOGFILE"; return 1;
+  fi
+  engine_present || log "警告：Camoufox 引擎似乎未就緒，啟動可能失敗，見 $LOGFILE"
+  return 0
+}
+
+# engine_present: true if the Camoufox binary cache is populated. Mirrors the
+# %LOCALAPPDATA%\camoufox\camoufox\Cache location used by camoufox-js on Windows;
+# on *nix camoufox-js uses ~/.cache/camoufox or ~/Library/Caches/camoufox.
+engine_present() {
+  for d in \
+    "${LOCALAPPDATA:-$HOME/AppData/Local}/camoufox/camoufox/Cache" \
+    "$HOME/.cache/camoufox" \
+    "$HOME/Library/Caches/camoufox"; do
+    [ -d "$d" ] && ls "$d"/camoufox* >/dev/null 2>&1 && return 0
+  done
+  return 1
 }
 
 ensure() {
@@ -115,7 +144,8 @@ stop() {
 case "${1:-}" in
   health) health ;;
   ensure) ensure ;;
+  install) mkdir -p "$CAMOFOX_HOME"; install_server ;;
   is_blocked) is_blocked "$2" ;;
   stop) stop ;;
-  *) echo "usage: recon.sh {health|ensure|is_blocked <file>|stop}" >&2; exit 2 ;;
+  *) echo "usage: recon.sh {health|ensure|install|is_blocked <file>|stop}" >&2; exit 2 ;;
 esac

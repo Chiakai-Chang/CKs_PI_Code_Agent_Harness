@@ -94,14 +94,20 @@ def maybe_prefetch_stealth():
     """Opt-in, best-effort prefetch of the stealth-recon engine (Camoufox ~300MB).
     Offered on both fresh install and update; --auto / non-tty skips it."""
     cfg = load_json(HARNESS_CONFIG_PATH)
-    camofox_ver = cfg.get("camofoxBrowserVersion", "1.11.2")
+    camofox_ver = cfg.get("camofoxBrowserVersion", "1.11.2")  # pinned truth mirrored in recon.sh
     pf = ask("是否預抓 stealth-recon 隱身瀏覽器引擎 Camoufox (~300MB, 可選)? [y/N]: ", "n")
     if pf.strip().lower() == "y":
         print("[*] 正在預抓 stealth 引擎 (best-effort，數分鐘)...")
-        # Prefetch via global install: the package postinstall downloads the
-        # Camoufox binary and EXITS. (Do NOT use `npx ... --version` here — that
-        # build boots a persistent server and would hang the installer.)
-        run_stream(f"npm install -g @askjo/camofox-browser@{camofox_ver}")
+        # Route through recon.sh `install`, the single source of truth for the
+        # pinned install. A bare `npm install @askjo/camofox-browser` is NOT
+        # enough: (a) its playwright-core floats to a version whose viewport
+        # payload the Camoufox juggler rejects (breaks every tab), and (b) modern
+        # npm gates the engine-downloading postinstall, leaving the binary cache
+        # empty. recon.sh install pins playwright-core and runs the engine fetch
+        # explicitly. It installs + downloads only (no lingering server).
+        recon = os.path.join(REPO_ROOT, "pi-skills", "optional", "camofox-stealth", "recon.sh")
+        bash = detect_git_bash() or "sh"
+        run_stream(f'"{bash}" "{recon}" install')
     else:
         print("[*] 略過 stealth 引擎預抓 (可日後執行 pi 時由 camofox-stealth 技能懶啟動)。")
 

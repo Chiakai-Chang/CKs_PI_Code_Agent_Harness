@@ -116,6 +116,16 @@ class TestSetupPrefetch(unittest.TestCase):
         # opt-in via ask() default "n" — must not force download
         self.assertIn("prefetch", c.lower())
 
+    def test_prefetch_routes_through_recon_install(self):
+        """Prefetch must use recon.sh install (pins playwright-core + runs the
+        gated engine postinstall), not a bare `npm install -g` that leaves the
+        engine cache empty and playwright-core floating to a broken version."""
+        c = read_file(self.REL)
+        self.assertIn("recon.sh", c)
+        self.assertRegex(c, r'recon\.sh[^\n]*install|"install"')
+        self.assertNotIn("npm install -g @askjo", c,
+                         "bare global npm install reintroduces the engine-gating bug")
+
     def test_prefetch_uses_ask_not_raw_input(self):
         # the prefetch prompt must degrade in --auto/non-tty (uses ask(), not input())
         c = read_file(self.REL)
