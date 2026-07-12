@@ -53,13 +53,11 @@ if sh "$PI_HARNESS_ROOT/pi-skills/optional/camofox-stealth/recon.sh" is_blocked 
 fi
 ```
 
-### 3. 需要登入態時（VNC 交接）
-偵測到登入牆時 **暫停並請使用者手動登入**（agent 無法自動過 2FA/captcha）：
-1. 告訴使用者：開瀏覽器到 `http://localhost:6080`（noVNC），在裡面登入目標站。
-2. camofox 會把 session 存到 `~/.camofox/profiles/`。
-3. 使用者完成後回覆，續跑；後續 `goto` 自動帶登入態。
-（快速路徑：若已有 Netscape `cookies.txt`，放到 `~/.camofox/cookies/` 由 `POST /sessions/recon/cookies` 匯入。）
-> 若伺服器需在非 loopback 存取，請設 `VNC_PASSWORD` 與 `CAMOFOX_ACCESS_KEY`。
+### 3. 需要登入態時（依平台）
+agent 無法自動過帳密/2FA/captcha，登入態要靠人先建立一次。**方式因平台而異**：
+
+- **Linux / Docker**：伺服器以 xvfb 起虛擬顯示器，noVNC 在 `http://localhost:6080` 可用——請使用者在裡面手動登入，session 存進 profile，之後 `web_open` 自動帶登入態。
+- **Windows / macOS（重要）**：本後端在非 Linux 一律 `headless: true`（見 `server.js`：xvfb 僅 Linux 建立），**noVNC 不會起、也不會開可見視窗**。所以 **VNC 交接在 Windows 不適用**。改用 **cookie 匯入**：把使用者在自己日常瀏覽器（建議 Firefox，最穩）已登入的該站 cookie，以 Playwright JSON 格式 `POST http://127.0.0.1:9377/sessions/recon/cookies`（body：`{"cookies":[{name,value,domain,path,...}]}`，伺服器呼叫 `context.addCookies`）。這不碰密碼、只搬既有 session。若已提供 `/login <domain>` 助手則直接用它一鍵完成。
 
 ### 4. 被擋時的誠實原則
 若 `is_blocked` 為真：**不要把擋頁內容當真、不要編造**。先試 headed/OS-input retry；仍擋則向使用者誠實回報「此來源擋自動存取，改用搜尋摘要／跳過」。
