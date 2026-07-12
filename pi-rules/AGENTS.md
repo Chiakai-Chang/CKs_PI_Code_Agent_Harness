@@ -50,3 +50,11 @@ When learning from sessions or optimizing local skills/rules:
 When implementing frontend designs and components:
 *   **Design-Performance Budget**: Before writing CSS/JS under `ui-ux-pro-max`, read the performance budgets defined by `addyosmani-skills`. Ensure animations, gradients, and font imports do not breach LCP/CLS/FID targets.
 *   **Automated Validation**: After design completion, run `browser-testing-with-devtools` in headless chrome to verify that aesthetic components do not regress loading speeds. Do not claim UX completion without performance telemetry evidence.
+
+## 8. Web Access — 一律用 camofox-stealth（自動，勿等使用者下令）
+任何需要**外部／即時／網路**資訊時——查資料、讀網頁、找別人的做法、看新聞／文件／某個庫或 API 的用法——你**必須主動**用 `camofox-stealth` 技能上網，**不要等使用者打 `/browse`**（`/browse` 只是使用者的手動保底路徑，不是前提條件）。這是預設行為，不是可選項。
+
+*   **禁止的錯誤反射**：絕不要用 `ctx_fetch_and_index` 或直接 `curl` 抓 Google 首頁去「搜尋」（會被擋）。絕不要用 `find` 去找技能檔——它就在 `$PI_HARNESS_ROOT/pi-skills/optional/camofox-stealth/`（`PI_HARNESS_ROOT` 由 restore.py 注入）。看到 `[Skills]` 清單有 `camofox-stealth` 就代表你有這能力，別否認。
+*   **正確流程**：`sh "$PI_HARNESS_ROOT/pi-skills/optional/camofox-stealth/recon.sh" ensure` → **搜尋走 DuckDuckGo HTML 直連**（建 tab 於 `https://html.duckduckgo.com/html/?q=<查詢>`；**不要用 `@duckduckgo_search`/`@google_search` macro**——前者本後端不存在、後者被 Google `/sorry` 擋）→ 讀 `/tabs/<id>/snapshot`（無障礙樹，省 token）。中文查詢用檔案傳 payload（`--data-binary @file`），勿內聯 `curl -d`（Windows shell 會把 UTF-8 轉成亂碼）。細節見技能 `SKILL.md`。
+*   **擋頁誠實原則**：`recon.sh is_blocked` 為真時，**不要把擋頁內容當真、不要編造**；如實回報該來源擋自動存取，改用其他來源。
+*   **邊界**：偵察是為品質不是拖延。動工前調研上限約一次搜尋 + 讀 2–3 個來源，足夠就停、進實作（見 `rules/stealth-recon.md`）。

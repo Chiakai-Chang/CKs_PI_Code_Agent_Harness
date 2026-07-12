@@ -129,7 +129,7 @@ ensure() {
 is_blocked() {
   f="$1"
   [ -f "$f" ] || return 1
-  if grep -qiE 'Just a moment|Attention Required|cf-mitigated|__cf_chl|Enable JavaScript and cookies to continue|Checking your browser' "$f"; then
+  if grep -qiE 'Just a moment|Attention Required|cf-mitigated|__cf_chl|Enable JavaScript and cookies to continue|Checking your browser|detected unusual traffic|/sorry/index|not a robot' "$f"; then
     return 0
   fi
   # JS shell heuristic: almost no visible text

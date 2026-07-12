@@ -393,6 +393,9 @@ def main():
         profile_skills.append(os.path.join(ext_root, "karpathy-skills", "skills", "karpathy-guidelines").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "planning-with-files", ".pi", "skills", "planning-with-files").replace("\\", "/"))
         profile_prompts.append(os.path.join(ext_root, "planning-with-files", "commands").replace("\\", "/"))
+        # /browse — deterministic camofox-stealth entry point (does not rely on the
+        # model auto-discovering the skill; weak local models routinely fail to).
+        profile_prompts.append(os.path.join(pi_skills_root, "optional", "camofox-stealth", "commands").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "llm-wiki-plugin", "skills", "llm-wiki").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "prompt-master").replace("\\", "/"))
         profile_skills.extend(ecc_skill_paths(os.path.join(REPO_ROOT, "external", "ecc", "skills")))

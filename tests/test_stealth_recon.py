@@ -83,8 +83,13 @@ class TestSkillMd(unittest.TestCase):
         c = read_file(self.REL)
         self.assertIn("/tabs", c)
         self.assertIn("snapshot", c)
-        self.assertIn("/tabs/$TID/navigate", c)
-        self.assertIn("macro", c)
+        # Search goes through the DuckDuckGo HTML endpoint at tab-create time, NOT
+        # the navigate macros: @duckduckgo_search does not exist in the pinned
+        # server and @google_search hits Google's /sorry bot wall.
+        self.assertIn("html.duckduckgo.com", c)
+        # Non-ASCII queries must ride a file payload, not inline `curl -d`, or the
+        # Windows shell mangles UTF-8 into U+FFFD replacement chars.
+        self.assertIn("--data-binary", c)
         self.assertIn("recon.sh", c)
         self.assertIn("ensure", c)
         self.assertIn("is_blocked", c)
@@ -177,6 +182,14 @@ class TestReconBlockDetection(unittest.TestCase):
 
     def test_blocked_challenge_returns_0(self):
         self.assertEqual(self._rc("<title>Just a moment...</title>" + ("x " * 100)), 0)
+
+    def test_google_sorry_page_returns_0(self):
+        # Google's /sorry bot wall is wordy (passes the low-word-count heuristic)
+        # and carries no Cloudflare markers, so it must be caught by its own text.
+        page = ("Our systems have detected unusual traffic from your computer "
+                "network. This page checks to see if it's really you and not a "
+                "robot. " * 5)
+        self.assertEqual(self._rc(page), 0)
 
     def test_clean_page_returns_nonzero(self):
         self.assertNotEqual(self._rc("This is a normal article. " * 50), 0)
