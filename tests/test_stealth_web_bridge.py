@@ -42,6 +42,24 @@ class TestBridgeContract(unittest.TestCase):
         c = read(self.IDX)
         self.assertIn("promptSnippet", c)
 
+    def test_interaction_tools_registered(self):
+        """The agent must be able to drive pages, not just read them."""
+        c = read(self.IDX)
+        for name in ("web_click", "web_type", "web_scroll", "web_press"):
+            self.assertIn('name: "%s"' % name, c)
+
+    def test_interaction_acts_on_tracked_current_tab(self):
+        c = read(self.IDX)
+        # web_search / web_open record the tab so interaction tools need no tabId
+        self.assertIn("lastTabId = tabId", c)
+        self.assertIn("actAndSnapshot", c)
+
+    def test_action_returns_fresh_snapshot(self):
+        """After an action the page changed — the tool must return the new state
+        so multi-step flows can continue."""
+        c = read(self.IDX)
+        self.assertIn("readSnapshot(lastTabId)", c)
+
     def test_package_is_esm_with_harness_root_placeholder(self):
         pkg = read(self.PKG)
         self.assertIn('"type": "module"', pkg)

@@ -126,6 +126,55 @@ function toolError(text: string) {
   return { content: [{ type: "text" as const, text }], isError: true };
 }
 
+// The tab the interaction tools (web_click/web_type/...) act on. web_search and
+// web_open set it, so the model never has to juggle tab ids — it just opens a
+// page then clicks/types on "the current page", like a person.
+let lastTabId: string | null = null;
+
+// Single snapshot read (no polling) — for reading page state right after an action.
+async function readSnapshot(tabId: string): Promise<string> {
+  try {
+    const r = await fetch(`${SERVER}/tabs/${tabId}/snapshot?userId=${USER}`, {
+      signal: AbortSignal.timeout(15_000),
+    });
+    const j: any = await r.json().catch(() => ({}));
+    return j.snapshot ?? "";
+  } catch {
+    return "";
+  }
+}
+
+// POST an interaction to the current tab, let the page settle, and return the
+// fresh snapshot so the model sees the resulting state to continue the flow.
+async function actAndSnapshot(action: string, body: Record<string, unknown>, settleMs = 900) {
+  if (!lastTabId) {
+    return toolError("No open page yet. Call web_search or web_open first, then act on the results.");
+  }
+  try {
+    const r = await fetch(`${SERVER}/tabs/${lastTabId}/${action}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ userId: USER, ...body }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!r.ok) {
+      const t = await r.text().catch(() => "");
+      return toolError(`${action} failed (${r.status}). ${t.slice(0, 300)} — re-open the page (refs go stale after navigation) and try again.`);
+    }
+  } catch (e) {
+    return toolError(`${action} error: ${String(e)}`);
+  }
+  await new Promise((res) => setTimeout(res, settleMs));
+  let snap = await readSnapshot(lastTabId);
+  if (BLOCK_MARKERS.test(snap)) {
+    return toolError("The page is now showing a bot/challenge wall. Do not treat it as content.");
+  }
+  return {
+    content: [{ type: "text" as const, text: snap || "(action done; page returned an empty snapshot)" }],
+    details: { action },
+  };
+}
+
 export default function (pi: ExtensionAPI) {
   pi.registerTool({
     name: "web_search",
@@ -152,6 +201,7 @@ export default function (pi: ExtensionAPI) {
       const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(params.query)}`;
       const tabId = await createTab(url);
       if (!tabId) return toolError("Could not open a browser tab for the search.");
+      lastTabId = tabId;
       const snap = await snapshot(tabId);
       if (!snap) return toolError("Search returned no snapshot; the page may not have loaded.");
       if (BLOCK_MARKERS.test(snap)) {
@@ -185,6 +235,7 @@ export default function (pi: ExtensionAPI) {
       }
       const tabId = await createTab(params.url);
       if (!tabId) return toolError(`Could not open a tab for ${params.url}.`);
+      lastTabId = tabId;
       const snap = await snapshot(tabId, 200);
       if (!snap) return toolError("Page returned no snapshot; it may not have loaded.");
       if (BLOCK_MARKERS.test(snap)) {
@@ -196,6 +247,75 @@ export default function (pi: ExtensionAPI) {
         content: [{ type: "text" as const, text: snap }],
         details: { url: params.url },
       };
+    },
+  });
+
+  // --- Interaction tools: drive the current page like a person. Each acts on
+  // the tab from the last web_search/web_open and returns the fresh snapshot so
+  // the model can chain steps (fill a form, click through, paginate). Target
+  // elements by their [eN] ref from the latest snapshot (or a CSS selector).
+  pi.registerTool({
+    name: "web_click",
+    label: "Web Click",
+    description:
+      "Click an element on the current page (opened via web_search/web_open) and return the resulting page snapshot. Target it by its [eN] ref from the latest snapshot (pass ref:\"e5\") or a CSS selector. Use for buttons, links, tabs, 'load more', pagination.",
+    promptSnippet: "web_click(ref): click an element on the current page by its [eN] ref.",
+    parameters: Type.Object({
+      ref: Type.Optional(Type.String({ description: 'Element ref from the snapshot, e.g. "e5" (without brackets)' })),
+      selector: Type.Optional(Type.String({ description: "CSS selector, alternative to ref" })),
+    }),
+    async execute(_id, params, _signal, _onUpdate, _ctx) {
+      if (!params.ref && !params.selector) return toolError("Provide ref (from the snapshot) or selector.");
+      return actAndSnapshot("click", params.ref ? { ref: params.ref } : { selector: params.selector });
+    },
+  });
+
+  pi.registerTool({
+    name: "web_type",
+    label: "Web Type",
+    description:
+      "Type text into an input/textarea on the current page and return the resulting snapshot. Target by [eN] ref or CSS selector. Set submit:true to press Enter after (submit a search box or form).",
+    promptSnippet: "web_type(ref,text): type into a field on the current page; submit:true to press Enter.",
+    parameters: Type.Object({
+      text: Type.String({ description: "Text to type" }),
+      ref: Type.Optional(Type.String({ description: 'Field ref from the snapshot, e.g. "e2"' })),
+      selector: Type.Optional(Type.String({ description: "CSS selector, alternative to ref" })),
+      submit: Type.Optional(Type.Boolean({ description: "Press Enter after typing (default false)" })),
+    }),
+    async execute(_id, params, _signal, _onUpdate, _ctx) {
+      if (!params.ref && !params.selector) return toolError("Provide ref (from the snapshot) or selector.");
+      const body: Record<string, unknown> = { text: params.text, submit: !!params.submit };
+      if (params.ref) body.ref = params.ref; else body.selector = params.selector;
+      return actAndSnapshot("type", body);
+    },
+  });
+
+  pi.registerTool({
+    name: "web_scroll",
+    label: "Web Scroll",
+    description:
+      "Scroll the current page (to reveal lazy-loaded content or reach a button) and return the resulting snapshot.",
+    promptSnippet: "web_scroll(direction): scroll the current page up/down to reveal more.",
+    parameters: Type.Object({
+      direction: Type.Optional(Type.String({ description: '"down" (default) or "up"' })),
+      amount: Type.Optional(Type.Number({ description: "Pixels to scroll (default 500)" })),
+    }),
+    async execute(_id, params, _signal, _onUpdate, _ctx) {
+      return actAndSnapshot("scroll", { direction: params.direction ?? "down", amount: params.amount ?? 500 }, 500);
+    },
+  });
+
+  pi.registerTool({
+    name: "web_press",
+    label: "Web Press",
+    description:
+      "Press a keyboard key on the current page (e.g. Enter, Tab, Escape, PageDown) and return the resulting snapshot.",
+    promptSnippet: "web_press(key): press a key (Enter/Tab/Escape/...) on the current page.",
+    parameters: Type.Object({
+      key: Type.String({ description: 'Key name, e.g. "Enter", "Tab", "Escape", "PageDown"' }),
+    }),
+    async execute(_id, params, _signal, _onUpdate, _ctx) {
+      return actAndSnapshot("press", { key: params.key }, 500);
     },
   });
 
