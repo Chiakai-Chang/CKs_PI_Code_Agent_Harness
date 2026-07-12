@@ -57,7 +57,10 @@ fi
 agent 無法自動過帳密/2FA/captcha，登入態要靠人先建立一次。**方式因平台而異**：
 
 - **Linux / Docker**：伺服器以 xvfb 起虛擬顯示器，noVNC 在 `http://localhost:6080` 可用——請使用者在裡面手動登入，session 存進 profile，之後 `web_open` 自動帶登入態。
-- **Windows / macOS（重要）**：本後端在非 Linux 一律 `headless: true`（見 `server.js`：xvfb 僅 Linux 建立），**noVNC 不會起、也不會開可見視窗**。所以 **VNC 交接在 Windows 不適用**。改用 **cookie 匯入**：把使用者在自己日常瀏覽器（建議 Firefox，最穩）已登入的該站 cookie，以 Playwright JSON 格式 `POST http://127.0.0.1:9377/sessions/recon/cookies`（body：`{"cookies":[{name,value,domain,path,...}]}`，伺服器呼叫 `context.addCookies`）。這不碰密碼、只搬既有 session。若已提供 `/login <domain>` 助手則直接用它一鍵完成。
+- **Windows / macOS（重要）**：本後端在非 Linux 一律 `headless: true`（見 `server.js`：xvfb 僅 Linux 建立），**noVNC 不會起、也不會開可見視窗**。所以 **VNC 交接在 Windows 不適用**。改用 **`/login <domain>` 命令**（stealth-web-bridge 提供）：
+  1. 先試 **cookie 重用**——讀使用者日常瀏覽器（**Firefox 最穩**；Chrome/Edge v127+ 的 app-bound 加密可能讀不到）已登入該站的 cookie，`POST /sessions/recon/cookies` 灌進 camofox。不碰密碼。
+  2. 讀不到才 fallback：以**對話框**問帳密（不進聊天）、存 OS keychain、自動填登入表單。有 captcha/2FA 的站仍會失敗（headless 無 UI，這是硬限制）。
+  底層是 `scripts/stealth_login.py`（`cookies`/`store`/`fill` 子命令；密碼只走 stdin/getpass，永不進 argv 或模型）。選用依賴：`pip install browser_cookie3 keyring`（缺會提示）。
 
 ### 4. 被擋時的誠實原則
 若 `is_blocked` 為真：**不要把擋頁內容當真、不要編造**。先試 headed/OS-input retry；仍擋則向使用者誠實回報「此來源擋自動存取，改用搜尋摘要／跳過」。

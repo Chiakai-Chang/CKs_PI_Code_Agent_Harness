@@ -41,6 +41,32 @@ function reconScript(): string {
   return join(harnessRoot(), "pi-skills/optional/camofox-stealth/recon.sh");
 }
 
+function loginScript(): string {
+  return join(harnessRoot(), "pi-skills/optional/camofox-stealth/scripts/stealth_login.py");
+}
+
+// Run a stealth_login.py subcommand. Password (when present) is written to the
+// child's stdin — never argv (which shows in process listings) and never the
+// model. Returns exit code + captured stderr for the caller to report.
+function runLogin(subArgs: string[], stdinData?: string): Promise<{ code: number; out: string; err: string }> {
+  return new Promise((resolve) => {
+    const proc = spawn("python", [loginScript(), ...subArgs], {
+      timeout: 60_000,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    let out = "";
+    let err = "";
+    proc.stdout.on("data", (d: Buffer) => (out += d.toString()));
+    proc.stderr.on("data", (d: Buffer) => (err += d.toString()));
+    proc.on("error", (e) => resolve({ code: -1, out, err: err + String(e) }));
+    proc.on("exit", (code) => resolve({ code: code ?? -1, out: out.trim(), err: err.trim() }));
+    if (stdinData !== undefined) {
+      proc.stdin.write(stdinData);
+    }
+    proc.stdin.end();
+  });
+}
+
 async function serverHealthy(): Promise<boolean> {
   try {
     const r = await fetch(`${SERVER}/health`, { signal: AbortSignal.timeout(2000) });
@@ -170,6 +196,66 @@ export default function (pi: ExtensionAPI) {
         content: [{ type: "text" as const, text: snap }],
         details: { url: params.url },
       };
+    },
+  });
+
+  // /login <domain> — establish a logged-in session for a site behind an auth
+  // wall. Tries cookie reuse first (copies the login you already have in your
+  // browser; no password). Falls back to credentials entered in a dialog —
+  // stored in the OS keychain, piped over stdin, NEVER in the chat/model.
+  pi.registerCommand("login", {
+    description: "Log into a site for stealth browsing: reuse browser cookies, or enter credentials (kept in the OS keychain, never the chat).",
+    handler: async (args, ctx) => {
+      const domain = (args || "").trim();
+      if (!domain) {
+        ctx.ui.notify("Usage: /login <domain>   e.g. /login example.com", "warning");
+        return;
+      }
+      const ready = await ensureServer();
+      if (!ready.ok) {
+        ctx.ui.notify("Stealth backend failed to start; cannot log in.", "error");
+        return;
+      }
+
+      // 1. Cookie reuse — the reliable, password-free path.
+      const cookies = await runLogin(["cookies", domain]);
+      if (cookies.code === 0) {
+        ctx.ui.notify(cookies.out || `Logged into ${domain} via browser cookies.`, "info");
+        return;
+      }
+
+      // 2. Credential fallback (opt-in, out-of-model).
+      const missingDep = /not installed/.test(cookies.err);
+      const reason = missingDep
+        ? `${cookies.err}\n\n`
+        : `No reusable browser cookies for ${domain} (log in there in Firefox first, or continue with credentials).\n\n`;
+      const useCreds = await ctx.ui.confirm(
+        "Enter credentials?",
+        `${reason}Credentials go into the OS keychain and are typed straight into the login form — they never enter the chat or the model. Sites with captcha/2FA will still fail (headless has no UI). Continue?`,
+      );
+      if (!useCreds) {
+        ctx.ui.notify("Login cancelled. Tip: logging into the site in Firefox, then /login again, is the simplest path.", "info");
+        return;
+      }
+      const username = await ctx.ui.input(`Username / email for ${domain}`);
+      if (!username) { ctx.ui.notify("Login cancelled (no username).", "info"); return; }
+      const password = await ctx.ui.input(`Password for ${domain} (stored in keychain, not shown to the model)`);
+      if (!password) { ctx.ui.notify("Login cancelled (no password).", "info"); return; }
+      const loginUrl = await ctx.ui.input("Login page URL", `https://${domain}/login`);
+      if (!loginUrl) { ctx.ui.notify("Login cancelled (no login URL).", "info"); return; }
+
+      const stored = await runLogin(["store", domain, username], password + "\n");
+      if (stored.code !== 0) {
+        ctx.ui.notify(`Could not store credentials: ${stored.err || stored.out}`, "error");
+        return;
+      }
+      const filled = await runLogin(["fill", domain, loginUrl]);
+      ctx.ui.notify(
+        filled.code === 0
+          ? (filled.out || `Submitted login for ${domain}. Verify with web_open.`)
+          : `Login form step failed: ${filled.err || filled.out}`,
+        filled.code === 0 ? "info" : "warning",
+      );
     },
   });
 }
