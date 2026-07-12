@@ -110,7 +110,8 @@ export default function (pi: ExtensionAPI) {
       "web_search(query): search the live web through a stealth browser; use for any current/external info instead of claiming you cannot go online.",
     promptGuidelines: [
       "You CAN access the internet: call web_search for any task needing current or external information. Never say you cannot browse.",
-      "After web_search, call web_open on a result URL to read the full page.",
+      "web_search returns only titles/snippets — that is NOT enough to analyze or answer accurately. After searching, call web_open on the 1-3 most relevant result URLs to read the full articles.",
+      "web_open goes through the same stealth browser, so it reads pages that block plain fetch (Cloudflare, JS-rendered, soft paywalls). Prefer it over giving up on a source.",
     ],
     parameters: Type.Object({
       query: Type.String({ description: "The search query, e.g. '矢板明夫 案件 最新'" }),
@@ -143,9 +144,9 @@ export default function (pi: ExtensionAPI) {
     name: "web_open",
     label: "Web Open",
     description:
-      "Open a specific URL in the stealth browser and return its readable content as an accessibility-tree snapshot (~90% smaller than raw HTML). Use to read a page found via web_search or any URL the user gives.",
+      "Open a specific URL in the stealth browser (Camoufox) and return its readable content as an accessibility-tree snapshot (~90% smaller than raw HTML). This IS the camofox stealth reader: its C++-level fingerprint spoofing reads pages that block plain HTTP fetch — Cloudflare, JS-rendered SPAs, soft paywalls, bot walls. Use to read the full article behind any web_search result, or any URL the user gives. (Hard login walls needing real credentials/2FA are the exception — those need the /browse VNC handoff, not this tool.)",
     promptSnippet:
-      "web_open(url): read a specific web page through the stealth browser.",
+      "web_open(url): read a full/bot-protected web page through the stealth browser (Cloudflare, JS, soft paywalls).",
     parameters: Type.Object({
       url: Type.String({ description: "The absolute URL to open, e.g. https://example.com/article" }),
     }),
