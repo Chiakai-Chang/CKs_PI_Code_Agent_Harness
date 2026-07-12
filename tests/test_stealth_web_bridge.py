@@ -48,6 +48,17 @@ class TestBridgeContract(unittest.TestCase):
         for name in ("web_click", "web_type", "web_scroll", "web_press"):
             self.assertIn('name: "%s"' % name, c)
 
+    def test_capability_parity_tools_registered(self):
+        """Ported from the upstream OpenClaw plugin (plugin.ts): re-snapshot,
+        visual screenshot, page-context JS."""
+        c = read(self.IDX)
+        for name in ("web_snapshot", "web_screenshot", "web_evaluate"):
+            self.assertIn('name: "%s"' % name, c)
+
+    def test_screenshot_returns_image_content(self):
+        c = read(self.IDX)
+        self.assertIn('type: "image" as const', c)
+
     def test_interaction_acts_on_tracked_current_tab(self):
         c = read(self.IDX)
         # web_search / web_open record the tab so interaction tools need no tabId

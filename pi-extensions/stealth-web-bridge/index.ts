@@ -319,6 +319,86 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
+  // Capability parity with the upstream OpenClaw plugin (plugin.ts): a fresh
+  // re-read, a visual screenshot, and page-context JS. Kept on the implicit
+  // current tab (lastTabId) rather than upstream's explicit tabId, so the weak
+  // local model doesn't juggle tab ids.
+  pi.registerTool({
+    name: "web_snapshot",
+    label: "Web Snapshot",
+    description:
+      "Re-read the current page's accessibility snapshot (element [eN] refs + text). Use to see the current state after interactions, or to page through a large page with offset.",
+    promptSnippet: "web_snapshot(): re-read the current page (offset for large pages).",
+    parameters: Type.Object({
+      offset: Type.Optional(Type.Number({ description: "Character offset for a large/truncated page" })),
+    }),
+    async execute(_id, params, _signal, _onUpdate, _ctx) {
+      if (!lastTabId) return toolError("No open page. Call web_search or web_open first.");
+      const qs = params.offset ? `&offset=${params.offset}` : "";
+      try {
+        const r = await fetch(`${SERVER}/tabs/${lastTabId}/snapshot?userId=${USER}${qs}`, { signal: AbortSignal.timeout(15_000) });
+        const j: any = await r.json().catch(() => ({}));
+        const text = j.snapshot ?? "";
+        return {
+          content: [{ type: "text" as const, text: text || "(empty snapshot)" }],
+          details: { totalChars: j.totalChars, hasMore: j.hasMore, nextOffset: j.nextOffset },
+        };
+      } catch (e) {
+        return toolError(`snapshot error: ${String(e)}`);
+      }
+    },
+  });
+
+  pi.registerTool({
+    name: "web_screenshot",
+    label: "Web Screenshot",
+    description:
+      "Take a visual screenshot of the current page (PNG). Use when the accessibility snapshot is not enough — to actually see layout, images, charts, or a captcha.",
+    promptSnippet: "web_screenshot(): capture a PNG of the current page to see it visually.",
+    parameters: Type.Object({}),
+    async execute(_id, _params, _signal, _onUpdate, _ctx) {
+      if (!lastTabId) return toolError("No open page. Call web_search or web_open first.");
+      try {
+        const res = await fetch(`${SERVER}/tabs/${lastTabId}/screenshot?userId=${USER}`, { signal: AbortSignal.timeout(20_000) });
+        const ct = res.headers.get("content-type") || "";
+        if (!res.ok || !ct.startsWith("image/")) {
+          return toolError(`Screenshot failed: ${(await res.text().catch(() => "")).slice(0, 200)}`);
+        }
+        const b64 = Buffer.from(await res.arrayBuffer()).toString("base64");
+        return { content: [{ type: "image" as const, data: b64, mimeType: ct || "image/png" }] };
+      } catch (e) {
+        return toolError(`screenshot error: ${String(e)}`);
+      }
+    },
+  });
+
+  pi.registerTool({
+    name: "web_evaluate",
+    label: "Web Evaluate",
+    description:
+      "Run a JavaScript expression in the current page's context and return its result. Use to read page state, extract structured data, or call a web app's own JS APIs. Runs in the page sandbox (not on your machine).",
+    promptSnippet: "web_evaluate(expression): run JS in the current page and get the result.",
+    parameters: Type.Object({
+      expression: Type.String({ description: "JavaScript expression, e.g. document.title or [...document.querySelectorAll('h2')].map(e=>e.textContent)" }),
+    }),
+    async execute(_id, params, _signal, _onUpdate, _ctx) {
+      if (!lastTabId) return toolError("No open page. Call web_search or web_open first.");
+      try {
+        const r = await fetch(`${SERVER}/tabs/${lastTabId}/evaluate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json; charset=utf-8" },
+          body: JSON.stringify({ userId: USER, expression: params.expression }),
+          signal: AbortSignal.timeout(20_000),
+        });
+        const j: any = await r.json().catch(() => ({}));
+        if (!r.ok) return toolError(`evaluate failed (${r.status}): ${JSON.stringify(j).slice(0, 300)}`);
+        return { content: [{ type: "text" as const, text: JSON.stringify(j.result ?? j, null, 2) }] };
+      } catch (e) {
+        return toolError(`evaluate error: ${String(e)}`);
+      }
+    },
+  });
+
   // /login <domain> — establish a logged-in session for a site behind an auth
   // wall. Tries cookie reuse first (copies the login you already have in your
   // browser; no password). Falls back to credentials entered in a dialog —
