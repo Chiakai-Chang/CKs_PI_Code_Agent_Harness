@@ -15,3 +15,6 @@ __pycache__/
 # Local scripts
 start-agents-a1.bat
 
+
+# Upstream source clones for reference (not tracked)
+reference/
