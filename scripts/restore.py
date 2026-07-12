@@ -224,6 +224,27 @@ def merge_settings(existing, incoming, incoming_is_real):
 # [Skill conflicts] errors. Remove entries once fixed upstream (docs/KNOWN_ISSUES.md).
 ECC_BROKEN_SKILLS = {"loop-design-check"}  # invalid YAML in description (unquoted ': ')
 
+# Third-party packages that entered as residue from the author's personal ~/.pi
+# dump in the initial commit and were never wired into any harness workflow.
+# context-mode also exposed a plain-HTTP `ctx_fetch_and_index` tool that weak
+# local models grabbed for web search and got blocked, starving the
+# camofox-stealth skill. deep_merge unions lists (never removes), so emptying
+# pi-config alone cannot evict these from an already-installed live settings;
+# they must be pruned explicitly here.
+DEPRECATED_PACKAGES = {"npm:context-mode", "npm:@tintinweb/pi-tasks"}
+
+def prune_deprecated_packages(settings):
+    """Drop DEPRECATED_PACKAGES from settings['packages'] in place.
+
+    deep_merge unions list entries and never removes, so a package left in an
+    already-installed ~/.pi/agent/settings.json survives every restore unless
+    pruned explicitly. Idempotent; safe when 'packages' is missing or non-list.
+    """
+    pkgs = settings.get("packages")
+    if isinstance(pkgs, list):
+        settings["packages"] = [p for p in pkgs if p not in DEPRECATED_PACKAGES]
+    return settings
+
 def ecc_skill_paths(ecc_skills_root):
     """
     Enumerate ECC skills individually so known-broken upstream skills can be
@@ -353,6 +374,9 @@ def main():
     settings_src_is_real = os.path.exists(settings_src)
     default_settings = load_json(settings_src)
     settings = merge_settings(settings, default_settings, settings_src_is_real)
+
+    # Evict deprecated residue packages (deep_merge never prunes list entries).
+    prune_deprecated_packages(settings)
 
     if "env" not in settings: settings["env"] = {}
     settings["env"]["PI_HARNESS_ROOT"] = REPO_ROOT.replace("\\", "/")

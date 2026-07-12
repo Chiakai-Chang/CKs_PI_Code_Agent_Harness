@@ -55,6 +55,38 @@ class TestMergeSettings(unittest.TestCase):
         )
 
 
+class TestPruneDeprecatedPackages(unittest.TestCase):
+    def test_evicts_residue_but_keeps_user_packages(self):
+        """deep_merge 只加不減，殘留 package 必須由 prune 明確清除；使用者自訂的保留。"""
+        settings = {"packages": ["npm:context-mode", "npm:my-own",
+                                 "npm:@tintinweb/pi-tasks"]}
+        restore.prune_deprecated_packages(settings)
+        self.assertEqual(settings["packages"], ["npm:my-own"])
+
+    def test_missing_or_nonlist_packages_no_crash(self):
+        restore.prune_deprecated_packages({})  # no 'packages' key
+        restore.prune_deprecated_packages({"packages": None})
+
+    def test_deprecated_set_covers_known_residue(self):
+        self.assertIn("npm:context-mode", restore.DEPRECATED_PACKAGES)
+        self.assertIn("npm:@tintinweb/pi-tasks", restore.DEPRECATED_PACKAGES)
+
+
+class TestConfigHygiene(unittest.TestCase):
+    """The committed config templates must not reintroduce residue packages."""
+
+    def _packages(self, rel):
+        import json
+        with open(os.path.join(ROOT, rel), encoding="utf-8") as f:
+            return json.load(f).get("packages", [])
+
+    def test_settings_template_has_no_deprecated_packages(self):
+        for rel in ("pi-config/settings.json", "pi-config/settings.json.example"):
+            pkgs = self._packages(rel)
+            for dep in restore.DEPRECATED_PACKAGES:
+                self.assertNotIn(dep, pkgs, "%s still lists %s" % (rel, dep))
+
+
 class TestEccSkillPaths(unittest.TestCase):
     def setUp(self):
         import tempfile

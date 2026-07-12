@@ -1,8 +1,5 @@
 {
-  "packages": [
-    "npm:context-mode",
-    "npm:@tintinweb/pi-tasks"
-  ],
+  "packages": [],
   "skills": [],
   "extensions": [],
   "prompts": [],
