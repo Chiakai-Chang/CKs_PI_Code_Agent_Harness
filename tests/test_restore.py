@@ -81,10 +81,18 @@ class TestConfigHygiene(unittest.TestCase):
             return json.load(f).get("packages", [])
 
     def test_settings_template_has_no_deprecated_packages(self):
-        for rel in ("pi-config/settings.json", "pi-config/settings.json.example"):
+        # pi-config/settings.json is gitignored (machine-local) — absent on a
+        # fresh checkout/CI. Only the tracked .example is guaranteed; check the
+        # local settings.json too when it happens to exist.
+        checked = 0
+        for rel in ("pi-config/settings.json.example", "pi-config/settings.json"):
+            if not os.path.exists(os.path.join(ROOT, rel)):
+                continue
+            checked += 1
             pkgs = self._packages(rel)
             for dep in restore.DEPRECATED_PACKAGES:
                 self.assertNotIn(dep, pkgs, "%s still lists %s" % (rel, dep))
+        self.assertGreater(checked, 0, "no config template found to check")
 
 
 class TestEccSkillPaths(unittest.TestCase):
