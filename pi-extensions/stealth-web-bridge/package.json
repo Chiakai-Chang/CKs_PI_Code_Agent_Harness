@@ -1,0 +1,10 @@
+{
+  "name": "stealth-web-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "index.ts",
+  "pi-harness": {
+    "root": "TODO_SET_BY_RESTORE"
+  }
+}
