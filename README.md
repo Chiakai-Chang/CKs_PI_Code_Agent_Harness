@@ -90,7 +90,7 @@ cd CKs_PI_Code_Agent_Harness
 | **環境治理** | [C.A.S.E.](https://github.com/Chiakai-Chang/Local-Agent-Workspace/tree/main/C.A.S.E._Framework) | Bridge (橋接) | C.A.S.E. 任務管束協定 | ❌ | ✅ |
 | **多維推理** | [MECE-Autopilot](https://github.com/Chiakai-Chang/MECE-Autopilot) | Bridge (橋接) | 互斥窮盡多角色辯論與收斂 | ❌ | ✅ |
 | **記憶進化** | [claude-reflect](https://github.com/BayramAnnakov/claude-reflect) | 本地移植 (蒸餾) | 專案規則檔案自演進 | ✅ | ✅ |
-| **隱身偵察** | [camofox-browser](https://github.com/jo-inc/camofox-browser) | Thin Bridge (橋接) | 動工前網路偵察（隱身讀頁/搜尋/登入，技能：camofox-stealth） | ❌ | ⚠️ |
+| **隱身瀏覽** | [camofox-browser](https://github.com/jo-inc/camofox-browser) | Thin Bridge (橋接) | 隱身瀏覽器（Camoufox 反偵測）：搜尋、讀頁、點擊/輸入/捲動、截圖、頁內 JS、多分頁、建立登入態；可穿 Cloudflare/JS 牆。工具 `web_*`、命令 `/weblogin`、技能 `camofox-stealth`（首次用時懶下載 ~300MB 引擎） | ❌ | ✅ |
 
 ---
 
