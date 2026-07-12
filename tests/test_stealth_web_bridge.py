@@ -69,7 +69,17 @@ class TestBridgeContract(unittest.TestCase):
         """After an action the page changed — the tool must return the new state
         so multi-step flows can continue."""
         c = read(self.IDX)
-        self.assertIn("readSnapshot(lastTabId)", c)
+        self.assertIn("readSnapshot(tabId)", c)
+
+    def test_optional_tabid_override_for_multitab(self):
+        """Current tab is the default, but an explicit tabId must be accepted so
+        multi-tab work (keep search open while reading a result) is possible."""
+        c = read(self.IDX)
+        self.assertIn("TAB_PARAM", c)
+        self.assertIn("function currentTab", c)
+        # tabId is surfaced back to the model so it can target a specific tab
+        self.assertIn("tabId }", c)  # details include tabId
+        self.assertIn("[tab ${tabId}", c)  # and it's shown in the snapshot text
 
     def test_package_is_esm_with_harness_root_placeholder(self):
         pkg = read(self.PKG)

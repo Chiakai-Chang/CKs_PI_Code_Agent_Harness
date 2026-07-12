@@ -126,10 +126,21 @@ function toolError(text: string) {
   return { content: [{ type: "text" as const, text }], isError: true };
 }
 
-// The tab the interaction tools (web_click/web_type/...) act on. web_search and
-// web_open set it, so the model never has to juggle tab ids — it just opens a
-// page then clicks/types on "the current page", like a person.
+// The "current" tab the interaction tools default to — set by web_search and
+// web_open and returned in their result, so simple single-page flows need no
+// tab id at all. Every tool also accepts an explicit tabId to override it, so
+// multi-tab work (keep a search open while reading a result, compare pages) is
+// still possible. currentTab() resolves the two and remembers the choice.
 let lastTabId: string | null = null;
+
+function currentTab(params: any): string | null {
+  const t = typeof params?.tabId === "string" && params.tabId ? params.tabId : lastTabId;
+  if (t) lastTabId = t;
+  return t;
+}
+
+// Optional tabId param shared by every page tool (defaults to the current tab).
+const TAB_PARAM = Type.Optional(Type.String({ description: "Tab id to act on (from web_open/web_search); defaults to the current tab" }));
 
 // Single snapshot read (no polling) — for reading page state right after an action.
 async function readSnapshot(tabId: string): Promise<string> {
@@ -144,14 +155,14 @@ async function readSnapshot(tabId: string): Promise<string> {
   }
 }
 
-// POST an interaction to the current tab, let the page settle, and return the
-// fresh snapshot so the model sees the resulting state to continue the flow.
-async function actAndSnapshot(action: string, body: Record<string, unknown>, settleMs = 900) {
-  if (!lastTabId) {
+// POST an interaction to a tab, let the page settle, and return the fresh
+// snapshot so the model sees the resulting state to continue the flow.
+async function actAndSnapshot(tabId: string | null, action: string, body: Record<string, unknown>, settleMs = 900) {
+  if (!tabId) {
     return toolError("No open page yet. Call web_search or web_open first, then act on the results.");
   }
   try {
-    const r = await fetch(`${SERVER}/tabs/${lastTabId}/${action}`, {
+    const r = await fetch(`${SERVER}/tabs/${tabId}/${action}`, {
       method: "POST",
       headers: { "Content-Type": "application/json; charset=utf-8" },
       body: JSON.stringify({ userId: USER, ...body }),
@@ -165,13 +176,13 @@ async function actAndSnapshot(action: string, body: Record<string, unknown>, set
     return toolError(`${action} error: ${String(e)}`);
   }
   await new Promise((res) => setTimeout(res, settleMs));
-  let snap = await readSnapshot(lastTabId);
+  let snap = await readSnapshot(tabId);
   if (BLOCK_MARKERS.test(snap)) {
     return toolError("The page is now showing a bot/challenge wall. Do not treat it as content.");
   }
   return {
     content: [{ type: "text" as const, text: snap || "(action done; page returned an empty snapshot)" }],
-    details: { action },
+    details: { action, tabId },
   };
 }
 
@@ -210,8 +221,8 @@ export default function (pi: ExtensionAPI) {
         );
       }
       return {
-        content: [{ type: "text" as const, text: snap }],
-        details: { query: params.query, url },
+        content: [{ type: "text" as const, text: `[tab ${tabId} — now the current page; pass tabId to a tool to target it specifically]\n\n${snap}` }],
+        details: { query: params.query, url, tabId },
       };
     },
   });
@@ -244,8 +255,8 @@ export default function (pi: ExtensionAPI) {
         );
       }
       return {
-        content: [{ type: "text" as const, text: snap }],
-        details: { url: params.url },
+        content: [{ type: "text" as const, text: `[tab ${tabId} — now the current page; pass tabId to a tool to target it specifically]\n\n${snap}` }],
+        details: { url: params.url, tabId },
       };
     },
   });
@@ -263,10 +274,11 @@ export default function (pi: ExtensionAPI) {
     parameters: Type.Object({
       ref: Type.Optional(Type.String({ description: 'Element ref from the snapshot, e.g. "e5" (without brackets)' })),
       selector: Type.Optional(Type.String({ description: "CSS selector, alternative to ref" })),
+      tabId: TAB_PARAM,
     }),
     async execute(_id, params, _signal, _onUpdate, _ctx) {
       if (!params.ref && !params.selector) return toolError("Provide ref (from the snapshot) or selector.");
-      return actAndSnapshot("click", params.ref ? { ref: params.ref } : { selector: params.selector });
+      return actAndSnapshot(currentTab(params), "click", params.ref ? { ref: params.ref } : { selector: params.selector });
     },
   });
 
@@ -281,12 +293,13 @@ export default function (pi: ExtensionAPI) {
       ref: Type.Optional(Type.String({ description: 'Field ref from the snapshot, e.g. "e2"' })),
       selector: Type.Optional(Type.String({ description: "CSS selector, alternative to ref" })),
       submit: Type.Optional(Type.Boolean({ description: "Press Enter after typing (default false)" })),
+      tabId: TAB_PARAM,
     }),
     async execute(_id, params, _signal, _onUpdate, _ctx) {
       if (!params.ref && !params.selector) return toolError("Provide ref (from the snapshot) or selector.");
       const body: Record<string, unknown> = { text: params.text, submit: !!params.submit };
       if (params.ref) body.ref = params.ref; else body.selector = params.selector;
-      return actAndSnapshot("type", body);
+      return actAndSnapshot(currentTab(params), "type", body);
     },
   });
 
@@ -299,9 +312,10 @@ export default function (pi: ExtensionAPI) {
     parameters: Type.Object({
       direction: Type.Optional(Type.String({ description: '"down" (default) or "up"' })),
       amount: Type.Optional(Type.Number({ description: "Pixels to scroll (default 500)" })),
+      tabId: TAB_PARAM,
     }),
     async execute(_id, params, _signal, _onUpdate, _ctx) {
-      return actAndSnapshot("scroll", { direction: params.direction ?? "down", amount: params.amount ?? 500 }, 500);
+      return actAndSnapshot(currentTab(params), "scroll", { direction: params.direction ?? "down", amount: params.amount ?? 500 }, 500);
     },
   });
 
@@ -313,9 +327,10 @@ export default function (pi: ExtensionAPI) {
     promptSnippet: "web_press(key): press a key (Enter/Tab/Escape/...) on the current page.",
     parameters: Type.Object({
       key: Type.String({ description: 'Key name, e.g. "Enter", "Tab", "Escape", "PageDown"' }),
+      tabId: TAB_PARAM,
     }),
     async execute(_id, params, _signal, _onUpdate, _ctx) {
-      return actAndSnapshot("press", { key: params.key }, 500);
+      return actAndSnapshot(currentTab(params), "press", { key: params.key }, 500);
     },
   });
 
@@ -331,12 +346,14 @@ export default function (pi: ExtensionAPI) {
     promptSnippet: "web_snapshot(): re-read the current page (offset for large pages).",
     parameters: Type.Object({
       offset: Type.Optional(Type.Number({ description: "Character offset for a large/truncated page" })),
+      tabId: TAB_PARAM,
     }),
     async execute(_id, params, _signal, _onUpdate, _ctx) {
-      if (!lastTabId) return toolError("No open page. Call web_search or web_open first.");
+      const tab = currentTab(params);
+      if (!tab) return toolError("No open page. Call web_search or web_open first.");
       const qs = params.offset ? `&offset=${params.offset}` : "";
       try {
-        const r = await fetch(`${SERVER}/tabs/${lastTabId}/snapshot?userId=${USER}${qs}`, { signal: AbortSignal.timeout(15_000) });
+        const r = await fetch(`${SERVER}/tabs/${tab}/snapshot?userId=${USER}${qs}`, { signal: AbortSignal.timeout(15_000) });
         const j: any = await r.json().catch(() => ({}));
         const text = j.snapshot ?? "";
         return {
@@ -355,11 +372,12 @@ export default function (pi: ExtensionAPI) {
     description:
       "Take a visual screenshot of the current page (PNG). Use when the accessibility snapshot is not enough — to actually see layout, images, charts, or a captcha.",
     promptSnippet: "web_screenshot(): capture a PNG of the current page to see it visually.",
-    parameters: Type.Object({}),
-    async execute(_id, _params, _signal, _onUpdate, _ctx) {
-      if (!lastTabId) return toolError("No open page. Call web_search or web_open first.");
+    parameters: Type.Object({ tabId: TAB_PARAM }),
+    async execute(_id, params, _signal, _onUpdate, _ctx) {
+      const tab = currentTab(params);
+      if (!tab) return toolError("No open page. Call web_search or web_open first.");
       try {
-        const res = await fetch(`${SERVER}/tabs/${lastTabId}/screenshot?userId=${USER}`, { signal: AbortSignal.timeout(20_000) });
+        const res = await fetch(`${SERVER}/tabs/${tab}/screenshot?userId=${USER}`, { signal: AbortSignal.timeout(20_000) });
         const ct = res.headers.get("content-type") || "";
         if (!res.ok || !ct.startsWith("image/")) {
           return toolError(`Screenshot failed: ${(await res.text().catch(() => "")).slice(0, 200)}`);
@@ -380,11 +398,13 @@ export default function (pi: ExtensionAPI) {
     promptSnippet: "web_evaluate(expression): run JS in the current page and get the result.",
     parameters: Type.Object({
       expression: Type.String({ description: "JavaScript expression, e.g. document.title or [...document.querySelectorAll('h2')].map(e=>e.textContent)" }),
+      tabId: TAB_PARAM,
     }),
     async execute(_id, params, _signal, _onUpdate, _ctx) {
-      if (!lastTabId) return toolError("No open page. Call web_search or web_open first.");
+      const tab = currentTab(params);
+      if (!tab) return toolError("No open page. Call web_search or web_open first.");
       try {
-        const r = await fetch(`${SERVER}/tabs/${lastTabId}/evaluate`, {
+        const r = await fetch(`${SERVER}/tabs/${tab}/evaluate`, {
           method: "POST",
           headers: { "Content-Type": "application/json; charset=utf-8" },
           body: JSON.stringify({ userId: USER, expression: params.expression }),
