@@ -55,7 +55,7 @@ When implementing frontend designs and components:
 任何需要**外部／即時／網路**資訊時——查資料、讀網頁、找別人的做法、看新聞／文件／某個庫或 API 的用法——你**必須主動**呼叫 `web_search`（查詢）或 `web_open`（讀某 URL）工具。**你確實能上網**，這兩個是隱身瀏覽器（Camoufox）背後撐的 first-class 工具，跟 `read`/`bash` 一樣隨時可呼叫。**絕不要說「我沒有上網能力／無法即時查詢」——那是錯的。**
 
 *   **首選就是工具**：`web_search({query})` 直接回搜尋結果（標題／摘要／URL）；要深入某結果就 `web_open({url})`。不用自己跑 curl、不用找檔、不用 `recon.sh`——工具內部會自動確保後端就緒。
-*   **禁止的錯誤反射**：絕不要用 `ctx_fetch_and_index` 或直接 `curl` 抓 Google 去「搜尋」（會被擋）。絕不要用 `find` 找技能檔。絕不要因為「我是 LLM」就宣稱不能上網。
+*   **別拿 curl 當搜尋／爬蟲工具**：要搜尋、或讀可能被擋（Cloudflare／登入牆／JS 牆）的網頁時，用 `web_search`／`web_open`，不要用 `ctx_fetch_and_index` 或 `curl` 去抓 Google／硬爬目標站（沒隱身、會被擋）。（`curl` 的正常用途不受限——測你自己的 API、打已知 REST 端點、健康檢查等照常用。）也別用 `find` 找技能檔，別因為「我是 LLM」就宣稱不能上網。
 *   **手動／進階路徑（選用）**：使用者也可打 `/browse <查詢>`；要手動驅動後端見技能 `camofox-stealth` 的 `SKILL.md`（搜尋走 DuckDuckGo HTML 直連，**不要用 `@duckduckgo_search`/`@google_search` macro**）。
 *   **擋頁誠實原則**：`recon.sh is_blocked` 為真時，**不要把擋頁內容當真、不要編造**；如實回報該來源擋自動存取，改用其他來源。
 *   **邊界**：偵察是為品質不是拖延。動工前調研上限約一次搜尋 + 讀 2–3 個來源，足夠就停、進實作（見 `rules/stealth-recon.md`）。
