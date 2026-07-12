@@ -419,16 +419,17 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
-  // /login <domain> — establish a logged-in session for a site behind an auth
-  // wall. Tries cookie reuse first (copies the login you already have in your
-  // browser; no password). Falls back to credentials entered in a dialog —
+  // /weblogin <domain> — establish a logged-in session for a site behind an
+  // auth wall. Tries cookie reuse first (copies the login you already have in
+  // your browser; no password). Falls back to credentials entered in a dialog —
   // stored in the OS keychain, piped over stdin, NEVER in the chat/model.
-  pi.registerCommand("login", {
+  // (Named /weblogin, not /login, to avoid Pi's built-in /login provider auth.)
+  pi.registerCommand("weblogin", {
     description: "Log into a site for stealth browsing: reuse browser cookies, or enter credentials (kept in the OS keychain, never the chat).",
     handler: async (args, ctx) => {
       const domain = (args || "").trim();
       if (!domain) {
-        ctx.ui.notify("Usage: /login <domain>   e.g. /login example.com", "warning");
+        ctx.ui.notify("Usage: /weblogin <domain>   e.g. /weblogin example.com", "warning");
         return;
       }
       const ready = await ensureServer();
@@ -454,7 +455,7 @@ export default function (pi: ExtensionAPI) {
         `${reason}Credentials go into the OS keychain and are typed straight into the login form — they never enter the chat or the model. Sites with captcha/2FA will still fail (headless has no UI). Continue?`,
       );
       if (!useCreds) {
-        ctx.ui.notify("Login cancelled. Tip: logging into the site in Firefox, then /login again, is the simplest path.", "info");
+        ctx.ui.notify("Login cancelled. Tip: logging into the site in Firefox, then /weblogin again, is the simplest path.", "info");
         return;
       }
       const username = await ctx.ui.input(`Username / email for ${domain}`);

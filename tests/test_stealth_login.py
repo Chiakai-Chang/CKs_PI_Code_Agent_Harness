@@ -59,7 +59,9 @@ class TestLoginCommandWiring(unittest.TestCase):
 
     def test_login_command_registered(self):
         c = read(self.IDX)
-        self.assertIn('registerCommand("login"', c)
+        # Named /weblogin, not /login, to avoid Pi's built-in /login command.
+        self.assertIn('registerCommand("weblogin"', c)
+        self.assertNotIn('registerCommand("login"', c)
 
     def test_password_piped_via_stdin_not_argv(self):
         c = read(self.IDX)
