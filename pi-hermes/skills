@@ -1,0 +1,184 @@
+# 🎯 Hermes 核心技能集成指南
+
+## 📋 概述
+
+這個章節專門說明如何將 Hermes 的核心技能與 heritage-harness 系統最佳整合，確保所有能力協調運作。
+
+## ✅ 已整合的核心技能
+
+### 1. **event_processor.py** - 事件驅動核心
+- **功能**: 統一處理所有事件的調度與優先級
+- **位置**: `~/.hermes/event_processor.py`
+- **整合點**: 
+  - 安全閘系統
+  - 任務規劃系統
+  - 自我進化系統
+
+### 2. **security_bridge.py** - 安全閘系統
+- **功能**: 工具調用前/後的安全檢查
+- **位置**: `~/.hermes/security_bridge.py`
+- **整合點**:
+  - 配置文件保護
+  - Bash 命令檢查
+  - 代碼質量門
+
+### 3. **task_plan_system** - 任務規劃系統
+- **功能**: 持久化記憶和目標追蹤
+- **位置**: `~/.hermes/plans/`
+- **整合點**:
+  - 決策前自動讀取計畫
+  - 防止 AI 遺忘長期目標
+
+### 4. **self_evolution** - 自我進化系統
+- **功能**: 會話結束自動提取學習點
+- **位置**: `~/.hermes/event_processor.py` (事件處理器)
+- **整合點**:
+  - 更新規範文件
+  - 從失敗中學習
+
+### 5. **auto_update** - 自動更新系統
+- **功能**: 每週自動檢查並同步最新功能
+- **位置**: `~/.hermes/auto_update.py`
+- **整合點**:
+  - 主框架更新
+  - 外部模組同步
+  - 配置保留
+
+## 🚀 使用方式
+
+### 1. 事件驅動架構
+
+Hermes 的事件處理器監聽以下事件：
+
+```bash
+# 查看當前監聽的事件
+python -c "from hermes.event_processor import event_processor; print(event_processor.event_handlers.keys())"
+```
+
+### 2. 安全閘檢查流程
+
+```bash
+# 工具調用前 (pre_tool_call)
+- 配置文件保護檢查
+- Bash no-verify 檢查
+- 敏感路徑檢查
+- 代碼質量門
+
+# 工具調用後 (post_tool_call)
+- 質量檢查
+- 變更日誌記錄
+```
+
+### 3. 任務規劃自動化
+
+系統會在每次決策前自動讀取：
+- `task_plan.md` - 任務目標和進度
+- `findings.md` - 研究發現和決策
+- `progress.md` - 會話進度記錄
+
+## 📚 技能映射
+
+### 核心功能 → Hermes Skills 對應
+
+| Heritage Harness 功能 | 對應的 Hermes Skill | 備註 |
+|----------------------|---------------------|------|
+| 任務規劃系統 | `plan` | 重疊，建議使用 heritage 版本 |
+| TDD 流程 | `test-driven-development` | 重疊，建議整合 |
+| 代碼審閱 | `requesting-code-review` | 重疊，可併用 |
+| 系統化除錯 | `systematic-debugging` | 可增強安全閘 |
+| Token 壓縮 | `caveman` | 重疊，已整合 |
+
+## 🎯 最佳實踐
+
+### 1. 事件優先級管理
+
+```yaml
+# ~/.hermes/config.yaml
+event_processors:
+  enabled: true
+  priority_order:
+    - security_gates      # 先檢查安全
+    - planning_context     # 再檢查任務規劃
+    - quality_check        # 然後質量檢查
+    - self_evolution       # 最後自我進化
+```
+
+### 2. 避免衝突的策略
+
+- **事件解耦**: 每個處理器獨立，不直接調用彼此
+- **可選啟用**: 透過配置控制哪些功能啟用
+- **優先級管理**: 高優先級檢查先執行
+- **後備機制**: 如果一個處理器失敗，其他仍可運作
+
+### 3. 性能優化
+
+- **緩存結果**: 避免重複計算
+- **惰性載入**: 只在需要時載入模組
+- **批量處理**: 將多個檢查合併為一次調用
+
+## 🔄 持續優化
+
+### 1. 監控系統狀態
+
+```bash
+# 定期檢查功能狀態
+python ~/.hermes/verify_integration.py
+
+# 查看啟用列表
+python -c "from hermes.event_processor import event_processor; print(event_processor.get_active_features())"
+```
+
+### 2. 性能分析
+
+```bash
+# 記錄事件處理時間
+cat ~/.hermes/logs/event_processor.log | grep "execution_time"
+```
+
+### 3. 故障排除
+
+#### 常見問題
+
+1. **功能未生效**
+   ```bash
+   # 檢查配置
+   cat ~/.hermes/config.yaml
+   
+   # 重新載入事件處理器
+   source ~/.hermes/event_processor.py
+   ```
+
+2. **衝突檢測**
+   ```bash
+   # 檢查重複的 skill
+   python -c "from hermes.skills_list import skills; print([s['name'] for s in skills if 'plan' in s['name']])"
+   ```
+
+3. **性能問題**
+   ```bash
+   # 查看事件處理時間
+   tail -n 100 ~/.hermes/logs/event_processor.log
+   
+   # 分析瓶頸
+   python ~/.hermes/diagnostics.py --profile
+   ```
+
+## 📊 更新紀錄
+
+### 2026-07-18
+- ✅ 完成核心技能集成
+- ✅ 建立事件驅動架構
+- ✅ 部署安全閘系統
+- ✅ 設置自動更新機制
+
+### 未來計劃
+- [ ] 添加更多性能優化
+- [ ] 擴展事件類型支援
+- [ ] 優化錯誤處理機制
+- [ ] 增加可視化監控介面
+
+---
+
+**維護者**: Hermes Agent  
+**版本**: 1.0.0 (核心技能集成版)  
+**許可證**: MIT
