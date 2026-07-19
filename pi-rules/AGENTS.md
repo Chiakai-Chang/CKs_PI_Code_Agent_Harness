@@ -44,7 +44,7 @@ When accumulating knowledge, research papers, design decisions, or codebase arch
 When learning from sessions or optimizing local skills/rules:
 *   **History ledger priority**: Before editing any existing skill or configuration (e.g. `SKILL.md`), you MUST search for its history records (`history/v*.md` or past commits/rationales). Explicitly document: what changed in each prior version, what evidence drove it, and whether later sessions suggested it helped or hurt.
 *   **Summarize & Decide (SkillClaw + Darwin)**: Group session logs/rationales. Use `SkillClaw` to decide macro updates: `create_skill`, `improve_skill`, or `skip`. If a skill's prompts require micro-tuning, trigger `darwin-skill` to execute sandboxed mutation trials.
-*   **Rigorous Self-Validation (GEPA + Qiushi Synergy)**: Before finalizing any skill optimization, define 1-3 validation scenarios from session evidence. Run a dry run or static simulation on a separate branch. Use `qiushi` logic to establish a clean control group comparison. Write validation logs to `history/v<N>_evidence.md` before merging via Git Diff.
+*   **Rigorous Self-Validation (GEPA + Qiushi Synergy)**: Before finalizing any skill optimization, define 1-3 validation scenarios from session evidence. Run a dry run or static simulation on a separate branch. Use `contradiction-analysis` (qiushi-skill 的辯證方法) to establish a clean control group comparison. Write validation logs to `history/v<N>_evidence.md` before merging via Git Diff.
 
 ## 7. Quality & Performance Harmony (UI/UX Pro Max & Addyosmani Protocol)
 When implementing frontend designs and components:
