@@ -29,6 +29,13 @@ TIMESTAMP = datetime.now().strftime("%Y%m%dT%H%M%S")
 def log(msg):
     print(f"[RESTORE] {msg}")
 
+def log_section(title):
+    """Print a section separator."""
+    print()
+    log(f"{'=' * 60}")
+    log(f"{title}")
+    log(f"{'=' * 60}")
+
 def ensure_dir(path):
     os.makedirs(path, exist_ok=True)
 
@@ -224,6 +231,47 @@ def merge_settings(existing, incoming, incoming_is_real):
 # [Skill conflicts] errors. Remove entries once fixed upstream (docs/KNOWN_ISSUES.md).
 ECC_BROKEN_SKILLS = {"loop-design-check"}  # invalid YAML in description (unquoted ': ')
 
+# Global skill directories that may conflict with harness external submodules.
+# These are the exact skill names from external/taste-skill and external/superpowers
+# that, if installed globally via `pi install`, will cause [Skill conflicts] warnings.
+# Pruning them ensures only the local (harness-managed) versions load.
+PRUNE_GLOBAL_SKILLS = {
+    # Taste-skill (external/taste-skill)
+    "brandkit",
+    "design-taste-frontend",
+    "design-taste-frontend-v1",
+    "full-output-enforcement",
+    "gpt-taste",
+    "high-end-visual-design",
+    "image-to-code",
+    "imagegen-frontend-mobile",
+    "imagegen-frontend-web",
+    "industrial-brutalist-ui",
+    "minimalist-ui",
+    "redesign-existing-projects",
+    "stitch-design-taste",
+    # Superpowers (external/superpowers)
+    "brainstorming",
+    "dispatching-parallel-agents",
+    "executing-plans",
+    "finishing-a-development-branch",
+    "receiving-code-review",
+    "requesting-code-review",
+    "subagent-driven-development",
+    "systematic-debugging",
+    "test-driven-development",
+    "using-git-worktrees",
+    "using-superpowers",
+    "verification-before-completion",
+    "writing-plans",
+    "writing-skills",
+    # Graphify (pi-skills/graphify)
+    "graphify",
+    # Core skills (pi-skills/core) that also may exist globally
+    "hello-reflect",
+    "planning-with-files",
+}
+
 # Third-party packages that entered as residue from the author's personal ~/.pi
 # dump in the initial commit and were never wired into any harness workflow.
 # context-mode also exposed a plain-HTTP `ctx_fetch_and_index` tool that weak
@@ -232,6 +280,49 @@ ECC_BROKEN_SKILLS = {"loop-design-check"}  # invalid YAML in description (unquot
 # pi-config alone cannot evict these from an already-installed live settings;
 # they must be pruned explicitly here.
 DEPRECATED_PACKAGES = {"npm:context-mode", "npm:@tintinweb/pi-tasks"}
+
+def prune_global_conflicts(dry_run=False):
+    """Remove global skill directories that conflict with harness external submodules.
+
+    This prevents [Skill conflicts] warnings when both the local submodule and a
+    global `pi install` version exist (same skill name). Safe to run multiple times.
+    
+    Args:
+        dry_run: If True, preview changes without executing
+    """
+    # Global locations to prune
+    pruned = []
+    candidates = []
+    
+    for base in [
+        os.path.join(PI_DIR, "agent", "skills"),
+        os.path.join(PI_DIR, "agent", "git", "github.com", "obra", "superpowers", "skills"),
+    ]:
+        if not os.path.isdir(base):
+            continue
+        for name in PRUNE_GLOBAL_SKILLS:
+            path = os.path.join(base, name)
+            if os.path.lexists(path):
+                candidates.append((base, name, path))
+    
+    if candidates:
+        if dry_run:
+            log(f"Dry run: Would prune {len(candidates)} conflicting global skills:")
+            for base, name, path in candidates:
+                log(f"  - {name} (in {base})")
+        else:
+            for base, name, path in candidates:
+                try:
+                    log(f"Pruning conflicting global skill: {name}")
+                    clear_dir(path)
+                    pruned.append(name)
+                except Exception as e:
+                    log(f"Warning: Failed to prune {path}: {e}")
+            if pruned:
+                log(f"✅ Pruned {len(pruned)} conflicting global skills.")
+    else:
+        log("✅ No conflicting global skills found.")
+
 
 def prune_deprecated_packages(settings):
     """Drop DEPRECATED_PACKAGES from settings['packages'] in place.
@@ -334,16 +425,20 @@ def main():
     parser.add_argument("--profile", choices=["minimal", "standard"], default="standard", help="Skill profile to load")
     parser.add_argument("--config-only", action="store_true",
                         help="Only sync settings.json / models.json; do not touch skills, rules, extensions or profile registration")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Preview changes without executing (safe dry run)")
     args = parser.parse_args()
 
     # Check environment variable as a robust fallback for --auto
     is_auto = args.auto or (os.environ.get("PI_AUTO_RESTORE") == "1")
     profile = args.profile or os.environ.get("PI_HARNESS_PROFILE", "standard")
+    dry_run = args.dry_run
 
-    log("CK's Pi Code Agent Harness – Restore Configuration (Python)")
+    log_section("CK's Pi Code Agent Harness – Restore Configuration")
     log(f"Repo root: {REPO_ROOT}")
     log(f"Agent dir: {AGENT_DIR}")
     log(f"Profile:   {profile}{' (config-only)' if args.config_only else ''}")
+    log(f"Dry run:   {'YES' if dry_run else 'NO'}")
     print()
 
     ensure_dir(AGENT_DIR)
@@ -354,9 +449,13 @@ def main():
 
     backup_agent()
 
-    if not is_auto and not confirm():
-        log("Aborted by user.")
+    if not is_auto and not dry_run and not confirm():
+        log("Abated by user.")
         sys.exit(0)
+
+    # Prune global conflicts with harness external submodules
+    # This prevents [Skill conflicts] warnings when both local and global installs exist.
+    prune_global_conflicts(dry_run=dry_run)
 
     # Config
     log("Restoring config (settings, models, git)...")
@@ -530,7 +629,8 @@ def main():
 
     if os.path.isdir(core_src):
         # "bridges" holds RATIONALE decision docs, not skills — keep it out of the agent dir
-        copy_dir_contents(core_src, skills_dst, exclude={"bridges"})
+        # Also exclude "planning-with-files" because external submodule version is preferred
+        copy_dir_contents(core_src, skills_dst, exclude={"bridges", "planning-with-files"})
     else:
         log("Core skills directory not found, skipping.")
 
@@ -538,7 +638,7 @@ def main():
     optional_src = os.path.join(REPO_ROOT, "pi-skills", "optional")
     restore_optional = True
 
-    if os.path.isdir(optional_src) and sys.stdin.isatty() and profile == "standard" and not is_auto:
+    if os.path.isdir(optional_src) and sys.stdin.isatty() and profile == "standard" and not is_auto and not dry_run:
         print()
         log("This repo includes optional design/creative skills (heavier).")
         log("Examples: design, ui-ux-pro-max, ui-styling, slides, brand, etc.")
@@ -593,7 +693,13 @@ def main():
                     log(f"  - {bridge} patched with absolute path")
 
     print()
-    log("✅ Restore complete.")
+    log_section("✅ Restore Complete")
+    
+    if dry_run:
+        log("DRY RUN MODE – No changes were actually made.")
+    else:
+        log("All configuration files have been restored.")
+    
     print()
     log("📌 Next steps:")
     log("  1) Ensure Pi is installed:")

@@ -2,7 +2,26 @@
 
 記錄目前已知、且根因不在本專案可直接修復範圍內的問題。每項均附影響評估與處理方式。
 
-## 1. Pi 啟動時的 `[Skill conflicts]` 名稱不符警告（僅舊版 pi；≥0.74.1 已消失）
+## 1. 全域技能名稱重複導致的 `[Skill conflicts]` 警告（已修復）
+
+**現象**：執行 `scripts/restore.py` 時出現大量 `Skill conflicts` 警告，提示全域目錄 (`~/.pi/agent/skills`) 與本地子模組存在相同名稱的技能（如 `design-taste-frontend`、`brainstorming` 等）。
+
+**根因**：
+- 本專案透過 Git Submodule 整合外部倉庫（taste-skill、superpowers、graphify 等）
+- 使用者可能透過 `pi install <pkg>` 將相同名稱的技能安裝到全域目錄
+- Pi Agent 啟動時在多個路徑 discovery 技能，重複名稱觸發警告
+
+**影響**：
+- **輕度**：技能仍能正常載入（優先使用 temp 路徑）
+- **維護成本**：累積警告可能造成困擾
+- **潛在風險**：版本錯位可能導致行為差異
+
+**處理**：**已在本專案 `scripts/restore.py` 中自動修復**
+- 新增 `PRUNE_GLOBAL_SKILLS` 清單，主動清理衝突全域目錄
+- 每次執行 `restore.py --auto` 時自動清理重複技能（保留 SKILL.md）
+- 詳見 [docs/decisions/2026-07-19-skill-conflicts-fix.md](docs/decisions/2026-07-19-skill-conflicts-fix.md)
+
+## 2. Pi 啟動時的 `[Skill conflicts]` 名稱不符警告（僅舊版 pi；≥0.74.1 已消失）
 
 **現象**：`pi` 0.73.x 及更舊版本啟動時列出多條 `name "X" does not match parent directory "Y"` 警告，來源為 `external/` 子模組（ECC、taste-skill、evolver、Local-Agent-Workspace、planning-with-files）。
 
