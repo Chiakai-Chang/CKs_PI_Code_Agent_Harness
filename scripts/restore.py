@@ -542,6 +542,10 @@ def main():
         # Exposes camofox-stealth as first-class web_search/web_open tools so weak
         # models call them reflexively instead of denying they can browse.
         profile_extensions.append(os.path.join(pi_extensions_root, "stealth-web-bridge").replace("\\", "/"))
+        # Wires YES.md pre-bash-guard: deterministic block on destructive shell
+        # commands (rm -rf /, git push --force, DROP TABLE, ...). Enforcement the
+        # model can't ignore — valuable especially with uncensored local models.
+        profile_extensions.append(os.path.join(pi_extensions_root, "yes-hooks-bridge").replace("\\", "/"))
 
 
 
@@ -556,7 +560,7 @@ def main():
         settings["skills"] = clean_skills
 
         existing_extensions = settings.get("extensions", [])
-        internal_bridge_names = ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge", "stealth-web-bridge"]
+        internal_bridge_names = ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge", "stealth-web-bridge", "yes-hooks-bridge"]
         clean_extensions = []
         for p in existing_extensions:
             p_normalized = p.replace("\\", "/").lower()
@@ -673,7 +677,7 @@ def main():
     ext_dst = os.path.join(AGENT_DIR, "extensions")
     if os.path.isdir(ext_src):
         # We selectively delete only the bridges managed by this harness to preserve other extensions.
-        for bridge in ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge", "stealth-web-bridge"]:
+        for bridge in ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge", "stealth-web-bridge", "yes-hooks-bridge"]:
             delete_path(os.path.join(ext_dst, bridge))
             
         for ext_path in profile_extensions:

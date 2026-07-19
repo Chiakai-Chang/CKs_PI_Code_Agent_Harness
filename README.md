@@ -59,7 +59,7 @@ python scripts/restore.py --dry-run
 ### 1. 🛡️ 安全治理與工程紀律
 *   **紀律守護 (ECC)**：在 AI 執行高風險操作（語法錯誤、金鑰外洩、敏感指令）前自動攔截。
 *   **工程方法論 (Superpowers)**：強迫 AI 遵循 TDD 測試驅動與規劃步驟，避免無效代碼重構。
-*   **指令攔截 (YES.md)**：設定白名單與防呆 Hooks，禁止 AI 修改系統關鍵配置或變數檔（.env）。
+*   **行為紀律＋毀滅指令攔截 (YES.md)**：`yes` 技能強制「無證據不猜、不推責給使用者、未驗證不報完成、有工具就用」；並經 `yes-hooks-bridge` 掛 `pre-bash-guard`，以腳本**硬擋毀滅性指令**（`rm -rf /`、`git push --force`、`DROP TABLE` 等，非靠 AI 自律）。
 
 ### 2. 🧠 工作流與上下文優化
 *   **任務管束 (C.A.S.E.)**：利用「憲法-架構-狀態-執行」檔案協定，為 AI 劃定清晰的任務邊界。
@@ -87,7 +87,7 @@ python scripts/restore.py --dry-run
 | **資源防禦** | [Caveman](https://github.com/JuliusBrussee/caveman) | Git Submodule | Token 壓縮防禦 | ⚠️ | ✅ |
 | **行為準則** | [Karpathy](https://github.com/multica-ai/andrej-karpathy-skills) | Git Submodule | LLM 寫入防護指引 | ❌ | ✅ |
 | **提示工程** | [Prompt Master](https://github.com/nidhinjs/prompt-master) | Git Submodule | 提示詞優化範本 | ❌ | ✅ |
-| **安全治理** | [YES.md](https://github.com/sstklen/yes.md) | Git Submodule | 指令安全與攔截 Hooks | ❌ | ✅ |
+| **安全治理** | [YES.md](https://github.com/sstklen/yes.md) | Submodule + Bridge | `yes` 行為紀律技能（無證據不猜／未驗證不報完成／用工具）＋ `pre-bash-guard` 硬擋毀滅性指令 | ❌ | ✅ |
 | **美學/UX** | [Taste Engine](https://github.com/Leonxlnx/taste-skill) | Git Submodule | 設計樣式與視覺引導 | ❌ | ✅ |
 | **基因優化** | [Evolver](https://github.com/EvoMap/evolver) | Git Submodule | 失敗模式與 Prompt 演化 | ❌ | ✅ |
 | **提示微調** | [Darwin](https://github.com/alchaincyf/darwin-skill) | Bridge (橋接) | Prompt 變異優化 | ❌ | ✅ |
