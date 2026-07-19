@@ -66,6 +66,7 @@ When implementing frontend designs and components:
 *   **測真正的入口、要冷測**：測使用者實際會走的那條路——**第一次使用／伺服器沒起／全新 clone** 的狀態，不是你剛好弄好的「已暖機」狀態。（教訓：`web_search` 之所以「能用」只因後端是先手動起好的；冷啟動的 `spawn sh ENOENT` 從沒被測，對每台新機都是壞的。）
 *   **「我這台是綠的」不算證明**：環境會不同——PATH、gitignored 檔案、OS。宣稱通過前先重現目標環境。（教訓：一個測試讀了 gitignored 的 `pi-config/settings.json`，本機過、CI 全新 checkout 全炸。）
 *   **把證據亮出來**：回報完成時，貼出**實際跑的指令**與**實際輸出**。沒跑就老實說沒跑，不要暗示你沒做的驗證。
+*   **數字與宣稱一律先跑再寫**：報告或 **commit 訊息**裡的任何具體數字（「N tests pass」「涵蓋 X 檔」「快 3 倍」）或成功宣稱，必須來自**下筆當下的實際執行**，不是預估或記憶。要寫數字就先跑、用真值；無法當場驗證就別寫具體數字。（教訓：commit 寫「125 tests」是預估，實跑 127。）
 *   **改完程式一定跑 `python -m unittest discover -s tests`**；動到 extension／skill 就實際觸發那條路徑看輸出。CI 紅燈抓到真 bug 是它在做正事，修 bug，別當噪音。
 
 ## 10. 能力善用（Capability-First，方法論優先 — 讓已裝的方法論與工具真的被觸發）

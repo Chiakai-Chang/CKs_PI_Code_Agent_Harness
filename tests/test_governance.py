@@ -20,6 +20,8 @@ class TestEvidenceBasedCompletionPrinciple(unittest.TestCase):
         self.assertIn("實測有證據", c)
         # the core injunction and the cold-path lesson must both survive
         self.assertIn("冷測", c)
+        # numbers/claims in reports & commit messages must come from a real run
+        self.assertIn("先跑再寫", c)
 
     def test_principle_in_claude_md(self):
         c = read("CLAUDE.md")

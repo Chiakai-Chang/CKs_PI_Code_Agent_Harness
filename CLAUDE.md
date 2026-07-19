@@ -22,6 +22,7 @@ Before planning any optimizations, refactoring, or modifications to this reposit
 * **Test the real entry path, cold.** Exercise the path a fresh user actually hits — the first-use / server-down / clean-clone state — not the already-warm state you happened to set up. (Scar: `web_search` "worked" only because the backend was started manually first; the cold `spawn sh ENOENT` path was never tested and was broken for every new machine.)
 * **"Green on my machine" is not proof.** Environments differ — PATH, gitignored files, OS. Reproduce the target condition before claiming pass. (Scar: a test read the gitignored `pi-config/settings.json`; it passed locally and broke on every fresh CI checkout.)
 * **Show the evidence.** When reporting done, quote the actual command and its actual output. If you did not run it, say so plainly — do not imply verification you did not perform.
+* **Numbers and claims come from a run at write-time.** Any concrete number or success claim in a report or **commit message** ("N tests pass", "covers X files", "3× faster") must come from an actual run at the moment you write it — never a prediction or memory. Run first, use the real value; if you can't verify it then, don't state a specific number. (Scar: a commit said "125 tests" — the real run was 127.)
 * **CI is a feature, not noise.** A red CI that catches a real defect is doing its job; fix the defect, do not dismiss the signal.
 
 ## 🧭 Methodology-First (方法論優先)
