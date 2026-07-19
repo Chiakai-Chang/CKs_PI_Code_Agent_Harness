@@ -72,7 +72,8 @@ When implementing frontend designs and components:
 本 repo 的增強能力分**三維度**（完整說明見 README「核心功能」）。能力在、沒被觸發＝等於沒有（camofox 教訓）。**流程／方法論先於實作**——先定調「怎麼做」，再動手。動手前依情境主動叫用（下列技能名皆已核實可載入）：
 
 ### 維度一 · 安全治理與工程紀律
-*   高風險操作（改 `.env`／系統設定／敏感指令）→ ECC 與 YES.md 的 hooks 會自動攔截，**別繞過**。
+*   **ECC hooks（主動阻擋，經 `ecc-hooks-bridge`）**：在 `tool_call` 時實際擋下三類——`git push --no-verify`（block-no-verify）、弱化設定（config-protection）、未調查就動危險操作（GateGuard「先調查」）。被擋＝照它給的理由去調查／改法，**別想繞過**。
+*   **YES.md ＝ `yes` 技能（行為紀律；本 harness 只掛技能、未掛其 hooks，故非 `.env` 白名單）**：當你改檔案／設定／部署、想沒證據就猜（「應該是／可能」）、想推給使用者、改完沒驗證就報完成、有工具卻不用、或原地打轉時——遵它。與 §8（用工具）／§9（實測有證據）同源。
 *   做新東西／創意工作 → `brainstorming` 釐清意圖 → `planning-with-files`／`writing-plans` 立計畫。
 *   有 bug／非預期行為 → `systematic-debugging`（先復現、定位根因，別亂修）；實作功能或修 bug → `test-driven-development`（先寫會失敗的測試）。
 
