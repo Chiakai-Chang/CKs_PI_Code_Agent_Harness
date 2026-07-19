@@ -33,8 +33,12 @@ class TestMethodologyFirstPrinciple(unittest.TestCase):
     skills from being unused shells. Guard it in the always-loaded docs, and
     keep the routing honest: every skill it names must be a real, wired skill."""
 
+    # Every name here is a verified-loadable skill (checked against the skills'
+    # SKILL.md name: frontmatter). NB "qiushi" is NOT a skill — that submodule
+    # ships contradiction-analysis et al.; "evolver" loads as capability-evolver.
     WIRED = ("brainstorming", "planning-with-files", "systematic-debugging",
-             "test-driven-development", "thinking-frameworks", "mece-autopilot", "qiushi")
+             "test-driven-development", "thinking-frameworks", "mece-autopilot",
+             "contradiction-analysis", "case-framework")
 
     def test_methodology_routing_in_agents(self):
         c = read("pi-rules/AGENTS.md")
