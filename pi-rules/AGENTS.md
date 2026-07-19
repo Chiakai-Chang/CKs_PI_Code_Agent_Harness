@@ -67,3 +67,17 @@ When implementing frontend designs and components:
 *   **「我這台是綠的」不算證明**：環境會不同——PATH、gitignored 檔案、OS。宣稱通過前先重現目標環境。（教訓：一個測試讀了 gitignored 的 `pi-config/settings.json`，本機過、CI 全新 checkout 全炸。）
 *   **把證據亮出來**：回報完成時，貼出**實際跑的指令**與**實際輸出**。沒跑就老實說沒跑，不要暗示你沒做的驗證。
 *   **改完程式一定跑 `python -m unittest discover -s tests`**；動到 extension／skill 就實際觸發那條路徑看輸出。CI 紅燈抓到真 bug 是它在做正事，修 bug，別當噪音。
+
+## 10. 方法論優先（Methodology-First — 讓已裝的方法論真的被用上）
+本 repo 裝了大量**方法論技能**；它們只有在對的時機**主動叫用**才有價值，否則就是沒用的殼（同 camofox 教訓：能力在、沒被觸發＝等於沒有）。**流程技能先於實作**——先用方法論定調「怎麼做」，再用領域技能「動手做」。
+
+動手前，依任務型態先叫用：
+*   **做新東西／創意工作**（新功能、元件、行為改動）→ 先 `brainstorming` 釐清意圖與需求，再 `planning-with-files`／`writing-plans` 立計畫。
+*   **有 bug／非預期行為** → 先 `systematic-debugging`（先復現、定位根因），別一看到就亂修。
+*   **實作功能或修 bug** → `test-driven-development`：先寫會失敗的測試，再寫實作。
+*   **複雜多步任務（>5 步或跨多檔）** → `planning-with-files`（task_plan／findings／progress）。
+*   **有取捨／多角度／多方利害的決策** → 輕量用 `thinking-frameworks`（反演／基準率／二階效應…）；重大或多方上 `mece-autopilot`；要辯證對照用 `qiushi`。
+*   **寫／改技能本身** → `writing-skills` ＋ §6 的 GEPA 分支流程。
+*   **宣稱完成前** → §9 實測有證據。
+
+原則：**別跳過方法論直接動手**。瑣碎任務（單行改、格式修）不強制；但非瑣碎、會影響行為的工作，先定方法再動手。不確定用哪個，先用 `thinking-frameworks` 快速過一遍再決定。

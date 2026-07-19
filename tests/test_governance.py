@@ -27,5 +27,26 @@ class TestEvidenceBasedCompletionPrinciple(unittest.TestCase):
         self.assertIn("實測有證據", c)
 
 
+class TestMethodologyFirstPrinciple(unittest.TestCase):
+    """Methodology-first routing (process skill before domain skill) is the
+    other half of the repo's soul — it stops the many bundled methodology
+    skills from being unused shells. Guard it in the always-loaded docs, and
+    keep the routing honest: every skill it names must be a real, wired skill."""
+
+    WIRED = ("brainstorming", "planning-with-files", "systematic-debugging",
+             "test-driven-development", "thinking-frameworks", "mece-autopilot", "qiushi")
+
+    def test_methodology_routing_in_agents(self):
+        c = read("pi-rules/AGENTS.md")
+        self.assertIn("方法論優先", c)
+        # the routing must name real methodology skills, not vague prose
+        for s in self.WIRED:
+            self.assertIn(s, c, "AGENTS.md §10 must route to the wired skill %s" % s)
+
+    def test_methodology_first_in_claude_md(self):
+        c = read("CLAUDE.md")
+        self.assertIn("Methodology-First", c)
+
+
 if __name__ == "__main__":
     unittest.main()

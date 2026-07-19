@@ -24,6 +24,9 @@ Before planning any optimizations, refactoring, or modifications to this reposit
 * **Show the evidence.** When reporting done, quote the actual command and its actual output. If you did not run it, say so plainly — do not imply verification you did not perform.
 * **CI is a feature, not noise.** A red CI that catches a real defect is doing its job; fix the defect, do not dismiss the signal.
 
+## 🧭 Methodology-First (方法論優先)
+This repo bundles many **methodology skills**; they only add value when invoked at the right moment — otherwise they are unused shells (same lesson as camofox: a capability that is never triggered is as good as absent). **Process skill first (sets the approach), then domain skill (executes).** Before non-trivial work: new/creative work → `brainstorming` then a plan; a bug → `systematic-debugging`; implementing → `test-driven-development`; a complex multi-step task → `planning-with-files`; a decision with trade-offs → `thinking-frameworks` / `mece-autopilot` / `qiushi`. Do not skip the method and dive straight into code. (Full routing: `pi-rules/AGENTS.md` §10.)
+
 ## 🚫 Forbidden Anti-Patterns
 * **No Marketing/Hyperbole**: Do not use boasting words like "master-class", "revolutionary", or "15+ top repos". Speak plain, objective engineering truths.
 * **No Zombie Configs**: Never register mock or empty extension files in `settings.json`. Every registered item must be active and tested.
