@@ -22,6 +22,18 @@ class TestEvidenceBasedCompletionPrinciple(unittest.TestCase):
         self.assertIn("冷測", c)
         # numbers/claims in reports & commit messages must come from a real run
         self.assertIn("先跑再寫", c)
+        # the anti-fabrication floor — the worst observed failure (fabricated
+        # field tests / venues / ROI presented as real). Must not be dropped.
+        self.assertIn("不捏造", c)
+
+    def test_top_iron_rules_banner_present(self):
+        """The 3 hardest disciplines (no language drift / no fabrication /
+        plan-first + stay-in-project) are front-loaded as a top banner so a
+        weak model sees them first. Guard the banner so it isn't dropped."""
+        c = read("pi-rules/AGENTS.md")
+        self.assertIn("最高鐵律", c)
+        # banner must sit before the numbered sections (front placement is the point)
+        self.assertLess(c.index("最高鐵律"), c.index("## 0."))
 
     def test_principle_in_claude_md(self):
         c = read("CLAUDE.md")
