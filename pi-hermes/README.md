@@ -1,4 +1,11 @@
-# 🚀 Hermes 增強框架集成指南
+# 🚀 Hermes Agent 增強套件 (Heritage Harness Integration)
+
+> ⚠️ **注意**: 本套件整合了 CK's Pi Code Agent Harness 的核心功能到 Hermes Agent，提供事件驅動、安全閘、持久化記憶等增強能力。
+
+**快速連結：**
+- [快速開始](#快速開始)
+- [系統狀態檢查](#檢查系統狀態)  
+- [故障排除](#故障排除)
 
 ## 📋 概述
 
@@ -26,6 +33,19 @@
 - **腳本**: `auto_update.py` - 每週自動檢查
 - **功能**: 主框架更新、外部模組同步、配置保留
 
+## 🔄 與現有 Skills 的共存
+
+本增強套件與 Hermes 原有的 Skills 完美相容，部分功能有重疊但互補：
+
+| 功能 | 現有 Skill | 新系統 | 建議用法 |
+|------|-----------|--------|----------|
+| 任務規劃 | `plan` | 自動化管理 (`task_plan.md`) | 手動計劃用 `plan`，長期追蹤用新系統 |
+| TDD | `test-driven-derelopment` | Superpowers TDD | 兩者併用，新系統提供額外檢查 |
+| Token 壓縮 | `caveman` | 整合在配置中 | 保持啟用，自動觸發 |
+| 代碼審閱 | `requesting-code-review` | 安全閘系統 | 並行運作，多一層保護 |
+
+**建議**: 首次使用者可以先啟用新系統的所有功能，等熟悉後再根據需求調整。
+
 ## 🎯 快速開始
 
 ### 第一步：驗證系統狀態
@@ -47,6 +67,27 @@ cp ~/.hermes/plans/progress.md .
 ```bash
 nano .env  # 應自動攑截
 git commit --no-verify  # 應顯示警告
+```
+
+### 第四步：使用隱身瀏覽系統（選修）
+
+**如果已配置 Camofox：**
+```bash
+# 啟動本地反偵查瀏覽器（需先安裝，見下方）
+cd ~/.hermes/camofox-browser && make up
+
+# 在 Hermes 中使用 web_search/web_open
+web_search("Python async best practices")
+web_open("https://docs.python.org/3/library/asyncio.html")
+```
+
+> **注意**: Camofox 為選修元件，安裝後可啟用更強的網頁防探測能力。若未安裝則使用現有的 Chrome CDP 模式。
+
+**Camofox 安裝**（如需啟用）：
+```bash
+# 克隆並安裝 Camofox
+cd ~/.hermes && git clone https://github.com/jo-inc/camofox-browser.git
+cd camofox-browser && make up
 ```
 
 ## 📊 驗證結果
