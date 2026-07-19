@@ -59,3 +59,11 @@ When implementing frontend designs and components:
 *   **手動／進階路徑（選用）**：使用者也可打 `/browse <查詢>`；要手動驅動後端見技能 `camofox-stealth` 的 `SKILL.md`（搜尋走 DuckDuckGo HTML 直連，**不要用 `@duckduckgo_search`/`@google_search` macro**）。
 *   **擋頁誠實原則**：`recon.sh is_blocked` 為真時，**不要把擋頁內容當真、不要編造**；如實回報該來源擋自動存取，改用其他來源。
 *   **邊界**：偵察是為品質不是拖延。動工前調研上限約一次搜尋 + 讀 2–3 個來源，足夠就停、進實作（見 `rules/stealth-recon.md`）。
+
+## 9. 實測有證據（本 repo 最高原則 — Evidence-Based Completion）
+**沒有實際執行並看到結果，就不准說「完成／修好／可用」。** 「應該可以」「看起來對」「程式碼沒錯」都**不是證據**，只有觀察到的實際輸出才算。違反這條是本 repo 最嚴重的失誤。
+
+*   **測真正的入口、要冷測**：測使用者實際會走的那條路——**第一次使用／伺服器沒起／全新 clone** 的狀態，不是你剛好弄好的「已暖機」狀態。（教訓：`web_search` 之所以「能用」只因後端是先手動起好的；冷啟動的 `spawn sh ENOENT` 從沒被測，對每台新機都是壞的。）
+*   **「我這台是綠的」不算證明**：環境會不同——PATH、gitignored 檔案、OS。宣稱通過前先重現目標環境。（教訓：一個測試讀了 gitignored 的 `pi-config/settings.json`，本機過、CI 全新 checkout 全炸。）
+*   **把證據亮出來**：回報完成時，貼出**實際跑的指令**與**實際輸出**。沒跑就老實說沒跑，不要暗示你沒做的驗證。
+*   **改完程式一定跑 `python -m unittest discover -s tests`**；動到 extension／skill 就實際觸發那條路徑看輸出。CI 紅燈抓到真 bug 是它在做正事，修 bug，別當噪音。
