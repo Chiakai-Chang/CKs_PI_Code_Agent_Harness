@@ -13,9 +13,10 @@
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { homedir } from "node:os";
 import { spawn } from "node:child_process";
 
 const SERVER = process.env.STEALTH_RECON_URL || "http://127.0.0.1:9377";
@@ -39,6 +40,26 @@ function harnessRoot(): string {
 
 function reconScript(): string {
   return join(harnessRoot(), "pi-skills/optional/camofox-stealth/recon.sh");
+}
+
+// Resolve a real shell executable. Node's spawn("sh") relies on the *process*
+// PATH, which on Windows often does NOT include Git's sh — that's the "spawn sh
+// ENOENT" that stopped the backend from ever cold-starting. Use the shell the
+// harness configured (settings.json shellPath), then known Git-Bash locations,
+// then fall back to PATH.
+function findShell(): string {
+  try {
+    const cfg = JSON.parse(readFileSync(join(homedir(), ".pi", "agent", "settings.json"), "utf-8"));
+    if (cfg.shellPath && existsSync(cfg.shellPath)) return cfg.shellPath;
+  } catch {}
+  for (const c of [
+    "C:\\Program Files\\Git\\bin\\bash.exe",
+    "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+    "C:\\Program Files (x86)\\Git\\bin\\bash.exe",
+  ]) {
+    try { if (existsSync(c)) return c; } catch {}
+  }
+  return process.platform === "win32" ? "bash" : "sh";
 }
 
 function loginScript(): string {
@@ -82,7 +103,7 @@ function ensureServer(): Promise<{ ok: boolean; log: string }> {
     serverHealthy().then((up) => {
       if (up) return resolve({ ok: true, log: "" });
       // First run downloads the ~300MB engine; give it room. Detached start.
-      const proc = spawn("sh", [reconScript(), "ensure"], {
+      const proc = spawn(findShell(), [reconScript(), "ensure"], {
         timeout: 600_000,
         stdio: ["ignore", "pipe", "pipe"],
       });

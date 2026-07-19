@@ -59,6 +59,17 @@ class TestBridgeContract(unittest.TestCase):
         c = read(self.IDX)
         self.assertIn('type: "image" as const', c)
 
+    def test_backend_start_resolves_real_shell(self):
+        """spawn('sh') ENOENTs on Windows where Git's sh is not on the Node
+        process PATH — the backend then never cold-starts. Must resolve a real
+        shell (harness shellPath / Git-Bash path), not rely on bare 'sh'."""
+        c = read(self.IDX)
+        self.assertIn("function findShell", c)
+        self.assertIn("spawn(findShell()", c)
+        self.assertIn("shellPath", c)
+        # the only remaining literal spawn("sh"…) is inside an explanatory comment
+        self.assertNotIn('spawn("sh", [', c)
+
     def test_interaction_acts_on_tracked_current_tab(self):
         c = read(self.IDX)
         # web_search / web_open record the tab so interaction tools need no tabId
