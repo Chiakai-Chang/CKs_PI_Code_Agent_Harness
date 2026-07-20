@@ -90,6 +90,78 @@ def ask(prompt, default=""):
     except EOFError:
         return default
 
+def find_nvm_node_bin():
+    """Find nvm's node binary directory if nvm is in use. Returns None if not found."""
+    nvm_dir = os.path.expanduser("~/.nvm")
+    node_dirs = os.path.join(nvm_dir, "versions", "node")
+    if not os.path.isdir(node_dirs):
+        return None
+    for entry in os.listdir(node_dirs):
+        candidate = os.path.join(node_dirs, entry, "bin")
+        if os.path.isdir(candidate) and os.path.exists(os.path.join(candidate, "node")):
+            return candidate
+    return None
+
+def maybe_heal_linux_stealth():
+    """On Linux: auto-heal known systemd unit and server.js issues for stealth-recon.
+    Idempotent; only acts on detected problems; best-effort (never blocks install).
+
+    Covers the root causes documented in docs/retro/2026-07-20-camofox-linux-root-cause-fix.md:
+    - systemd unit PATH missing nvm node (unit fails to start, exit 127)
+    - server.js bugs in the pinned-server install (patched via camofox-server-fixes.sh)
+    """
+    if platform.system().lower() != "linux":
+        return
+    unit_path = os.path.expanduser("~/.config/systemd/user/camofox-browser.service")
+    nvm_node = find_nvm_node_bin()
+
+    # Fix 1: systemd unit PATH missing nvm node
+    if os.path.isfile(unit_path) and nvm_node:
+        with open(unit_path, "r", encoding="utf-8") as f:
+            unit = f.read()
+        if "Environment=PATH=" in unit and nvm_node not in unit:
+            print("[*] systemd camofox-browser unit 的 PATH 不含 nvm node，自動修復...")
+            import re
+            def fix_path(m):
+                old_path = m.group(1)
+                return "Environment=PATH=" + nvm_node + ":" + old_path
+            unit = re.sub(r"Environment=PATH=(.+)$", fix_path, unit, count=1, flags=re.MULTILINE)
+            with open(unit_path, "w", encoding="utf-8") as f:
+                f.write(unit)
+            print("  [✓] 已加入 " + nvm_node + "，請執行: systemctl --user daemon-reload && systemctl --user restart camofox-browser.service")
+        elif nvm_node in unit:
+            print("[*] systemd camofox-browser unit 的 nvm node PATH 已在。")
+
+    # Fix 2: patch server.js bugs in the pinned-server install
+    server_js = os.path.expanduser("~/.camofox/pinned-server/node_modules/@askjo/camofox-browser/server.js")
+    patch_script = os.path.join(REPO_ROOT, "pi-skills", "optional", "camofox-stealth", "camofox-server-fixes.sh")
+    if os.path.isfile(server_js):
+        needs_patch = False
+        with open(server_js, "r", encoding="utf-8") as f:
+            content = f.read()
+        if "vdDisplay = await localVirtualDisplay.get();" not in content:
+            needs_patch = True
+        if "const maxAttempts = proxyPool?.launchRetries ?? 3;" not in content:
+            needs_patch = True
+        if "firefox_user_prefs:" not in content:
+            needs_patch = True
+        if "viewport: null" not in content:
+            needs_patch = True
+        if needs_patch:
+            print("[*] 偵測到 camofox server.js 未修復的 bug，正在 patch...")
+            if os.path.isfile(patch_script):
+                bash = detect_git_bash() or "sh"
+                if run_stream(f'"{bash}" "{patch_script}"'):
+                    print("[*] server.js patch 完成。")
+                else:
+                    print("[-] server.js patch 失敗，請手動執行: sh " + patch_script)
+            else:
+                print("[-] patch 腳本未找到 (" + patch_script + ")，請手動修復，參考 docs/retro/2026-07-20-camofox-linux-root-cause-fix.md")
+        else:
+            print("[*] camofox server.js 已修復。")
+    else:
+        print("[*] pinned-server 未安裝，跳過 server.js 檢查 (recon.sh install 後再檢查)。")
+
 def maybe_prefetch_stealth():
     """Opt-in, best-effort prefetch of the stealth-recon engine (Camoufox ~300MB).
     Offered on both fresh install and update; --auto / non-tty skips it."""
@@ -124,6 +196,7 @@ def run_update():
     else:
         print("[*] 未偵測到 pi，略過。裝好後可自行執行: pi update --all")
     maybe_prefetch_stealth()
+    maybe_heal_linux_stealth()
     print("\n" + "=" * 60 + "\n 更新完成！請執行: pi\n" + "=" * 60)
 
 def load_json(path):
@@ -338,6 +411,7 @@ def main():
 
         # Optional stealth-recon engine prefetch (opt-in, best-effort, --auto skips).
         maybe_prefetch_stealth()
+        maybe_heal_linux_stealth()
 
     if mode in ["full", "model"]:
         local_models = detect_llm_services()

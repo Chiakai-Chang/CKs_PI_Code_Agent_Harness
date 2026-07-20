@@ -52,3 +52,23 @@
 ## 4. stealth-recon 後端首次自動安裝（~300MB）
 
 `camofox-stealth` 技能的後端 `@askjo/camofox-browser@1.11.2` **會自動安裝，不需手動架設**：`recon.sh` 以 `npx -y` 取得套件，camofox-browser 首次啟動時再自動下載 Camoufox（~300MB 到 `~/.camofox`，一次性，不含在 repo）。第一次啟動會顯示下載提示並延長等待逾時（預設 600 秒）；之後啟動為秒級。也可在 `setup.py` 完整安裝時選擇預先下載。最硬的 Akamai/Datadome 頂層可能仍需 residential proxy（本技能預設不掛 proxy，不在支援範圍）。
+
+## 5. camofox-browser 在 Linux + systemd 上的多層失效（已在實機修復，harness 已納入自動修復）
+
+**現象**：Linux 機上 `web_search` / `web_open` 全部回傳 "Could not open a browser tab"。camofox-browser 健康檢查 `browserConnected: false`，但引擎（`~/.cache/camoufox/camoufox-bin`）已下載完成、server 進程也跑著。
+
+**根因（6 層，疊加失效）**：
+1. **systemd unit 的 PATH 不含 nvm node**（`~/.nvm/versions/node/*/bin`），shebang `#!/usr/bin/env node` 的入口秒掛 exit 127。
+2. **瀏覽器啟動 retry 只有 1 次**（`?? 1`），內層 bug 無 retry 緩衝。
+3. **server.js async bug**：`localVirtualDisplay.get()` 是 async 但沒 await，`[object Promise]` 對象當 DISPLAY 傳入 Firefox，`Error: cannot open display: [object Promise]`。
+4. **Firefox sandbox vs AppArmor**：`unprivileged_userns` profile 拒絕 `cap_sys_admin` → `EPERM` → Firefox exit(1)。
+5. **Playwright viewport schema vs Firefox Juggler 協議**：`newContext({ viewport: {...} })` 傳入的 `isMobile/deviceScaleFactor` 不被 Firefox Juggler 接受，`Browser.setDefaultViewport` 錯誤。
+6. **`page.setViewportSize()` 傳入 Firefox 不支持的 screenSize**：同上協議差異，`Page.setViewportSize` 錯誤。
+
+詳見 [docs/retro/2026-07-20-camofox-linux-root-cause-fix.md](docs/retro/2026-07-20-camofox-linux-root-cause-fix.md)。
+
+**影響**：**stealth-web 工具鏈完全不可用**（web_search/open/click/screenshot 全部失效）。macOS/Windows 不受影響（無 xvfb、無 systemd unit；Windows 的 headless 路徑不同）。
+
+**處理**：
+- `setup.py` 加入 `maybe_heal_linux_stealth()`，於 `--mode full` 與 `--mode update` 流程中自動修復 systemd unit 的 PATH 缺失，並對 pinned-server 的 `server.js` 執行 `pi-skills/optional/camofox-stealth/camofox-server-fixes.sh` patch（冪等、grep 特徵驅動）。
+- 層 3/5/6 是 `@askjo/camofox-browser` 的代碼 bug（Firefox Juggler 協議兼容缺口、async 編碼錯誤），不在 harness 控制範圍。harness 透過 patch 腳本補救；upstream 修復後 patch 檢查可自動跳過。
