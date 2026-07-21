@@ -3,6 +3,7 @@ pi-config/auth.json
 pi-config/settings.json
 pi-config/models.json
 pi-config/model.json
+pi-config/external-skills-manifest.json
 .understand-anything/
 research/
 node_modules/
