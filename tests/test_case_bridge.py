@@ -20,6 +20,10 @@ class TestCaseAutonomousExecutionAddendum(unittest.TestCase):
         self.assertIn("retro.md", c)
         self.assertIn("learnings.md", c)
         self.assertIn("create_subtask", c)
+        self.assertIn("疏漏與不當", c)
+        self.assertIn("可優化之處", c)
+        self.assertIn("收穫", c)
+        self.assertIn("回饋 CASE", c)
 
     def test_addendum_does_not_require_human_chat_approval(self):
         c = read(self.ADDENDUM)

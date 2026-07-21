@@ -19,7 +19,7 @@
  * between harness updates.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { readFileSync, existsSync, mkdirSync, cpSync, writeFileSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, cpSync, writeFileSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
@@ -80,6 +80,10 @@ function patchSkillName(rawContent: string, newName: string): string {
 }
 
 function normalizedHash(content: string): string {
+  // .trim() intentionally widens beyond CRLF->LF normalization: two skills
+  // differing only by leading/trailing whitespace (e.g. a trailing blank
+  // line) are still treated as identical for dedup purposes. Deliberate,
+  // not an oversight — do not remove to match the spec literally.
   const normalized = content.replace(/\r\n/g, "\n").trim();
   return createHash("sha256").update(normalized, "utf-8").digest("hex");
 }
@@ -96,6 +100,10 @@ function stageRenamedSkill(srcDir: string, name: string, srcRaw: string): string
   const destSkillMd = join(destDir, "SKILL.md");
   const expected = patchSkillName(srcRaw, `harness-${name}`);
 
+  // cpSync is an overlay, not a mirror — it never removes files that were
+  // deleted from srcDir since the last stage. Clear destDir first so the
+  // copy below is a true mirror of the current source contents.
+  rmSync(destDir, { recursive: true, force: true });
   mkdirSync(destDir, { recursive: true });
   cpSync(srcDir, destDir, { recursive: true });
   writeFileSync(destSkillMd, expected, "utf-8");
@@ -115,6 +123,20 @@ export default function (pi: ExtensionAPI) {
 
         if (!name) {
           ctx.ui.notify(`[skill-namespace-guard] Could not read name: from ${srcSkillMd}; registering as-is.`, "warning");
+          skillPaths.push(srcDir);
+          continue;
+        }
+
+        // Defense-in-depth: `name` is interpolated into filesystem paths
+        // below (stageRenamedSkill's destDir, existingSkillMd). A value
+        // like "../../evil" would let join() normalize outside
+        // ~/.pi/agent/skills/. Reject anything that isn't a safe path
+        // segment and fail open exactly like the missing-name case.
+        if (!/^[A-Za-z0-9._-]+$/.test(name)) {
+          ctx.ui.notify(
+            `[skill-namespace-guard] Skipping unsafe skill name "${name}" from ${srcSkillMd} (must match [A-Za-z0-9._-]+); registering as-is.`,
+            "warning",
+          );
           skillPaths.push(srcDir);
           continue;
         }
