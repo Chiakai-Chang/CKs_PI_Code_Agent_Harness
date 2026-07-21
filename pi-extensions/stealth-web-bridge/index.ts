@@ -207,7 +207,48 @@ async function actAndSnapshot(tabId: string | null, action: string, body: Record
   };
 }
 
+// Pi's own auto-compaction threshold check (contextTokens > contextWindow - reserveTokens)
+// only runs *between* whole agent turns, never between individual tool round-trips within
+// one turn (confirmed against the installed engine, dist/core/agent-session.js). A single
+// web_* call can return up to ~20K tokens (camofox server caps snapshots at 80,000 chars),
+// so a turn that chains a few large page fetches back-to-back (e.g. clicking through a
+// nav-heavy site) can jump straight from "under threshold" past the hard llama.cpp ctx-size
+// in one uninterrupted burst, since nothing checks in between. Proactively compact here,
+// right after the tool calls that actually produce the big jumps, instead of waiting for
+// the engine's between-turn checkpoint or the hard overflow error.
+const PROACTIVE_COMPACT_PERCENT = 80;
+let proactiveCompactInFlight = false;
+
+function maybeProactiveCompact(ctx: any) {
+  try {
+    const usage = ctx.getContextUsage?.();
+    if (!usage || usage.percent == null) return;
+    if (usage.percent < PROACTIVE_COMPACT_PERCENT) {
+      proactiveCompactInFlight = false;
+      return;
+    }
+    if (proactiveCompactInFlight) return; // one in flight/requested — don't stack more
+    proactiveCompactInFlight = true;
+    ctx.ui?.notify?.(
+      `[stealth-web] Context ${Math.round(usage.percent)}% (${usage.tokens}/${usage.contextWindow}) after a page fetch — compacting proactively to avoid an overflow error.`,
+      "warning",
+    );
+    ctx.compact?.({
+      customInstructions: "Recent turns did heavy web browsing; keep only the key findings/URLs from pages read, drop large page-snapshot dumps.",
+      onComplete: () => { proactiveCompactInFlight = false; },
+      onError: () => { proactiveCompactInFlight = false; },
+    });
+  } catch {}
+}
+
 export default function (pi: ExtensionAPI) {
+  // Mid-turn context guard: check after every web_* tool result, the exact
+  // moment large page dumps get spliced into context.
+  pi.on("tool_result", async (event, ctx) => {
+    if (typeof event.toolName !== "string" || !event.toolName.startsWith("web_")) return;
+    maybeProactiveCompact(ctx);
+  });
+
   pi.registerTool({
     name: "web_search",
     label: "Web Search",

@@ -98,6 +98,38 @@ class TestBridgeContract(unittest.TestCase):
         self.assertIn("pi-harness", pkg)
 
 
+class TestProactiveCompactGuard(unittest.TestCase):
+    """Pi's own auto-compaction threshold check only runs *between* whole agent
+    turns (verified against the installed @earendil-works/pi-coding-agent engine),
+    never between individual tool round-trips within one turn. A single web_*
+    call can return up to ~20K tokens (camofox server caps snapshots at 80,000
+    chars), so a turn chaining a few large page fetches can jump straight past
+    the hard ctx-size limit with no intervening checkpoint — the observed
+    "request (268581 tokens) exceeds the available context size (262144)" 400.
+    This guard checks ctx.getContextUsage() after every web_* tool result and
+    proactively calls ctx.compact() before that wall is hit."""
+
+    IDX = "pi-extensions/stealth-web-bridge/index.ts"
+
+    def test_hooks_tool_result_scoped_to_web_tools(self):
+        c = read(self.IDX)
+        self.assertIn('pi.on("tool_result"', c)
+        self.assertIn('event.toolName.startsWith("web_")', c)
+
+    def test_checks_context_usage_and_compacts(self):
+        c = read(self.IDX)
+        self.assertIn("getContextUsage", c)
+        self.assertIn("ctx.compact?.(", c)
+        self.assertIn("PROACTIVE_COMPACT_PERCENT", c)
+
+    def test_avoids_stacking_duplicate_compacts(self):
+        """Must not fire ctx.compact() again while one is already in flight."""
+        c = read(self.IDX)
+        self.assertIn("proactiveCompactInFlight", c)
+        self.assertIn("onComplete", c)
+        self.assertIn("onError", c)
+
+
 class TestRestoreWiring(unittest.TestCase):
     R = "scripts/restore.py"
 

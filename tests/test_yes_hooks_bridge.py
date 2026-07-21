@@ -60,6 +60,42 @@ class TestContainmentGuard(unittest.TestCase):
         self.assertIn("typeof ctx.cwd", c)  # bail when cwd unknown
 
 
+class TestLoopGuard(unittest.TestCase):
+    """Guard 3: a turn that ends with no real tool call but text shaped like one
+    (`<invoke>`, `<read-files>`, `<bash><command>`, ...) never executes anything.
+    Pi's own compaction summary format legitimately ends with literal
+    `<read-files>`/`<modified-files>` tags (see the installed engine's
+    docs/compaction.md) — a weak local model can echo that shape back as if it
+    were an action, then loop on its own echo since no tool_call hook can see
+    plain text. This hooks turn_end instead and implements AGENTS.md §4's
+    "3-Strike Cap" as code."""
+
+    IDX = "pi-extensions/yes-hooks-bridge/index.ts"
+
+    def test_hooks_turn_end(self):
+        c = read(self.IDX)
+        self.assertIn('pi.on("turn_end"', c)
+        self.assertIn("loopGuard", c)
+
+    def test_detects_fake_tool_call_shapes(self):
+        c = read(self.IDX)
+        self.assertIn("FAKE_TOOL_CALL_PATTERN", c)
+        for token in ("<invoke", "read-files", "modified-files", "<bash>"):
+            self.assertIn(token, c)
+
+    def test_resets_on_real_tool_call(self):
+        c = read(self.IDX)
+        self.assertIn("hadRealToolCall", c)
+        self.assertIn("toolResults.length > 0", c)
+        self.assertIn("consecutiveFakeToolStrikes = 0", c)
+
+    def test_escalates_after_three_strikes(self):
+        c = read(self.IDX)
+        self.assertIn("consecutiveFakeToolStrikes >= 3", c)
+        self.assertIn("pi.sendMessage", c)
+        self.assertIn('"nextTurn"', c)
+
+
 class TestRestoreWiring(unittest.TestCase):
     def test_bridge_registered_and_managed(self):
         c = read("scripts/restore.py")
