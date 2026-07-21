@@ -57,6 +57,7 @@ export default function (pi: ExtensionAPI) {
     if (isCaseProject(ctx.cwd)) {
       const constitution = readHead(join(ctx.cwd, "00_Constitution"), "core.md", MAX_INJECT_CHARS);
       const roadmap = readHead(join(ctx.cwd, "01_Roadmap"), "roadmap.md", MAX_INJECT_CHARS);
+      const addendum = readHead(join(HARNESS_ROOT, "pi-rules"), "case-autonomous-execution.md", MAX_INJECT_CHARS);
 
       if (constitution.trim()) {
         parts.push(
@@ -72,6 +73,14 @@ export default function (pi: ExtensionAPI) {
           "---BEGIN C.A.S.E. ROADMAP---",
           roadmap.trim(),
           "---END C.A.S.E. ROADMAP---"
+        );
+      }
+      if (addendum.trim()) {
+        parts.push(
+          "",
+          "---BEGIN C.A.S.E. HARNESS ADDENDUM (supersedes conflicting instructions above on DONE-gating and retrospectives)---",
+          addendum.trim(),
+          "---END C.A.S.E. HARNESS ADDENDUM---"
         );
       }
     }
