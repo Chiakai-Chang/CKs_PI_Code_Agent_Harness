@@ -8,6 +8,11 @@ sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import restore
 
 
+def read_file(rel):
+    with open(os.path.join(ROOT, rel), encoding="utf-8") as f:
+        return f.read()
+
+
 class TestMergeSettings(unittest.TestCase):
     def test_real_incoming_overrides_managed_keys(self):
         """切換模型後，harness 管理鍵必須以 pi-config/settings.json 的新值為準。"""
@@ -246,6 +251,37 @@ class TestCheckModelsAgainstServer(unittest.TestCase):
         models = {"providers": {"p": {"models": [{"id": "m", "contextWindow": 999}]}}}
         self.assertEqual(
             restore.check_models_against_server(models, probe=lambda u: {"ctx": 1}), [])
+
+
+class TestPartitionExternalSkills(unittest.TestCase):
+    def test_splits_by_ext_root_prefix(self):
+        ext_root = "/repo/external"
+        pi_skills_root = "/repo/pi-skills"
+        profile_skills = [
+            f"{pi_skills_root}/chrome-cdp",
+            f"{ext_root}/caveman/skills/caveman",
+            f"{pi_skills_root}/graphify",
+            f"{ext_root}/darwin-skill",
+        ]
+        internal, external = restore.partition_external_skills(profile_skills, ext_root)
+        self.assertEqual(internal, [f"{pi_skills_root}/chrome-cdp", f"{pi_skills_root}/graphify"])
+        self.assertEqual(external, [f"{ext_root}/caveman/skills/caveman", f"{ext_root}/darwin-skill"])
+
+    def test_empty_input(self):
+        internal, external = restore.partition_external_skills([], "/repo/external")
+        self.assertEqual(internal, [])
+        self.assertEqual(external, [])
+
+
+class TestSkillNamespaceGuardWiring(unittest.TestCase):
+    def test_registered_in_three_sites(self):
+        c = read_file("scripts/restore.py")
+        self.assertEqual(c.count('"skill-namespace-guard"'), 3)
+
+    def test_manifest_write_present(self):
+        c = read_file("scripts/restore.py")
+        self.assertIn("external-skills-manifest.json", c)
+        self.assertIn("partition_external_skills(", c)
 
 
 if __name__ == "__main__":

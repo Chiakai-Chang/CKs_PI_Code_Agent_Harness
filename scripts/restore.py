@@ -227,6 +227,15 @@ def merge_settings(existing, incoming, incoming_is_real):
             del merged["apiBase"]
     return merged
 
+def partition_external_skills(profile_skills, ext_root):
+    """Split profile_skills by source: pi_skills_root-authored ones stay
+    registered directly (safe, harness-owned names); ext_root submodule ones
+    carry generic upstream names and go through skill-namespace-guard's live
+    collision check instead of a one-time restore-time snapshot."""
+    internal = [p for p in profile_skills if not p.startswith(ext_root)]
+    external = [p for p in profile_skills if p.startswith(ext_root)]
+    return internal, external
+
 # Upstream skills that fail to parse in pi and would pollute startup with
 # [Skill conflicts] errors. Remove entries once fixed upstream (docs/KNOWN_ISSUES.md).
 ECC_BROKEN_SKILLS = {"loop-design-check"}  # invalid YAML in description (unquoted ': ')
@@ -547,7 +556,20 @@ def main():
         # model can't ignore — valuable especially with uncensored local models.
         profile_extensions.append(os.path.join(pi_extensions_root, "yes-hooks-bridge").replace("\\", "/"))
 
+    # 2a. Partition external/* skills out of profile_skills: they carry generic
+    # upstream names and can silently shadow anything the user independently
+    # installs later. skill-namespace-guard live-detects collisions with them
+    # at every session start instead of restore.py deciding once, frozen.
+    profile_skills, profile_skills_external = partition_external_skills(profile_skills, ext_root)
 
+    manifest_path = os.path.join(REPO_ROOT, "pi-config", "external-skills-manifest.json")
+    save_json(manifest_path, [{"path": p} for p in profile_skills_external])
+    log(f"  - external-skills-manifest.json written ({len(profile_skills_external)} entries)")
+
+    # skill-namespace-guard re-registers the external/* skills above (collision-
+    # checked, live) — required regardless of profile since minimal also has an
+    # ext_root skill (caveman).
+    profile_extensions.append(os.path.join(pi_extensions_root, "skill-namespace-guard").replace("\\", "/"))
 
     # 3. Filter existing settings to keep user's custom skills/extensions not managed by Harness
     # (skipped in --config-only mode: keep whatever profile is already registered)
@@ -560,7 +582,7 @@ def main():
         settings["skills"] = clean_skills
 
         existing_extensions = settings.get("extensions", [])
-        internal_bridge_names = ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge", "stealth-web-bridge", "yes-hooks-bridge"]
+        internal_bridge_names = ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge", "stealth-web-bridge", "yes-hooks-bridge", "skill-namespace-guard"]
         clean_extensions = []
         for p in existing_extensions:
             p_normalized = p.replace("\\", "/").lower()
@@ -677,7 +699,7 @@ def main():
     ext_dst = os.path.join(AGENT_DIR, "extensions")
     if os.path.isdir(ext_src):
         # We selectively delete only the bridges managed by this harness to preserve other extensions.
-        for bridge in ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge", "stealth-web-bridge", "yes-hooks-bridge"]:
+        for bridge in ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge", "stealth-web-bridge", "yes-hooks-bridge", "skill-namespace-guard"]:
             delete_path(os.path.join(ext_dst, bridge))
             
         for ext_path in profile_extensions:
