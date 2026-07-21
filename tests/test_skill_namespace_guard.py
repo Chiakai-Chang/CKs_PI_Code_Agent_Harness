@@ -61,6 +61,19 @@ class TestSkillNamespaceGuardContract(unittest.TestCase):
         block = c[idx_check:idx_end]
         self.assertIn("isSkillContainer(srcDir)", block)
 
+    def test_malformed_manifest_notifies_instead_of_silent_drop(self):
+        """Final whole-branch review (2026-07-21) flagged this as a real Minor
+        never actually fixed in that review's fix wave: readManifest()
+        returned [] on any JSON.parse failure with zero user-facing signal —
+        every external/* skill would silently vanish from a session with no
+        way to notice why. Guard: the catch path must call ctx.ui.notify."""
+        c = read(self.IDX)
+        idx_fn = c.index("function readManifest")
+        idx_end = c.index("\n}", idx_fn)
+        block = c[idx_fn:idx_end]
+        self.assertIn("catch (err)", block)
+        self.assertIn("ctx?.ui?.notify?.(", block)
+
     def test_package_is_esm_with_harness_root(self):
         pkg = read(self.PKG)
         self.assertIn('"type": "module"', pkg)
