@@ -19,7 +19,7 @@
  * between harness updates.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { readFileSync, existsSync, mkdirSync, cpSync, writeFileSync, rmSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, cpSync, writeFileSync, rmSync, readdirSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
@@ -64,6 +64,30 @@ function readFrontmatterName(skillMdPath: string): string | null {
   if (!match) return null;
   const nameMatch = match[1].match(/^name:\s*(.+?)\s*$/m);
   return nameMatch ? nameMatch[1].trim() : null;
+}
+
+// Some manifest entries (e.g. external/taste-skill/skills, external/yes.md/
+// skills) point at a CONTAINER directory holding multiple sub-skills, each
+// with its own SKILL.md one level down — not a single skill with SKILL.md
+// directly inside. Pi's own recursive discovery already handles this
+// correctly. There is no meaningful single "name" to collision-check at the
+// container level, so this is a normal, expected shape, not an anomaly —
+// detect it so the caller can register the raw path silently instead of
+// warning on every session start forever.
+function isSkillContainer(dirPath: string): boolean {
+  let entries: string[];
+  try {
+    entries = readdirSync(dirPath);
+  } catch {
+    return false;
+  }
+  return entries.some((name) => {
+    try {
+      return statSync(join(dirPath, name, "SKILL.md")).isFile();
+    } catch {
+      return false;
+    }
+  });
 }
 
 // Rewrites only the frontmatter block's name: field, leaving the rest of the
@@ -122,7 +146,9 @@ export default function (pi: ExtensionAPI) {
         const name = readFrontmatterName(srcSkillMd);
 
         if (!name) {
-          ctx.ui.notify(`[skill-namespace-guard] Could not read name: from ${srcSkillMd}; registering as-is.`, "warning");
+          if (!isSkillContainer(srcDir)) {
+            ctx.ui.notify(`[skill-namespace-guard] Could not read name: from ${srcSkillMd}; registering as-is.`, "warning");
+          }
           skillPaths.push(srcDir);
           continue;
         }

@@ -43,6 +43,24 @@ class TestSkillNamespaceGuardContract(unittest.TestCase):
         c = read(self.IDX)
         self.assertIn("Could not read name:", c)
 
+    def test_container_directories_silent_no_warning(self):
+        """Some manifest entries (external/taste-skill/skills, external/
+        yes.md/skills, external/qiushi-skill/skills, external/loopy/skills)
+        are container directories with multiple sub-skills one level down,
+        no SKILL.md at the container level itself. Pi's own recursive
+        discovery already handles this. Regression guard for a real
+        live-session finding: these produced a permanent, unnecessary
+        "Could not read name:" warning on every single pi startup before
+        this fix — real functionality was never broken (fail-open still
+        registered the raw path correctly), but the noise was new and
+        avoidable."""
+        c = read(self.IDX)
+        self.assertIn("function isSkillContainer", c)
+        idx_check = c.index("if (!name) {")
+        idx_end = c.index("continue;", idx_check)
+        block = c[idx_check:idx_end]
+        self.assertIn("isSkillContainer(srcDir)", block)
+
     def test_package_is_esm_with_harness_root(self):
         pkg = read(self.PKG)
         self.assertIn('"type": "module"', pkg)
