@@ -213,9 +213,17 @@ async function actAndSnapshot(tabId: string | null, action: string, body: Record
 // web_* call can return up to ~20K tokens (camofox server caps snapshots at 80,000 chars),
 // so a turn that chains a few large page fetches back-to-back (e.g. clicking through a
 // nav-heavy site) can jump straight from "under threshold" past the hard llama.cpp ctx-size
-// in one uninterrupted burst, since nothing checks in between. Proactively compact here,
-// right after the tool calls that actually produce the big jumps, instead of waiting for
-// the engine's between-turn checkpoint or the hard overflow error.
+// in one uninterrupted burst, since nothing checks in between. Proactively compact after
+// such a turn, instead of waiting for the engine's between-turn checkpoint or the hard
+// overflow error.
+//
+// Must hook turn_end, not tool_result: ctx.compact() unconditionally aborts the current
+// agent operation first (dist/core/agent-session.js: `this.abort()` at the top of
+// compact()). Calling it from tool_result fires mid-turn, aborting a task that hasn't
+// finished yet — the agent gets cut off before it was done and never resumes on its own.
+// At turn_end the turn has already completed naturally, so there's nothing in-flight left
+// to cut off; this matches Pi's own official example (examples/extensions/trigger-compact.ts,
+// also hooks turn_end for its threshold check).
 const PROACTIVE_COMPACT_PERCENT = 80;
 let proactiveCompactInFlight = false;
 
@@ -242,10 +250,13 @@ function maybeProactiveCompact(ctx: any) {
 }
 
 export default function (pi: ExtensionAPI) {
-  // Mid-turn context guard: check after every web_* tool result, the exact
-  // moment large page dumps get spliced into context.
-  pi.on("tool_result", async (event, ctx) => {
-    if (typeof event.toolName !== "string" || !event.toolName.startsWith("web_")) return;
+  // Turn-end context guard: check once the turn (and all its tool calls) has
+  // fully finished, only when this turn actually used a web_* tool.
+  pi.on("turn_end", async (event, ctx) => {
+    const usedWebTool = Array.isArray(event.toolResults) && event.toolResults.some(
+      (r: any) => typeof r?.toolName === "string" && r.toolName.startsWith("web_"),
+    );
+    if (!usedWebTool) return;
     maybeProactiveCompact(ctx);
   });
 

@@ -106,15 +106,24 @@ class TestProactiveCompactGuard(unittest.TestCase):
     chars), so a turn chaining a few large page fetches can jump straight past
     the hard ctx-size limit with no intervening checkpoint — the observed
     "request (268581 tokens) exceeds the available context size (262144)" 400.
-    This guard checks ctx.getContextUsage() after every web_* tool result and
-    proactively calls ctx.compact() before that wall is hit."""
+    This guard checks ctx.getContextUsage() after a turn that used a web_* tool
+    and proactively calls ctx.compact() before that wall is hit.
+
+    Hooked at turn_end, not tool_result (regression, found 2026-07-22 from a
+    real "pi stops after compact" report): ctx.compact() unconditionally
+    aborts the current agent operation first (dist/core/agent-session.js).
+    Calling it from tool_result fires mid-turn, cutting off work that hadn't
+    finished yet with no auto-resume. turn_end fires after the turn (and all
+    its tool calls) already completed naturally, matching Pi's own official
+    trigger-compact.ts example."""
 
     IDX = "pi-extensions/stealth-web-bridge/index.ts"
 
-    def test_hooks_tool_result_scoped_to_web_tools(self):
+    def test_hooks_turn_end_scoped_to_web_tools(self):
         c = read(self.IDX)
-        self.assertIn('pi.on("tool_result"', c)
-        self.assertIn('event.toolName.startsWith("web_")', c)
+        self.assertIn('pi.on("turn_end"', c)
+        self.assertIn('r.toolName.startsWith("web_")', c)
+        self.assertNotIn('pi.on("tool_result"', c)
 
     def test_checks_context_usage_and_compacts(self):
         c = read(self.IDX)
