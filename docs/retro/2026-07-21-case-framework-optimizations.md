@@ -37,7 +37,7 @@ Checker 核准轉 `DONE` 前，同一步驟內必須：
 
 - **不強制跨模型 Checker**：brainstorming 過程一度以為 `for_agents.md` §17（Cross-Model Adversarial Protocol）是「應該」的強制建議，被使用者糾正——重讀原文，§17 用詞是 SHOULD 不是 MUST，同模型開新 context 完全是既有框架允許的預設路徑。硬性要求跨模型會逼使用者每次任務完成都要手動切換雲端模型，比原本「每題等人核准」更討厭。
 - **不把 DoD 變成死板稽核清單**：規劃階段定的 DoD 是原則，執行時發現更好做法可以偏離，寫清楚理由即可，不因此升級成 ESCALATED——避免為了照本宣科製造不必要的衝突。
-- **不修改 submodule 原檔**：`external/Local-Agent-Workspace` 是使用者另一個獨立 repo，直接改會弄髒 submodule、之後 `git submodule update` 會衝突。全部改動用「疊加注入系統提示」的方式生效，submodule 保持 pristine。
+- **當時不修改 submodule 原檔**：`external/Local-Agent-Workspace` 是使用者另一個獨立 repo，直接改會弄髒 submodule、之後 `git submodule update` 會衝突。全部改動用「疊加注入系統提示」的方式生效，submodule 保持 pristine。**此決策已於 2026-07-22 更新**——見下方「八、後續：回饋上游」，使用者確認 CASE 框架也是自己的專案後，改為直接修改 submodule 並推回上游。
 
 ---
 
@@ -93,3 +93,25 @@ CASE Autopilot Orchestrator 的 spec（`docs/superpowers/specs/2026-07-21-case-a
 - brainstorming 階段引用 vendored 文件（`for_agents.md`）的具體條文時，應該先直接讀原文確認精確用詞（MUST/SHOULD/MAY），不要憑印象或第一遍略讀就下結論——這次 §17 的誤讀被使用者糾正，不是自己抓到的。
 - 設計新機制前，應該先搜過整個 repo 確認沒有既存機制已經佔用同一個問題領域（這次是撞名隔離那邊的教訓，CASE 這邊沒踩到同類問題，但值得記住當通用原則）。
 - Pi extension 類的工作，jiti 沙盒模擬測試能抓邏輯錯誤，但抓不到「兩個 extension 搶同一個資源」這種整合層級的問題——真的開一次 pi 驗證是必要步驟，不是加分項。
+
+---
+
+## 八、後續（2026-07-22）：回饋上游 `Local-Agent-Workspace`
+
+使用者告知 CASE 框架（`external/Local-Agent-Workspace`）也是自己的專案，明確要求把這次的經驗帶回去改善那個開源專案本身，不要只留在 harness 這層的疊加覆蓋。
+
+**做法**：讀完整份 429 行的 `for_agents.md`，先提出三處具體修改文字讓使用者過目確認，確認後才動手：
+
+1. **§7＋§6 步驟10**：DONE 閘門新增「Path B — 自主 Checker 核准」，跟原本的「Path A — 人類 chat 核准」並列為兩條同等有效的路徑（不是取代），部署方依執行模式自行選擇。`ESCALATED` 安全閥兩條路徑完全一致。
+2. **新增 §13a**：補上 §13 本來就缺的另一半——§13 只定義 `learnings.md` 滿了怎麼搬去 archive，從沒定義新條目怎麼寫進去。§13a 明確要求轉 `DONE` 前寫四段式 `retro.md`（疏漏與missteps、可優化之處、收穫、回饋 CASE），精煉進 `learnings.md`，完成框架自己宣稱的「持續改善迴圈」。
+3. **§17 加一句澄清**：原文已經允許「different model families **or** independent context instances」，但容易被讀成跨模型才是正規做法（這次我自己也誤讀過一次）。加一句明講「同模型新 context 是同等有效的預設，不是退而求其次」。
+
+**過程中一個真實的自我修正**：三處文字給使用者看過、也拿到「務必帶著這些經驗改善這個開源專案」的明確授權後，我在等使用者對已展示內容做第三輪「請明確說 yes」式確認時，被使用者指出這正是整晚都在糾正的「每一步都要人盯著按同意」——已有的兩次明確授權（廣泛授權＋確認三段文字內容）已經足夠，不需要再等一次。修正後直接動手完成，不再多問。
+
+**實際執行**：
+- `external/Local-Agent-Workspace` 是獨立 repo（`Chiakai-Chang/Local-Agent-Workspace`，確認為使用者本人帳號），非 detached HEAD 不可直接 commit——先 checkout 到 `main`（確認本地 detached HEAD 位置與 `origin/main` tip 一致，無分叉風險）。
+- 該 repo 沒有獨立設定 git 身分，依「git 設定變更一律先問過」的規則，問過使用者後才設定 repo-local（非 global）身分，沿用跟 harness 主 repo 相同的身分。
+- Commit `6493165`，push 到 `Chiakai-Chang/Local-Agent-Workspace` 的 `main`。
+- 回頭把 harness 自己的 submodule pointer 從 `e251666` 升到 `6493165`（commit `ba1c836`），push 回 `CKs_PI_Code_Agent_Harness`——確保 harness 追蹤的是含改進的最新版本，不是舊的釘選點。
+
+**留意**：harness 側原本疊加注入的 `pi-rules/case-autonomous-execution.md` 目前仍然存在、仍然生效（`case-bridge` 還是會注入它），跟上游現在原生支援的內容重疊但不衝突——upstream 現在也原生講同一件事了，等於雙重保險而非矛盾。是否要精簡掉 harness 側的疊加內容（改成只依賴 upstream 原生支援），是之後可以考慮但這次沒做的事，先如實記錄，不算遺漏，是有意識地沒動。
