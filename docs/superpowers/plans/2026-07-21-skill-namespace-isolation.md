@@ -72,7 +72,13 @@ class TestSkillNamespaceGuardWiring(unittest.TestCase):
         self.assertIn("partition_external_skills(", c)
 ```
 
-（若 `tests/test_restore.py` 沒有既有的 `read_file` helper，比照檔案已有的 `read_file`/等效工具函式；若沒有，直接用標準開檔讀取，寫法對齊檔案現有慣例。）
+`tests/test_restore.py` 目前沒有共用的原始碼讀取 helper（既有測試多半 `import restore` 後直接呼叫函式；唯一一處讀檔是 `TestConfigHygiene._packages` 內的 inline `open(...)`）。在 `ROOT = ...`（第 5 行）之後、第一個 `class` 定義之前，新增一個模組層級的小 helper 供 `TestSkillNamespaceGuardWiring` 使用：
+
+```python
+def read_file(rel):
+    with open(os.path.join(ROOT, rel), encoding="utf-8") as f:
+        return f.read()
+```
 
 - [ ] **Step 2: 執行測試確認失敗**
 
