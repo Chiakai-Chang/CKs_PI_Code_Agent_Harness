@@ -44,3 +44,29 @@
 不需要停下來等待人類確認才能開始。人類只在某一題被轉為 `ESCALATED`
 時才需要介入該題；其他獨立、不相依於該卡住任務的其他任務，可以繼續
 自主執行。
+
+## 4. 執行前計畫自我復盤（`for_agents.md` §6 步驟 4 補強）
+
+`role.md` 與 `recipe.md`（Objective／Input Sources／Output Specification／
+Local DoD／Constraints）對這個 task 而言，等同於 `00_Constitution/core.md`
+對整個專案的地位——一樣是拘束性的「小憲法」，不是可以自由詮釋的參考資料。
+
+Worker 在讀完 recipe 之後、**動任何 input 或寫任何程式碼之前**，除了原本
+就要寫的 `planning.md`（具體步驟、目標檔案、測試策略），必須在同一個檔案
+裡加一段 `## Self-Review`，自問三件事：
+
+1. `recipe.md > Local Definition of Done` 每一項，計畫裡有沒有對應的具體
+   步驟去滿足它？
+2. 計畫裡有沒有任何步驟，跟 recipe.md 的 Constraints 衝突？
+3. 計畫有沒有任何一部分，是建立在 `recipe.md`／`role.md` 根本沒有提供
+   依據的假設上？
+
+只要上面任何一題發現真的有缺口或矛盾，比照既有的錯誤處理規則，當成
+「Contradictory instructions」或「Insufficient input」升級（`escalate_issue`），
+**在動手執行前就升級，不要等做完才發現**。自我復盤沒有過，不得進入
+`recipe.md > Input Sources` 讀取或任何程式修改。
+
+（此條已同步回饋upstream `external/Local-Agent-Workspace`，見該 repo
+commit `d6c5594`——`for_agents.md` §6 步驟 4 與 §19.D 的 `planning.md`
+範本現在原生就有這段，這裡的補強是確保 harness 自己注入的系統提示
+一定會帶到這條，不依賴使用者是否另外載入了 `for_agents.md` 全文。）

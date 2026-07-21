@@ -38,6 +38,21 @@ class TestCaseAutonomousExecutionAddendum(unittest.TestCase):
         c = read(self.ADDENDUM)
         self.assertIn("ESCALATED", c)
 
+    def test_addendum_has_plan_self_review_gate(self):
+        """2026-07-22 addition: role.md/recipe.md treated as this task's own
+        binding local constitution, plan reviewed (DoD coverage, constraint
+        conflicts, unsupported assumptions) before any input is read or code
+        is written, escalating early on a genuine gap instead of after
+        wasted execution effort. Mirrors the same-day upstream contribution
+        to external/Local-Agent-Workspace's for_agents.md §6 step 4 / §19.D,
+        since case-bridge injects this addendum but never injects
+        for_agents.md itself."""
+        c = read(self.ADDENDUM)
+        self.assertIn("Self-Review", c)
+        self.assertIn("小憲法", c)
+        self.assertIn("planning.md", c)
+        self.assertIn("escalate_issue", c)
+
 
 class TestCaseBridgeInjectsAddendum(unittest.TestCase):
     IDX = "pi-extensions/case-bridge/index.ts"
