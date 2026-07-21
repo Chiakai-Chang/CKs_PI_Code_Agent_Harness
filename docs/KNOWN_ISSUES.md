@@ -2,7 +2,7 @@
 
 記錄目前已知、且根因不在本專案可直接修復範圍內的問題。每項均附影響評估與處理方式。
 
-## 1. 全域技能名稱重複導致的 `[Skill conflicts]` 警告（已修復）
+## 1. 全域技能名稱重複導致的 `[Skill conflicts]` 警告（已修復，2026-07-21 改版）
 
 **現象**：執行 `scripts/restore.py` 時出現大量 `Skill conflicts` 警告，提示全域目錄 (`~/.pi/agent/skills`) 與本地子模組存在相同名稱的技能（如 `design-taste-frontend`、`brainstorming` 等）。
 
@@ -16,10 +16,11 @@
 - **維護成本**：累積警告可能造成困擾
 - **潛在風險**：版本錯位可能導致行為差異
 
-**處理**：**已在本專案 `scripts/restore.py` 中自動修復**
-- 新增 `PRUNE_GLOBAL_SKILLS` 清單，主動清理衝突全域目錄
-- 每次執行 `restore.py --auto` 時自動清理重複技能（保留 SKILL.md）
-- 詳見 [docs/decisions/2026-07-19-skill-conflicts-fix.md](docs/decisions/2026-07-19-skill-conflicts-fix.md)
+**處理**：**已在本專案自動修復**（2026-07-21 版：取代 2026-07-19 那版）
+- 2026-07-19 版的做法（`PRUNE_GLOBAL_SKILLS` 清單 + `restore.py` 執行時強制清空同名全域目錄）已**移除**——它不比對內容，任何使用者自己裝的同名技能都會被無聲清空，跟「讓使用者能自由安裝不受影響」的目標直接衝突。
+- 改用 `pi-extensions/skill-namespace-guard`：**每次 Pi 啟動**時即時比對內容——相同就跳過（不重複註冊、不刪除）、不同才把 harness 這份隔離成 `harness-<name>`，兩份並存，完全不動使用者自己的版本。
+- `restore.py` 現在只負責把 `external/*` 技能路徑寫進 `pi-config/external-skills-manifest.json` 清單，不再直接寫進 `settings.json`。
+- 詳見 [docs/superpowers/specs/2026-07-21-skill-namespace-isolation-design.md](docs/superpowers/specs/2026-07-21-skill-namespace-isolation-design.md)；舊版做法歷史記錄見 [docs/decisions/2026-07-19-skill-conflicts-fix.md](docs/decisions/2026-07-19-skill-conflicts-fix.md)（**已被取代，不再反映目前程式碼行為**）。
 
 ## 2. Pi 啟動時的 `[Skill conflicts]` 名稱不符警告（僅舊版 pi；≥0.74.1 已消失）
 

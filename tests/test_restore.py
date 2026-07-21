@@ -305,5 +305,48 @@ class TestExtensionsActuallyWrittenToSettings(unittest.TestCase):
         self.assertIn("clean_extensions.append(ext)", block)
 
 
+class TestDestructivePruneRemoved(unittest.TestCase):
+    """Regression test: a 2026-07-19 mechanism (PRUNE_GLOBAL_SKILLS list +
+    prune_global_conflicts(), removed 2026-07-21) force-wiped any global skill
+    directory whose name matched a hardcoded list, with no content comparison
+    — it would silently gut a user's own independently-installed skill if its
+    name happened to collide, running at restore-time before
+    skill-namespace-guard's non-destructive check ever got a chance to see the
+    difference. Guard against reintroduction: neither the constant, the
+    function, nor any call to it should exist in restore.py — the manifest +
+    skill-namespace-guard live-check (see TestPartitionExternalSkills /
+    TestSkillNamespaceGuardWiring above) is the sole, non-destructive
+    mechanism now."""
+
+    def test_no_prune_global_skills_constant_or_function(self):
+        c = read_file("scripts/restore.py")
+        self.assertNotIn("PRUNE_GLOBAL_SKILLS", c)
+        self.assertNotIn("prune_global_conflicts", c)
+
+
+class TestDryRunFlagRemoved(unittest.TestCase):
+    """Regression test: --dry-run only ever gated the destructive prune step
+    above (nothing else in restore.py — settings.json writes, skill/rule/
+    extension copies, manifest writes — was ever conditioned on dry_run).
+    Once the prune step was removed, --dry-run silently became a full real
+    restore while still printing "DRY RUN MODE - No changes were actually
+    made" at the end — an actively false claim. Removed rather than
+    reimplemented as a true whole-script dry-run (larger, separate scope).
+    Guard against reintroduction of the misleading flag."""
+
+    def test_no_dry_run_flag_or_references(self):
+        c = read_file("scripts/restore.py")
+        self.assertNotIn("dry_run", c)
+        self.assertNotIn("dry-run", c)
+        self.assertNotIn("DRY RUN MODE", c)
+
+    def test_stray_smoke_test_script_removed(self):
+        """scripts/test_restore.py was an ad-hoc, non-unittest smoke-test
+        script (confusingly named like this file) that only exercised
+        --dry-run and the prune step's "Pruned"/"conflicting global skill"
+        log output — entirely obsolete now both are removed."""
+        self.assertFalse(os.path.exists(os.path.join(ROOT, "scripts", "test_restore.py")))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,7 @@
 # 復盤：解決全域技能名稱衝突問題
 
+> ⚠️ **已被取代（2026-07-21）**：本文描述的 `PRUNE_GLOBAL_SKILLS` 清單與 `prune_global_conflicts()` 強制清空機制已移除——它不比對內容，任何使用者自己安裝的同名技能都會被無聲清空，跟「使用者能自由安裝、harness 不影響其他東西」的目標直接衝突。現行機制（`skill-namespace-guard`，Pi 啟動時即時比對內容、不同才隔離、相同就跳過、絕不刪除使用者內容）見 [docs/superpowers/specs/2026-07-21-skill-namespace-isolation-design.md](../superpowers/specs/2026-07-21-skill-namespace-isolation-design.md)。本文保留作歷史記錄，**不再反映目前 `scripts/restore.py` 的實際行為**。
+
 ## 📋 背景
 
 在執行 `scripts/restore.py` 時，觀察到大量 `[Skill conflicts]` 警告訊息。這些警告出現在以下情況：

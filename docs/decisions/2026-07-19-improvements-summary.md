@@ -1,5 +1,7 @@
 # 優化總結：技能衝突修復與腳本增強
 
+> ⚠️ **已被取代（2026-07-21）**：本文描述的 `PRUNE_GLOBAL_SKILLS` 清單、`prune_global_conflicts()` 強制清空機制、以及 `--dry-run` 參數，皆已在 2026-07-21 移除——前者會無聲清空使用者自己安裝的同名技能，不比對內容；後者移除 prune 後已無實際防呆效果、結尾訊息會說謊。現行機制見 [docs/superpowers/specs/2026-07-21-skill-namespace-isolation-design.md](../superpowers/specs/2026-07-21-skill-namespace-isolation-design.md)。本文保留作歷史記錄，**不再反映目前 `scripts/restore.py` 的實際行為**。
+
 ## 📋 本次更新概覽
 
 **日期**: 2026-07-19  

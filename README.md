@@ -30,14 +30,7 @@ cd CKs_PI_Code_Agent_Harness
 *   **進階（等同上述）**：`python scripts/setup.py --mode update`
     — 內部自動執行 `git pull --recurse-submodules` → `restore --auto` → `pi update --all`。
 
-#### 🔍 Dry Run 模式 (預覽變更)
-執行前可先用 dry-run 預覽將清理的檔案：
-```bash
-python scripts/restore.py --dry-run
-```
-> **提示**：Dry Run 會顯示所有將被清理的全域重複技能，但不實際執行，適合除錯與學習。
-
-> 啟動時若見到 `[Skill conflicts]` 警告，本專案已自動清理全域重複技能（見 [docs/decisions/2026-07-19-skill-conflicts-fix.md](docs/decisions/2026-07-19-skill-conflicts-fix.md)），技能仍正常載入。
+> 啟動時若見到 `[Skill conflicts]` 警告：`external/*` 子模組技能（如 `agents-best-practices`、`darwin-skill`）不再於 `restore.py` 執行當下寫死進 `settings.json`。改由 `skill-namespace-guard` 這個 extension 在**每次** Pi 啟動時即時比對——內容跟全域已安裝的版本相同就跳過（不重複註冊），內容不同（你自己另外裝了同名但不同的東西）才會把 harness 這份隔離成 `harness-<name>` 兩份並存，不會動到你自己裝的版本。詳見 [docs/superpowers/specs/2026-07-21-skill-namespace-isolation-design.md](docs/superpowers/specs/2026-07-21-skill-namespace-isolation-design.md)。
 
 ### 解除安裝 (Uninstall)
 *   **只移除 harness 管理項**（保留你自己的技能與 `~/.camofox` 登入資料）：`python scripts/uninstall.py`
