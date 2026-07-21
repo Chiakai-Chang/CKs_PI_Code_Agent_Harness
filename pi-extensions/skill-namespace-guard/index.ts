@@ -85,17 +85,16 @@ function normalizedHash(content: string): string {
 }
 
 // Stages an isolated, renamed copy at ~/.pi/agent/skills/harness-<name>/.
-// Idempotent: if the destination already holds exactly what we'd produce
-// (from a prior session), skips the copy — avoids redundant disk I/O on
-// every startup and never re-flags its own prior output as a new collision.
+// Always mirrors the current source directory in full (cpSync) and then
+// (re)writes the patched SKILL.md — no "skip if already staged" shortcut.
+// A content-only check on SKILL.md alone can't detect changes to sibling
+// files (scripts/, references/, ...), which would otherwise go stale
+// forever. This runs once per Pi session start on small skill directories,
+// so unconditional re-copy is cheap; correctness wins over the I/O saving.
 function stageRenamedSkill(srcDir: string, name: string, srcRaw: string): string {
   const destDir = join(homedir(), ".pi", "agent", "skills", `harness-${name}`);
   const destSkillMd = join(destDir, "SKILL.md");
   const expected = patchSkillName(srcRaw, `harness-${name}`);
-
-  if (existsSync(destSkillMd) && readFileSync(destSkillMd, "utf-8") === expected) {
-    return destDir;
-  }
 
   mkdirSync(destDir, { recursive: true });
   cpSync(srcDir, destDir, { recursive: true });
@@ -108,36 +107,46 @@ export default function (pi: ExtensionAPI) {
     const manifest = readManifest();
     const skillPaths: string[] = [];
 
-    for (const { path: srcDir } of manifest) {
-      const srcSkillMd = join(srcDir, "SKILL.md");
-      const name = readFrontmatterName(srcSkillMd);
+    for (const entry of manifest) {
+      try {
+        const srcDir = entry.path;
+        const srcSkillMd = join(srcDir, "SKILL.md");
+        const name = readFrontmatterName(srcSkillMd);
 
-      if (!name) {
-        ctx.ui.notify(`[skill-namespace-guard] Could not read name: from ${srcSkillMd}; registering as-is.`, "warning");
-        skillPaths.push(srcDir);
+        if (!name) {
+          ctx.ui.notify(`[skill-namespace-guard] Could not read name: from ${srcSkillMd}; registering as-is.`, "warning");
+          skillPaths.push(srcDir);
+          continue;
+        }
+
+        const existingSkillMd = join(homedir(), ".pi", "agent", "skills", name, "SKILL.md");
+        if (!existsSync(existingSkillMd)) {
+          skillPaths.push(srcDir);
+          continue;
+        }
+
+        const srcRaw = readFileSync(srcSkillMd, "utf-8");
+        const existingRaw = readFileSync(existingSkillMd, "utf-8");
+
+        if (normalizedHash(existingRaw) === normalizedHash(srcRaw)) {
+          // Same skill, already installed independently — don't duplicate.
+          continue;
+        }
+
+        const stagedDir = stageRenamedSkill(srcDir, name, srcRaw);
+        skillPaths.push(stagedDir);
+        ctx.ui.notify(
+          `[skill-namespace-guard] "${name}" collides with an existing global skill of different content — registered isolated copy as "harness-${name}".`,
+          "warning",
+        );
+      } catch (err) {
+        // Fail open per-entry: one broken skill entry (missing path, file
+        // deleted mid-run, permission error, ...) must not abort the whole
+        // resources_discover call and take every other skill down with it.
+        const msg = err instanceof Error ? err.message : String(err);
+        ctx.ui.notify(`[skill-namespace-guard] Skipping manifest entry "${entry?.path}" due to error: ${msg}`, "warning");
         continue;
       }
-
-      const existingSkillMd = join(homedir(), ".pi", "agent", "skills", name, "SKILL.md");
-      if (!existsSync(existingSkillMd)) {
-        skillPaths.push(srcDir);
-        continue;
-      }
-
-      const srcRaw = readFileSync(srcSkillMd, "utf-8");
-      const existingRaw = readFileSync(existingSkillMd, "utf-8");
-
-      if (normalizedHash(existingRaw) === normalizedHash(srcRaw)) {
-        // Same skill, already installed independently — don't duplicate.
-        continue;
-      }
-
-      const stagedDir = stageRenamedSkill(srcDir, name, srcRaw);
-      skillPaths.push(stagedDir);
-      ctx.ui.notify(
-        `[skill-namespace-guard] "${name}" collides with an existing global skill of different content — registered isolated copy as "harness-${name}".`,
-        "warning",
-      );
     }
 
     return { skillPaths };
