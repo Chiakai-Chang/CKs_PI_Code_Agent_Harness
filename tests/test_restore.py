@@ -284,25 +284,32 @@ class TestSkillNamespaceGuardWiring(unittest.TestCase):
         self.assertIn("partition_external_skills(", c)
 
 
-class TestExtensionsActuallyWrittenToSettings(unittest.TestCase):
-    """Regression test: settings.json's skills/prompts blocks both filter
-    existing entries then append profile_* back in, but the extensions block
-    used to only filter and never append profile_extensions back in — every
-    harness bridge (case-bridge, yes-hooks-bridge, skill-namespace-guard, ...)
-    silently never made it into settings.json's "extensions" array. Harmless
-    in practice (Pi auto-discovers ~/.pi/agent/extensions/*/index.ts
-    regardless of settings.json), but the field itself was permanently empty
-    — a dead write. Guard the fix: profile_extensions must be appended into
-    clean_extensions before settings["extensions"] is assigned, mirroring the
-    skills/prompts blocks exactly."""
+class TestExtensionsNotDoubleRegistered(unittest.TestCase):
+    """Regression test for a same-evening self-correction: settings.json's
+    skills/prompts blocks both filter existing entries then append profile_*
+    back in, and it's tempting to "fix" the extensions block to match that
+    pattern (it doesn't, by inspection) — but doing so is WRONG, not a fix.
+    Every profile_extensions entry gets physically copytree'd into
+    ~/.pi/agent/extensions/<bridge>/ further below in main(), which Pi
+    auto-discovers by directory (~/.pi/agent/extensions/*/index.ts)
+    regardless of settings.json. Appending profile_extensions here as well
+    (repo-path source, a different absolute path than the installed copy)
+    made Pi load every bridge from BOTH locations at once —
+    registerTool()-registered tool names collided ("Tool web_search conflicts
+    with ...") and pi failed to start entirely on a real, fresh, non-
+    interactive launch. Confirmed by actually launching `pi --print
+    --no-session` and reading the real error, not just static analysis.
+    Guard against reintroducing the append: settings["extensions"] must be
+    assigned only from the filtered existing_extensions, with no
+    profile_extensions loop feeding into it."""
 
-    def test_profile_extensions_appended_after_filtering(self):
+    def test_profile_extensions_not_appended_into_settings(self):
         c = read_file("scripts/restore.py")
         idx_extensions_block = c.index("existing_extensions = settings.get")
         idx_settings_assign = c.index('settings["extensions"] = clean_extensions')
         block = c[idx_extensions_block:idx_settings_assign]
-        self.assertIn("for ext in profile_extensions:", block)
-        self.assertIn("clean_extensions.append(ext)", block)
+        self.assertNotIn("for ext in profile_extensions:", block)
+        self.assertNotIn("clean_extensions.append(ext)", block)
 
 
 class TestDestructivePruneRemoved(unittest.TestCase):

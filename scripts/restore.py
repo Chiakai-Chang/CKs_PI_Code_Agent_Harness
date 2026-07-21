@@ -507,9 +507,16 @@ def main():
                     break
             if not is_internal:
                 clean_extensions.append(p)
-        for ext in profile_extensions:
-            if ext not in clean_extensions:
-                clean_extensions.append(ext)
+        # Unlike profile_skills/profile_prompts, profile_extensions is NOT
+        # appended here. Every entry in profile_extensions gets physically
+        # copytree'd into ~/.pi/agent/extensions/<bridge>/ further below,
+        # which Pi auto-discovers by directory (~/.pi/agent/extensions/*/
+        # index.ts) regardless of this settings.json array. Also listing the
+        # repo-path source here made Pi load each bridge from BOTH locations
+        # at once — registerTool() calls collided ("Tool web_search conflicts
+        # with ...") and pi failed to start. This array staying clear of
+        # harness-managed bridges is correct, not a bug: only genuinely
+        # extra, non-copied user extensions belong here.
         settings["extensions"] = clean_extensions
 
         existing_prompts = settings.get("prompts", [])
