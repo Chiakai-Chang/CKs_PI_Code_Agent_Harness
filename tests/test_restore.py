@@ -284,5 +284,26 @@ class TestSkillNamespaceGuardWiring(unittest.TestCase):
         self.assertIn("partition_external_skills(", c)
 
 
+class TestExtensionsActuallyWrittenToSettings(unittest.TestCase):
+    """Regression test: settings.json's skills/prompts blocks both filter
+    existing entries then append profile_* back in, but the extensions block
+    used to only filter and never append profile_extensions back in — every
+    harness bridge (case-bridge, yes-hooks-bridge, skill-namespace-guard, ...)
+    silently never made it into settings.json's "extensions" array. Harmless
+    in practice (Pi auto-discovers ~/.pi/agent/extensions/*/index.ts
+    regardless of settings.json), but the field itself was permanently empty
+    — a dead write. Guard the fix: profile_extensions must be appended into
+    clean_extensions before settings["extensions"] is assigned, mirroring the
+    skills/prompts blocks exactly."""
+
+    def test_profile_extensions_appended_after_filtering(self):
+        c = read_file("scripts/restore.py")
+        idx_extensions_block = c.index("existing_extensions = settings.get")
+        idx_settings_assign = c.index('settings["extensions"] = clean_extensions')
+        block = c[idx_extensions_block:idx_settings_assign]
+        self.assertIn("for ext in profile_extensions:", block)
+        self.assertIn("clean_extensions.append(ext)", block)
+
+
 if __name__ == "__main__":
     unittest.main()

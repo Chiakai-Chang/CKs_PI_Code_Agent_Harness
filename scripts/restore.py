@@ -595,6 +595,9 @@ def main():
                     break
             if not is_internal:
                 clean_extensions.append(p)
+        for ext in profile_extensions:
+            if ext not in clean_extensions:
+                clean_extensions.append(ext)
         settings["extensions"] = clean_extensions
 
         existing_prompts = settings.get("prompts", [])
