@@ -29,6 +29,23 @@ interface ManifestEntry {
   path: string;
 }
 
+// Conflict report written to pi-config/skill-conflict-report.json for human
+// auditability. The runtime collision handling (staged renamed copies) runs
+// silently; the report is the artifact that survives across sessions.
+interface ConflictReport {
+  version: number;
+  generatedAt: string;
+  sources: {
+    harnessSkills: { name: string; path: string }[];
+    externalSkills: { name: string | null; path: string; sourceSubmodule: string }[];
+  };
+  conflicts: {
+    name: string;
+    paths: { path: string; source: "harness" | "external" }[];
+    resolution: "staged-renamed-copy" | "identical-content-skipped" | "no-action-yet";
+  }[];
+}
+
 function harnessRoot(): string {
   const here = dirname(fileURLToPath(import.meta.url));
   try {
@@ -55,6 +72,43 @@ function readManifest(ctx?: { ui?: { notify?: (msg: string, level: string) => vo
     );
     return [];
   }
+}
+
+// Scans pi-skills/ for harness-authored skills (non-recursive SKILL.md lookup).
+function scanHarnessSkills(): { name: string; path: string }[] {
+  const skillsDir = join(harnessRoot(), "pi-skills");
+  if (!existsSync(skillsDir)) return [];
+  const results: { name: string; path: string }[] = [];
+  let entries: string[];
+  try {
+    entries = readdirSync(skillsDir);
+  } catch {
+    return results;
+  }
+  for (const entry of entries) {
+    const skillMd = join(skillsDir, entry, "SKILL.md");
+    if (!existsSync(skillMd)) continue;
+    // Non-recursive: top-level pi-skills/<entry>/SKILL.md only. Nested
+    // sub-skills (optional/camofox-stealth/SKILL.md) are reported by their
+    // directory name, not the group parent.
+    const name = readFrontmatterName(skillMd);
+    results.push({ name: name ?? entry, path: join(skillsDir, entry) });
+    // Also scan one level deeper (e.g. pi-skills/optional/<sub>/SKILL.md)
+    let subDir = join(skillsDir, entry);
+    let subEntries: string[];
+    try {
+      subEntries = readdirSync(subDir).filter((n) => statSync(join(subDir, n)).isDirectory());
+    } catch {
+      continue;
+    }
+    for (const sub of subEntries) {
+      const subSkillMd = join(subDir, sub, "SKILL.md");
+      if (existsSync(subSkillMd)) {
+        results.push({ name: readFrontmatterName(subSkillMd) ?? sub, path: join(subDir, sub) });
+      }
+    }
+  }
+  return results;
 }
 
 // Extracts the frontmatter `name:` field. SKILL.md format per docs/skills.md:
@@ -143,10 +197,85 @@ function stageRenamedSkill(srcDir: string, name: string, srcRaw: string): string
   return destDir;
 }
 
+// Detects cross-source name collisions between harness skills (pi-skills/) and
+// external submodule skills, writing a persistent report for auditability.
+// The runtime collision handling (staged renamed copies) still runs inline;
+// this report is the durable artifact that survives across sessions.
+function buildConflictReport(
+  harnessSkills: { name: string; path: string }[],
+  manifest: ManifestEntry[],
+): ConflictReport {
+  const externalSkills: { name: string | null; path: string; sourceSubmodule: string }[] = [];
+  for (const entry of manifest) {
+    const srcSkillMd = join(entry.path, "SKILL.md");
+    if (existsSync(srcSkillMd)) {
+      externalSkills.push({
+        name: readFrontmatterName(srcSkillMd),
+        path: entry.path,
+        sourceSubmodule: entry.path.split("/").find((_, i, arr) => arr[i] === "external") ? entry.path.split("/")[1] : entry.path,
+      });
+    }
+  }
+
+  // Build name->paths map across all sources; report names appearing in >1 source.
+  const nameMap = new Map<string, { path: string; source: "harness" | "external" }[]>();
+  for (const hs of harnessSkills) {
+    nameMap.set(hs.name, [...(nameMap.get(hs.name) ?? []), { path: hs.path, source: "harness" }]);
+  }
+  for (const es of externalSkills) {
+    if (es.name) {
+      nameMap.set(es.name, [...(nameMap.get(es.name) ?? []), { path: es.path, source: "external" }]);
+    }
+  }
+
+  const conflicts: ConflictReport["conflicts"] = [];
+  for (const [name, paths] of nameMap) {
+    if (paths.length < 2) continue;
+    // Determine resolution status from runtime state:
+    // - staged renamed copy exists at ~/.pi/agent/skills/harness-<name> → resolved
+    // - identical content across sources → skipped intentionally
+    // - otherwise no action yet
+    const stagedDir = join(homedir(), ".pi", "agent", "skills", `harness-${name}`);
+    let resolution: ConflictReport["conflicts"][number]["resolution"] = "no-action-yet";
+    if (existsSync(join(stagedDir, "SKILL.md"))) {
+      resolution = "staged-renamed-copy";
+    } else {
+      // Check identical content across all SKILL.md files
+      const hashes = new Set<string>();
+      for (const p of paths) {
+        try {
+          hashes.add(normalizedHash(readFileSync(join(p.path, "SKILL.md"), "utf-8")));
+        } catch {}
+      }
+      if (hashes.size === 1) resolution = "identical-content-skipped";
+    }
+    conflicts.push({ name, paths, resolution });
+  }
+
+  return { version: 1, generatedAt: new Date().toISOString(), sources: { harnessSkills, externalSkills }, conflicts };
+}
+
+function writeConflictReport(report: ConflictReport) {
+  const reportPath = join(harnessRoot(), "pi-config", "skill-conflict-report.json");
+  try {
+    mkdirSync(dirname(reportPath), { recursive: true });
+    writeFileSync(reportPath, JSON.stringify(report, null, 2) + "\n", "utf-8");
+  } catch (err) {
+    // Report writing failure is non-fatal; the runtime handling still works.
+    const msg = err instanceof Error ? err.message : String(err);
+    // Can't ctx.ui.notify here (no context); the report simply won't be written.
+  }
+}
+
 export default function (pi: ExtensionAPI) {
   pi.on("resources_discover", async (_event, ctx) => {
     const manifest = readManifest(ctx);
     const skillPaths: string[] = [];
+
+    // Build and write the cross-source conflict report first (before runtime
+    // collision resolution runs), so it captures the pre-resolution state.
+    const harnessSkills = scanHarnessSkills();
+    writeConflictReport(buildConflictReport(harnessSkills, manifest));
 
     for (const entry of manifest) {
       try {
