@@ -140,11 +140,11 @@
     },
     {
       "name": "agi-super-team",
-      "type": "submodule",
+      "type": "orphaned-clone",
       "url": null,
       "path": "external/agi-super-team",
-      "integration": "reference only (no active bridge); verify if still needed",
-      "updateStrategy": "git submodule update"
+      "integration": "no active bridge; directory exists but NOT registered in .gitmodules (orphaned submodule leftover); verify if still needed",
+      "updateStrategy": "manual review — not a tracked submodule"
     },
     {
       "name": "oh-my-pi",
