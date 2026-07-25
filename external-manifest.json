@@ -1,0 +1,166 @@
+{
+  "version": 1,
+  "description": "Unified manifest of all external sources integrated into this harness. Manages submodules, reference clones, and bridge distillation sources in one place.",
+  "sources": [
+    {
+      "name": "ecc",
+      "type": "submodule",
+      "url": "https://github.com/affaan-m/ECC.git",
+      "path": "external/ecc",
+      "integration": "bridge (ecc-hooks-bridge) + skill bridges in pi-skills/core/bridges/ecc-framework",
+      "updateStrategy": "git submodule update"
+    },
+    {
+      "name": "planning-with-files",
+      "type": "submodule",
+      "url": "https://github.com/OthmanAdi/planning-with-files",
+      "path": "external/planning-with-files",
+      "integration": "bridge (planning-with-files-bridge) + skill in pi-skills/core/planning-with-files",
+      "updateStrategy": "git submodule update"
+    },
+    {
+      "name": "llm-wiki-plugin",
+      "type": "submodule",
+      "url": "https://github.com/praneybehl/llm-wiki-plugin",
+      "path": "external/llm-wiki-plugin",
+      "integration": "skill bridge in pi-skills/core/bridges/llm-wiki-framework",
+      "updateStrategy": "git submodule update"
+    },
+    {
+      "name": "superpowers",
+      "type": "submodule",
+      "url": "https://github.com/obra/superpowers",
+      "path": "external/superpowers",
+      "integration": "skills registered via external-skills-manifest.json (using-superpowers, brainstorming, ...)",
+      "updateStrategy": "git submodule update"
+    },
+    {
+      "name": "prompt-master",
+      "type": "submodule",
+      "url": "https://github.com/nidhinjs/prompt-master",
+      "path": "external/prompt-master",
+      "integration": "skill bridge in pi-skills/core/bridges/prompt-master-framework",
+      "updateStrategy": "git submodule update"
+    },
+    {
+      "name": "caveman",
+      "type": "submodule",
+      "url": "https://github.com/JuliusBrussee/caveman",
+      "path": "external/caveman",
+      "integration": "skills registered via external-skills-manifest.json (caveman, caveman-commit, ...)",
+      "updateStrategy": "git submodule update"
+    },
+    {
+      "name": "karpathy-skills",
+      "type": "submodule",
+      "url": "https://github.com/multica-ai/andrej-karpathy-skills",
+      "path": "external/karpathy-skills",
+      "integration": "skill bridge in pi-skills/core/bridges/karpathy-framework",
+      "updateStrategy": "git submodule update"
+    },
+    {
+      "name": "yes.md",
+      "type": "submodule",
+      "url": "https://github.com/sstklen/yes.md",
+      "path": "external/yes.md",
+      "integration": "hooks bridge (yes-hooks-bridge) + behavioral discipline skill",
+      "updateStrategy": "git submodule update"
+    },
+    {
+      "name": "taste-skill",
+      "type": "submodule",
+      "url": "https://github.com/Leonxlnx/taste-skill",
+      "path": "external/taste-skill",
+      "integration": "bridge (taste-bridge)",
+      "updateStrategy": "git submodule update"
+    },
+    {
+      "name": "evolver",
+      "type": "submodule",
+      "url": "https://github.com/EvoMap/evolver",
+      "path": "external/evolver",
+      "integration": "skill bridge in pi-skills/core/bridges (gene optimization)",
+      "updateStrategy": "git submodule update"
+    },
+    {
+      "name": "Local-Agent-Workspace",
+      "type": "submodule",
+      "url": "https://github.com/Chiakai-Chang/Local-Agent-Workspace.git",
+      "path": "external/Local-Agent-Workspace",
+      "integration": "bridge (case-bridge) — C.A.S.E. framework distillation",
+      "updateStrategy": "git submodule update"
+    },
+    {
+      "name": "darwin-skill",
+      "type": "submodule",
+      "url": "https://github.com/alchaincyf/darwin-skill.git",
+      "path": "external/darwin-skill",
+      "integration": "skill bridge in pi-skills/core/bridges (prompt mutation optimization)",
+      "updateStrategy": "git submodule update"
+    },
+    {
+      "name": "qiushi-skill",
+      "type": "submodule",
+      "url": "https://github.com/HughYau/qiushi-skill.git",
+      "path": "external/qiushi-skill",
+      "integration": "skill bridge in pi-skills/core/bridges (dialectical analysis)",
+      "updateStrategy": "git submodule update"
+    },
+    {
+      "name": "agents-best-practices",
+      "type": "submodule",
+      "url": "https://github.com/DenisSergeevitch/agents-best-practices.git",
+      "path": "external/agents-best-practices",
+      "integration": "skill registered via external-skills-manifest.json (systematic debugging)",
+      "updateStrategy": "git submodule update"
+    },
+    {
+      "name": "graphify",
+      "type": "submodule",
+      "url": "https://github.com/safishamsi/graphify.git",
+      "path": "external/graphify",
+      "integration": "skill in pi-skills/graphify (AST topology analysis)",
+      "updateStrategy": "git submodule update"
+    },
+    {
+      "name": "loopy",
+      "type": "submodule",
+      "url": "https://github.com/Forward-Future/loopy.git",
+      "path": "external/loopy",
+      "integration": "skill bridge in pi-skills/core/bridges (workflow loop control)",
+      "updateStrategy": "git submodule update"
+    },
+    {
+      "name": "mece-autopilot",
+      "type": "submodule",
+      "url": "https://github.com/Chiakai-Chang/MECE-Autopilot.git",
+      "path": "external/mece-autopilot",
+      "integration": "bridge (mece-autopilot-bridge) — MECE multi-role debate",
+      "updateStrategy": "git submodule update"
+    },
+    {
+      "name": "agi-super-team",
+      "type": "submodule",
+      "url": null,
+      "path": "external/agi-super-team",
+      "integration": "reference only (no active bridge); verify if still needed",
+      "updateStrategy": "git submodule update"
+    },
+    {
+      "name": "oh-my-pi",
+      "type": "reference-clone",
+      "url": "https://github.com/audreyt/oh-my-pi",
+      "path": "reference/oh-my-pi",
+      "integration": "learning reference only — insights documented in docs/superpowers/oh-my-pi-learnings/",
+      "updateStrategy": "manual git pull"
+    },
+    {
+      "name": "claude-reflect",
+      "type": "distillation-source",
+      "url": "https://github.com/BayramAnnakov/claude-reflect",
+      "path": null,
+      "integration": "distilled into pi-skills/core/hello-reflect (memory self-evolution)",
+      "updateStrategy": "manual review of upstream changes"
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "description": "Bridge manifest for health verification. Each bridge must have an active entry point matching its registered path.",
+  "bridges": [
+    {
+      "name": "ecc-hooks-bridge",
+      "entry": "pi-extensions/ecc-hooks-bridge/index.ts",
+      "version": "1.0.0",
+      "description": "ECC framework hooks bridge"
+    },
+    {
+      "name": "planning-with-files-bridge",
+      "entry": "pi-extensions/planning-with-files-bridge/index.ts",
+      "version": "1.0.0",
+      "description": "Planning-with-files workflow bridge"
+    },
+    {
+      "name": "case-bridge",
+      "entry": "pi-extensions/case-bridge/index.ts",
+      "version": "1.0.0",
+      "description": "C.A.S.E. framework bridge"
+    },
+    {
+      "name": "taste-bridge",
+      "entry": "pi-extensions/taste-bridge/index.ts",
+      "version": "1.0.0",
+      "description": "Taste Engine UI/UX guidelines bridge"
+    },
+    {
+      "name": "mece-autopilot-bridge",
+      "entry": "pi-extensions/mece-autopilot-bridge/index.ts",
+      "version": "1.0.0",
+      "description": "MECE-Autopilot multi-dimensional reasoning bridge"
+    },
+    {
+      "name": "stealth-web-bridge",
+      "entry": "pi-extensions/stealth-web-bridge/index.ts",
+      "version": "1.0.0",
+      "description": "Stealth web browsing (Camoufox) bridge"
+    },
+    {
+      "name": "yes-hooks-bridge",
+      "entry": "pi-extensions/yes-hooks-bridge/index.ts",
+      "version": "1.0.0",
+      "description": "YES.md behavior discipline hooks bridge"
+    },
+    {
+      "name": "skill-namespace-guard",
+      "entry": "pi-extensions/skill-namespace-guard/index.ts",
+      "version": "1.0.0",
+      "description": "Skill namespace conflict guard bridge"
+    },
+    {
+      "name": "compact-continuation-bridge",
+      "entry": "pi-extensions/compact-continuation-bridge/index.ts",
+      "version": "1.0.0",
+      "description": "Compaction continuation bridge"
+    }
+  ]
+}
