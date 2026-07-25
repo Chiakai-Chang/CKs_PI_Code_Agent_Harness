@@ -37,6 +37,13 @@ cd CKs_PI_Code_Agent_Harness
 *   **完整刪除、重來**（逐項確認，可額外刪 `~/.camofox`、備份、Pi 本體）：`python scripts/uninstall.py --purge`
     — 最後會提示手動刪除 repo 資料夾。
 
+### 健康度驗證 (Health Checks)
+*   **Bridge 驗證**：`python scripts/verify-bridges.py` — 檢查所有橋接程式的入口路徑存在性、manifest 與 package.json 註冊一致性（零依賴）。
+*   **設定檔驗證**：`python scripts/validate-config.py` — 檢查 `pi-config/settings.json` 格式完整性、反模式偵測（已提交之機器特定路徑、明文金鑰）。
+
+### 外部來源管理
+*   `external-manifest.json` 統一記錄全部外部來源（17 個 Git Submodule、參考克隆、蒸餾來源），取代過去 submodule / clone / 蒸餾混用無統一紀錄的狀態。每個來源標明整合方式（bridge / skill bridge / 僅參考）與更新策略。
+
 ### 4. 模式選擇 (Profiles)
 安裝時可依需求選擇以下配置模式：
 *   **`minimal`** (極簡核心)：適合對對話 Token 敏感的輕量開發。

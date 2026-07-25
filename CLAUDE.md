@@ -8,8 +8,10 @@
 * Restore configurations directly: `python scripts/setup.py --mode restore`
 * Pull/Update submodules: `git submodule update --init --recursive`
 
-## 🧪 Testing Commands
+## 🧪 Testing & Verification Commands
 * Run tests (zero-dependency, stdlib unittest): `python -m unittest discover -s tests`
+* Verify bridge health (entry points exist, manifest vs package.json cross-check): `python scripts/verify-bridges.py`
+* Validate pi-config files (schema, anti-patterns, secret detection): `python scripts/validate-config.py`
 
 ## 📌 CRITICAL Guidelines & Philosophy (Must Read First)
 Before planning any optimizations, refactoring, or modifications to this repository, you **MUST** read and fully comprehend the following documentation to align with our engineering guidelines:
