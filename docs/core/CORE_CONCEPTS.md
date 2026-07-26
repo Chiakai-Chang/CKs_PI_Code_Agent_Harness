@@ -82,22 +82,38 @@
 *   **設計理念**：本專案引入了 [C.A.S.E. 框架](https://github.com/Chiakai-Chang/Local-Agent-Workspace/tree/main/C.A.S.E._Framework)（Context, Action, State, Environment）治理思維。
 *   **整合目標**：在 `pi-extensions` 內部的橋接擴充中，將 C.A.S.E. 思想作為環境與狀態的對齊依據，確保 AI 在執行時其 Action (工具調用)、Context (上下文傳遞) 與 State (計畫狀態) 能在該 Environment 中被清晰追蹤與校準，避免行為脫軌。
 
+## 11. 5 層貫通 Harness OS 架構與 13 大蒸餾核心技能
+**「將 13 大開源靈魂蒸餾為 C.A.S.E. 規格化技能，並以 9 大 Extension Bridge 熔鑄為 5 層閉環操作系統。」**
+
+*   **Layer 0 (Security & Protection)**：`yes-hooks-bridge` (`pre-bash-guard` 硬擋毀滅指令)、`skill-namespace-guard` (動態碰撞隔離) 與 `validate-config.py` 配置合規檢查。
+*   **Layer 1 (Socratic Framing)**：`grilling-protocol` (一問一答需求釐清門控)、`contrarian-review` & `adversary-review` (逆向鋼鐵人反方與極限對立審查)。
+*   **Layer 2 (Context Engine)**：`minimal-prompt-guide` (~80-200 Token 注意力專注)、`compact-continuation-bridge` (壓縮後自動接續對話)、`hello-reflect` (規則與經驗自演進寫入 `.agents/AGENTS.md`)。
+*   **Layer 3 (Execution & Repair OS)**：`workflow-os-guide` (Pins/Gates/Steers & `HANDOFF.md` 斷點保存)、`subagent-orchestration-guide` (`cheap`/`balanced`/`max` 模型分層與血統隔離)、`tool-repair-guide` (9 大 Canonical 欄位自癒修復)、`ide-intelligence-guide` (LSP 語意診斷前檢 & 模型專屬 Edit 格式)。
+*   **Layer 4 (Evidence Gate)**：`autonomous-experiment-guide` (MAD 統計顯著性驗證)、`harness-factory-guide` (Repo Fit 打分與 Darwin 基因演化)、`browser-automation-guide` (AX-Tree 語意定位與頁面變更驗證)、`guardian-pipeline-guide` (檢測-解析-審查生命週期合約) 與 173 個 Python 自動化測試。
+
 ---
 
 ### 功能模組整合總覽表
 
-| 模組名稱 | 白話功能 | 整合點 | 解決的實際問題 |
+| 模組 / 技能名稱 | 核心角色 / 白話功能 | 整合點 | 解決的實際問題 |
 | :--- | :--- | :--- | :--- |
 | **ECC Bridge** | 攔截審查機制 | **安全與語法檢查** | 防止 AI 寫出殘缺代碼或執行危險指令。 |
 | **Superpowers** | 元指令引導 | **工程規劃紀律** | 強制 AI 在實作前進行 TDD / 規劃反思。 |
-| **Graphify** | AST 代碼 GPS | **本地 AST 圖譜** | 本地檢索函數調用關係，降低 API 與 Token 消耗。 |
-| **LLM Wiki** | 專案知識庫 | **雙向鏈接文件** | 避免開發脈絡隨對話會話結束而丟失。 |
-| **Manus Planning** | 實體計畫板 | **檔案快照記憶** | 緩解長對話導致 AI 遺忘任務目標的缺陷。 |
-| **Darwin/Evolver** | 提示自適應演化 | **Prompt 變異優化** | 避免 AI 在相同錯誤上陷入重試死循環。 |
-| **Qiushi/Best Practices** | 辯證分析與除錯 | **前後對比與診斷** | 降低重構風險並引導系統化故障排除。 |
-| **C.A.S.E. Align** | 環境治理 | **四維狀態治理** | 確保 AI 行為與當前開發環境高度對齊。 |
-| **Smart Detect** | 本地規格偵測 | **參數自適應推薦** | 避免手動設定不當引發显存溢出或卡死。 |
-| **Healing Installer** | 一鍵自癒部署 | **多平台建置簡化** | 快速排除 Windows 權限、Git 信任等常見阻礙。 |
+| **YES.md / pre-bash-guard** | 指令硬鎖定 | **Layer 0 安全防護** | 以腳本實體硬擋 `rm -rf /`、`git push --force` 等高風險 Shell 指令。 |
+| **skill-namespace-guard** | 動態技能隔離 | **Layer 0 命名空間防護** | 每刷 Pi 自動比對同名技能，確保外部與全域技能碰撞時平滑隔離。 |
+| **grilling-protocol** | 蘇格拉底追問門控 | **Layer 1 需求研討** | 一問一答引導釐清不可變證據，避免盲目動工。 |
+| **contrarian / adversary** | 逆向與對立審查 | **Layer 1 極限審查** | 鋼鐵人反方評估與壓力測試，防止單一視角盲點。 |
+| **minimal-prompt-guide** | 注意力專注 | **Layer 2 Context Engine** | 控制 System Prompt 在 ~80-200 Token，提高 LLM 注意力聚焦度。 |
+| **compact-continuation** | 自動續作 Bridge | **Layer 2 Context Engine** | 解決 `/compact` 上下文壓縮後 agent 自動停工的問題。 |
+| **hello-reflect** | 規則經驗自演進 | **Layer 2 記憶演進** | 對話後自動提煉規則並記錄至 `.agents/AGENTS.md`。 |
+| **workflow-os-guide** | 斷點 handoff 門控 | **Layer 3 執行管束** | 生成確定性 `HANDOFF.md` 快照，維持跨 Session 的任務連動。 |
+| **subagent-orchestration** | 抽象模型分層調度 | **Layer 3 多子代理** | 分配 `cheap`/`balanced`/`max` 算力模型，保護上層脈絡。 |
+| **tool-repair-guide** | 工具欄位自癒修復 | **Layer 3 執行自癒** | 9 大 Canonical 欄位格式化修復，防止 JSON/Tool Call 毀損失敗。 |
+| **ide-intelligence-guide** | IDE 與 LSP 診斷 | **Layer 3 編輯格式適配** | 自動匹配 LLM 最強 Editing 格式並前置檢查 LSP 診斷。 |
+| **harness-factory-guide** | 專案基因打分與演化 | **Layer 4 基因工程** | Repo Fit 評分、Darwin 基因自演化與 MCP 靜態安全預檢。 |
+| **autonomous-experiment** | 統計顯著驗證 | **Layer 4 證據驗證** | 使用 MAD 評分與自動化實驗驗證代碼與提示詞效益。 |
+| **Test Suite (173 Tests)** | 自動化測試防衛網 | **Layer 4 證據門控** | 包含 `TestManagedSkillsConsistency`，確保 `restore.py` 與 `uninstall.py` 完全同步。 |
 
 ---
 **本文件由 CK's Pi Code Agent Harness 核心團隊維護，旨在保存本專案的技術資產與設計初心。**
+

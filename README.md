@@ -100,9 +100,9 @@ cd CKs_PI_Code_Agent_Harness
 | **記憶進化** | [claude-reflect](https://github.com/BayramAnnakov/claude-reflect) | 本地移植 (蒸餾) | 專案規則檔案自演進 | ✅ | ✅ |
 | **隱身瀏覽** | [camofox-browser](https://github.com/jo-inc/camofox-browser) | Thin Bridge (橋接) | 隱身瀏覽器（Camoufox 反偵測）：搜尋、讀頁、點擊/輸入/捲動、截圖、頁內 JS、多分頁、建立登入態；可穿 Cloudflare/JS 牆。工具 `web_*`、命令 `/weblogin`、技能 `camofox-stealth`（首次用時懶下載 ~300MB 引擎） | ❌ | ✅ |
 
-### 🎓 12 大核心蒸餾指南 (Core Distilled Guides)
+### 🎓 13 大核心蒸餾指南 (Core Distilled Guides)
 
-本 Harness 從 12 個頂級開源 Pi/Agent 專案中蒸餾出 C.A.S.E. 規格化核心技能（收錄於 `pi-skills/core/`）：
+本 Harness 從 13 個頂級開源 Pi/Agent 專案中蒸餾出 C.A.S.E. 規格化核心技能（收錄於 [pi-skills/core/](file:///D:/MyProject/CKs_PI_Code_Agent_Harness/pi-skills/core/)）：
 
 | 指南名稱 | 蒸餾來源專案 | 核心機制與解決問題 |
 | :--- | :--- | :--- |
@@ -118,6 +118,60 @@ cd CKs_PI_Code_Agent_Harness
 | **`grilling-protocol`** | [harness-engineering](https://github.com/vinicius91carvalho/harness-engineering) | 一問一答需求研討 (Grilling Interview) 與不可變 Evidence QA 門控 |
 | **`ide-intelligence-guide`** | [oh-my-pi](https://github.com/audreyt/oh-my-pi) / [can1357](https://github.com/can1357/oh-my-pi) | 模型專屬編輯格式適配 (Model-adapted Edits) 與 LSP 語意診斷前檢 |
 | **`harness-factory-guide`** | [metaharness](https://github.com/ruvnet/metaharness) | Repo Fit 基因打分 (`score`)、Darwin 基因自演化 (`evolve`) 與 MCP 靜態安全預檢 (`mcp-scan`) |
+| **`hello-reflect`** | [claude-reflect](https://github.com/BayramAnnakov/claude-reflect) | 規則自演進與海馬迴對話記憶提煉 (Automated Rule & Memory Evolution) |
+
+---
+
+## 🏛️ 5 層貫通 Harness OS 架構 (5-Layer Harness OS Architecture)
+
+本專案將 13 大蒸餾核心技能、9 大 Extension Bridges 與 Pre-execution Hooks 無縫熔鑄為 5 層閉環 Harness OS：
+
+```
++-----------------------------------------------------------------------+
+|  Layer 0: Security & Protection (安全治理與防護層)                     |
+|  • yes-hooks-bridge (pre-bash-guard 硬擋毀滅性指令)                      |
+|  • skill-namespace-guard (動態碰撞隔離) + validate-config.py Integrity  |
++-----------------------------------------------------------------------+
+                                   |
+                                   v
++-----------------------------------------------------------------------+
+|  Layer 1: Socratic Framing (反思研討與對立審查層)                       |
+|  • grilling-protocol (一問一答需求釐清)                                  |
+|  • contrarian-review & adversary-review (逆向鋼鐵人反方與極限對立審查) |
++-----------------------------------------------------------------------+
+                                   |
+                                   v
++-----------------------------------------------------------------------+
+|  Layer 2: Context Engine (上下文與記憶專注層)                          |
+|  • minimal-prompt-guide (~80-200 Token 注意力專注)                      |
+|  • compact-continuation-bridge (自動接續對話)                          |
+|  • hello-reflect (經驗自動寫入 AGENTS.md / CLAUDE.md)                  |
++-----------------------------------------------------------------------+
+                                   |
+                                   v
++-----------------------------------------------------------------------+
+|  Layer 3: Execution & Repair OS (執行管束與工具自癒層)                 |
+|  • workflow-os-guide (Pins, Gates, Steers & HANDOFF.md 斷點保存)       |
+|  • subagent-orchestration-guide (cheap/balanced/max 模型分層調度)     |
+|  • tool-repair-guide (9 大 Canonical 欄位自癒修復)                      |
+|  • ide-intelligence-guide (LSP 語意診斷前檢 & 模型專屬 Edit 格式)       |
++-----------------------------------------------------------------------+
+                                   |
+                                   v
++-----------------------------------------------------------------------+
+|  Layer 4: Evidence Gate (證據驗證與基因進化層)                        |
+|  • autonomous-experiment-guide (MAD 統計顯著性驗證)                    |
+|  • harness-factory-guide (Repo Fit 打分與 Darwin 基因演化)             |
+|  • 自動化單元測試網 (173 Unit Tests + TestManagedSkillsConsistency)  |
++-----------------------------------------------------------------------+
+```
+
+### 🔗 模組間連動與自動化約束機制
+
+1. ** lifecycle & 部署保護鎖**：`scripts/restore.py` 與 `scripts/uninstall.py` 完全共用 13 項核心蒸餾技能清單，並透過 `tests/test_restore.py` 中的 `TestManagedSkillsConsistency` 單元測試自動校驗，防止維護時忘記註冊或漏移除。
+2. **命令執行攔截**：`yes-hooks-bridge` 插入 `pre-bash-guard`，在模型執行 Shell 前實體攔截毀滅性命令 (`rm -rf /`, `git push --force` 等)；`skill-namespace-guard` 於每一次 `pi` 啟動時自動比對同名技能，完全消除碰撞與污染。
+3. **上下文自癒與接關**：當對話長度觸發 `/compact` 或壓縮時，`compact-continuation-bridge` 自動注入續作 Prompt；執行過程發生的工具參數錯誤由 `tool-repair-guide` 的 9 大標準格式修復。
+4. **證據為本的完成門控**：任務完成時必須經過 Layer 4 經驗驗證（173 個 Python 單元測試 100% 通過），絕不接受 AI 的空口承諾。
 
 ---
 
@@ -136,3 +190,4 @@ cd CKs_PI_Code_Agent_Harness
 
 ---
 **由 [CK (Chiakai Chang)](https://github.com/Chiakai-Chang) 維護。本專案純屬實驗性質。**
+
