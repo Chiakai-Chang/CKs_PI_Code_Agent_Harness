@@ -39,10 +39,13 @@ const CONTINUE_MESSAGE =
 
 export default function (pi: ExtensionAPI) {
   pi.on("session_compact", async (event, ctx) => {
-    // willRetry is true only for overflow recovery — Pi's own engine already
-    // retries the aborted turn itself in that case. Sending our own
-    // continuation on top would double up (two turns racing/queued).
-    if (event.willRetry) return;
+    // Overflow compaction triggers Pi's own compact-and-retry recovery: it
+    // re-queues the aborted turn automatically. Our continuation must NOT fire
+    // in that case — two turns racing would duplicate work and waste context.
+    // Reason field is reliable ("overflow" | "manual" | "threshold"); willRetry
+    // was always false in frozen fork types we originally imported from, so we
+    // match on reason directly against the engine's documented behavior.
+    if (event.reason === "overflow") return;
 
     ctx.ui?.notify?.(
       `[compact-continuation] Compaction (${event.reason}) complete — queuing a continuation follow-up.`,

@@ -31,7 +31,7 @@
       "type": "submodule",
       "url": "https://github.com/obra/superpowers",
       "path": "external/superpowers",
-      "integration": "skills registered via external-skills-manifest.json (using-superpowers, brainstorming, ...)",
+      "integration": "learning reference only — skills NOT registered by harness (obra/superpowers Pi extension provides them natively; dual registration caused 13 startup collision warnings, removed from restore.py)",
       "updateStrategy": "git submodule update"
     },
     {
@@ -138,14 +138,7 @@
       "integration": "bridge (mece-autopilot-bridge) — MECE multi-role debate",
       "updateStrategy": "git submodule update"
     },
-    {
-      "name": "agi-super-team",
-      "type": "orphaned-clone",
-      "url": null,
-      "path": "external/agi-super-team",
-      "integration": "no active bridge; directory exists but NOT registered in .gitmodules (orphaned submodule leftover); verify if still needed",
-      "updateStrategy": "manual review — not a tracked submodule"
-    },
+
     {
       "name": "oh-my-pi",
       "type": "reference-clone",

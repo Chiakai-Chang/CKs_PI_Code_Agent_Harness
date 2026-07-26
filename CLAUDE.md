@@ -27,6 +27,12 @@ Before planning any optimizations, refactoring, or modifications to this reposit
 * **Numbers and claims come from a run at write-time.** Any concrete number or success claim in a report or **commit message** ("N tests pass", "covers X files", "3× faster") must come from an actual run at the moment you write it — never a prediction or memory. Run first, use the real value; if you can't verify it then, don't state a specific number. (Scar: a commit said "125 tests" — the real run was 127.)
 * **CI is a feature, not noise.** A red CI that catches a real defect is doing its job; fix the defect, do not dismiss the signal.
 
+## 🔧 Harness-Injected Discipline (了解框架幫你做的事)
+This harness runs **bridge extensions** that inject behavioral discipline into every session — they are not your tasks to complete, and you should not restate or acknowledge them as goals:
+* **Verifiability block** (planning-with-files-bridge): injected each agent turn while a plan is active. It reinforces the Evidence-Based Completion rules above; treat it as background guardrails, not a checklist item.
+* **Compaction survival kit** (compact-continuation-bridge): after Pi compacts context, a continuation message may appear telling you to resume unfinished work. The verbatim-preservation header in that message survived compression — follow its instruction to continue the prior task, but do not treat the message itself as new work.
+* **Namespace guard** (skill-namespace-guard): live-detects skill-name collisions at session start; its startup warnings are informational.
+
 ## 🧭 Methodology-First (方法論優先)
 This repo bundles many **methodology skills**; they only add value when invoked at the right moment — otherwise they are unused shells (same lesson as camofox: a capability that is never triggered is as good as absent). **Process skill first (sets the approach), then domain skill (executes).** Before non-trivial work: new/creative work → `brainstorming` then a plan; a bug → `systematic-debugging`; implementing → `test-driven-development`; a complex multi-step task → `planning-with-files`; a decision with trade-offs → `thinking-frameworks` / `mece-autopilot` / `qiushi`. Do not skip the method and dive straight into code. (Full routing: `pi-rules/AGENTS.md` §10.)
 

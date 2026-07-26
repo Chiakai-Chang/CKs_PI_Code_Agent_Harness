@@ -6,8 +6,8 @@
  *
  * Profile: standard (configurable via ECC_HOOK_PROFILE)
  */
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { isToolCallEventType } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 
 import { join, dirname } from "node:path";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";

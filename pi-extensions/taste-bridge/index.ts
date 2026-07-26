@@ -4,7 +4,7 @@
  * Bridges Taste-Skill (Premium UI/UX Engineering) anti-slop directives into the Pi Harness.
  * - Injects design principles (GEMINI.md) before each agent turn to enforce premium aesthetics.
  */
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 

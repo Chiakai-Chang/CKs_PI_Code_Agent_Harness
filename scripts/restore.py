@@ -426,13 +426,11 @@ def main():
                      "caveman-stats", "caveman-help", "cavecrew"]:
             profile_skills.append(os.path.join(ext_root, "caveman", "skills", name).replace("\\", "/"))
         
-        # Superpowers skills
-        sp_root = os.path.join(ext_root, "superpowers", "skills")
-        for name in ["using-superpowers", "brainstorming", "writing-plans", "test-driven-development", 
-                     "systematic-debugging", "subagent-driven-development", "executing-plans", 
-                     "verification-before-completion", "finishing-a-development-branch", 
-                     "receiving-code-review", "requesting-code-review", "using-git-worktrees", "writing-skills"]:
-            profile_skills.append(os.path.join(sp_root, name).replace("\\", "/"))
+        # Superpowers skills: NOT registered here — obra/superpowers Pi extension
+        # (git:github.com/obra/superpowers) provides them natively. Registering both
+        # caused 13 skill-name collisions every startup (Pi resolved by picking the
+        # extension copy and skipping ours; startup log was full of collision warnings).
+        # The external/superpowers submodule is kept as a learning reference only.
             
         profile_skills.append(os.path.join(ext_root, "karpathy-skills", "skills", "karpathy-guidelines").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "planning-with-files", ".pi", "skills", "planning-with-files").replace("\\", "/"))

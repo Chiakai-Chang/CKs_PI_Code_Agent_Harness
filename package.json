@@ -11,6 +11,16 @@
     "dev-environment",
     "cross-platform"
   ],
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.82.1"
+  },
+  // Bridge type imports: all bridges import ExtensionAPI types from the pinned
+  // @earendil-works/pi-coding-agent above (Pi's own package). The frozen fork
+  // @mariozechner/pi-coding-agent (0.73.1) was previously used by 5 bridges;
+  // its types diverged (willRetry always false, missing newer hooks) and it is
+  // not installed in Pi's runtime — imports were resolved only at TypeScript
+  // compile time against stale contracts. Unified to the real Pi package so
+  // type errors surface when Pi's API changes.
   "pi": {
     "version": "1.0.0",
     "description": "CK's Pi Code Agent Harness - 一鍵重建完整 AI 開發環境",
