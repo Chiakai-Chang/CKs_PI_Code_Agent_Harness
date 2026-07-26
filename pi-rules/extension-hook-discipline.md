@@ -33,14 +33,18 @@ bridge must adapt to keep the principle, not drop it.
 | `tool_result` | Transform/filter tool output before model sees it | Pre-execution blocking |
 | `agent_settled` | Own automatic continuation decisions after a turn | Queueing work on session end |
 | `turn_end` | Non-blocking background work (check scripts, telemetry) | Anything that must complete before next turn |
-| `session_compact` | Schedule post-compaction re-anchoring (hidden entry on next turn) | Pre-compaction prompt mutation (ineffective) |
+| `session_before_compact` | Cancel compaction or provide custom compaction payload (`CompactionResult`) | Prompt/context mutation (use `session.compacting` for that) |
+| `session.compacting` | Inject extra context lines, override summary prompt, store preserveData | Cancelling compaction (use `session_before_compact` for that) |
+| `session_compact` | Post-compaction notification with saved entry; schedule re-anchoring next turn | Pre-compaction mutation (too late — use `session_before_compact`) |
 | `resources_discover` | Register skills/tools at session start/reload | Per-turn behavior |
 
 ## Known traps
 
-- **`session_before_compact` is ineffective for prompt mutation.** Pi's compaction
-  may discard pre-compact prompt changes. Use `session_compact` to schedule a
-  hidden `CustomMessageEntry` re-anchor on the next turn instead.
+- **Compaction hook chain matters.** `session_before_compact` can cancel compaction
+  or provide custom `CompactionResult`; `session.compacting` injects context into
+  the default compaction prompt; `session_compact` is post-compaction notification.
+  Prompt mutation before compaction is ineffective — use `session.compacting`
+  (context injection) or `session_compact` (post-compaction re-anchoring).
 - **`agent_end` vs `agent_settled`.** `agent_end` fires on session end (including
   user leaving); it is not the right hook for automatic continuation. Use
   `agent_settled` — it fires after each agent turn settles, while the session

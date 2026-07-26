@@ -195,6 +195,11 @@ export default function (pi: ExtensionAPI) {
     const planContext = injectPlanContext(ctx.cwd);
     if (!planContext) return;
 
+    // Upstream Pi's before_agent_start carries systemPrompt as the fully
+    // assembled prompt string; returning a value replaces it. We append our
+    // context to preserve what Pi and other extensions already assembled.
+    // (The oh-my-pi fork 0.73.x used string[] with chaining — this bridge's
+    // string concatenation pattern is correct for upstream Pi >= 0.81.x.)
     return {
       systemPrompt: (event.systemPrompt ?? "") + "\n\n" + planContext,
     };

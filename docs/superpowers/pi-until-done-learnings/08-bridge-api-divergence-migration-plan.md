@@ -17,7 +17,7 @@
 ## 實查證據
 
 - npm registry 確認：`@mariozechner/pi-coding-agent` 最新 0.73.1（2026-05-07），之後無發布；`@earendil-works/pi-coding-agent` 最新 0.82.1（2026-07-25）。
-- ecc-hooks-bridge 使用 `import { isToolCallEventType } from "@mariozechner/pi-coding-agent"` — 這是 value import（非 type-only），該導出是否存在於上游套件需確認。
+- ecc-hooks-bridge 使用 `import { isToolCallEventType } from "@mariozechner/pi-coding-agent"` — **已實查確認**：該函數存在於上游套件的主要導出（npm 0.82.1 的 dist/index.d.ts 第 8 行有 export），遷移無此障礙。
 - pi-until-done（srinitude，Pi 核心貢獻者）統一用 `@earendil-works/pi-*` 並鎖定精確版本（compatibility/pi.json: Pi 0.81.1）。
 
 ## 風險評估
