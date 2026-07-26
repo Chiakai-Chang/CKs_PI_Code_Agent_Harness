@@ -242,6 +242,22 @@
       "path": "research/harness-engineering",
       "integration": "distilled into pi-skills/core/grilling-protocol (one-question-at-a-time interview & evidence QA gate)",
       "updateStrategy": "manual git pull"
+    },
+    {
+      "name": "oh-my-pi-audreyt",
+      "type": "reference-clone",
+      "url": "https://github.com/audreyt/oh-my-pi",
+      "path": "research/oh-my-pi-audreyt",
+      "integration": "distilled into pi-skills/core/ide-intelligence-guide (model-adapted edit formats & LSP verification)",
+      "updateStrategy": "manual git pull"
+    },
+    {
+      "name": "oh-my-pi-can1357",
+      "type": "reference-clone",
+      "url": "https://github.com/can1357/oh-my-pi",
+      "path": "research/oh-my-pi-can1357",
+      "integration": "distilled into pi-skills/core/ide-intelligence-guide (benchmaxxed tools & tiered model routing)",
+      "updateStrategy": "manual git pull"
     }
   ]
 }

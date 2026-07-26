@@ -100,9 +100,9 @@ cd CKs_PI_Code_Agent_Harness
 | **記憶進化** | [claude-reflect](https://github.com/BayramAnnakov/claude-reflect) | 本地移植 (蒸餾) | 專案規則檔案自演進 | ✅ | ✅ |
 | **隱身瀏覽** | [camofox-browser](https://github.com/jo-inc/camofox-browser) | Thin Bridge (橋接) | 隱身瀏覽器（Camoufox 反偵測）：搜尋、讀頁、點擊/輸入/捲動、截圖、頁內 JS、多分頁、建立登入態；可穿 Cloudflare/JS 牆。工具 `web_*`、命令 `/weblogin`、技能 `camofox-stealth`（首次用時懶下載 ~300MB 引擎） | ❌ | ✅ |
 
-### 🎓 10 大核心蒸餾指南 (Core Distilled Guides)
+### 🎓 11 大核心蒸餾指南 (Core Distilled Guides)
 
-本 Harness 從 10 個頂級開源 Pi/Agent 專案中蒸餾出 C.A.S.E. 規格化核心技能（收錄於 `pi-skills/core/`）：
+本 Harness 從 11 個頂級開源 Pi/Agent 專案中蒸餾出 C.A.S.E. 規格化核心技能（收錄於 `pi-skills/core/`）：
 
 | 指南名稱 | 蒸餾來源專案 | 核心機制與解決問題 |
 | :--- | :--- | :--- |
@@ -116,6 +116,7 @@ cd CKs_PI_Code_Agent_Harness
 | **`minimal-prompt-guide`** | [Huiyu-Pi](https://github.com/huiyu9144/Huiyu-Pi) | ~80-200 Token 極簡 Prompt 注意力專注 (Attention Focus Optimization) |
 | **`workflow-os-guide`** | [auto-pi](https://github.com/romiluz13/auto-pi) | Pins, Gates, Steers 階段門控與決定性 Handoff 生成 (`HANDOFF.md`) |
 | **`grilling-protocol`** | [harness-engineering](https://github.com/vinicius91carvalho/harness-engineering) | 一問一答需求研討 (Grilling Interview) 與不可變 Evidence QA 門控 |
+| **`ide-intelligence-guide`** | [oh-my-pi](https://github.com/audreyt/oh-my-pi) / [can1357](https://github.com/can1357/oh-my-pi) | 模型專屬編輯格式適配 (Model-adapted Edits) 與 LSP 語意診斷前檢 |
 
 ---
 
