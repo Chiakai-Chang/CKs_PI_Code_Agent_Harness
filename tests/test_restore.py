@@ -284,6 +284,19 @@ class TestSkillNamespaceGuardWiring(unittest.TestCase):
         self.assertIn("partition_external_skills(", c)
 
 
+class TestManagedSkillsConsistency(unittest.TestCase):
+    def test_restore_and_uninstall_managed_skills_match(self):
+        """restore.py 的 managed_skills 必須與 uninstall.py 的 MANAGED_SKILLS 完全一致，防止防護名單漂移。"""
+        import uninstall
+        import re
+        c = read_file("scripts/restore.py")
+        match = re.search(r'managed_skills = \[(.*?)\]', c)
+        self.assertIsNotNone(match, "restore.py 中未找到 managed_skills 定義")
+        items = [x.strip().strip('"').strip("'") for x in match.group(1).split(",")]
+        self.assertEqual(sorted(items), sorted(uninstall.MANAGED_SKILLS))
+
+
+
 class TestExtensionsNotDoubleRegistered(unittest.TestCase):
     """Regression test for a same-evening self-correction: settings.json's
     skills/prompts blocks both filter existing entries then append profile_*
