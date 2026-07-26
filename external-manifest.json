@@ -258,6 +258,14 @@
       "path": "research/oh-my-pi-can1357",
       "integration": "distilled into pi-skills/core/ide-intelligence-guide (benchmaxxed tools & tiered model routing)",
       "updateStrategy": "manual git pull"
+    },
+    {
+      "name": "metaharness",
+      "type": "reference-clone",
+      "url": "https://github.com/ruvnet/metaharness",
+      "path": "research/metaharness",
+      "integration": "distilled into pi-skills/core/harness-factory-guide (repo scoring, Darwin evolution & MCP default-deny audit)",
+      "updateStrategy": "manual git pull"
     }
   ]
 }

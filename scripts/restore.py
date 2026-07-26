@@ -641,7 +641,7 @@ def main():
     
     # We selectively delete only the skills that are managed by the harness,
     # rather than wiping the entire directory, to preserve user's own custom skills.
-    managed_skills = ["hello-reflect", "planning-with-files", "camofox", "camofox-stealth", "cua-commander", "nothing-design", "adversary-review", "contrarian-review", "browser-automation-guide", "autonomous-experiment-guide", "tool-repair-guide", "guardian-pipeline-guide", "subagent-orchestration-guide", "workflow-os-guide", "grilling-protocol", "ide-intelligence-guide", "minimal-prompt-guide", "bridges"]
+    managed_skills = ["hello-reflect", "planning-with-files", "camofox", "camofox-stealth", "cua-commander", "nothing-design", "adversary-review", "contrarian-review", "browser-automation-guide", "autonomous-experiment-guide", "tool-repair-guide", "guardian-pipeline-guide", "subagent-orchestration-guide", "workflow-os-guide", "grilling-protocol", "harness-factory-guide", "ide-intelligence-guide", "minimal-prompt-guide", "bridges"]
     for s_name in managed_skills:
         delete_path(os.path.join(skills_dst, s_name))
 
