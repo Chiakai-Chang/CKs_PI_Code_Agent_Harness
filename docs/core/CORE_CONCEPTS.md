@@ -85,11 +85,16 @@
 ## 11. 5 層貫通 Harness OS 架構與 13 大蒸餾核心技能
 **「將 13 大開源靈魂蒸餾為 C.A.S.E. 規格化技能，並以 9 大 Extension Bridge 熔鑄為 5 層閉環操作系統。」**
 
-*   **Layer 0 (Security & Protection)**：`yes-hooks-bridge` (`pre-bash-guard` 硬擋毀滅指令)、`skill-namespace-guard` (動態碰撞隔離) 與 `validate-config.py` 配置合規檢查。
-*   **Layer 1 (Socratic Framing)**：`grilling-protocol` (一問一答需求釐清門控)、`contrarian-review` & `adversary-review` (逆向鋼鐵人反方與極限對立審查)。
-*   **Layer 2 (Context Engine)**：`minimal-prompt-guide` (~80-200 Token 注意力專注)、`compact-continuation-bridge` (壓縮後自動接續對話)、`hello-reflect` (規則與經驗自演進寫入 `.agents/AGENTS.md`)。
-*   **Layer 3 (Execution & Repair OS)**：`workflow-os-guide` (Pins/Gates/Steers & `HANDOFF.md` 斷點保存)、`subagent-orchestration-guide` (`cheap`/`balanced`/`max` 模型分層與血統隔離)、`tool-repair-guide` (9 大 Canonical 欄位自癒修復)、`ide-intelligence-guide` (LSP 語意診斷前檢 & 模型專屬 Edit 格式)。
-*   **Layer 4 (Evidence Gate)**：`autonomous-experiment-guide` (MAD 統計顯著性驗證)、`harness-factory-guide` (Repo Fit 打分與 Darwin 基因演化)、`browser-automation-guide` (AX-Tree 語意定位與頁面變更驗證)、`guardian-pipeline-guide` (檢測-解析-審查生命週期合約) 與 173 個 Python 自動化測試。
+*   **外部倉庫 (Submodules/Bridges) 與蒸餾技能 (Distilled Core Skills) 的關係**：
+    *   **外部倉庫 / Bridge**：直接整合完整的開源 Submodule 程式庫或 TypeScript/Python 橋接擴充（如 `camofox-stealth` 隱身瀏覽引擎、`ECC` 安全審查、`Graphify` AST 圖譜等）。
+    *   **蒸餾核心技能 (Distilled Core Skills in `pi-skills/core/`)**：從頂級 Agent 專案中提煉核心演算法與哲學，重構為零外部依賴、符合 C.A.S.E. 規格的核心技能（如 `browser-automation-guide` 網頁 AX-Tree 定位、`ide-intelligence-guide` 語意編輯診斷、`harness-factory-guide` 基因打分等），全數自動納入系統生命週期管理。
+
+*   **5 層貫通 Operating System**：
+    *   **Layer 0 (Security & Protection)**：`yes-hooks-bridge` (`pre-bash-guard` 硬擋毀滅指令)、`skill-namespace-guard` (動態碰撞隔離) 與 `validate-config.py` 配置合規檢查。
+    *   **Layer 1 (Socratic Framing)**：`grilling-protocol` (一問一答需求釐清門控)、`contrarian-review` & `adversary-review` (逆向鋼鐵人反方與極限對立審查)。
+    *   **Layer 2 (Context Engine)**：`minimal-prompt-guide` (~80-200 Token 注意力專注)、`compact-continuation-bridge` (壓縮後自動接續對話)、`hello-reflect` (規則與經驗自演進寫入 `.agents/AGENTS.md`)。
+    *   **Layer 3 (Execution, Research & Repair OS)**：`browser-automation-guide` + `camofox-stealth` + `stealth-web-bridge` (AX-Tree 定位/隱身網頁搜尋檢索)、`workflow-os-guide` (Pins/Gates/Steers & `HANDOFF.md` 斷點保存)、`subagent-orchestration-guide` (`cheap`/`balanced`/`max` 模型分層與血統隔離)、`tool-repair-guide` (9 大 Canonical 欄位自癒修復)、`ide-intelligence-guide` (LSP 語意診斷前檢 & 模型專屬 Edit 格式)。
+    *   **Layer 4 (Evidence Gate)**：`autonomous-experiment-guide` (MAD 統計顯著性驗證)、`harness-factory-guide` (Repo Fit 打分與 Darwin 基因演化)、`guardian-pipeline-guide` (檢測-解析-審查生命週期合約) 與 173 個 Python 自動化測試。
 
 ---
 
@@ -97,6 +102,8 @@
 
 | 模組 / 技能名稱 | 核心角色 / 白話功能 | 整合點 | 解決的實際問題 |
 | :--- | :--- | :--- | :--- |
+| **camofox-stealth / stealth-web-bridge** | 隱身瀏覽器與網頁搜尋 | **Layer 3 網頁檢索** | 穿透 Cloudflare 與 JS 牆，提供 `web_search` / `web_open` 工具強大搜資能力。 |
+| **browser-automation-guide** | AX-Tree 語意定位 | **Layer 3 自動化** | 優先採用 Accessibility Tree 語意定位，提高網頁資料抓取與頁面操作精準度。 |
 | **ECC Bridge** | 攔截審查機制 | **安全與語法檢查** | 防止 AI 寫出殘缺代碼或執行危險指令。 |
 | **Superpowers** | 元指令引導 | **工程規劃紀律** | 強制 AI 在實作前進行 TDD / 規劃反思。 |
 | **YES.md / pre-bash-guard** | 指令硬鎖定 | **Layer 0 安全防護** | 以腳本實體硬擋 `rm -rf /`、`git push --force` 等高風險 Shell 指令。 |
@@ -116,4 +123,5 @@
 
 ---
 **本文件由 CK's Pi Code Agent Harness 核心團隊維護，旨在保存本專案的技術資產與設計初心。**
+
 
