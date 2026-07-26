@@ -184,7 +184,7 @@
       "type": "reference-clone",
       "url": "https://github.com/amankumarsingh77/pi-browser-harness",
       "path": "research/pi-browser-harness",
-      "integration": "distilled into pi-skills/core/browser-automation-guide (AX-Tree ref-first element targeting)",
+      "integration": "distilled into pi-skills/core/browser-automation-guide (AX-Tree ref-first element targeting) and pi-skills/core/deep-research-guide (multi-agent deep web research & report synthesis)",
       "updateStrategy": "manual git pull"
     },
     {

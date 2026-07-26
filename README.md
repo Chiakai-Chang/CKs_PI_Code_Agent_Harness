@@ -103,6 +103,7 @@ cd CKs_PI_Code_Agent_Harness
 ### 核心功能三大維度與蒸餾技能整合
 
 #### 1. 🌐 網頁檢索與自動化實務 (Web Research & Automation)
+*   **深度網頁研究與多源綜述 (`deep-research-guide`)**：蒸餾自 `pi-browser-harness` 的 `deep-research` 核心，提供問題 3–6 子子拆解、多子代理發散並行檢索、2 輪 8 代理雙重硬上限門控，自動生成具名出處引用的 Markdown 深度研究報告。
 *   **隱身網頁瀏覽與搜尋 (`camofox-stealth` + `stealth-web-bridge`)**：內建 Camoufox 反偵測瀏覽器，提供 `web_search` 與 `web_open` 工具，可穿透 Cloudflare 與複雜 JS 牆，支援分頁與登入態管理。
 *   **AX-Tree 語意定位 (`browser-automation-guide`)**：蒸餾自 `pi-browser-harness`，優先使用 Accessibility Tree (AX-Tree) 語意節點進行頁面元素定位與變更驗證，大幅提升網頁資料抓取與操作精準度。
 
@@ -124,6 +125,7 @@ cd CKs_PI_Code_Agent_Harness
 
 | 技能名稱 | 蒸餾來源專案 | 核心機制與解決問題 | 整合層級 |
 | :--- | :--- | :--- | :---: |
+| **`deep-research-guide`** | [pi-browser-harness](https://github.com/amankumarsingh77/pi-browser-harness) | 需求多維拆解、多子代理發散檢索、雙重硬上限門控與具名引用報告生成 | Layer 3 |
 | **`browser-automation-guide`** | [pi-browser-harness](https://github.com/amankumarsingh77/pi-browser-harness) | AX-Tree 語意定位與頁面變更驗證 (配合 `camofox-stealth` 網頁檢索) | Layer 3 |
 | **`ide-intelligence-guide`** | [oh-my-pi](https://github.com/audreyt/oh-my-pi) / [can1357](https://github.com/can1357/oh-my-pi) | 模型專屬編輯格式適配 (Model-adapted Edits) 與 LSP 語意診斷前檢 | Layer 3 |
 | **`harness-factory-guide`** | [metaharness](https://github.com/ruvnet/metaharness) | Repo Fit 打分 (`score`)、Darwin 演化 (`evolve`) 與 MCP 靜態安全預檢 | Layer 4 |

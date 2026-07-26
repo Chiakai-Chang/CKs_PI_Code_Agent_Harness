@@ -93,7 +93,7 @@
     *   **Layer 0 (Security & Protection)**：`yes-hooks-bridge` (`pre-bash-guard` 硬擋毀滅指令)、`skill-namespace-guard` (動態碰撞隔離) 與 `validate-config.py` 配置合規檢查。
     *   **Layer 1 (Socratic Framing)**：`grilling-protocol` (一問一答需求釐清門控)、`contrarian-review` & `adversary-review` (逆向鋼鐵人反方與極限對立審查)。
     *   **Layer 2 (Context Engine)**：`minimal-prompt-guide` (~80-200 Token 注意力專注)、`compact-continuation-bridge` (壓縮後自動接續對話)、`hello-reflect` (規則與經驗自演進寫入 `.agents/AGENTS.md`)。
-    *   **Layer 3 (Execution, Research & Repair OS)**：`browser-automation-guide` + `camofox-stealth` + `stealth-web-bridge` (AX-Tree 定位/隱身網頁搜尋檢索)、`workflow-os-guide` (Pins/Gates/Steers & `HANDOFF.md` 斷點保存)、`subagent-orchestration-guide` (`cheap`/`balanced`/`max` 模型分層與血統隔離)、`tool-repair-guide` (9 大 Canonical 欄位自癒修復)、`ide-intelligence-guide` (LSP 語意診斷前檢 & 模型專屬 Edit 格式)。
+    *   **Layer 3 (Execution, Research & Repair OS)**：`deep-research-guide` (多代理深度網頁研究與具名引用報告生成)、`browser-automation-guide` + `camofox-stealth` + `stealth-web-bridge` (AX-Tree 定位/隱身網頁搜尋檢索)、`workflow-os-guide` (Pins/Gates/Steers & `HANDOFF.md` 斷點保存)、`subagent-orchestration-guide` (`cheap`/`balanced`/`max` 模型分層與血統隔離)、`tool-repair-guide` (9 大 Canonical 欄位自癒修復)、`ide-intelligence-guide` (LSP 語意診斷前檢 & 模型專屬 Edit 格式)。
     *   **Layer 4 (Evidence Gate)**：`autonomous-experiment-guide` (MAD 統計顯著性驗證)、`harness-factory-guide` (Repo Fit 打分與 Darwin 基因演化)、`guardian-pipeline-guide` (檢測-解析-審查生命週期合約) 與 173 個 Python 自動化測試。
 
 ---
@@ -102,6 +102,7 @@
 
 | 模組 / 技能名稱 | 核心角色 / 白話功能 | 整合點 | 解決的實際問題 |
 | :--- | :--- | :--- | :--- |
+| **deep-research-guide** | 深度網頁研究與多源綜述 | **Layer 3 網頁研究** | 需求 3–6 子拆解、多子代理發散檢索、2 輪 8 代理雙重硬上限門控，自動生成具名出處 Markdown 報告。 |
 | **camofox-stealth / stealth-web-bridge** | 隱身瀏覽器與網頁搜尋 | **Layer 3 網頁檢索** | 穿透 Cloudflare 與 JS 牆，提供 `web_search` / `web_open` 工具強大搜資能力。 |
 | **browser-automation-guide** | AX-Tree 語意定位 | **Layer 3 自動化** | 優先採用 Accessibility Tree 語意定位，提高網頁資料抓取與頁面操作精準度。 |
 | **ECC Bridge** | 攔截審查機制 | **安全與語法檢查** | 防止 AI 寫出殘缺代碼或執行危險指令。 |
