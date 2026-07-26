@@ -85,6 +85,8 @@
 ## 11. 5 層貫通 Harness OS 架構與 13 大蒸餾核心技能
 **「將 13 大開源靈魂蒸餾為 C.A.S.E. 規格化技能，並以 9 大 Extension Bridge 熔鑄為 5 層閉環操作系統。」**
 
+> 📖 **完整整合機制與共存矩陣**：本 Harness 與原生 Pi 引擎之職責劃分、4 階段 Runtime 生命週期干預，以及 Skills / Extensions / 第三方 Harness 之隔離共存機制，請詳見獨立文件：[HARNESS_INTEGRATION_GUIDE.md](HARNESS_INTEGRATION_GUIDE.md)。
+
 *   **外部倉庫 (Submodules/Bridges) 與蒸餾技能 (Distilled Core Skills) 的關係**：
     *   **外部倉庫 / Bridge**：直接整合完整的開源 Submodule 程式庫或 TypeScript/Python 橋接擴充（如 `camofox-stealth` 隱身瀏覽引擎、`ECC` 安全審查、`Graphify` AST 圖譜等）。
     *   **蒸餾核心技能 (Distilled Core Skills in `pi-skills/core/`)**：從頂級 Agent 專案中提煉核心演算法與哲學，重構為零外部依賴、符合 C.A.S.E. 規格的核心技能（如 `browser-automation-guide` 網頁 AX-Tree 定位、`ide-intelligence-guide` 語意編輯診斷、`harness-factory-guide` 基因打分等），全數自動納入系統生命週期管理。

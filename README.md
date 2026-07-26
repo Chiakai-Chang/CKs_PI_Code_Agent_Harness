@@ -119,6 +119,18 @@ cd CKs_PI_Code_Agent_Harness
 
 ---
 
+## ⚙️ Harness OS 與 Pi Engine 整合架構與共存矩陣
+
+本專案與原生 Pi Coding Agent 引擎**並非競爭或重複**，而是作為 **「Pi 引擎的 Harness OS (駕駛艙與守護框架)」**。詳細之完整 MECE 分析請參閱獨立技術文件：[📖 Harness OS 整合與共存完整指南 (docs/core/HARNESS_INTEGRATION_GUIDE.md)](docs/core/HARNESS_INTEGRATION_GUIDE.md)。
+
+### 💡 三大核心共存保證 (Coexistence Promises)
+
+1. **零覆蓋保護 (Zero Overwrite)**：`restore.py` 與 `uninstall.py` 嚴格限定僅管理 `managed_skills` 清單，絕不任意刪除或覆蓋使用者自行安裝於全域的 `.pi/agent/skills/` 與 `extensions`。
+2. **動態碰撞隔離 (Namespace Guard)**：當使用者安裝之技能與本專案外部技能同名時，`skill-namespace-guard` 在每次 Pi 啟動時自動比對，若內容不同則平滑重命名為 `harness-<name>` 獨立並存。
+3. **零擴充雙重註冊碰撞 (Config Hygiene)**：本 Harness 內部 9 大 Extension Bridges（如 `yes-hooks-bridge`、`stealth-web-bridge` 等）由 `restore.py` 實體複製至擴充目錄並由 Pi 自動載入，**絕不**重複寫入 `settings.json` 的 `extensions` 陣列中，防止 `registerTool()` 工具同名衝突崩潰。
+
+---
+
 ## 🎓 13 大蒸餾核心技能 (Distilled Core Skills in `pi-skills/core/`)
 
 本 Harness 將 13 個頂級開源 Agent 專案之精神與演算法精華，蒸餾為零外部依賴、完全遵循 C.A.S.E. 協定的特化技能（收錄於 [pi-skills/core/](file:///D:/MyProject/CKs_PI_Code_Agent_Harness/pi-skills/core/)）：
