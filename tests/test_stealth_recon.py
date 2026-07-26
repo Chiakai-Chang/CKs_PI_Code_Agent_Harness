@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import subprocess
 import unittest
 
@@ -25,6 +26,7 @@ class TestReconScript(unittest.TestCase):
         self.assertTrue(os.path.isfile(os.path.join(ROOT, self.REL)),
                         "recon.sh must exist")
 
+    @unittest.skipUnless(shutil.which("sh") is not None, "sh executable not available")
     def test_posix_syntax_valid(self):
         r = subprocess.run(["sh", "-n", os.path.join(ROOT, self.REL)],
                            capture_output=True, text=True)
@@ -164,6 +166,7 @@ class TestDocs(unittest.TestCase):
         self.assertIn(".camofox", c)
 
 
+@unittest.skipUnless(shutil.which("sh") is not None, "sh executable not available")
 class TestReconBlockDetection(unittest.TestCase):
     REL = "pi-skills/optional/camofox-stealth/recon.sh"
 

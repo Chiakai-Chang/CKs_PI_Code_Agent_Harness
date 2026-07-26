@@ -355,5 +355,57 @@ class TestDryRunFlagRemoved(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(ROOT, "scripts", "test_restore.py")))
 
 
+class TestRotateBackups(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.tmp = tempfile.mkdtemp()
+        self.orig_agent_dir = restore.AGENT_DIR
+        restore.AGENT_DIR = os.path.join(self.tmp, "agent")
+
+    def tearDown(self):
+        import shutil
+        restore.AGENT_DIR = self.orig_agent_dir
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_rotate_backups_keeps_n_newest(self):
+        """rotate_backups 必須按檔名時間排序，只保留最新 N 個備份資料夾。"""
+        timestamps = ["20260701T100000", "20260702T100000", "20260703T100000", "20260704T100000", "20260705T100000", "20260706T100000"]
+        for ts in timestamps:
+            os.makedirs(os.path.join(self.tmp, f"agent.backup.{ts}"))
+
+        pruned = restore.rotate_backups(keep_n=3)
+        self.assertEqual(pruned, 3)
+
+        remaining = [d for d in os.listdir(self.tmp) if d.startswith("agent.backup.")]
+        remaining.sort()
+        self.assertEqual(remaining, ["agent.backup.20260704T100000", "agent.backup.20260705T100000", "agent.backup.20260706T100000"])
+
+    def test_rotate_backups_below_threshold_does_nothing(self):
+        os.makedirs(os.path.join(self.tmp, "agent.backup.20260701T100000"))
+        pruned = restore.rotate_backups(keep_n=5)
+        self.assertEqual(pruned, 0)
+        self.assertTrue(os.path.exists(os.path.join(self.tmp, "agent.backup.20260701T100000")))
+
+    def test_rotate_backups_prunes_older_than_max_age(self):
+        """rotate_backups 必須清理超過 max_age_days 的舊備份，但強制保留最新 2 個。"""
+        import time
+        b1 = os.path.join(self.tmp, "agent.backup.20260706T100000")
+        b2 = os.path.join(self.tmp, "agent.backup.20260705T100000")
+        b3 = os.path.join(self.tmp, "agent.backup.20260701T100000")
+        os.makedirs(b1)
+        os.makedirs(b2)
+        os.makedirs(b3)
+
+        # Set mtime of b3 to 30 days ago
+        old_time = time.time() - (30 * 86400)
+        os.utime(b3, (old_time, old_time))
+
+        pruned = restore.rotate_backups(keep_n=5, max_age_days=28)
+        self.assertEqual(pruned, 1)
+        self.assertFalse(os.path.exists(b3))
+        self.assertTrue(os.path.exists(b1))
+        self.assertTrue(os.path.exists(b2))
+
+
 if __name__ == "__main__":
     unittest.main()

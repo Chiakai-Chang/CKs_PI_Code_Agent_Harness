@@ -162,6 +162,86 @@
       "path": null,
       "integration": "distilled into pi-skills/core/hello-reflect (memory self-evolution)",
       "updateStrategy": "manual review of upstream changes"
+    },
+    {
+      "name": "ultimate-pi",
+      "type": "reference-clone",
+      "url": "https://github.com/aryaniyaps/ultimate-pi",
+      "path": "research/ultimate-pi",
+      "integration": "distilled into pi-skills/core/adversary-review (adversarial stress testing)",
+      "updateStrategy": "manual git pull"
+    },
+    {
+      "name": "the-last-harness",
+      "type": "reference-clone",
+      "url": "https://github.com/diegopetrucci/the-last-harness",
+      "path": "research/the-last-harness",
+      "integration": "distilled into pi-skills/core/contrarian-review (ironclad anti-thesis review) + 28-day backup pruning",
+      "updateStrategy": "manual git pull"
+    },
+    {
+      "name": "pi-browser-harness",
+      "type": "reference-clone",
+      "url": "https://github.com/amankumarsingh77/pi-browser-harness",
+      "path": "research/pi-browser-harness",
+      "integration": "distilled into pi-skills/core/browser-automation-guide (AX-Tree ref-first element targeting)",
+      "updateStrategy": "manual git pull"
+    },
+    {
+      "name": "pi-autoresearch-harness",
+      "type": "reference-clone",
+      "url": "https://github.com/monotykamary/pi-autoresearch-harness",
+      "path": "research/pi-autoresearch-harness",
+      "integration": "distilled into pi-skills/core/autonomous-experiment-guide (MAD statistical confidence scoring)",
+      "updateStrategy": "manual git pull"
+    },
+    {
+      "name": "pi-tool-repair-layer",
+      "type": "reference-clone",
+      "url": "https://github.com/calionauta/pi-tool-repair-layer",
+      "path": "research/pi-tool-repair-layer",
+      "integration": "distilled into pi-skills/core/tool-repair-guide (9 canonical field repairs & resilient fallbacks)",
+      "updateStrategy": "manual git pull"
+    },
+    {
+      "name": "agentic-harness.pi",
+      "type": "reference-clone",
+      "url": "https://github.com/Jitsusama/agentic-harness.pi",
+      "path": "research/agentic-harness.pi",
+      "integration": "distilled into pi-skills/core/guardian-pipeline-guide (detect-parse-review pipeline contract)",
+      "updateStrategy": "manual git pull"
+    },
+    {
+      "name": "pi-superagents",
+      "type": "reference-clone",
+      "url": "https://github.com/teelicht/pi-superagents",
+      "path": "research/pi-superagents",
+      "integration": "distilled into pi-skills/core/subagent-orchestration-guide (abstract model tiering & lineage pruning)",
+      "updateStrategy": "manual git pull"
+    },
+    {
+      "name": "Huiyu-Pi",
+      "type": "reference-clone",
+      "url": "https://github.com/huiyu9144/Huiyu-Pi",
+      "path": "research/Huiyu-Pi",
+      "integration": "distilled into pi-skills/core/minimal-prompt-guide (~80-200 token prompt budget optimization)",
+      "updateStrategy": "manual git pull"
+    },
+    {
+      "name": "auto-pi",
+      "type": "reference-clone",
+      "url": "https://github.com/romiluz13/auto-pi",
+      "path": "research/auto-pi",
+      "integration": "distilled into pi-skills/core/workflow-os-guide (Pins/Gates/Steers & deterministic handoff)",
+      "updateStrategy": "manual git pull"
+    },
+    {
+      "name": "harness-engineering",
+      "type": "reference-clone",
+      "url": "https://github.com/vinicius91carvalho/harness-engineering",
+      "path": "research/harness-engineering",
+      "integration": "distilled into pi-skills/core/grilling-protocol (one-question-at-a-time interview & evidence QA gate)",
+      "updateStrategy": "manual git pull"
     }
   ]
 }

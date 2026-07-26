@@ -165,6 +165,22 @@ def check_models(root: Path) -> int:
     return errors
 
 
+def check_naming_hygiene(root: Path) -> int:
+    """Validate directory naming conventions under pi-extensions and pi-skills (kebab-case)."""
+    errors = 0
+    kebab_re = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+    for subdir_name in ("pi-extensions", "pi-skills"):
+        target = root / subdir_name
+        if not target.exists():
+            continue
+        for child in target.iterdir():
+            if child.is_dir() and not child.name.startswith((".", "_")):
+                if not kebab_re.match(child.name):
+                    print(f"WARN: {subdir_name}/{child.name} does not follow lower kebab-case naming convention")
+                    # Warning only to maintain non-breaking behavior
+    return errors
+
+
 def main():
     parser = argparse.ArgumentParser(description="Validate pi-config files against harness expectations.")
     parser.add_argument("--root", default=None, help="Repository root directory (default: detected from .git)")
@@ -175,6 +191,7 @@ def main():
     print(f"Repo root: {root}")
     errors = check_settings(root, args.fix)
     errors += check_models(root)
+    errors += check_naming_hygiene(root)
     print(f"\nConfig validation complete: {errors} failure(s) found.")
     sys.exit(1 if errors else 0)
 

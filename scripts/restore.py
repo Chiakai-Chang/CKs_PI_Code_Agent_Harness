@@ -39,12 +39,69 @@ def log_section(title):
 def ensure_dir(path):
     os.makedirs(path, exist_ok=True)
 
-def backup_agent():
+DEFAULT_KEEP_BACKUPS = 5
+
+def rotate_backups(keep_n=DEFAULT_KEEP_BACKUPS, max_age_days=28):
+    """Rotate timestamped agent backups in ~/.pi/, keeping the newest keep_n backups
+    and pruning backups older than max_age_days (while preserving at least 2 newest).
+
+    Backup directories follow the naming pattern: ~/.pi/agent.backup.YYYYMMDDtHHMMSS
+    Lexicographical sorting on timestamp names corresponds strictly to chronological order.
+    Returns the count of pruned directories.
+    """
+    if keep_n < 1:
+        keep_n = 1
+    parent_dir = os.path.dirname(AGENT_DIR)
+    prefix = os.path.basename(AGENT_DIR) + ".backup."
+    if not os.path.isdir(parent_dir):
+        return 0
+
+    candidates = []
+    for item in os.listdir(parent_dir):
+        if item.startswith(prefix):
+            full_path = os.path.join(parent_dir, item)
+            if os.path.isdir(full_path):
+                candidates.append(full_path)
+
+    candidates.sort(key=lambda p: os.path.basename(p), reverse=True)
+
+    if len(candidates) <= 2:
+        return 0
+
+    import time
+    now = time.time()
+    max_age_sec = max_age_days * 86400
+
+    to_remove = []
+    for idx, path in enumerate(candidates):
+        if idx < 2:
+            # Always retain 2 newest backups regardless of age or count
+            continue
+        if idx >= keep_n:
+            to_remove.append(path)
+            continue
+        # Age check for backups past index 2 up to keep_n
+        try:
+            mtime = os.path.getmtime(path)
+            if (now - mtime) > max_age_sec:
+                to_remove.append(path)
+        except OSError:
+            pass
+
+    for old_backup in to_remove:
+        delete_path(old_backup)
+
+    if to_remove:
+        log(f"Pruned {len(to_remove)} old backup(s) (retained newest backups).")
+    return len(to_remove)
+
+def backup_agent(keep_n=DEFAULT_KEEP_BACKUPS):
     if not os.path.isdir(AGENT_DIR):
         return
     backup_dir = f"{AGENT_DIR}.backup.{TIMESTAMP}"
     log(f"Backing up existing agent config to: {backup_dir}")
     shutil.copytree(AGENT_DIR, backup_dir, dirs_exist_ok=True)
+    rotate_backups(keep_n)
 
 def confirm():
     if not sys.stdin.isatty():
@@ -99,7 +156,10 @@ def clear_dir(path):
             elif os.path.isdir(item_path):
                 # On Windows, junctions are isdir=True but rmtree fails
                 try:
-                    shutil.rmtree(item_path, onerror=remove_readonly)
+                    if sys.version_info >= (3, 12):
+                        shutil.rmtree(item_path, onexc=remove_readonly)
+                    else:
+                        shutil.rmtree(item_path, onerror=remove_readonly)
                 except OSError:
                     # Fallback for junctions
                     try: os.remove(item_path)
@@ -142,7 +202,10 @@ def delete_path(path):
                     pass
         else:
             try:
-                shutil.rmtree(path, onerror=remove_readonly)
+                if sys.version_info >= (3, 12):
+                    shutil.rmtree(path, onexc=remove_readonly)
+                else:
+                    shutil.rmtree(path, onerror=remove_readonly)
             except OSError:
                 # Fallback for junctions
                 try: os.remove(path)
@@ -354,6 +417,8 @@ def main():
     parser.add_argument("--profile", choices=["minimal", "standard"], default="standard", help="Skill profile to load")
     parser.add_argument("--config-only", action="store_true",
                         help="Only sync settings.json / models.json; do not touch skills, rules, extensions or profile registration")
+    parser.add_argument("--keep-backups", type=int, default=DEFAULT_KEEP_BACKUPS,
+                        help=f"Number of newest backups to retain during update (default: {DEFAULT_KEEP_BACKUPS})")
     args = parser.parse_args()
 
     # Check environment variable as a robust fallback for --auto
@@ -372,7 +437,7 @@ def main():
     ensure_dir(os.path.join(AGENT_DIR, "extensions"))
     ensure_dir(os.path.join(AGENT_DIR, "git"))
 
-    backup_agent()
+    backup_agent(keep_n=args.keep_backups)
 
     if not is_auto and not confirm():
         log("Abated by user.")
@@ -576,7 +641,7 @@ def main():
     
     # We selectively delete only the skills that are managed by the harness,
     # rather than wiping the entire directory, to preserve user's own custom skills.
-    managed_skills = ["hello-reflect", "planning-with-files", "camofox", "camofox-stealth", "cua-commander", "nothing-design", "bridges"]
+    managed_skills = ["hello-reflect", "planning-with-files", "camofox", "camofox-stealth", "cua-commander", "nothing-design", "adversary-review", "contrarian-review", "browser-automation-guide", "autonomous-experiment-guide", "tool-repair-guide", "guardian-pipeline-guide", "subagent-orchestration-guide", "workflow-os-guide", "grilling-protocol", "minimal-prompt-guide", "bridges"]
     for s_name in managed_skills:
         delete_path(os.path.join(skills_dst, s_name))
 

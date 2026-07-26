@@ -28,7 +28,7 @@ class TestCompactContinuationBridgeContract(unittest.TestCase):
         """willRetry is only true for overflow recovery, which Pi's own
         engine already retries — must not double up with our own follow-up."""
         c = read(self.IDX)
-        self.assertIn("if (event.willRetry) return;", c)
+        self.assertIn('if (event.reason === "overflow") return;', c)
 
     def test_sends_followup_that_triggers_a_turn(self):
         c = read(self.IDX)

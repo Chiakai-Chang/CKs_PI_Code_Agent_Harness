@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import unittest
 
@@ -118,12 +119,12 @@ class TestGuardBehavior(unittest.TestCase):
             capture_output=True, text=True, encoding="utf-8", errors="replace",
         ).returncode
 
-    @unittest.skipUnless(os.path.exists(GUARD), "yes.md submodule not initialized")
+    @unittest.skipUnless(os.path.exists(GUARD) and shutil.which("sh") is not None, "yes.md guard or sh executable not available")
     def test_destructive_blocked(self):
         for cmd in ["rm -rf /", "git push --force origin main", "psql -c 'DROP TABLE users'"]:
             self.assertEqual(self._exit(cmd), 1, "must block: %s" % cmd)
 
-    @unittest.skipUnless(os.path.exists(GUARD), "yes.md submodule not initialized")
+    @unittest.skipUnless(os.path.exists(GUARD) and shutil.which("sh") is not None, "yes.md guard or sh executable not available")
     def test_safe_passed(self):
         for cmd in ["ls -la", "git status", "npm test", "git commit -m x"]:
             self.assertEqual(self._exit(cmd), 0, "must allow: %s" % cmd)

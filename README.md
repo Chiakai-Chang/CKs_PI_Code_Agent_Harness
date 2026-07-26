@@ -100,6 +100,23 @@ cd CKs_PI_Code_Agent_Harness
 | **記憶進化** | [claude-reflect](https://github.com/BayramAnnakov/claude-reflect) | 本地移植 (蒸餾) | 專案規則檔案自演進 | ✅ | ✅ |
 | **隱身瀏覽** | [camofox-browser](https://github.com/jo-inc/camofox-browser) | Thin Bridge (橋接) | 隱身瀏覽器（Camoufox 反偵測）：搜尋、讀頁、點擊/輸入/捲動、截圖、頁內 JS、多分頁、建立登入態；可穿 Cloudflare/JS 牆。工具 `web_*`、命令 `/weblogin`、技能 `camofox-stealth`（首次用時懶下載 ~300MB 引擎） | ❌ | ✅ |
 
+### 🎓 10 大核心蒸餾指南 (Core Distilled Guides)
+
+本 Harness 從 10 個頂級開源 Pi/Agent 專案中蒸餾出 C.A.S.E. 規格化核心技能（收錄於 `pi-skills/core/`）：
+
+| 指南名稱 | 蒸餾來源專案 | 核心機制與解決問題 |
+| :--- | :--- | :--- |
+| **`adversary-review`** | [ultimate-pi](https://github.com/aryaniyaps/ultimate-pi) | 對立面審查與極限壓力測試 (Adversarial Stress Testing) |
+| **`contrarian-review`** | [the-last-harness](https://github.com/diegopetrucci/the-last-harness) | 逆向鋼鐵人反方論證 (Ironclad Anti-Thesis Review) + 28 天自動輪替清理 |
+| **`browser-automation-guide`**| [pi-browser-harness](https://github.com/amankumarsingh77/pi-browser-harness) | AX-Tree 語意定位與頁面變更驗證 (Ref-first AX-Tree Targeting) |
+| **`autonomous-experiment-guide`**|[pi-autoresearch-harness](https://github.com/monotykamary/pi-autoresearch-harness)| MAD 統計顯著性評分與自動化實驗 (MAD Statistical Confidence) |
+| **`tool-repair-guide`** | [pi-tool-repair-layer](https://github.com/calionauta/pi-tool-repair-layer) | 9 大 Canonical 欄位修復與強韌 Fallbacks (9 Canonical Field Repairs) |
+| **`guardian-pipeline-guide`** | [agentic-harness.pi](https://github.com/Jitsusama/agentic-harness.pi) | 檢測-解析-審查管線合約與生命週期治理 (`detect` -> `parse` -> `review`) |
+| **`subagent-orchestration-guide`**|[pi-superagents](https://github.com/teelicht/pi-superagents) | 抽象模型分層 (`cheap`/`balanced`/`max`) 與血統上下文隔離 |
+| **`minimal-prompt-guide`** | [Huiyu-Pi](https://github.com/huiyu9144/Huiyu-Pi) | ~80-200 Token 極簡 Prompt 注意力專注 (Attention Focus Optimization) |
+| **`workflow-os-guide`** | [auto-pi](https://github.com/romiluz13/auto-pi) | Pins, Gates, Steers 階段門控與決定性 Handoff 生成 (`HANDOFF.md`) |
+| **`grilling-protocol`** | [harness-engineering](https://github.com/vinicius91carvalho/harness-engineering) | 一問一答需求研討 (Grilling Interview) 與不可變 Evidence QA 門控 |
+
 ---
 
 ## 🛡️ 隱私與安全限制

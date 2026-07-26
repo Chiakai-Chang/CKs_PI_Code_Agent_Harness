@@ -28,7 +28,7 @@ AGENT_DIR = os.path.join(os.path.expanduser("~"), ".pi", "agent")
 # Must mirror the lists in scripts/restore.py: uninstall removes exactly what
 # the harness manages and leaves the user's own skills/extensions alone.
 MANAGED_SKILLS = ["hello-reflect", "planning-with-files", "camofox",
-                  "camofox-stealth", "cua-commander", "nothing-design", "bridges"]
+                  "camofox-stealth", "cua-commander", "nothing-design", "adversary-review", "contrarian-review", "browser-automation-guide", "autonomous-experiment-guide", "tool-repair-guide", "guardian-pipeline-guide", "subagent-orchestration-guide", "workflow-os-guide", "grilling-protocol", "minimal-prompt-guide", "bridges"]
 MANAGED_BRIDGES = ["ecc-hooks-bridge", "planning-with-files-bridge",
                    "case-bridge", "taste-bridge", "mece-autopilot-bridge"]
 
