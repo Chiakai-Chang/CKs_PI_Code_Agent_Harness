@@ -175,10 +175,26 @@ function runCheckComplete(cwd: string): Promise<void> {
   });
 }
 
+// Mirrors the enablePlanningBridge check in before_agent_start, so the status
+// line cannot claim an active plan while the injection is switched off.
+function planningBridgeEnabled(): boolean {
+  try {
+    const here = dirname(require.resolve("./package.json"));
+    const pkg = JSON.parse(readFileSync(join(here, "package.json"), "utf-8"));
+    const root = pkg["pi-harness"]?.root || join(here, "../..");
+    const cfgPath = join(root, "pi-config", "harness-config.json");
+    if (!existsSync(cfgPath)) return true;
+    return JSON.parse(readFileSync(cfgPath, "utf8")).enablePlanningBridge !== false;
+  } catch {
+    return true;
+  }
+}
+
 export default function (pi: ExtensionAPI) {
   // On session start: detect active plan
   pi.on("session_start", async (_event, ctx) => {
     if (!hasActivePlan(ctx.cwd) && !hasPlanningDir(ctx.cwd)) return;
+    if (!planningBridgeEnabled()) return;
     ctx.ui.setStatus("plan", "[planning-with-files] active plan detected");
   });
 

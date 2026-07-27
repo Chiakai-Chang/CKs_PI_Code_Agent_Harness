@@ -31,10 +31,27 @@ function isCaseProject(cwd: string): boolean {
   return fileExists(cwd, "CASE.md") || fileExists(cwd, "00_Constitution");
 }
 
+// Mirrors the enableCaseBridge check in before_agent_start. A status line that
+// says "active" while the injection is switched off is how a disabled bridge
+// passes for a working one (taste-bridge shipped that way for months).
+function caseBridgeEnabled(): boolean {
+  try {
+    const here = dirname(require.resolve("./package.json"));
+    const pkg = JSON.parse(readFileSync(join(here, "package.json"), "utf-8"));
+    const root = pkg["pi-harness"]?.root || join(here, "../..");
+    const cfgPath = join(root, "pi-config", "harness-config.json");
+    if (!existsSync(cfgPath)) return true;
+    return JSON.parse(readFileSync(cfgPath, "utf8")).enableCaseBridge !== false;
+  } catch {
+    return true;
+  }
+}
+
 export default function (pi: ExtensionAPI) {
   // On session start: detect C.A.S.E. status
   pi.on("session_start", async (_event, ctx) => {
     if (!isCaseProject(ctx.cwd)) return;
+    if (!caseBridgeEnabled()) return;
     ctx.ui.setStatus("case", "[C.A.S.E.] framework active in workspace");
   });
 

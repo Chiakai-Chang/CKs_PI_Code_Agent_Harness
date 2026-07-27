@@ -11,6 +11,7 @@ import platform
 import subprocess
 import json
 import shutil
+import stat
 import time
 import urllib.request
 import urllib.error
@@ -183,14 +184,172 @@ def maybe_prefetch_stealth():
     else:
         print("[*] 略過 stealth 引擎預抓 (可日後執行 pi 時由 camofox-stealth 技能懶啟動)。")
 
+def harness_config(key, default=None):
+    """Read one key from pi-config/harness-config.json (via the shared loader)."""
+    return load_json(HARNESS_CONFIG_PATH).get(key, default)
+
+
+def harness_version():
+    return harness_config("harnessVersion", "unknown")
+
+
+def parse_version(text):
+    """Extract a (major, minor, patch) tuple from arbitrary version output.
+
+    `pi --version` prints things like "pi 0.82.1"; a bare "0.73" is padded.
+    Returns None when no version-looking token is present.
+    """
+    m = re.search(r"(\d+)\.(\d+)(?:\.(\d+))?", text or "")
+    if not m:
+        return None
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3) or 0))
+
+
+def check_pi_version():
+    """Warn when the installed Pi predates minRecommendedPiVersion.
+
+    harness-config.json declared this bound but nothing ever read it, so a user
+    on an old Pi got no signal at all — they just hit missing extension APIs as
+    mysterious runtime failures. Advisory only: never block the install.
+    """
+    declared = harness_config("minRecommendedPiVersion")
+    required = parse_version(declared)
+    if not required:
+        return None
+    # `pi --version` is both the presence check and the version source;
+    # has_command() would run the exact same command a second time.
+    ok, out, err = run("pi --version")
+    if not ok:
+        return None
+    installed = parse_version(out or err)
+    if not installed:
+        return None
+    if installed < required:
+        print(f"[!] 偵測到 Pi {'.'.join(map(str, installed))}，低於本 Harness 建議的 {declared}。"
+              f"部分 Extension API 可能不存在，請先執行: pi update")
+    return installed
+
+
+def git_dirs(repo_root):
+    """The superproject's .git plus every submodule git dir under .git/modules.
+
+    Submodules keep their own config there and do NOT inherit the
+    superproject's settings, so anything set once at the top level silently
+    fails to apply to the 17 submodules this harness pulls.
+    """
+    top = os.path.join(repo_root, ".git")
+    if not os.path.isdir(top):
+        return []
+    dirs = [top]
+    modules = os.path.join(top, "modules")
+    for parent, subdirs, files in os.walk(modules):
+        # A submodule git dir is any directory holding a `config` file. Stop
+        # descending into its own objects/refs once identified; nested
+        # submodules live under its `modules/` subdir, so keep walking that.
+        if "config" in files and "objects" in subdirs:
+            dirs.append(parent)
+            subdirs[:] = [d for d in subdirs if d == "modules"]
+    return dirs
+
+
+def orphan_submodule_gitdirs(repo_root):
+    """Submodule git dirs under .git/modules that .gitmodules no longer declares.
+
+    Removing a submodule deletes its working tree but leaves the git dir behind,
+    and nothing ever reclaims it. Found 133MB of one such orphan
+    (external/agi-super-team) on the author's machine. Returns [(name, path)].
+    """
+    modules = os.path.join(repo_root, ".git", "modules", "external")
+    gitmodules = os.path.join(repo_root, ".gitmodules")
+    if not os.path.isdir(modules) or not os.path.isfile(gitmodules):
+        return []
+    try:
+        with open(gitmodules, encoding="utf-8") as f:
+            declared = f.read()
+    except OSError:
+        return []
+    orphans = []
+    for name in sorted(os.listdir(modules)):
+        path = os.path.join(modules, name)
+        if not os.path.isfile(os.path.join(path, "config")):
+            continue
+        if f'external/{name}"]' not in declared:
+            orphans.append((name, path))
+    return orphans
+
+
+def report_orphan_submodules():
+    """Report (never delete) leftover git dirs from removed submodules.
+
+    Deliberately advisory: this is user data inside .git, and an installer that
+    silently deletes hundreds of megabytes is a worse failure than the disk use.
+    """
+    orphans = orphan_submodule_gitdirs(REPO_ROOT)
+    if not orphans:
+        return orphans
+    print(f"[!] 偵測到 {len(orphans)} 個已移除 submodule 遺留的 git 目錄（.gitmodules 已無宣告，工作目錄也不存在）：")
+    for name, path in orphans:
+        size_mb = 0
+        for parent, _d, files in os.walk(path):
+            for f in files:
+                try:
+                    size_mb += os.path.getsize(os.path.join(parent, f))
+                except OSError:
+                    pass
+        print(f"      {name}  ({size_mb // (1024 * 1024)} MB)  {path}")
+    print("    這些目錄不會被任何指令使用；確認後可自行刪除以回收空間（本腳本不會替你刪）。")
+    return orphans
+
+
+def disable_commit_graph():
+    """Stop the recurring `failed to rename temporary commit-graph file` noise.
+
+    Observed on Windows during `git pull --recurse-submodules`: git writes
+    commit-graph files read-only (0444) and leaves an orphan .graph behind when
+    a write is interrupted, so the chain no longer matches what is on disk.
+    Every later write then fails to rename over the read-only chain file, and
+    the post-fetch `git maintenance` commit-graph task fails with it.
+
+    The commit-graph is a pure lookup cache — no history lives in it — so the
+    fix is to delete the corrupt caches and stop regenerating them.
+    """
+    print("[*] 正在關閉 commit-graph 快取寫入並清除毀損快取 (Windows rename 失敗來源)...")
+    removed = 0
+    targets = git_dirs(REPO_ROOT)
+    for gd in targets:
+        info = os.path.join(gd, "objects", "info")
+        for target in (os.path.join(info, "commit-graphs"), os.path.join(info, "commit-graph")):
+            if os.path.exists(target):
+                try:
+                    # Files are written 0444; clear the read-only bit first or
+                    # the delete fails on Windows exactly like the rename did.
+                    if os.path.isdir(target):
+                        for parent, _d, files in os.walk(target):
+                            for f in files:
+                                os.chmod(os.path.join(parent, f), stat.S_IWRITE)
+                        shutil.rmtree(target)
+                    else:
+                        os.chmod(target, stat.S_IWRITE)
+                        os.remove(target)
+                    removed += 1
+                except OSError as e:
+                    print(f"[!] 無法刪除 {target}: {e}")
+        run(f'git --git-dir="{gd}" config fetch.writeCommitGraph false')
+        run(f'git --git-dir="{gd}" config maintenance.commit-graph.enabled false')
+    print(f"[*] commit-graph 快取已清除 {removed} 份，並於 {len(targets)} 個 git 目錄停用寫入。")
+    return removed, len(targets)
+
+
 def run_update():
     """One-command update: pull repo+submodules, resync config, update Pi."""
     print("[*] 正在更新 Harness 與子模組 (git pull)...")
-    run("git config fetch.writeCommitGraph false")
+    disable_commit_graph()
+    report_orphan_submodules()
     run_stream("git pull --recurse-submodules")
     restore_script = os.path.join(REPO_ROOT, "scripts", "restore.py")
     print("[*] 正在重新同步配置 (restore --auto，冪等、保留自訂)...")
     run_stream(f'"{sys.executable}" "{restore_script}" --auto')
+    check_model_drift()
     if has_command("pi"):
         print("[*] 正在更新 Pi 本體與擴充 (pi update --all)...")
         run_stream("pi update --all")
@@ -300,6 +459,42 @@ def probe_llama_cpp(url):
     except: pass
     return None
 
+def model_drift(settings, probe):
+    """Return (declared, served) when settings' defaultModel is not what the
+    local server actually has loaded, else None.
+
+    Swapping a GGUF quant without re-running setup leaves settings.json naming
+    the old file. llama.cpp ignores the `model` field when one model is loaded,
+    so nothing breaks — but Pi's status line then shows a model that is not
+    running, and a multi-model server (llama-swap, --model-alias) would 404 on
+    the stale id. Exact-match on purpose: any difference in the served filename
+    is worth surfacing, and the check is advisory, so a false alarm costs a line
+    of output while a missed one leaves a lying status bar.
+    """
+    declared = (settings or {}).get("defaultModel")
+    served = (probe or {}).get("name")
+    if not declared or not served or served == "unknown":
+        return None
+    if declared == served:
+        return None
+    return (declared, served)
+
+
+def check_model_drift():
+    """Advisory check: does settings.json name the model the server is serving?"""
+    agent_settings = os.path.join(os.path.expanduser("~"), ".pi", "agent", "settings.json")
+    settings = load_json(agent_settings)
+    api_base = (settings or {}).get("apiBase")
+    if not api_base:
+        return None
+    drift = model_drift(settings, probe_llama_cpp(api_base))
+    if drift:
+        declared, served = drift
+        print(f"[!] settings.json 宣告的模型是 {declared}，但 {api_base} 實際載入的是 {served}。")
+        print("    單模型伺服器不會出錯，但 Pi 狀態列會顯示錯的名稱；重跑 `python scripts/setup.py` 可重新偵測。")
+    return drift
+
+
 def detect_llm_services():
     models = probe_ollama()
     for port in [1234, 8080, 8000, 3000]:
@@ -386,7 +581,8 @@ def main():
         mode = "restore"  # safe non-interactive default
     while not mode: mode = show_main_menu()
 
-    print(f"\n[*] 模式: {mode} | 系統: {platform.system()}")
+    print(f"\n[*] 模式: {mode} | 系統: {platform.system()} | Harness v{harness_version()}")
+    check_pi_version()
 
     # Git Initialization
     run(f'git config --global --add safe.directory "{REPO_ROOT}"')
@@ -396,6 +592,10 @@ def main():
     if mode in ["full", "restore"]:
         print("[*] 正在拉取專家資產 (Submodules)...")
         run_stream("git submodule update --init --recursive")
+        # Submodule git dirs only exist after --init, so this has to run after
+        # the clone, not before. A fresh install hits the same Windows
+        # commit-graph rename failures on its very first `git pull` otherwise.
+        disable_commit_graph()
 
     if mode == "full":
         print("🔍 正在檢查核心組件...")

@@ -73,8 +73,20 @@ class TestPruneDeprecatedPackages(unittest.TestCase):
         restore.prune_deprecated_packages({"packages": None})
 
     def test_deprecated_set_covers_known_residue(self):
-        self.assertIn("npm:context-mode", restore.DEPRECATED_PACKAGES)
-        self.assertIn("npm:@tintinweb/pi-tasks", restore.DEPRECATED_PACKAGES)
+        """Matching is by substring, so a package survives a registry/scope
+        rename (npm: -> git:, @scope change) without needing a new literal."""
+        residue = ["npm:context-mode", "npm:@tintinweb/pi-tasks",
+                   "git:github.com/obra/superpowers"]
+        settings = restore.prune_deprecated_packages({"packages": list(residue)})
+        self.assertEqual(settings["packages"], [])
+
+    def test_prunes_superpowers_package(self):
+        """Regression: the git: superpowers package injected XML-tag prompt
+        pollution; it is registered via profile_skills instead."""
+        settings = restore.prune_deprecated_packages(
+            {"packages": ["git:github.com/obra/superpowers", "npm:keep-me"]}
+        )
+        self.assertEqual(settings["packages"], ["npm:keep-me"])
 
 
 class TestConfigHygiene(unittest.TestCase):
@@ -95,8 +107,9 @@ class TestConfigHygiene(unittest.TestCase):
                 continue
             checked += 1
             pkgs = self._packages(rel)
-            for dep in restore.DEPRECATED_PACKAGES:
-                self.assertNotIn(dep, pkgs, "%s still lists %s" % (rel, dep))
+            for pkg in pkgs:
+                for sub in restore.DEPRECATED_PACKAGE_SUBSTRINGS:
+                    self.assertNotIn(sub, pkg, "%s still lists %s" % (rel, pkg))
         self.assertGreater(checked, 0, "no config template found to check")
 
 
@@ -128,6 +141,112 @@ class TestEccSkillPaths(unittest.TestCase):
         """Uninitialized submodule: fall back to registering the root dir."""
         missing = os.path.join(self.tmp, "does-not-exist")
         self.assertEqual(restore.ecc_skill_paths(missing), [missing.replace("\\", "/")])
+
+    def test_unreadable_manifest_fails_open_to_all_skills(self):
+        """Dropping every ECC skill on an upstream reshuffle would be a far
+        worse surprise than a fat prompt — fail open, not closed."""
+        paths = restore.ecc_skill_paths(self.tmp, ["workflow-quality"])
+        names = [os.path.basename(p) for p in paths]
+        self.assertIn("good-skill", names)
+        self.assertIn("another-skill", names)
+
+
+class TestEccModuleSelection(unittest.TestCase):
+    """Pi renders every registered skill's name+description+path into the system
+    prompt on every turn. Registering all 277 ECC skills measured ~27,560
+    tokens of startup prompt. ECC upstream classifies its own skills in
+    manifests/install-modules.json — honor that instead of globbing."""
+
+    def setUp(self):
+        import json as _json
+        import tempfile
+        self.tmp = tempfile.mkdtemp()
+        self.skills = os.path.join(self.tmp, "skills")
+        os.makedirs(os.path.join(self.tmp, "manifests"))
+        for name in ["wanted-a", "wanted-b", "domain-pack", "ecc-guide", "loop-design-check"]:
+            d = os.path.join(self.skills, name)
+            os.makedirs(d)
+            with open(os.path.join(d, "SKILL.md"), "w", encoding="utf-8") as f:
+                f.write("---\nname: %s\ndescription: y\n---\n" % name)
+        manifest = {"version": 1, "modules": [
+            {"id": "workflow-quality", "paths": ["skills/wanted-a", "skills/wanted-b"]},
+            {"id": "supply-chain-domain", "paths": ["skills/domain-pack"]},
+            {"id": "orchestration", "paths": ["scripts/foo.js"]},
+        ]}
+        with open(os.path.join(self.tmp, "manifests", "install-modules.json"), "w", encoding="utf-8") as f:
+            _json.dump(manifest, f)
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _names(self, modules):
+        return [os.path.basename(p) for p in restore.ecc_skill_paths(self.skills, modules)]
+
+    def test_only_selected_modules_are_registered(self):
+        names = self._names(["workflow-quality"])
+        self.assertIn("wanted-a", names)
+        self.assertIn("wanted-b", names)
+        self.assertNotIn("domain-pack", names)
+
+    def test_integration_docs_always_registered(self):
+        """Dropping ecc-guide would leave the ECC bridge undiscoverable."""
+        self.assertIn("ecc-guide", self._names(["workflow-quality"]))
+        self.assertIn("ecc-guide", self._names([]))
+
+    def test_broken_skill_still_excluded_under_module_filter(self):
+        self.assertNotIn("loop-design-check", self._names(["workflow-quality"]))
+
+    def test_all_keyword_registers_everything(self):
+        names = self._names("all")
+        self.assertIn("domain-pack", names)
+        self.assertIn("wanted-a", names)
+        self.assertNotIn("loop-design-check", names)
+
+    def test_config_reader_defaults_and_overrides(self):
+        import json as _json
+        cfg = os.path.join(self.tmp, "harness-config.json")
+        self.assertEqual(
+            restore.ecc_modules_from_config(os.path.join(self.tmp, "absent.json")),
+            restore.ECC_DEFAULT_MODULES,
+        )
+        with open(cfg, "w", encoding="utf-8") as f:
+            _json.dump({"eccSkillModules": "all"}, f)
+        self.assertEqual(restore.ecc_modules_from_config(cfg), "all")
+        with open(cfg, "w", encoding="utf-8") as f:
+            _json.dump({"eccSkillModules": ["security"]}, f)
+        self.assertEqual(restore.ecc_modules_from_config(cfg), ["security"])
+        with open(cfg, "w", encoding="utf-8") as f:
+            f.write("{ not json")
+        self.assertEqual(restore.ecc_modules_from_config(cfg), restore.ECC_DEFAULT_MODULES)
+
+    def test_always_registered_skills_exist_upstream(self):
+        """An upstream rename would turn ECC_ALWAYS_SKILLS into a silent no-op
+        and leave the ECC bridge undiscoverable, with no error anywhere."""
+        root = os.path.join(ROOT, "external", "ecc", "skills")
+        if not os.path.isdir(root):
+            self.skipTest("ecc submodule not initialized")
+        for name in restore.ECC_ALWAYS_SKILLS:
+            self.assertTrue(
+                os.path.exists(os.path.join(root, name, "SKILL.md")),
+                "ECC_ALWAYS_SKILLS references a skill that no longer exists upstream: %s" % name,
+            )
+
+    def test_shipped_config_selects_modules_that_exist_upstream(self):
+        """A typo'd module id would silently register nothing from that module."""
+        import json as _json
+        manifest = os.path.join(ROOT, "external", "ecc", "manifests", "install-modules.json")
+        if not os.path.exists(manifest):
+            self.skipTest("ecc submodule not initialized")
+        with open(manifest, encoding="utf-8") as f:
+            known = {m["id"] for m in _json.load(f)["modules"]}
+        configured = restore.ecc_modules_from_config(
+            os.path.join(ROOT, "pi-config", "harness-config.json")
+        )
+        if configured == "all":
+            self.skipTest("configured for all modules")
+        for mid in configured:
+            self.assertIn(mid, known, "unknown ECC module id in harness-config.json: %s" % mid)
 
 
 class TestMergeModels(unittest.TestCase):

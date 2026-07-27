@@ -66,7 +66,19 @@ def load_json(path: Path):
 
 def check_settings(root: Path, fix: bool) -> int:
     errors = 0
+    # pi-config/settings.json is gitignored (machine-local, written by setup.py);
+    # only the .example is tracked. Validate whichever exists, and remember which
+    # one it was — the "no committed machine paths" rule only applies to the
+    # tracked file. Checking it against the local copy could never catch a
+    # committed path (that file is never committed) while failing on every
+    # developer machine where setup.py has correctly injected a real shell path.
     path = root / "pi-config" / "settings.json"
+    is_tracked_artifact = False
+    if not path.exists():
+        example = root / "pi-config" / "settings.json.example"
+        if example.exists():
+            path = example
+            is_tracked_artifact = True
     data = load_json(path)
     if data is None:
         print("FAIL: settings.json missing or unparseable; setup.py needs it")
@@ -76,7 +88,12 @@ def check_settings(root: Path, fix: bool) -> int:
         print("FAIL: settings.json must be a JSON object")
         return 1
 
-    for key in ("defaultModel", "defaultProvider"):
+    # defaultModel/defaultProvider are written by setup.py after it probes the
+    # local LLM server, so the tracked template legitimately lacks them.
+    # Requiring them there made `validate-config.py` fail on every clean clone —
+    # the exact state a new user runs the documented health check in.
+    required_keys = () if is_tracked_artifact else ("defaultModel", "defaultProvider")
+    for key in required_keys:
         if key not in data:
             print(f"FAIL: settings.json missing required key '{key}'")
             errors += 1
@@ -114,11 +131,33 @@ def check_settings(root: Path, fix: bool) -> int:
     if not found_machine_path and MACHINE_PATH_RE.search(raw):
         found_machine_path = True
     if found_machine_path:
-        print(
-            "FAIL: settings.json contains a machine-specific path (e.g. C:\\\\Program Files). "
-            "Machine paths must be injected by setup.py at runtime, never committed."
-        )
-        errors += 1
+        if is_tracked_artifact:
+            print(
+                f"FAIL: {path.name} contains a machine-specific path (e.g. C:\\\\Program Files). "
+                "Machine paths must be injected by setup.py at runtime, never committed."
+            )
+            errors += 1
+        else:
+            # Expected: setup.py injects the real shell path into the local,
+            # gitignored copy. Not a finding.
+            print(f"INFO: {path.name} carries a machine-specific path (local, gitignored) — expected.")
+
+    # The tracked template is the artifact the "never committed" rule is about,
+    # so check it even when a local settings.json shadowed it above.
+    if not is_tracked_artifact:
+        example = root / "pi-config" / "settings.json.example"
+        example_data = load_json(example) if example.exists() else None
+        # Parsed values, not raw text: JSON escapes backslashes, so a Windows
+        # path reads as `C:\\Program Files` on disk and MACHINE_PATH_RE (which
+        # expects a single separator) never matches the raw form.
+        if isinstance(example_data, dict) and any(
+            isinstance(v, str) and MACHINE_PATH_RE.search(v) for v in example_data.values()
+        ):
+            print(
+                "FAIL: settings.json.example contains a machine-specific path "
+                "(e.g. C:\\\\Program Files). The tracked template must stay portable."
+            )
+            errors += 1
 
     for i, line in enumerate(raw.splitlines(), 1):
         stripped = line.strip().lstrip("#").strip()

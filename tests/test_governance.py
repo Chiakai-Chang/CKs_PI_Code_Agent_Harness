@@ -61,6 +61,61 @@ class TestMethodologyFirstPrinciple(unittest.TestCase):
         for s in self.WIRED:
             self.assertIn(s, c, "AGENTS.md §10 must route to the wired skill %s" % s)
 
+    def test_no_zombie_harness_config_keys(self):
+        """CLAUDE.md forbids zombie config. Three keys had already gone zombie —
+        enableUniversalTagTransformer and enableSelfHealingLoopGuard were
+        documented in README as the fix for tag deadlock while no code read
+        either, and enableTasteBridge was read against a path that never
+        existed. A user following the documented remedy saw nothing change and
+        concluded the harness was unfixable. Every declared key must have a
+        consumer."""
+        import json as _json
+        with open(os.path.join(ROOT, "pi-config", "harness-config.json"), encoding="utf-8") as f:
+            cfg = _json.load(f)
+        sources = []
+        for sub in ("pi-extensions", "scripts", "pi-skills"):
+            for dp, dn, fn in os.walk(os.path.join(ROOT, sub)):
+                for name in fn:
+                    if name.endswith((".ts", ".py", ".js", ".sh")):
+                        try:
+                            with open(os.path.join(dp, name), encoding="utf-8", errors="replace") as f:
+                                sources.append(f.read())
+                        except OSError:
+                            pass
+        blob = "\n".join(sources)
+        # Match an ACCESS shape, not a bare word. A plain substring search
+        # passes any key whose name happens to appear anywhere — "description"
+        # sailed through because unrelated tool definitions use that word,
+        # which is the same false-negative hole this test exists to close.
+        import re as _re
+        zombies = []
+        for key in cfg:
+            if key.startswith(("_", "$")):
+                continue  # documentation-only keys, by convention
+            k = _re.escape(key)
+            accessed = _re.search(r'["\']%s["\']|\.%s\b|\[%s\]' % (k, k, k), blob)
+            if not accessed:
+                zombies.append(key)
+        self.assertEqual(
+            zombies, [],
+            "harness-config.json declares keys no code reads: %s. Either wire "
+            "them up, delete them, or prefix with '_' if documentation-only — a "
+            "config knob that does nothing is worse than no knob, because the "
+            "docs tell users to turn it." % zombies,
+        )
+
+    def test_section_numbering_has_no_gaps(self):
+        """Section numbers are cited across the repo (AGENTS.md §4, §9, §10) and
+        by the bridges' injected text. A gap means content sits under a heading
+        that does not describe it — the shell/path rules spent time buried under
+        the '0. Language & Locale' heading, where a model scanning headings for
+        'do not use PowerShell' would never look."""
+        import re
+        c = read("pi-rules/AGENTS.md")
+        nums = [int(n) for n in re.findall(r"^## (\d+)\.", c, re.M)]
+        self.assertEqual(nums, list(range(nums[0], nums[0] + len(nums))),
+                         "AGENTS.md section numbers must be contiguous, got %s" % nums)
+
     def test_methodology_first_in_claude_md(self):
         c = read("CLAUDE.md")
         self.assertIn("Methodology-First", c)
