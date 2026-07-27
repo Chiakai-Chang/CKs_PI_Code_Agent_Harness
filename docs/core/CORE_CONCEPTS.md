@@ -92,9 +92,9 @@
     *   **蒸餾核心技能 (Distilled Core Skills in `pi-skills/core/`)**：從頂級 Agent 專案中提煉核心演算法與哲學，重構為零外部依賴、符合 C.A.S.E. 規格的核心技能（如 `browser-automation-guide` 網頁 AX-Tree 定位、`ide-intelligence-guide` 語意編輯診斷、`harness-factory-guide` 基因打分等），全數自動納入系統生命週期管理。
 
 *   **5 層貫通 Operating System**：
-    *   **Layer 0 (Security & Protection)**：`yes-hooks-bridge` (`pre-bash-guard` 硬擋毀滅指令、Tag 轉義與 Strike 3 人類控制權斷路器)、`skill-namespace-guard` (動態碰撞隔離) 與 `validate-config.py` 配置合規檢查。
+    *   **Layer 0 (Security & Protection)**：`yes-hooks-bridge` (`pre-bash-guard` 硬擋毀滅指令、Universal Parser 通用工具標籤轉譯、Self-Healing 自癒式 LoopGuard 與 Strike 3 人類控制權斷路器)、`skill-namespace-guard` (動態碰撞隔離) 與 `validate-config.py` 配置合規檢查。
     *   **Layer 1 (Socratic Framing)**：`grilling-protocol` (一問一答需求釐清門控)、`contrarian-review` & `adversary-review` (逆向鋼鐵人反方與極限對立審查)。
-    *   **Layer 2 (Context Engine)**：`minimal-prompt-guide` (~80-200 Token 注意力專注)、`compact-continuation-bridge` (壓縮後自動接續對話)、`taste-bridge` (不可變 SystemPrompt 疊加)、`hello-reflect` (規則與經驗自演進寫入 `.agents/AGENTS.md`)。
+    *   **Layer 2 (Context Engine)**：`harness-config.json` `promptProfile` (auto/slim/full 模型感知減重，釋放 80%+ 上下文)、`minimal-prompt-guide` (~80-200 Token 注意力專注)、`compact-continuation-bridge` (壓縮後自動接續對話)、`taste-bridge` (條件式 SystemPrompt 疊加)、`hello-reflect` (規則與經驗自演進寫入 `.agents/AGENTS.md`)。
     *   **Layer 3 (Execution, Research & Repair OS)**：`deep-research-guide` (多代理深度網頁研究與具名引用報告生成)、`browser-automation-guide` + `camofox-stealth` + `stealth-web-bridge` (AX-Tree 定位/隱身網頁搜尋檢索)、`workflow-os-guide` (Pins/Gates/Steers & `HANDOFF.md` 斷點保存)、`subagent-orchestration-guide` (`cheap`/`balanced`/`max` 模型分層與血統隔離)、`tool-repair-guide` (9 大 Canonical 欄位自癒修復)、`ide-intelligence-guide` (LSP 語意診斷前檢 & 模型專屬 Edit 格式)。
     *   **Layer 4 (Evidence Gate)**：`autonomous-experiment-guide` (MAD 統計顯著性驗證)、`harness-factory-guide` (Repo Fit 打分與 Darwin 基因演化)、`guardian-pipeline-guide` (檢測-解析-審查生命週期合約) 與 176 個 Python 自動化測試。
 
@@ -110,7 +110,7 @@
 | **browser-automation-guide** | AX-Tree 語意定位 | **Layer 3 自動化** | 優先採用 Accessibility Tree 語意定位，提高網頁資料抓取與頁面操作精準度。 |
 | **ECC Bridge** | 攔截審查機制 | **安全與語法檢查** | 防止 AI 寫出殘缺代碼或執行危險指令。 |
 | **Superpowers** | 元指令引導 | **工程規劃紀律** | 強制 AI 在實作前進行 TDD / 規劃反思。 |
-| **YES.md / pre-bash-guard** | 指令硬鎖定 | **Layer 0 安全防護** | 以腳本實體硬擋 `rm -rf /`、`git push --force` 等高風險 Shell 指令。 |
+| **YES.md / yes-hooks-bridge** | 指令硬鎖與通用標籤自癒轉譯 | **Layer 0 安全防護** | 以腳本實體硬擋 `rm -rf /`，並以 Universal Parser 轉譯工具標籤與 Self-Healing 避免死鎖。 |
 | **skill-namespace-guard** | 動態技能隔離 | **Layer 0 命名空間防護** | 每刷 Pi 自動比對同名技能，確保外部與全域技能碰撞時平滑隔離。 |
 | **grilling-protocol** | 蘇格拉底追問門控 | **Layer 1 需求研討** | 一問一答引導釐清不可變證據，避免盲目動工。 |
 | **contrarian / adversary** | 逆向與對立審查 | **Layer 1 極限審查** | 鋼鐵人反方評估與壓力測試，防止單一視角盲點。 |
