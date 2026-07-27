@@ -139,7 +139,7 @@ $ git fetch --recurse-submodules 2>&1 | grep -ci "commit-graph"
 
 ```
 $ python -m unittest discover -s tests
-Ran 203 tests in 3.996s
+Ran 215 tests in 4.462s
 OK
 
 $ python scripts/verify-bridges.py
@@ -153,7 +153,7 @@ $ pi --print "Say exactly: OK"
 OK
 ```
 
-新增 `tests/test_universal_tool_parser.py`：不是字串契約測試，而是用 Node 24 原生 type-stripping **真的 import 並執行** `parseUniversalToolTag`，餵入這次卡死的原始文字樣本。測試數 176（含 2 紅）→ 203 全綠。
+新增 `tests/test_universal_tool_parser.py`：不是字串契約測試，而是用 Node 24 原生 type-stripping **真的 import 並執行** `parseUniversalToolTag`，餵入這次卡死的原始文字樣本。測試數 176（含 2 紅）→ 215 全綠。
 
 ---
 
@@ -178,7 +178,58 @@ OK
 4. **整合外部倉庫時，先看它自己有沒有分類。** ECC 的 module manifest 一直都在，`restore.py` 卻用 `os.listdir` 全吃——多付了 21k tokens／輪。接子模組時該問的第一個問題是「上游打算怎麼被局部安裝」。
 5. **submodule 不繼承主 repo 的 git config。** 一條「已經設好了」的設定，在 17 個子模組上其實一次都沒生效。跨 submodule 的設定要逐一寫入 `.git/modules/*/config`。
 6. **量測要複刻真實格式，不要抓概數。** 一開始只算 name+description 得到 19k tokens；照引擎的 `formatSkillsForPrompt` 加上 XML 包裝與絕對路徑後是 35k——光是 `<location>` 絕對路徑就 ~10k tokens。差了將近一倍。
-7. **修 bug 的程式碼跟原本的程式碼一樣會有 bug。** 這次自我複審抓到的四個缺陷（§六之二）全部是這一輪新寫出來的，其中 O(n²) 那個嚴重度不亞於原始 bug。「修完就送」和「修完再審一次」之間差了四個缺陷。
+7. **修 bug 的程式碼跟原本的程式碼一樣會有 bug。** 這次自我複審抓到的四個缺陷（§六之二）全部是這一輪新寫出來的，其中 O(n²) 那個嚴重度不亞於原始 bug。第二輪又發現我把 taste-bridge 的 ESM/`require` 缺陷原封不動複製到了 `yes-hooks-bridge`（§七之二.1）。「修完就送」和「修完再審一次」之間差了五個缺陷。
+8. **`try { } catch {}` 是這次所有問題的共同幫兇。** taste-bridge 的 `require` 例外被引擎吞掉、我的 `loopGuardConfig()` 例外被自己的 catch 吞掉、loop guard 未匹配時靜默 return——三個不同的地方、同一種失敗：**功能死了，但外表跟活著一模一樣。** 凡是 catch 之後回傳預設值的路徑，都該問一句「如果這裡一直在觸發，我要怎麼發現？」
+9. **檢查工具要指向被追蹤的產物。** `validate-config.py` 拿「不得提交機器路徑」去檢查一個 gitignored 檔案，於是在開發機誤報、在 CI 空轉。健康檢查腳本本身也需要測試——它先前一條都沒有。
+10. **量測工具的位置會決定你看到什麼。** 用 `-e` 載入的探針排在注入鏈前面，看到的是半成品 prompt，差點讓我對自己的修復下錯結論。要量鏈式結果，探針必須排在鏈尾。
+
+---
+
+## 七之二、第二輪（複審後續查）再挖到的四層問題
+
+### 1. taste-bridge 從來沒有真的執行過（`require is not defined`）
+
+一開始以為它「被 config 關掉但狀態列說謊」。實際更糟：它的 `package.json` 宣告 `"type": "module"`，Pi 以 ESM 載入，**ESM 沒有 `require`**。`require.resolve("./package.json")` 每一輪都拋例外；引擎會 catch 住並送到 TUI 錯誤通道，所以 `--print` 模式下**完全看不到**。
+
+直接 import 安裝好的那份來證明：
+
+```
+$ node probe.mjs
+registered events: [ 'session_start', 'before_agent_start' ]
+handler THREW: require is not defined
+```
+
+修好後，用一個「字母排序最後、因此在注入鏈最尾端」的探針擴充實測完整 prompt：
+
+```
+taste ON  -> systemPrompt 97,319 chars
+taste OFF -> systemPrompt 95,559 chars     (差 1,760 = 注入本體)
+```
+
+**同一個缺陷我自己剛剛也犯了**：第一輪 commit `7e42db7` 幫 `enableUniversalTagTransformer` / `enableSelfHealingLoopGuard` 接線時，我在 `yes-hooks-bridge`（同樣是 ESM）裡用了 `require.resolve`。它被外層 catch 吞掉、回傳預設值——旗標接了等於沒接。兩處都改用 `fileURLToPath(import.meta.url)`。
+
+新增 `test_no_require_in_esm_bridges`：掃每個 bridge 的 `package.json` `type`，ESM 者禁用 `require`。刻意重新注入舊寫法驗證它會紅。
+
+**中途的誤判也值得記**：一開始用 `-e` 載入探針，看到 `contains Taste-Engine: false` 差點下結論「修了還是沒注入」。實際是 `-e` 擴充在注入鏈的**前面**，看不到後面才追加的內容。量測工具本身的位置會決定你看到什麼。
+
+### 2. `validate-config.py` 兩種狀態都是錯的（方向相反）
+
+* **全新 clone**：FAIL。只有 `settings.json.example` 被追蹤，而它本來就沒有 `defaultModel` / `defaultProvider`（那是 `setup.py` 探測 LLM 伺服器後才寫的）。**每個新使用者照 README 跑健康檢查都會看到失敗。**
+* **開發者機器**：FAIL。「機器路徑不得提交」這條規則被拿去檢查 `pi-config/settings.json`——一個 **gitignored、永遠不會被提交、而且本來就該放注入後真實路徑**的檔案。這條檢查**無法偵測它存在的目的**，卻會在正常安裝後的狀態下誤報。
+
+跟 CLAUDE.md 裡記的那道疤同一個形狀：**檢查對象指到了 gitignored 的產物，而不是被追蹤的那份。**
+
+順帶：改成檢查 `.example` 時第一版仍抓不到，因為 `MACHINE_PATH_RE` 期待單一分隔符，而 JSON 檔案裡存的是 `C:\\Program Files`（雙反斜線）。必須解析 JSON 值、不能掃原始文字——這正是檔案裡原本那句註解宣稱已經避開的陷阱。
+
+新增 `tests/test_validate_config.py`（6 條）；這支腳本先前**一條測試都沒有**。
+
+### 3. 又兩個殭屍旗標：`harnessVersion` / `minRecommendedPiVersion`
+
+寫了一支腳本把 `harness-config.json` 的每個鍵拿去比對所有原始碼，找出這兩個沒有任何消費者。`minRecommendedPiVersion` 現在會真的比對 `pi --version` 並提示（僅警告、不阻擋），`harnessVersion` 印在模式橫幅。並新增 `test_no_zombie_harness_config_keys` 永久釘住——實測塞一個假鍵進去會紅。
+
+### 4. AGENTS.md 章節跳號 0 → 2
+
+「絕不使用 PowerShell/CMD、路徑一律正斜線」這組規則被塞在 `## 0. Language & Locale` 底下。模型掃標題找 shell 規則時不會看語言那節。給它自己的 `## 1.`，並加上跳號檢查。
 
 ---
 
