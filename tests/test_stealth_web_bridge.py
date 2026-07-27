@@ -1,4 +1,8 @@
+import json
 import os
+import re
+import shutil
+import subprocess
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -149,6 +153,101 @@ class TestRestoreWiring(unittest.TestCase):
         self.assertIn('pi_extensions_root, "stealth-web-bridge"', c)
         # profile_extensions append + internal_bridge_names + delete loop
         self.assertEqual(c.count('"stealth-web-bridge"'), 3)
+
+
+def _node_major():
+    if not shutil.which("node"):
+        return 0
+    try:
+        out = subprocess.run(["node", "--version"], capture_output=True, text=True, timeout=30).stdout
+    except Exception:
+        return 0
+    m = re.match(r"v(\d+)", out.strip())
+    return int(m.group(1)) if m else 0
+
+
+NODE_OK = _node_major() >= 22
+
+
+class TestToolOutputTruncation(unittest.TestCase):
+    """Pi truncates its own read tool at 2000 lines / 50KB. These web tools were
+    returning up to 80,000 chars — measured across this machine's sessions,
+    web_open results ran to a median of 9,319, p90 36,593, max 80,029 chars
+    (~20K tokens in one tool result). A 42,999-char result from another tool was
+    observed derailing this exact local model mid-task, so the size is a real
+    failure mode, not a tidiness concern.
+
+    truncate.ts is a separate module precisely so this test can execute it:
+    index.ts imports `typebox`, which bare node cannot resolve.
+    """
+
+    MOD = "pi-extensions/stealth-web-bridge/truncate.ts"
+
+    def _run(self, script):
+        driver = os.path.join(ROOT, "tests", ".tmp_trunc_driver.mjs")
+        url = "file:///" + os.path.join(ROOT, self.MOD).replace("\\", "/")
+        with open(driver, "w", encoding="utf-8") as f:
+            f.write('import { truncateForTool, MAX_TOOL_BYTES, MAX_TOOL_LINES } from %s;\n%s'
+                    % (json.dumps(url), script))
+        try:
+            p = subprocess.run(["node", driver], capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", cwd=ROOT, timeout=120)
+            if p.returncode != 0:
+                raise AssertionError("node driver failed:\n%s\n%s" % (p.stdout, p.stderr))
+            return json.loads(p.stdout)
+        finally:
+            if os.path.exists(driver):
+                os.remove(driver)
+
+    @unittest.skipUnless(NODE_OK, "node >= 22 required")
+    def test_small_output_is_returned_unchanged(self):
+        out = self._run(
+            'const s = "hello world";'
+            'process.stdout.write(JSON.stringify({same: truncateForTool(s, "t") === s}));')
+        self.assertTrue(out["same"])
+
+    @unittest.skipUnless(NODE_OK, "node >= 22 required")
+    def test_large_output_is_capped_and_spilled_to_a_file(self):
+        out = self._run("""
+import { readFileSync } from "node:fs";
+const big = Array.from({length: 5000}, (_, i) => "line " + i + " " + "x".repeat(60)).join("\\n");
+const res = truncateForTool(big, "t");
+const m = res.match(/saved to (\\S+) /);
+process.stdout.write(JSON.stringify({
+  inputBytes: Buffer.byteLength(big, "utf-8"),
+  outputBytes: Buffer.byteLength(res, "utf-8"),
+  hasNote: /Output truncated/.test(res),
+  spillComplete: m ? readFileSync(m[1], "utf-8").length === big.length : false,
+  noPartialLines: res.split("\\n").slice(0, -3).every(l => /^line \\d+ x+$/.test(l)),
+}));
+""")
+        self.assertGreater(out["inputBytes"], 300000)
+        self.assertLess(out["outputBytes"], 52000, "must land within Pi's own 50KB tool budget")
+        self.assertTrue(out["hasNote"])
+        self.assertTrue(out["spillComplete"], "the full text must remain reachable, not be discarded")
+        self.assertTrue(out["noPartialLines"], "AX-tree output is line-oriented; never cut mid-line")
+
+    @unittest.skipUnless(NODE_OK, "node >= 22 required")
+    def test_budget_matches_pi_own_read_tool(self):
+        out = self._run('process.stdout.write(JSON.stringify({lines: MAX_TOOL_LINES, bytes: MAX_TOOL_BYTES}));')
+        self.assertEqual(out["lines"], 2000)
+        self.assertEqual(out["bytes"], 50000)
+
+    def test_every_result_site_is_truncated(self):
+        """A new tool that forgets to wrap its result reintroduces the problem."""
+        c = read("pi-extensions/stealth-web-bridge/index.ts")
+        sites = [ln for ln in c.splitlines()
+                 if 'content: [{ type: "text"' in ln and "isError" not in ln]
+        self.assertGreaterEqual(len(sites), 5)
+        for ln in sites:
+            self.assertIn("truncateForTool", ln,
+                          "unbounded tool result: %s" % ln.strip()[:100])
+
+    def test_restore_ships_the_module(self):
+        """restore.py copies bridge directories wholesale; if it ever switched to
+        copying index.ts alone, the import would break at load time."""
+        c = read("scripts/restore.py")
+        self.assertIn("copy_dir_contents", c)
 
 
 if __name__ == "__main__":

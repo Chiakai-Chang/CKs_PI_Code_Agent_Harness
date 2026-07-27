@@ -18,6 +18,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import { spawn } from "node:child_process";
+import { truncateForTool } from "./truncate.js";
 
 const SERVER = process.env.STEALTH_RECON_URL || "http://127.0.0.1:9377";
 const USER = "recon";
@@ -147,6 +148,10 @@ function toolError(text: string) {
   return { content: [{ type: "text" as const, text }], isError: true };
 }
 
+// Tool-output size discipline lives in ./truncate.ts — see that file for the
+// measurements behind it. It is a separate module so a test can execute it:
+// index.ts imports `typebox`, which bare node cannot resolve.
+
 // The "current" tab the interaction tools default to — set by web_search and
 // web_open and returned in their result, so simple single-page flows need no
 // tab id at all. Every tool also accepts an explicit tabId to override it, so
@@ -202,7 +207,7 @@ async function actAndSnapshot(tabId: string | null, action: string, body: Record
     return toolError("The page is now showing a bot/challenge wall. Do not treat it as content.");
   }
   return {
-    content: [{ type: "text" as const, text: snap || "(action done; page returned an empty snapshot)" }],
+    content: [{ type: "text" as const, text: truncateForTool(snap || "(action done; page returned an empty snapshot)", "action") }],
     details: { action, tabId },
   };
 }
@@ -294,7 +299,7 @@ export default function (pi: ExtensionAPI) {
         );
       }
       return {
-        content: [{ type: "text" as const, text: `[tab ${tabId} — now the current page; pass tabId to a tool to target it specifically]\n\n${snap}` }],
+        content: [{ type: "text" as const, text: truncateForTool(`[tab ${tabId} — now the current page; pass tabId to a tool to target it specifically]\n\n${snap}`, "page") }],
         details: { query: params.query, url, tabId },
       };
     },
@@ -328,7 +333,7 @@ export default function (pi: ExtensionAPI) {
         );
       }
       return {
-        content: [{ type: "text" as const, text: `[tab ${tabId} — now the current page; pass tabId to a tool to target it specifically]\n\n${snap}` }],
+        content: [{ type: "text" as const, text: truncateForTool(`[tab ${tabId} — now the current page; pass tabId to a tool to target it specifically]\n\n${snap}`, "page") }],
         details: { url: params.url, tabId },
       };
     },
@@ -430,7 +435,7 @@ export default function (pi: ExtensionAPI) {
         const j: any = await r.json().catch(() => ({}));
         const text = j.snapshot ?? "";
         return {
-          content: [{ type: "text" as const, text: text || "(empty snapshot)" }],
+          content: [{ type: "text" as const, text: truncateForTool(text || "(empty snapshot)", "snapshot") }],
           details: { totalChars: j.totalChars, hasMore: j.hasMore, nextOffset: j.nextOffset },
         };
       } catch (e) {
@@ -485,7 +490,7 @@ export default function (pi: ExtensionAPI) {
         });
         const j: any = await r.json().catch(() => ({}));
         if (!r.ok) return toolError(`evaluate failed (${r.status}): ${JSON.stringify(j).slice(0, 300)}`);
-        return { content: [{ type: "text" as const, text: JSON.stringify(j.result ?? j, null, 2) }] };
+        return { content: [{ type: "text" as const, text: truncateForTool(JSON.stringify(j.result ?? j, null, 2), "evaluate") }] };
       } catch (e) {
         return toolError(`evaluate error: ${String(e)}`);
       }
