@@ -252,7 +252,7 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
         content:
           `[System Tool-Tag Transformer]: 偵測到模型使用了標籤或 Markdown 程式碼塊式工具呼叫（${parsedTag.name}）。` +
           `系統已成功解析參數：${JSON.stringify(parsedTag.args)}。` +
-          `請注意：請改為發起標準的原生 Function Call 呼叫工具，不要在對話文字中輸出 ```bash 或 XML 標籤。`,
+          `請注意：請改為發起標準的原生 Function Call 呼叫工具，不要在對話文字中輸出 \`\`\`bash 或 XML 標籤。`,
         display: true,
       },
       { deliverAs: "nextTurn" }
