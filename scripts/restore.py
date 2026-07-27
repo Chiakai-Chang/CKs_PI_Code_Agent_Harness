@@ -708,6 +708,19 @@ def main():
                     if "pi-harness" not in pkg: pkg["pi-harness"] = {}
                     pkg["pi-harness"]["root"] = REPO_ROOT.replace("\\", "/")
                     save_json(pkg_path, pkg)
+                    
+                # Validate TS syntax with Node --check to prevent startup crash
+                index_ts = os.path.join(dst_bridge, "index.ts")
+                if os.path.exists(index_ts):
+                    try:
+                        res = subprocess.run(["node", "--check", index_ts], capture_output=True, text=True)
+                        if res.returncode != 0:
+                            log(f"  ❌ Syntax Error in {bridge}: {res.stderr.strip()}")
+                        else:
+                            log(f"  - {bridge} verified (syntax OK)")
+                    except Exception:
+                        log(f"  - {bridge} patched with absolute path")
+                else:
                     log(f"  - {bridge} patched with absolute path")
 
     print()
