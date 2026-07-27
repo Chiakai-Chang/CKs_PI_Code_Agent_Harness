@@ -55,6 +55,12 @@
       "entry": "pi-extensions/compact-continuation-bridge/index.ts",
       "version": "1.0.0",
       "description": "Compaction continuation bridge"
+    },
+    {
+      "name": "skill-catalog-bridge",
+      "entry": "pi-extensions/skill-catalog-bridge/index.ts",
+      "version": "1.0.0",
+      "description": "Injects the long-tail skill name catalog when skillTiers mode is 'tiered'"
     }
   ]
 }

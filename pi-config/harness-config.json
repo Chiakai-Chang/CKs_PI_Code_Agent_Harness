@@ -16,5 +16,31 @@
     "agentic-patterns",
     "security",
     "optimization-workflows"
-  ]
+  ],
+  "skillTiers": {
+    "mode": "tiered",
+    "core": [
+      "agents-best-practices",
+      "brainstorming",
+      "caveman",
+      "contradiction-analysis",
+      "darwin-skill",
+      "dispatching-parallel-agents",
+      "executing-plans",
+      "finishing-a-development-branch",
+      "mece-autopilot",
+      "planning-with-files",
+      "receiving-code-review",
+      "requesting-code-review",
+      "subagent-driven-development",
+      "systematic-debugging",
+      "test-driven-development",
+      "using-git-worktrees",
+      "using-superpowers",
+      "verification-before-completion",
+      "writing-plans",
+      "writing-skills",
+      "yes"
+    ]
+  }
 }

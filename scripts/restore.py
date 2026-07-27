@@ -7,6 +7,7 @@
 #
 import sys
 import os
+import re
 import json
 import stat
 import shutil
@@ -354,6 +355,100 @@ ECC_DEFAULT_MODULES = [
 ECC_ALWAYS_SKILLS = ["ecc-guide", "ecc-recipes", "configure-ecc", "ecc-tools-cost-audit"]
 
 
+def manifest_path_of(repo_root):
+    return os.path.join(repo_root, "pi-config", "external-skills-manifest.json")
+
+
+def skill_frontmatter(skill_md_path):
+    """Return (name, description) from a SKILL.md, or (None, None)."""
+    try:
+        with open(skill_md_path, encoding="utf-8", errors="replace") as f:
+            raw = f.read()
+    except OSError:
+        return (None, None)
+    m = re.match(r"^---\r?\n([\s\S]*?)\r?\n---", raw)
+    if not m:
+        return (None, None)
+    body = m.group(1)
+    nm = re.search(r"^name:\s*(.+?)\s*$", body, re.M)
+    # \Z, not $: under re.M a `$` terminates at the first line end, which would
+    # cut every multi-line YAML description down to its first line. Pi reads the
+    # whole thing, so a truncated copy in the catalog would misrepresent the
+    # skill to the model exactly where it is deciding whether to load it.
+    ds = re.search(r"^description:\s*([\s\S]+?)(?=\n[A-Za-z_-]+:\s|\Z)", body, re.M)
+    # YAML allows a quoted scalar, and at least one upstream skill uses it
+    # (`name: "yes"`). Leaving the quotes on means the name never matches a
+    # core-list entry and the skill silently falls to the catalog.
+    name = nm.group(1).strip().strip("\"'") if nm else None
+    desc = " ".join(ds.group(1).split()) if ds else ""
+    return (name, desc)
+
+
+def discover_skills(roots):
+    """Walk skill roots and return [(name, description, skill_md_path, dir)].
+
+    A registered path may be a single skill or a container of them, so this
+    walks rather than assuming one level (same shape Pi's own discovery uses).
+    """
+    found = []
+    seen = set()
+    for root in roots:
+        if not os.path.isdir(root):
+            continue
+        for dirpath, _dirnames, filenames in os.walk(root):
+            if "SKILL.md" not in filenames:
+                continue
+            skill_md = os.path.join(dirpath, "SKILL.md")
+            if skill_md in seen:
+                continue
+            seen.add(skill_md)
+            name, desc = skill_frontmatter(skill_md)
+            if not name:
+                name = os.path.basename(dirpath)
+            found.append((name, desc, skill_md.replace("\\", "/"), dirpath.replace("\\", "/")))
+    return found
+
+
+def skill_tiers_from_config(harness_config_path):
+    """Read skillTiers from harness-config.json.
+
+    Returns ("all", []) to register everything natively (today's behaviour), or
+    ("tiered", [core names]). Anything unparseable falls back to "all": losing
+    every long-tail skill silently is far worse than a fat prompt, the same
+    fail-open choice ecc_skill_paths() makes.
+    """
+    try:
+        with open(harness_config_path, encoding="utf-8") as f:
+            cfg = json.load(f)
+    except (OSError, ValueError):
+        return ("all", [])
+    tiers = cfg.get("skillTiers")
+    if not isinstance(tiers, dict):
+        return ("all", [])
+    if tiers.get("mode") != "tiered":
+        return ("all", [])
+    core = tiers.get("core")
+    if not isinstance(core, list) or not all(isinstance(c, str) for c in core):
+        return ("all", [])
+    return ("tiered", core)
+
+
+def partition_skills_by_tier(skills, core_names):
+    """Split discovered skills into (core, tail) by skill name.
+
+    Core skills stay natively registered with their full description, so Pi's
+    own discovery path is untouched for them. Tail skills are surfaced by
+    skill-catalog-bridge as an inline name list instead — Pi charges ~213 chars
+    of fixed overhead (XML tags + absolute path) per natively registered skill
+    regardless of description length, so the only way to reclaim it is to not
+    register the skill.
+    """
+    wanted = set(core_names)
+    core = [s for s in skills if s[0] in wanted]
+    tail = [s for s in skills if s[0] not in wanted]
+    return core, tail
+
+
 def ecc_modules_from_config(harness_config_path):
     """Read eccSkillModules from pi-config/harness-config.json.
 
@@ -610,6 +705,9 @@ def main():
         profile_extensions.append(os.path.join(pi_extensions_root, "case-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "taste-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "mece-autopilot-bridge").replace("\\", "/"))
+        # Surfaces the long-tail skills that tiered registration keeps out of
+        # the natively-registered set (no-op when skillTiers mode is "all").
+        profile_extensions.append(os.path.join(pi_extensions_root, "skill-catalog-bridge").replace("\\", "/"))
         # Exposes camofox-stealth as first-class web_search/web_open tools so weak
         # models call them reflexively instead of denying they can browse.
         profile_extensions.append(os.path.join(pi_extensions_root, "stealth-web-bridge").replace("\\", "/"))
@@ -624,9 +722,42 @@ def main():
     # at every session start instead of restore.py deciding once, frozen.
     profile_skills, profile_skills_external = partition_external_skills(profile_skills, ext_root)
 
-    manifest_path = os.path.join(REPO_ROOT, "pi-config", "external-skills-manifest.json")
-    save_json(manifest_path, [{"path": p} for p in profile_skills_external])
-    log(f"  - external-skills-manifest.json written ({len(profile_skills_external)} entries)")
+    # 2b. Tier the external skills. Pi renders name + description + absolute
+    # path for every registered skill into EVERY turn's system prompt
+    # (formatSkillsForPrompt); 145 skills measured at 55,239 chars (~13,809
+    # tokens per turn, 58% of the whole prompt). Core skills stay natively
+    # registered; the long tail is surfaced by skill-catalog-bridge as an
+    # inline name list. See docs/superpowers/specs/
+    # 2026-07-28-tiered-skill-registration-design.md.
+    harness_cfg = os.path.join(REPO_ROOT, "pi-config", "harness-config.json")
+    tier_mode, core_names = skill_tiers_from_config(harness_cfg)
+    catalog_path = os.path.join(REPO_ROOT, "pi-config", "skill-catalog.json")
+
+    if tier_mode == "tiered":
+        discovered = discover_skills(profile_skills_external)
+        core, tail = partition_skills_by_tier(discovered, core_names)
+        # Register the directory of each core skill; the tail is not registered.
+        core_dirs = sorted({d for _n, _d, _p, d in core})
+        tail_entries = [{"name": n, "description": d, "path": p} for n, d, p, _dir in sorted(tail)]
+        save_json(catalog_path, {"version": 1, "skills": tail_entries})
+        save_json(manifest_path_of(REPO_ROOT), [{"path": p} for p in core_dirs])
+        log(f"  - skill tiers: {len(core_dirs)} core registered, {len(tail_entries)} in catalog")
+        # A core entry that matches nothing is a typo or an upstream rename, and
+        # its only symptom is a skill quietly demoted to the catalog. Name it.
+        internal = {os.path.basename(os.path.dirname(p)) for p in
+                    [os.path.join(d, "SKILL.md") for _n, _d, _p, d in discovered]}
+        unmatched = [c for c in core_names
+                     if c not in {n for n, _d, _p, _dir in discovered} and c not in internal]
+        if unmatched:
+            log(f"  ! skillTiers.core names not found among external skills "
+                f"(harness-internal pi-skills/ are always registered, so those are fine): "
+                f"{', '.join(sorted(unmatched))}")
+    else:
+        save_json(manifest_path_of(REPO_ROOT), [{"path": p} for p in profile_skills_external])
+        # An empty catalog keeps the bridge a no-op rather than leaving a stale
+        # list injected after someone switches back to mode "all".
+        save_json(catalog_path, {"version": 1, "skills": []})
+        log(f"  - external-skills-manifest.json written ({len(profile_skills_external)} entries)")
 
     # skill-namespace-guard re-registers the external/* skills above (collision-
     # checked, live) — required regardless of profile since minimal also has an
@@ -651,7 +782,7 @@ def main():
         settings["skills"] = clean_skills
 
         existing_extensions = settings.get("extensions", [])
-        internal_bridge_names = ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge", "stealth-web-bridge", "yes-hooks-bridge", "skill-namespace-guard", "compact-continuation-bridge"]
+        internal_bridge_names = ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge", "stealth-web-bridge", "yes-hooks-bridge", "skill-namespace-guard", "compact-continuation-bridge", "skill-catalog-bridge"]
         clean_extensions = []
         for p in existing_extensions:
             p_normalized = p.replace("\\", "/").lower()
@@ -778,7 +909,7 @@ def main():
     ext_dst = os.path.join(AGENT_DIR, "extensions")
     if os.path.isdir(ext_src):
         # We selectively delete only the bridges managed by this harness to preserve other extensions.
-        for bridge in ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge", "stealth-web-bridge", "yes-hooks-bridge", "skill-namespace-guard", "compact-continuation-bridge"]:
+        for bridge in ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge", "stealth-web-bridge", "yes-hooks-bridge", "skill-namespace-guard", "compact-continuation-bridge", "skill-catalog-bridge"]:
             delete_path(os.path.join(ext_dst, bridge))
             
         for ext_path in profile_extensions:
