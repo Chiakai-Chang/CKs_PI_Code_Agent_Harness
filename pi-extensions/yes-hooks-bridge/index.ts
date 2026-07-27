@@ -115,9 +115,9 @@ function containmentGuard(event: ToolCallEvent, ctx: ExtensionContext) {
 }
 
 // Guard 3: catches a turn that ends with NO real tool call but assistant text shaped like
-// one (Claude-style `<invoke>`/`<parameter name=`, or ad-hoc `<read-files>`/`<bash><command>`
-// tags) — text that is never executed. Universal Parser intercepts valid tags and auto-advances.
-const FAKE_TOOL_CALL_PATTERN = /<invoke\b|<\/invoke>|<parameter\s+name=|<\/?read-files?>|<modified-files>|<bash>\s*<command>|<tool_code\b|<\/tool_code>|<tool_call\b|<\/tool_call>/i;
+// one (Claude/Superpowers `<read>`, `<write>`, `<edit>`, `<bash>`, `<invoke>`, `<tool_code>` tags)
+// — text that is never executed. Universal Parser intercepts valid tags and auto-advances.
+const FAKE_TOOL_CALL_PATTERN = /<invoke\b|<\/invoke>|<parameter\s+name=|<\/?read-files?>|<modified-files>|<bash\b|<\/bash>|<read\b|<\/read>|<write\b|<\/write>|<edit\b|<\/edit>|<browse\b|<\/browse>|<tool_code\b|<\/tool_code>|<tool_call\b|<\/tool_call>/i;
 
 interface ParsedToolTag {
   name: string;
@@ -128,6 +128,7 @@ interface ParsedToolTag {
 function parseUniversalToolTag(text: string): ParsedToolTag | null {
   if (!text || typeof text !== "string") return null;
 
+  // 1. Standard XML tool wrappers: <tool_code>, <invoke>, <tool_call>, <function_call>, <action>, <execute>
   const tagPatterns = [
     /<(?:tool_code|invoke|tool_call|function_call|action|execute)\b[^>]*>([\s\S]*?)<\/(?:tool_code|invoke|tool_call|function_call|action|execute)>/i,
     /```(?:json|tool|tool_call)?\s*(\{\s*"name"\s*:\s*[\s\S]*?\})\s*```/i
@@ -153,6 +154,38 @@ function parseUniversalToolTag(text: string): ParsedToolTag | null {
     }
   }
 
+  // 2. Anthropic/Superpowers style specific XML tags: <read>, <write>, <edit>, <bash>, <browse>, <read_file>, <write_file>
+  const anthropicTagPattern = /<(read|write|edit|bash|browse|read_file|write_file)\b[^>]*>([\s\S]*?)<\/\1>/i;
+  const matchAnthropic = text.match(anthropicTagPattern);
+  if (matchAnthropic && matchAnthropic[1] && matchAnthropic[2]) {
+    const tagName = matchAnthropic[1].toLowerCase();
+    const rawBody = matchAnthropic[2].trim();
+
+    let toolName = tagName;
+    if (tagName === "read") toolName = "read_file";
+    if (tagName === "write") toolName = "write";
+    if (tagName === "edit") toolName = "edit";
+
+    let args: Record<string, unknown> = {};
+    if (rawBody.startsWith("{") && rawBody.endsWith("}")) {
+      try { args = JSON.parse(rawBody); } catch {}
+    } else {
+      try {
+        args = JSON.parse("{" + rawBody + "}");
+      } catch {
+        if (toolName === "bash") {
+          args = { command: rawBody };
+        } else if (toolName === "read_file") {
+          const pathMatch = rawBody.match(/"path"\s*:\s*"([^"]+)"/) || rawBody.match(/["']([^"']+)["']/);
+          if (pathMatch) args = { path: pathMatch[1] };
+          else args = { path: rawBody.trim() };
+        }
+      }
+    }
+    return { name: toolName, args, raw: matchAnthropic[0] };
+  }
+
+  // 3. Standalone JSON object in text with "name" and "arguments" / "path" / "command"
   const jsonMatch = text.match(/\{\s*"name"\s*:\s*"([a-zA-Z0-9_\-]+)"\s*,\s*"(?:arguments|input|parameters|path|command)"\s*:[\s\S]*?\}/);
   if (jsonMatch) {
     try {

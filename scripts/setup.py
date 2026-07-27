@@ -186,6 +186,7 @@ def maybe_prefetch_stealth():
 def run_update():
     """One-command update: pull repo+submodules, resync config, update Pi."""
     print("[*] 正在更新 Harness 與子模組 (git pull)...")
+    run("git config fetch.writeCommitGraph false")
     run_stream("git pull --recurse-submodules")
     restore_script = os.path.join(REPO_ROOT, "scripts", "restore.py")
     print("[*] 正在重新同步配置 (restore --auto，冪等、保留自訂)...")
