@@ -278,7 +278,7 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
           `絕對不要再輸出任何 XML 標籤或 \`\`\`bash 程式碼塊！`,
         display: true,
       },
-      { deliverAs: "nextTurn" }
+      { deliverAs: "nextTurn", triggerTurn: true }
     );
     return;
   }
@@ -288,11 +288,12 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
     return;
   }
 
-  consecutiveFakeToolStrikes += 1;
   ctx.ui.notify(
-    `🚨 Turn ended with no real tool call, but text looks like a fake tool-call tag (strike ${consecutiveFakeToolStrikes}/3).`,
+    `🚨 Turn ended with no real tool call, but text looks like a fake tool-call tag (strike ${consecutiveFakeToolStrikes + 1}/3).`,
     "error",
   );
+
+  consecutiveFakeToolStrikes += 1;
 
   if (consecutiveFakeToolStrikes >= 3) {
     consecutiveFakeToolStrikes = 0;
@@ -304,7 +305,7 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
           "請直接停止輸出標籤與程式碼塊文字。如果你原本想讀檔或執行指令，請改用真正的原生工具呼叫；如果你不確定下一步，請告訴使用者你卡住的原因。",
         display: true,
       },
-      { deliverAs: "followUp" },
+      { deliverAs: "followUp", triggerTurn: true },
     );
   } else {
     // Self-healing auto-retry on strike 1 & 2 to prevent deadlocks
@@ -316,15 +317,21 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
           "請重新回覆並發起標準的原生 Function Call 呼叫工具。",
         display: true,
       },
-      { deliverAs: "nextTurn" },
+      { deliverAs: "nextTurn", triggerTurn: true },
     );
   }
 }
 
 export default function (pi: ExtensionAPI) {
   pi.on("before_agent_start", (event, _ctx) => {
+    let rawPrompt = event.systemPrompt ?? "";
+
+    // Sanitize XML tag tool instructions introduced by third-party packages (e.g. superpowers)
+    // to prevent local GGUF models from imitating XML text tags.
+    rawPrompt = rawPrompt.replace(/<(?:read|write|edit|bash|ls|dir|browse|search)>\s*[\s\S]*?<\/(?:read|write|edit|bash|ls|dir|browse|search)>/gi, "");
+
     return {
-      systemPrompt: (event.systemPrompt ?? "") + "\n\n" +
+      systemPrompt: rawPrompt + "\n\n" +
         "============================================================\n" +
         "[CRITICAL SYSTEM PROTOCOL: NATIVE TOOL CALLING ONLY]\n" +
         "• You MUST execute all actions using native JSON function calling (tool_call).\n" +
