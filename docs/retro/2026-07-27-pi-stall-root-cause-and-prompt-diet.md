@@ -182,35 +182,36 @@ OK
 8. **`try { } catch {}` 是這次所有問題的共同幫兇。** taste-bridge 的 `require` 例外被引擎吞掉、我的 `loopGuardConfig()` 例外被自己的 catch 吞掉、loop guard 未匹配時靜默 return——三個不同的地方、同一種失敗：**功能死了，但外表跟活著一模一樣。** 凡是 catch 之後回傳預設值的路徑，都該問一句「如果這裡一直在觸發，我要怎麼發現？」
 9. **檢查工具要指向被追蹤的產物。** `validate-config.py` 拿「不得提交機器路徑」去檢查一個 gitignored 檔案，於是在開發機誤報、在 CI 空轉。健康檢查腳本本身也需要測試——它先前一條都沒有。
 10. **量測工具的位置會決定你看到什麼。** 用 `-e` 載入的探針排在注入鏈前面，看到的是半成品 prompt，差點讓我對自己的修復下錯結論。要量鏈式結果，探針必須排在鏈尾。
+11. **在錯的 runtime 裡驗證，會產出很有說服力但完全錯誤的根因。** 我用 bare node import 得到 `require is not defined`，就宣告「taste-bridge 從來沒執行過」——寫進了 commit 訊息和這份復盤。實際在 Pi 裡放探針才發現 Pi 自己會 shim `require`，那個例外根本不會發生。**「我跑出來看到了」只有在跑的是目標環境時才算數**；這正是本 repo 最高原則那句「綠在我這台不算證明」的另一面。修復本身是對的（路徑解析確實壞了），但我對它為什麼壞的解釋是錯的，而錯誤的解釋會讓下一個人往錯的方向找。
 
 ---
 
 ## 七之二、第二輪（複審後續查）再挖到的四層問題
 
-### 1. taste-bridge 從來沒有真的執行過（`require is not defined`）
+### 1. taste-bridge 的 `enableTasteBridge` 旗標完全無效
 
-一開始以為它「被 config 關掉但狀態列說謊」。實際更糟：它的 `package.json` 宣告 `"type": "module"`，Pi 以 ESM 載入，**ESM 沒有 `require`**。`require.resolve("./package.json")` 每一輪都拋例外；引擎會 catch 住並送到 TUI 錯誤通道，所以 `--print` 模式下**完全看不到**。
+`restore.py` 會把 bridge 複製到 `~/.pi/agent/extensions/taste-bridge/`，並把 harness 根目錄 patch 進它的 `package.json`。**只有這一支** bridge 沒讀那個值，而是用 `join(__dirname, "../..")`——在安裝後的版面上那是 `~/.pi`，底下沒有 `pi-config/`。於是 `existsSync()` 永遠 false、config 判斷永遠不執行，`enableTasteBridge: false` 等於不存在：GEMINI.md **每一輪都注入**，不管你怎麼設定。
 
-直接 import 安裝好的那份來證明：
-
-```
-$ node probe.mjs
-registered events: [ 'session_start', 'before_agent_start' ]
-handler THREW: require is not defined
-```
-
-修好後，用一個「字母排序最後、因此在注入鏈最尾端」的探針擴充實測完整 prompt：
+修好後，用一個「字母排序最後、因此排在注入鏈最尾端」的探針擴充量測完整 prompt：
 
 ```
 taste ON  -> systemPrompt 97,319 chars
 taste OFF -> systemPrompt 95,559 chars     (差 1,760 = 注入本體)
 ```
 
-**同一個缺陷我自己剛剛也犯了**：第一輪 commit `7e42db7` 幫 `enableUniversalTagTransformer` / `enableSelfHealingLoopGuard` 接線時，我在 `yes-hooks-bridge`（同樣是 ESM）裡用了 `require.resolve`。它被外層 catch 吞掉、回傳預設值——旗標接了等於沒接。兩處都改用 `fileURLToPath(import.meta.url)`。
+> **⚠️ 這一節的初版寫錯了，保留更正以誌其事。**
+> 我最初斷定根因是「`package.json` 宣告 `"type": "module"`，ESM 沒有 `require`，所以 `require.resolve` 每輪拋例外、handler 從沒跑完」。證據是用 **bare node** import 安裝好的那份，得到 `handler THREW: require is not defined`。
+> 後來在**真正的 Pi 裡**放探針擴充實測，兩種宣告都通過：
+> ```
+> [REQPROBE] cjs-declared bridge: require WORKS -> ...\package.json
+> [REQPROBE] esm-declared bridge: require WORKS -> .../package.json
+> ```
+> **Pi 自己的載入器會給 bridge 一個 `require` shim，與 `"type": "module"` 無關。** 那個例外只發生在 bare node，不發生在 Pi。真正的根因就只有上面的路徑解析一條——它也完整解釋了修復前 A/B 沒有差異（兩種設定都注入）。
+> 教訓：**在錯的 runtime 裡驗證，會得到看起來很有說服力、但完全錯誤的根因。** 我用 node 證明了一件關於 Pi 的事。
 
-新增 `test_no_require_in_esm_bridges`：掃每個 bridge 的 `package.json` `type`，ESM 者禁用 `require`。刻意重新注入舊寫法驗證它會紅。
+`test_no_require_in_esm_bridges` 保留，但理由改成真實的那個：**可測試性**。要證明一個 handler 真的會跑，唯一辦法是用 bare node import 安裝後那份並直接呼叫；node 不會給 ESM 模組 `require`。用了 `require` 的 bridge 就無法做行為測試——而這些 handler 全都包在 `try { } catch {}` 裡，無法測試的那個會以「靜默回傳預設值」的方式壞掉，外觀跟正常運作一模一樣。同理，第一輪 commit `7e42db7` 我在 `yes-hooks-bridge` 用的 `require.resolve` 也一併改掉。
 
-**中途的誤判也值得記**：一開始用 `-e` 載入探針，看到 `contains Taste-Engine: false` 差點下結論「修了還是沒注入」。實際是 `-e` 擴充在注入鏈的**前面**，看不到後面才追加的內容。量測工具本身的位置會決定你看到什麼。
+**中途另一個誤判**：一開始用 `-e` 載入探針，看到 `contains Taste-Engine: false` 差點下結論「修了還是沒注入」。實際是 `-e` 擴充排在注入鏈的**前面**，看不到後面才追加的內容。量測工具本身的位置會決定你看到什麼。
 
 ### 2. `validate-config.py` 兩種狀態都是錯的（方向相反）
 

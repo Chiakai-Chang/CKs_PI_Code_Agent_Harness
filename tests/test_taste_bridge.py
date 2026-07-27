@@ -27,16 +27,20 @@ class TestTasteBridgeContract(unittest.TestCase):
 
 
 class TestEsmBridgesDoNotUseRequire(unittest.TestCase):
-    """A bridge whose package.json declares `"type": "module"` is loaded as ESM,
-    where `require` is undefined. `require.resolve("./package.json")` therefore
-    throws — and Pi catches handler errors and routes them to the TUI, so under
-    --print the handler simply never completes and nothing says so.
+    """ESM-declared bridges must resolve their own path via import.meta.url.
 
-    taste-bridge shipped this way: before_agent_start threw on every turn, so
-    the guideline injection never ran once AND the config read meant to disable
-    it never ran either. Proven by importing the installed copy directly:
-        handler THREW: require is not defined
-    Non-ESM bridges (no "type" field) are transpiled to CJS and may use require.
+    Pi's own loader shims `require` for bridges — verified under Pi for both
+    `"type": "module"` and CJS-declared packages, so require.resolve does work
+    in production. The rule exists for testability: the only way to prove a
+    handler actually runs is to import the installed copy in bare `node` and
+    invoke it, and node gives an ESM-declared module no `require`. A bridge that
+    uses it cannot be behaviourally tested — and since these handlers sit behind
+    `try { } catch {}`, an untestable one fails by silently returning defaults,
+    which is indistinguishable from working.
+
+    (This test was originally written on the mistaken belief that require threw
+    under Pi as well. It does not; the claim was proven in node, not in Pi. The
+    rule is kept for the testability reason, which is real.)
     """
 
     def test_no_require_in_esm_bridges(self):

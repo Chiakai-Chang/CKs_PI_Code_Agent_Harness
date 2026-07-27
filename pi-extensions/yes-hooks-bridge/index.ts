@@ -443,9 +443,11 @@ interface LoopGuardConfig {
 function loopGuardConfig(): LoopGuardConfig {
   const config: LoopGuardConfig = { enableUniversalTagTransformer: true, enableSelfHealingLoopGuard: true };
   try {
-    // ESM bridge ("type": "module"): `require` does not exist here. Using
-    // require.resolve would throw, get swallowed by this catch, and silently
-    // return the defaults — leaving both flags zombie exactly as before.
+    // import.meta.url, not require.resolve: Pi's loader shims `require` for
+    // bridges, but bare `node` does not for an ESM-declared package — and
+    // importing this file in node is how the guard gets behaviourally tested.
+    // Under require.resolve the throw would be swallowed by this catch and
+    // silently return the defaults, i.e. look exactly like a working config.
     const here = dirname(fileURLToPath(import.meta.url));
     const pkg = JSON.parse(readFileSync(join(here, "package.json"), "utf-8"));
     const harnessRoot = pkg["pi-harness"]?.root || join(here, "../..");

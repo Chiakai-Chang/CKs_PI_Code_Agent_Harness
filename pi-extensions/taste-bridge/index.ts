@@ -9,22 +9,22 @@ import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Two stacked defects made this bridge a no-op that looked alive:
+// restore.py copies this bridge to ~/.pi/agent/extensions/taste-bridge/ and
+// patches the harness root into its package.json. This bridge alone ignored
+// that and resolved the root as join(__dirname, "../.."), which under the
+// installed layout is ~/.pi — a directory with no pi-config/. existsSync() was
+// therefore always false, the config read never fired, and
+// `enableTasteBridge: false` did nothing: GEMINI.md was appended to the system
+// prompt on every turn regardless of configuration.
 //
-//  1. This package.json declares "type": "module", so Pi loads the bridge as
-//     ESM, where `require` does not exist. Every call to
-//     `require.resolve("./package.json")` threw. The engine catches handler
-//     errors and reports them to the TUI, so under --print the failure was
-//     completely invisible — before_agent_start never completed once.
-//  2. Even reaching the config read, the root was resolved as
-//     join(__dirname, "../..") — under the installed layout that is ~/.pi,
-//     which holds no pi-config/, so `enableTasteBridge: false` could not have
-//     taken effect either.
+// Measured with a probe extension loaded last, so it sees the fully chained
+// prompt:  taste ON 97,319 chars / OFF 95,559 chars (delta 1,760 = the injection).
 //
-// Proven by importing the installed copy directly:
-//     handler THREW: require is not defined
-// Fix: import.meta.url (the ESM equivalent, as skill-namespace-guard uses) plus
-// the pkg["pi-harness"].root that restore.py patches in, like every other bridge.
+// import.meta.url rather than require.resolve: Pi's loader does provide a
+// `require` shim to bridges (verified under Pi for both "type": "module" and
+// CJS-declared packages), but bare `node` does not when the file is imported as
+// ESM — and importing the installed copy in node is how these handlers get
+// behaviourally tested.
 const HERE = dirname(fileURLToPath(import.meta.url));
 
 function harnessRoot(): string {
