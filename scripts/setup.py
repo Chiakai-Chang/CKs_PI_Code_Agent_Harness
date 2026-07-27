@@ -214,9 +214,13 @@ def check_pi_version():
     """
     declared = harness_config("minRecommendedPiVersion")
     required = parse_version(declared)
-    if not required or not has_command("pi"):
+    if not required:
         return None
-    _ok, out, err = run("pi --version")
+    # `pi --version` is both the presence check and the version source;
+    # has_command() would run the exact same command a second time.
+    ok, out, err = run("pi --version")
+    if not ok:
+        return None
     installed = parse_version(out or err)
     if not installed:
         return None

@@ -83,12 +83,25 @@ class TestMethodologyFirstPrinciple(unittest.TestCase):
                         except OSError:
                             pass
         blob = "\n".join(sources)
-        zombies = [k for k in cfg if k not in blob]
+        # Match an ACCESS shape, not a bare word. A plain substring search
+        # passes any key whose name happens to appear anywhere — "description"
+        # sailed through because unrelated tool definitions use that word,
+        # which is the same false-negative hole this test exists to close.
+        import re as _re
+        zombies = []
+        for key in cfg:
+            if key.startswith(("_", "$")):
+                continue  # documentation-only keys, by convention
+            k = _re.escape(key)
+            accessed = _re.search(r'["\']%s["\']|\.%s\b|\[%s\]' % (k, k, k), blob)
+            if not accessed:
+                zombies.append(key)
         self.assertEqual(
             zombies, [],
             "harness-config.json declares keys no code reads: %s. Either wire "
-            "them up or delete them — a config knob that does nothing is worse "
-            "than no knob, because the docs tell users to turn it." % zombies,
+            "them up, delete them, or prefix with '_' if documentation-only — a "
+            "config knob that does nothing is worse than no knob, because the "
+            "docs tell users to turn it." % zombies,
         )
 
     def test_section_numbering_has_no_gaps(self):

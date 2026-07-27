@@ -434,10 +434,13 @@ interface LoopGuardConfig {
   enableSelfHealingLoopGuard: boolean;
 }
 
-let cachedLoopGuardConfig: LoopGuardConfig | null = null;
-
+// Deliberately NOT cached, matching taste-bridge / case-bridge /
+// planning-with-files-bridge: every bridge re-reads harness-config.json per
+// turn, so a flag edit takes effect on the next turn everywhere. A cache here
+// would have made this one flag alone require a restart — and "I flipped the
+// switch and nothing happened" is exactly the experience that made these flags
+// look like zombies in the first place. The file is under 1KB.
 function loopGuardConfig(): LoopGuardConfig {
-  if (cachedLoopGuardConfig) return cachedLoopGuardConfig;
   const config: LoopGuardConfig = { enableUniversalTagTransformer: true, enableSelfHealingLoopGuard: true };
   try {
     // ESM bridge ("type": "module"): `require` does not exist here. Using
@@ -453,7 +456,6 @@ function loopGuardConfig(): LoopGuardConfig {
       if (cfg.enableSelfHealingLoopGuard === false) config.enableSelfHealingLoopGuard = false;
     }
   } catch {}
-  cachedLoopGuardConfig = config;
   return config;
 }
 
