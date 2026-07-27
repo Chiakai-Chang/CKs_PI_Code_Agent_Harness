@@ -61,7 +61,7 @@ cd CKs_PI_Code_Agent_Harness
 ```
 +-----------------------------------------------------------------------+
 |  Layer 0: Security & Protection (安全治理與防護層)                     |
-|  • YES.md pre-bash-guard (硬擋 rm -rf /、git push --force 等毀滅指令)  |
+|  • YES.md pre-bash-guard + yes-hooks-bridge (指令硬鎖/Tag轉義/Strike 3)|
 |  • skill-namespace-guard (動態碰撞隔離) + validate-config.py 靜態合規  |
 +-----------------------------------------------------------------------+
                                    |
@@ -96,7 +96,7 @@ cd CKs_PI_Code_Agent_Harness
 |  Layer 4: Evidence Gate (證據驗證與基因進化層)                        |
 |  • autonomous-experiment-guide (MAD 統計顯著性驗證)                    |
 |  • harness-factory-guide (Repo Fit 打分、Darwin 演化 & mcp-scan)        |
-|  • 173 個自動化單元測試網 (含 TestManagedSkillsConsistency 一致性校驗) |
+|  • 176 個自動化單元測試網 (含 TestManagedSkillsConsistency 一致性校驗) |
 +-----------------------------------------------------------------------+
 ```
 
@@ -108,7 +108,8 @@ cd CKs_PI_Code_Agent_Harness
 *   **AX-Tree 語意定位 (`browser-automation-guide`)**：蒸餾自 `pi-browser-harness`，優先使用 Accessibility Tree (AX-Tree) 語意節點進行頁面元素定位與變更驗證，大幅提升網頁資料抓取與操作精準度。
 
 #### 2. 🛡️ 安全治理與工程紀律 (Security & Engineering Discipline)
-*   **毀滅指令硬封鎖 (`yes-hooks-bridge` / `pre-bash-guard`)**：在模型執行 Bash 前以腳本硬性攔截高風險指令 (`rm -rf /`、`git push --force` 等)。
+*   **毀滅指令硬封鎖與循環防禦 (`yes-hooks-bridge` / `pre-bash-guard`)**：在模型執行 Bash 前以腳本硬性攔截高風險指令 (`rm -rf /`、`git push --force` 等)；內建 `loopGuard` 轉義標籤並於 Strike 3 自動啟動人類控制權斷路器（`deliverAs: "followUp"`），防止 Agent 陷入無限重複死循環。
+
 *   **需求研討與對立審查 (`grilling-protocol` / `contrarian` / `adversary`)**：強制執行一問一答需求釐清，並透過鋼鐵人反方與極限對立測試，避免 AI 瞎猜或陷入單一視角。
 *   **工具參數自癒修復 (`tool-repair-guide`)**：提供 9 大 Canonical 欄位修復與降級備援，防止 LLM 工具呼叫時 JSON 格式毀損造成執行中斷。
 

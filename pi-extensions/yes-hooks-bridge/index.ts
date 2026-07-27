@@ -161,20 +161,20 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
       {
         customType: "loop-guard",
         content:
-          "系統偵測到：你連續 3 次的回覆都沒有呼叫真正的工具，卻寫出了看起來像工具呼叫的標籤文字（例如 <invoke>、<read-file>、<bash>）。" +
+          "系統偵測到：你連續 3 次的回覆都沒有呼叫真正的工具，卻寫出了看起來像工具呼叫的標籤文字（例如 [invoke]、[read-file]、[bash]）。" +
           "那些文字不會被執行——工具呼叫必須透過真正的 function-calling 機制，不是印出 XML／標籤文字。" +
-          "現在請直接停下：不要再輸出任何 <invoke>／<read-file>／<bash> 之類的標籤。" +
+          "現在請直接停下：不要再輸出任何 [invoke]／[read-file]／[bash] 之類的標籤。" +
           "如果你原本想讀檔或執行指令，請改用真正的工具呼叫；如果你不確定下一步，直接用一般文字告訴使用者你卡住的原因並停止，等待使用者指示。",
         display: true,
       },
-      { deliverAs: "nextTurn" },
+      { deliverAs: "followUp" },
     );
   } else {
     pi.sendMessage(
       {
         customType: "loop-guard",
         content:
-          "提醒：這輪回覆沒有真正呼叫工具，但文字內容像是工具呼叫標籤（如 <invoke>／<read-file>／<bash>）——那些是純文字，不會被執行。" +
+          "提醒：這輪回覆沒有真正呼叫工具，但文字內容像是工具呼叫標籤（如 [invoke]／[read-file]／[bash]）——那些是純文字，不會被執行。" +
           "若要用工具，請使用真正的工具呼叫機制；若沒有下一步，直接說明並停止，不要再輸出這類標籤。",
         display: true,
       },

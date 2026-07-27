@@ -92,11 +92,12 @@
     *   **蒸餾核心技能 (Distilled Core Skills in `pi-skills/core/`)**：從頂級 Agent 專案中提煉核心演算法與哲學，重構為零外部依賴、符合 C.A.S.E. 規格的核心技能（如 `browser-automation-guide` 網頁 AX-Tree 定位、`ide-intelligence-guide` 語意編輯診斷、`harness-factory-guide` 基因打分等），全數自動納入系統生命週期管理。
 
 *   **5 層貫通 Operating System**：
-    *   **Layer 0 (Security & Protection)**：`yes-hooks-bridge` (`pre-bash-guard` 硬擋毀滅指令)、`skill-namespace-guard` (動態碰撞隔離) 與 `validate-config.py` 配置合規檢查。
+    *   **Layer 0 (Security & Protection)**：`yes-hooks-bridge` (`pre-bash-guard` 硬擋毀滅指令、Tag 轉義與 Strike 3 人類控制權斷路器)、`skill-namespace-guard` (動態碰撞隔離) 與 `validate-config.py` 配置合規檢查。
     *   **Layer 1 (Socratic Framing)**：`grilling-protocol` (一問一答需求釐清門控)、`contrarian-review` & `adversary-review` (逆向鋼鐵人反方與極限對立審查)。
-    *   **Layer 2 (Context Engine)**：`minimal-prompt-guide` (~80-200 Token 注意力專注)、`compact-continuation-bridge` (壓縮後自動接續對話)、`hello-reflect` (規則與經驗自演進寫入 `.agents/AGENTS.md`)。
+    *   **Layer 2 (Context Engine)**：`minimal-prompt-guide` (~80-200 Token 注意力專注)、`compact-continuation-bridge` (壓縮後自動接續對話)、`taste-bridge` (不可變 SystemPrompt 疊加)、`hello-reflect` (規則與經驗自演進寫入 `.agents/AGENTS.md`)。
     *   **Layer 3 (Execution, Research & Repair OS)**：`deep-research-guide` (多代理深度網頁研究與具名引用報告生成)、`browser-automation-guide` + `camofox-stealth` + `stealth-web-bridge` (AX-Tree 定位/隱身網頁搜尋檢索)、`workflow-os-guide` (Pins/Gates/Steers & `HANDOFF.md` 斷點保存)、`subagent-orchestration-guide` (`cheap`/`balanced`/`max` 模型分層與血統隔離)、`tool-repair-guide` (9 大 Canonical 欄位自癒修復)、`ide-intelligence-guide` (LSP 語意診斷前檢 & 模型專屬 Edit 格式)。
-    *   **Layer 4 (Evidence Gate)**：`autonomous-experiment-guide` (MAD 統計顯著性驗證)、`harness-factory-guide` (Repo Fit 打分與 Darwin 基因演化)、`guardian-pipeline-guide` (檢測-解析-審查生命週期合約) 與 173 個 Python 自動化測試。
+    *   **Layer 4 (Evidence Gate)**：`autonomous-experiment-guide` (MAD 統計顯著性驗證)、`harness-factory-guide` (Repo Fit 打分與 Darwin 基因演化)、`guardian-pipeline-guide` (檢測-解析-審查生命週期合約) 與 176 個 Python 自動化測試。
+
 
 ---
 

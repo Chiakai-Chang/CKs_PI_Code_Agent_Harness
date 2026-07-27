@@ -15,7 +15,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   // Before each agent turn: inject premium aesthetics guidelines into system prompt
-  pi.on("before_agent_start", (_event, _ctx) => {
+  pi.on("before_agent_start", (event, _ctx) => {
     const __dirname = dirname(require.resolve("./package.json"));
     const guidelinesPath = join(__dirname, "GEMINI.md");
 
@@ -24,7 +24,7 @@ export default function (pi: ExtensionAPI) {
     try {
       const guidelines = readFileSync(guidelinesPath, "utf8");
       return {
-        systemPrompt: `[Taste-Engine] PREMIUM UI/UX GUIDELINES:\n${guidelines}`,
+        systemPrompt: (event.systemPrompt ?? "") + "\n\n" + `[Taste-Engine] PREMIUM UI/UX GUIDELINES:\n${guidelines}`,
       };
     } catch {
       return;

@@ -52,6 +52,9 @@ bridge must adapt to keep the principle, not drop it.
 - **Double-up on overflow compaction.** Pi's overflow recovery already retries
   the aborted turn itself (`event.willRetry === true`). Sending a continuation
   on top races/queues two turns. Check `willRetry` first.
+- **Tag Escaping in Warning Messages.** When emitting warning messages or prompt injections containing tool names or XML tags (e.g. `<invoke>`, `<bash>`, `<read-file>`), ALWAYS escape them using bracket notation (e.g. `[invoke]`, `[bash]`, `[read-file]`). Unescaped tags echoed by the LLM will re-trigger regex fake-tool detectors and create infinite warning loops.
+- **Circuit Breaker Delivery Mode.** On reaching maximum warning/retry strikes (e.g. Strike 3), circuit breakers MUST deliver messages with `deliverAs: "followUp"` to return turn control to the human user. Never reset strike counters while retaining `deliverAs: "nextTurn"`, as this creates self-reinforcing auto-turn infinite loops (`1 -> 2 -> 3 -> 1`).
+
 
 ## Sources
 

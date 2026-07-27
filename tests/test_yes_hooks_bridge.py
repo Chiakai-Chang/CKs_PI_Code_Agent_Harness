@@ -94,7 +94,7 @@ class TestLoopGuard(unittest.TestCase):
         c = read(self.IDX)
         self.assertIn("consecutiveFakeToolStrikes >= 3", c)
         self.assertIn("pi.sendMessage", c)
-        self.assertIn('"nextTurn"', c)
+        self.assertIn('"followUp"', c)
 
 
 class TestRestoreWiring(unittest.TestCase):
