@@ -10,5 +10,11 @@
   "enablePlanningBridge": true,
   "planningBridgeMaxChars": 600,
   "enableUniversalTagTransformer": true,
-  "enableSelfHealingLoopGuard": true
+  "enableSelfHealingLoopGuard": true,
+  "eccSkillModules": [
+    "workflow-quality",
+    "agentic-patterns",
+    "security",
+    "optimization-workflows"
+  ]
 }

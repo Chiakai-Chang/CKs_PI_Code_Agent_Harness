@@ -119,19 +119,208 @@ function containmentGuard(event: ToolCallEvent, ctx: ExtensionContext) {
 // or Markdown ` ```bash ` code blocks) — text that is never executed. Universal Parser intercepts valid tags and auto-advances.
 const FAKE_TOOL_CALL_PATTERN = /<invoke\b|<\/invoke>|<parameter\s+name=|<\/?read-files?>|<modified-files>|<bash\b|<\/bash>|<read\b|<\/read>|<write\b|<\/write>|<edit\b|<\/edit>|<browse\b|<\/browse>|<ls\b|<\/ls>|<dir\b|<\/dir>|<tool_code\b|<\/tool_code>|<tool_call\b|<\/tool_call>|```(?:bash|sh|cmd|powershell|ps1)\b/i;
 
+// A JSON payload shaped like a tool call — the shape a model reaches for when
+// it "describes" tool calls instead of emitting them, e.g.
+//   ```json
+//   [{"tool": "Read", "arguments": {"path": "README.md"}}]
+//   ```
+// FAKE_TOOL_CALL_PATTERN misses this entirely: it only knows XML-ish tags and
+// ```bash fences, so such a turn ended with zero tool calls, zero strikes and
+// zero signal — the agent simply stalled. Both a name key AND an argument key
+// are required so ordinary JSON the model prints as an *answer* (a config
+// snippet, an API response) does not trip the guard.
+const JSON_TOOL_NAME_KEY = /"(?:tool|tool_name|name|function|function_name|recipient_name)"\s*:\s*"[A-Za-z0-9_.\-]+"/i;
+const JSON_TOOL_ARGS_KEY = /"(?:arguments|args|input|parameters|params|tool_input)"\s*:\s*[{[]/i;
+
+function looksLikeJsonToolCall(text: string): boolean {
+  return JSON_TOOL_NAME_KEY.test(text) && JSON_TOOL_ARGS_KEY.test(text);
+}
+
+function looksLikeFakeToolCall(text: string): boolean {
+  return FAKE_TOOL_CALL_PATTERN.test(text) || looksLikeJsonToolCall(text);
+}
+
+// Pi's built-in tools, verified against the installed engine's
+// dist/core/tools/*.js: bash, edit, find, grep, ls, read, write. Anything the
+// auto-correction message names must be one of these — telling the model to
+// call `read_file` (which does not exist in Pi) just produces another failed
+// turn, which is how a single miss turns into a loop.
+const PI_TOOLS = new Set(["bash", "edit", "find", "grep", "ls", "read", "write"]);
+
+const TOOL_ALIASES: Record<string, string> = {
+  read: "read", read_file: "read", readfile: "read", view: "read", cat: "read", open_file: "read", get_file: "read",
+  write: "write", write_file: "write", writefile: "write", create_file: "write", create: "write", str_replace_editor: "edit",
+  edit: "edit", edit_file: "edit", str_replace: "edit", apply_patch: "edit", replace: "edit",
+  bash: "bash", shell: "bash", sh: "bash", run: "bash", run_command: "bash", command: "bash", terminal: "bash",
+  execute: "bash", execute_command: "bash", exec: "bash", cmd: "bash", powershell: "bash",
+  ls: "ls", dir: "ls", list: "ls", list_dir: "ls", list_files: "ls", listdirectory: "ls", list_directory: "ls",
+  grep: "grep", search: "grep", ripgrep: "grep", rg: "grep", search_files: "grep", codebase_search: "grep",
+  find: "find", glob: "find", file_search: "find", find_files: "find",
+};
+
+// Argument-key synonyms, normalized to the parameter names in Pi's schemas
+// (read/write/edit/ls/grep/find take `path`; bash takes `command`; grep/find
+// take `pattern`).
+const ARG_ALIASES: Record<string, string> = {
+  file_path: "path", filepath: "path", filename: "path", file: "path", absolute_path: "path",
+  target_file: "path", dir: "path", directory: "path", folder: "path",
+  cmd: "command", script: "command", shell_command: "command", commandline: "command",
+  query: "pattern", regex: "pattern", search: "pattern",
+  text: "content", contents: "content", body: "content", new_text: "content",
+};
+
+function canonicalizeToolName(name: string): string {
+  const key = String(name).trim().toLowerCase().replace(/[\s-]+/g, "_");
+  return TOOL_ALIASES[key] ?? key;
+}
+
+function canonicalizeArgs(toolName: string, args: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(args ?? {})) {
+    const canonical = ARG_ALIASES[k.toLowerCase()] ?? k;
+    // Never let an alias clobber a key the model already spelled correctly.
+    if (!(canonical in out) || out[canonical] === undefined) out[canonical] = v;
+  }
+  // `ls` on a bare string arg, `bash` given a path, ... are left alone: fail
+  // open and let the model re-issue rather than invent arguments.
+  if (toolName === "ls" && typeof out.path !== "string" && typeof out.command === "string") {
+    out.path = out.command;
+    delete out.command;
+  }
+  return out;
+}
+
 interface ParsedToolTag {
   name: string;
   args: Record<string, unknown>;
   raw: string;
+  /** How many tool calls the payload described; >1 means the model batched them. */
+  count?: number;
+  /** True when the canonical name is not one of Pi's built-in tools. */
+  unknownTool?: boolean;
 }
 
-function parseUniversalToolTag(text: string): ParsedToolTag | null {
+// Normalizes a raw {name, args} pair into Pi's tool vocabulary.
+function toParsedTag(rawName: string, rawArgs: Record<string, unknown>, raw: string, count = 1): ParsedToolTag {
+  const name = canonicalizeToolName(rawName);
+  return { name, args: canonicalizeArgs(name, rawArgs), raw, count, unknownTool: !PI_TOOLS.has(name) };
+}
+
+// Extracts every tool-call-shaped object from a JSON payload, fenced or bare,
+// object or array. Returns [] when nothing matches.
+function extractJsonToolCalls(text: string): { name: string; args: Record<string, unknown> }[] {
+  const candidates: string[] = [];
+  const fenced = text.match(/```(?:json|tool|tool_call|tool_calls|toolcode)?\s*([\s\S]*?)```/gi) ?? [];
+  for (const block of fenced) {
+    candidates.push(block.replace(/^```[a-z_]*\s*/i, "").replace(/```$/, "").trim());
+  }
+  // Bare (unfenced) payloads too — some models drop the fence entirely. A
+  // non-greedy regex is wrong here: it stops at the first `}`, which is the
+  // *nested* arguments object, yielding invalid JSON. Scan for balanced
+  // delimiters instead.
+  candidates.push(...extractBalancedJsonSpans(text));
+
+  for (const candidate of candidates) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(candidate);
+    } catch {
+      continue;
+    }
+    const items = Array.isArray(parsed) ? parsed : [parsed];
+    const calls: { name: string; args: Record<string, unknown> }[] = [];
+    for (const item of items) {
+      if (!item || typeof item !== "object") continue;
+      const o = item as Record<string, unknown>;
+      const nameRaw = o.tool ?? o.name ?? o.tool_name ?? o.function ?? o.function_name ?? o.recipient_name;
+      const name = typeof nameRaw === "string" ? nameRaw : typeof (nameRaw as { name?: unknown })?.name === "string" ? (nameRaw as { name: string }).name : null;
+      if (!name) continue;
+      // An argument key is mandatory. Without it, `{"name": "my-skill",
+      // "description": "..."}` — ordinary JSON a model prints as its ANSWER —
+      // would be hijacked into a bogus tool call.
+      const hasArgsKey = ["arguments", "args", "input", "parameters", "params", "tool_input"].some((k) => k in o);
+      if (!hasArgsKey) continue;
+      const argsRaw = o.arguments ?? o.args ?? o.input ?? o.parameters ?? o.params ?? o.tool_input ?? {};
+      const args = (typeof argsRaw === "string" ? safeJsonObject(argsRaw) : argsRaw) as Record<string, unknown>;
+      calls.push({ name, args: args && typeof args === "object" ? args : {} });
+    }
+    if (calls.length > 0) return calls;
+  }
+  return [];
+}
+
+// Returns each top-level {...} / [...] span in the text, delimiter-balanced and
+// string-aware (so a `}` inside a JSON string value doesn't end the span).
+//
+// SCAN_BUDGET bounds the work: an unbalanced opener restarts the inner scan one
+// character later, which is O(n²) on pathological input (a wall of `{`). This
+// runs on every turn_end, so an unbounded scan would let one malformed message
+// hang the whole session — the opposite of what a loop guard is for.
+const JSON_SCAN_BUDGET = 200_000;
+
+function extractBalancedJsonSpans(text: string, maxSpans = 5): string[] {
+  const spans: string[] = [];
+  let budget = JSON_SCAN_BUDGET;
+  for (let i = 0; i < text.length && spans.length < maxSpans && budget > 0; i++) {
+    const open = text[i];
+    if (open !== "{" && open !== "[") continue;
+    const close = open === "{" ? "}" : "]";
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+    for (let j = i; j < text.length && budget-- > 0; j++) {
+      const ch = text[j];
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === "\\") escaped = true;
+        else if (ch === '"') inString = false;
+        continue;
+      }
+      if (ch === '"') inString = true;
+      else if (ch === open) depth++;
+      else if (ch === close) {
+        depth--;
+        if (depth === 0) {
+          spans.push(text.slice(i, j + 1));
+          i = j;
+          break;
+        }
+      }
+    }
+  }
+  return spans;
+}
+
+function safeJsonObject(raw: string): Record<string, unknown> {
+  try {
+    const v = JSON.parse(raw);
+    return v && typeof v === "object" ? (v as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function parseUniversalToolTag(text: string): ParsedToolTag | null {
   if (!text || typeof text !== "string") return null;
 
+  // 0. JSON tool-call payloads (```json [{"tool": ..., "arguments": ...}] ```,
+  //    a single object, fenced or bare). Checked first: it is the shape most
+  //    local models fall back to, and the old parser only matched a fenced
+  //    object whose FIRST key was literally "name".
+  const jsonCalls = extractJsonToolCalls(text);
+  if (jsonCalls.length > 0) {
+    const first = jsonCalls[0];
+    return toParsedTag(first.name, first.args, text.trim(), jsonCalls.length);
+  }
+
   // 1. Standard XML tool wrappers: <tool_code>, <invoke>, <tool_call>, <function_call>, <action>, <execute>
+  //    Fenced ```json payloads are NOT handled here: step 0 already covers
+  //    them and enforces the "must carry an argument key" gate. The old
+  //    fenced-object pattern here required no such gate, so it hijacked any
+  //    ```json block whose first key happened to be "name" — e.g. a skill
+  //    frontmatter snippet the model was legitimately showing the user.
   const tagPatterns = [
     /<(?:tool_code|invoke|tool_call|function_call|action|execute)\b[^>]*>([\s\S]*?)<\/(?:tool_code|invoke|tool_call|function_call|action|execute)>/i,
-    /```(?:json|tool|tool_call)?\s*(\{\s*"name"\s*:\s*[\s\S]*?\})\s*```/i
   ];
 
   for (const pattern of tagPatterns) {
@@ -143,12 +332,12 @@ function parseUniversalToolTag(text: string): ParsedToolTag | null {
         if (parsed && typeof parsed === "object" && typeof parsed.name === "string") {
           const name = parsed.name;
           const args = (parsed.arguments || parsed.input || parsed.parameters || {}) as Record<string, unknown>;
-          return { name, args, raw: match[0] };
+          return toParsedTag(name, args, match[0]);
         }
       } catch {
         const nameMatch = text.match(/<invoke\s+name=["']([^"']+)["']/i) || text.match(/<tool_code\s+name=["']([^"']+)["']/i);
         if (nameMatch && nameMatch[1]) {
-          return { name: nameMatch[1], args: {}, raw: match[0] };
+          return toParsedTag(nameMatch[1], {}, match[0]);
         }
       }
     }
@@ -161,12 +350,10 @@ function parseUniversalToolTag(text: string): ParsedToolTag | null {
     const tagName = matchAnthropic[1].toLowerCase();
     const rawBody = matchAnthropic[2].trim();
 
-    let toolName = tagName;
-    if (tagName === "read" || tagName === "read_file") toolName = "read_file";
-    else if (tagName === "write" || tagName === "write_file") toolName = "write";
-    else if (tagName === "edit") toolName = "edit";
-    else if (tagName === "ls" || tagName === "dir") toolName = "bash";
-    else if (tagName === "command" || tagName === "terminal") toolName = "bash";
+    // canonicalizeToolName covers read/read_file -> read, ls/dir -> ls,
+    // command/terminal -> bash. `browse`/`search` have no built-in Pi
+    // equivalent and stay as-is (flagged unknownTool by toParsedTag).
+    const toolName = canonicalizeToolName(tagName);
 
     let args: Record<string, unknown> = {};
     if (rawBody.startsWith("{") && rawBody.endsWith("}")) {
@@ -175,14 +362,11 @@ function parseUniversalToolTag(text: string): ParsedToolTag | null {
 
     if (Object.keys(args).length === 0) {
       if (toolName === "bash") {
-        if (tagName === "ls" || tagName === "dir") {
-          const pathMatch = rawBody.match(/"path"\s*:\s*"([^"]+)"/) || rawBody.match(/["']([^"']+)["']/);
-          const dirPath = pathMatch ? pathMatch[1] : (rawBody.trim() || ".");
-          args = { command: `dir "${dirPath}"` };
-        } else {
-          args = { command: rawBody };
-        }
-      } else if (toolName === "read_file") {
+        args = { command: rawBody };
+      } else if (toolName === "ls") {
+        const pathMatch = rawBody.match(/"path"\s*:\s*"([^"]+)"/) || rawBody.match(/["']([^"']+)["']/);
+        args = { path: pathMatch ? pathMatch[1] : (rawBody.trim() || ".") };
+      } else if (toolName === "read") {
         const pathMatch = rawBody.match(/"(?:file_path|path|filePath|filename|file)"\s*:\s*"([^"]+)"/) || rawBody.match(/["']([^"']+)["']/);
         if (pathMatch) args = { path: pathMatch[1] };
         else args = { path: rawBody.trim() };
@@ -193,13 +377,7 @@ function parseUniversalToolTag(text: string): ParsedToolTag | null {
       }
     }
 
-    // Standardize keys for read_file
-    if (toolName === "read_file" && !args.path) {
-      const p = args.file_path || args.filePath || args.filename || args.file;
-      if (typeof p === "string") args.path = p;
-    }
-
-    return { name: toolName, args, raw: matchAnthropic[0] };
+    return toParsedTag(toolName, args, matchAnthropic[0]);
   }
 
   // 3. Markdown Bash code blocks: ```bash command ``` or ```sh command ```
@@ -211,11 +389,11 @@ function parseUniversalToolTag(text: string): ParsedToolTag | null {
       let toolName = "bash";
       let args: Record<string, unknown> = { command: rawBody };
       if (rawBody.startsWith("read ") || rawBody.startsWith("cat ")) {
-        toolName = "read_file";
+        toolName = "read";
         const targetPath = rawBody.replace(/^(?:read|cat)\s+/, "").trim();
         args = { path: targetPath };
       }
-      return { name: toolName, args, raw: matchBashBlock[0] };
+      return toParsedTag(toolName, args, matchBashBlock[0]);
     }
   }
 
@@ -228,10 +406,7 @@ function parseUniversalToolTag(text: string): ParsedToolTag | null {
         const name = parsed.name;
         const args = (parsed.arguments || parsed.input || parsed.parameters || parsed) as Record<string, unknown>;
         delete args.name;
-        if (name === "read" || name === "read_file") {
-          if (!args.path && args.file_path) args.path = args.file_path;
-        }
-        return { name, args, raw: jsonMatch[0] };
+        return toParsedTag(name, args, jsonMatch[0]);
       }
     } catch {}
   }
@@ -249,33 +424,103 @@ function extractMessageText(message: unknown): string {
     .join("\n");
 }
 
+// README documents `enableUniversalTagTransformer` and
+// `enableSelfHealingLoopGuard` in pi-config/harness-config.json as the fix for
+// "<tool_code> 標籤卡死 / 死鎖停擺". Until now nothing read either key: they were
+// decorative, so following the documented remedy changed nothing. Both are
+// honored here, defaulting to on (absent config == current behavior).
+interface LoopGuardConfig {
+  enableUniversalTagTransformer: boolean;
+  enableSelfHealingLoopGuard: boolean;
+}
+
+let cachedLoopGuardConfig: LoopGuardConfig | null = null;
+
+function loopGuardConfig(): LoopGuardConfig {
+  if (cachedLoopGuardConfig) return cachedLoopGuardConfig;
+  const config: LoopGuardConfig = { enableUniversalTagTransformer: true, enableSelfHealingLoopGuard: true };
+  try {
+    const here = dirname(require.resolve("./package.json"));
+    const pkg = JSON.parse(readFileSync(join(here, "package.json"), "utf-8"));
+    const harnessRoot = pkg["pi-harness"]?.root || join(here, "../..");
+    const cfgPath = join(harnessRoot, "pi-config", "harness-config.json");
+    if (existsSync(cfgPath)) {
+      const cfg = JSON.parse(readFileSync(cfgPath, "utf8"));
+      if (cfg.enableUniversalTagTransformer === false) config.enableUniversalTagTransformer = false;
+      if (cfg.enableSelfHealingLoopGuard === false) config.enableSelfHealingLoopGuard = false;
+    }
+  } catch {}
+  cachedLoopGuardConfig = config;
+  return config;
+}
+
 let consecutiveFakeToolStrikes = 0;
+// The transformer used to reset consecutiveFakeToolStrikes on every hit, so a
+// model that kept emitting parseable-but-fake calls could be auto-retried
+// forever (each retry sets triggerTurn: true). This counter caps that path on
+// its own budget and hands control back to the human at 3.
+let consecutiveTransformStrikes = 0;
+const MAX_RAW_ECHO = 400;
 
 function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: ExtensionContext, pi: ExtensionAPI) {
   const hadRealToolCall = Array.isArray(event.toolResults) && event.toolResults.length > 0;
   if (hadRealToolCall) {
     consecutiveFakeToolStrikes = 0;
+    consecutiveTransformStrikes = 0;
     return;
   }
+
+  const cfg = loopGuardConfig();
+  if (!cfg.enableSelfHealingLoopGuard && !cfg.enableUniversalTagTransformer) return;
 
   const text = extractMessageText(event.message);
 
   // Universal Tool Tag Transformer: intercept valid tool tags and auto-advance
-  const parsedTag = parseUniversalToolTag(text);
+  const parsedTag = cfg.enableUniversalTagTransformer ? parseUniversalToolTag(text) : null;
   if (parsedTag) {
     consecutiveFakeToolStrikes = 0;
-    ctx.ui.notify(`🛠️ Universal Parser: Transformed text tag <${parsedTag.name}>`, "info");
+    consecutiveTransformStrikes += 1;
+
+    if (consecutiveTransformStrikes >= 3) {
+      consecutiveTransformStrikes = 0;
+      ctx.ui.notify("🚨 Universal Parser auto-corrected 3 turns in a row with no real tool call — handing back to the user.", "error");
+      pi.sendMessage(
+        {
+          customType: "loop-guard",
+          content:
+            "系統已連續 3 次自動糾正你的假工具呼叫，但你仍然沒有發出真正的原生 Function Call。" +
+            "請停止輸出任何工具標籤或 JSON 工具描述，改用文字向使用者說明你卡住的原因與需要什麼協助。",
+          display: true,
+        },
+        { deliverAs: "followUp", triggerTurn: true },
+      );
+      return;
+    }
+
+    const rawEcho = parsedTag.raw.length > MAX_RAW_ECHO ? `${parsedTag.raw.slice(0, MAX_RAW_ECHO)}…（已截斷）` : parsedTag.raw;
+    const batchNote =
+      parsedTag.count && parsedTag.count > 1
+        ? `\n（你一次描述了 ${parsedTag.count} 個工具呼叫。請先發出第一個，其餘的在後續回合逐一發出。）`
+        : "";
+    const unknownNote = parsedTag.unknownTool
+      ? `\n⚠️ 注意：'${parsedTag.name}' 不是 Pi 的內建工具。可用的內建工具只有：${[...PI_TOOLS].join(", ")}。請改用其中最接近的一個。`
+      : "";
+
+    ctx.ui.notify(
+      `🛠️ Universal Parser: transformed fake tool call into '${parsedTag.name}' (strike ${consecutiveTransformStrikes}/3)`,
+      "info",
+    );
 
     pi.sendMessage(
       {
         customType: "universal-tag-transformer",
         content:
           `[SYSTEM CRITICAL AUTO-CORRECTION]\n` +
-          `偵測到你剛才使用了純文字/XML標籤：<${parsedTag.name}> (原始文字：${parsedTag.raw})\n` +
-          `系統已自動識別你的意圖為呼叫原生工具【${parsedTag.name}】，解析後的參數為：\n` +
-          `${JSON.stringify(parsedTag.args, null, 2)}\n\n` +
+          `偵測到你剛才用純文字（XML 標籤或 JSON）描述工具呼叫，而不是發出真正的呼叫。原始文字：\n${rawEcho}\n\n` +
+          `系統已識別你的意圖為呼叫原生工具【${parsedTag.name}】，解析後的參數為：\n` +
+          `${JSON.stringify(parsedTag.args, null, 2)}${batchNote}${unknownNote}\n\n` +
           `🔥【指令】：請你在此輪對話中【立即且只能】呼叫原生工具 '${parsedTag.name}'，傳入上述參數！` +
-          `絕對不要再輸出任何 XML 標籤或 \`\`\`bash 程式碼塊！`,
+          `絕對不要再輸出任何 XML 標籤、\`\`\`json 工具清單或 \`\`\`bash 程式碼塊！`,
         display: true,
       },
       { deliverAs: "nextTurn", triggerTurn: true }
@@ -283,8 +528,11 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
     return;
   }
 
-  if (!FAKE_TOOL_CALL_PATTERN.test(text)) {
+  if (!cfg.enableSelfHealingLoopGuard) return;
+
+  if (!looksLikeFakeToolCall(text)) {
     consecutiveFakeToolStrikes = 0;
+    consecutiveTransformStrikes = 0;
     return;
   }
 

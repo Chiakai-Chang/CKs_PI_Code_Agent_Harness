@@ -331,17 +331,91 @@ def prune_deprecated_packages(settings):
         ]
     return settings
 
-def ecc_skill_paths(ecc_skills_root):
+# Pi renders EVERY registered skill's name + description + absolute path into
+# the system prompt on every turn (engine: formatSkillsForPrompt). ECC ships
+# 277 skills; registering all of them measured 110,240 chars (~27,560 tokens)
+# — over half of a ~52k-token startup prompt, before the user has typed
+# anything. Most are domain packs (supply-chain, prediction markets, video
+# generation, Swift/Laravel/Django stacks) irrelevant to any given session.
+#
+# ECC upstream already classifies its skills in manifests/install-modules.json.
+# Honor that taxonomy instead of globbing the directory: register the modules
+# that match what this harness is for (engineering discipline + agent work),
+# and leave the domain packs opt-in via harness-config.json.
+ECC_DEFAULT_MODULES = [
+    "workflow-quality",          # agent-sort, code-tour, continuous-learning, ...
+    "agentic-patterns",          # agentic-engineering, agent-harness-construction, ...
+    "security",                  # security review / compliance guidance
+    "optimization-workflows",    # benchmark + latency + parallel-execution loops
+]
+
+# Registered regardless of module membership: these document the ECC
+# integration itself, so dropping them would leave the bridge undiscoverable.
+ECC_ALWAYS_SKILLS = ["ecc-guide", "ecc-recipes", "configure-ecc", "ecc-tools-cost-audit"]
+
+
+def ecc_modules_from_config(harness_config_path):
+    """Read eccSkillModules from pi-config/harness-config.json.
+
+    Values: a list of ECC module ids, "all" for the full 277-skill set, or
+    absent for ECC_DEFAULT_MODULES. Malformed config falls back to the default
+    rather than failing the restore.
     """
-    Enumerate ECC skills individually so known-broken upstream skills can be
-    skipped without modifying the submodule. Falls back to registering the
-    root directory when the submodule is not initialized yet.
+    try:
+        with open(harness_config_path, encoding="utf-8") as f:
+            cfg = json.load(f)
+    except (OSError, ValueError):
+        return ECC_DEFAULT_MODULES
+    value = cfg.get("eccSkillModules")
+    if value == "all":
+        return "all"
+    if isinstance(value, list) and all(isinstance(v, str) for v in value):
+        return value
+    return ECC_DEFAULT_MODULES
+
+
+def ecc_skill_paths(ecc_skills_root, modules=None):
+    """
+    Enumerate the ECC skills selected by `modules` (a list of ECC module ids,
+    or "all"). Known-broken upstream skills are skipped without modifying the
+    submodule. Falls back to registering the root directory when the submodule
+    is not initialized yet.
     """
     if not os.path.isdir(ecc_skills_root):
         return [ecc_skills_root.replace("\\", "/")]
+
+    if modules is None:
+        modules = ECC_DEFAULT_MODULES
+
+    selected = None  # None == no filtering (register everything)
+    if modules != "all":
+        manifest = os.path.join(
+            os.path.dirname(ecc_skills_root), "manifests", "install-modules.json"
+        )
+        try:
+            with open(manifest, encoding="utf-8") as f:
+                mods = json.load(f)["modules"]
+        except (OSError, ValueError, KeyError, TypeError):
+            # No manifest (submodule not updated / upstream reshuffle): fail
+            # open to the full set rather than silently dropping every ECC
+            # skill, which would be a much worse surprise than a fat prompt.
+            log("  ! ECC install-modules.json unreadable — registering all ECC skills")
+            mods = None
+        if mods is not None:
+            wanted = set(modules)
+            selected = set(ECC_ALWAYS_SKILLS)
+            for m in mods:
+                if m.get("id") not in wanted:
+                    continue
+                for p in m.get("paths", []):
+                    if p.startswith("skills/"):
+                        selected.add(p.split("/", 1)[1])
+
     paths = []
     for name in sorted(os.listdir(ecc_skills_root)):
         if name in ECC_BROKEN_SKILLS:
+            continue
+        if selected is not None and name not in selected:
             continue
         p = os.path.join(ecc_skills_root, name)
         if os.path.isdir(p) and os.path.exists(os.path.join(p, "SKILL.md")):
@@ -512,7 +586,13 @@ def main():
         profile_prompts.append(os.path.join(pi_skills_root, "optional", "camofox-stealth", "commands").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "llm-wiki-plugin", "skills", "llm-wiki").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "prompt-master").replace("\\", "/"))
-        profile_skills.extend(ecc_skill_paths(os.path.join(REPO_ROOT, "external", "ecc", "skills")))
+        ecc_modules = ecc_modules_from_config(
+            os.path.join(REPO_ROOT, "pi-config", "harness-config.json")
+        )
+        ecc_paths = ecc_skill_paths(os.path.join(REPO_ROOT, "external", "ecc", "skills"), ecc_modules)
+        profile_skills.extend(ecc_paths)
+        log("  - ECC skills: %d registered (modules: %s)"
+            % (len(ecc_paths), "all" if ecc_modules == "all" else ", ".join(ecc_modules)))
         profile_skills.append(os.path.join(ext_root, "Local-Agent-Workspace").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "taste-skill", "skills").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "darwin-skill").replace("\\", "/"))

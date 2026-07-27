@@ -11,6 +11,7 @@ import platform
 import subprocess
 import json
 import shutil
+import stat
 import time
 import urllib.request
 import urllib.error
@@ -183,10 +184,71 @@ def maybe_prefetch_stealth():
     else:
         print("[*] 略過 stealth 引擎預抓 (可日後執行 pi 時由 camofox-stealth 技能懶啟動)。")
 
+def git_dirs(repo_root):
+    """The superproject's .git plus every submodule git dir under .git/modules.
+
+    Submodules keep their own config there and do NOT inherit the
+    superproject's settings, so anything set once at the top level silently
+    fails to apply to the 17 submodules this harness pulls.
+    """
+    top = os.path.join(repo_root, ".git")
+    if not os.path.isdir(top):
+        return []
+    dirs = [top]
+    modules = os.path.join(top, "modules")
+    for parent, subdirs, files in os.walk(modules):
+        # A submodule git dir is any directory holding a `config` file. Stop
+        # descending into its own objects/refs once identified; nested
+        # submodules live under its `modules/` subdir, so keep walking that.
+        if "config" in files and "objects" in subdirs:
+            dirs.append(parent)
+            subdirs[:] = [d for d in subdirs if d == "modules"]
+    return dirs
+
+
+def disable_commit_graph():
+    """Stop the recurring `failed to rename temporary commit-graph file` noise.
+
+    Observed on Windows during `git pull --recurse-submodules`: git writes
+    commit-graph files read-only (0444) and leaves an orphan .graph behind when
+    a write is interrupted, so the chain no longer matches what is on disk.
+    Every later write then fails to rename over the read-only chain file, and
+    the post-fetch `git maintenance` commit-graph task fails with it.
+
+    The commit-graph is a pure lookup cache — no history lives in it — so the
+    fix is to delete the corrupt caches and stop regenerating them.
+    """
+    print("[*] 正在關閉 commit-graph 快取寫入並清除毀損快取 (Windows rename 失敗來源)...")
+    removed = 0
+    targets = git_dirs(REPO_ROOT)
+    for gd in targets:
+        info = os.path.join(gd, "objects", "info")
+        for target in (os.path.join(info, "commit-graphs"), os.path.join(info, "commit-graph")):
+            if os.path.exists(target):
+                try:
+                    # Files are written 0444; clear the read-only bit first or
+                    # the delete fails on Windows exactly like the rename did.
+                    if os.path.isdir(target):
+                        for parent, _d, files in os.walk(target):
+                            for f in files:
+                                os.chmod(os.path.join(parent, f), stat.S_IWRITE)
+                        shutil.rmtree(target)
+                    else:
+                        os.chmod(target, stat.S_IWRITE)
+                        os.remove(target)
+                    removed += 1
+                except OSError as e:
+                    print(f"[!] 無法刪除 {target}: {e}")
+        run(f'git --git-dir="{gd}" config fetch.writeCommitGraph false')
+        run(f'git --git-dir="{gd}" config maintenance.commit-graph.enabled false')
+    print(f"[*] commit-graph 快取已清除 {removed} 份，並於 {len(targets)} 個 git 目錄停用寫入。")
+    return removed, len(targets)
+
+
 def run_update():
     """One-command update: pull repo+submodules, resync config, update Pi."""
     print("[*] 正在更新 Harness 與子模組 (git pull)...")
-    run("git config fetch.writeCommitGraph false")
+    disable_commit_graph()
     run_stream("git pull --recurse-submodules")
     restore_script = os.path.join(REPO_ROOT, "scripts", "restore.py")
     print("[*] 正在重新同步配置 (restore --auto，冪等、保留自訂)...")
@@ -396,6 +458,10 @@ def main():
     if mode in ["full", "restore"]:
         print("[*] 正在拉取專家資產 (Submodules)...")
         run_stream("git submodule update --init --recursive")
+        # Submodule git dirs only exist after --init, so this has to run after
+        # the clone, not before. A fresh install hits the same Windows
+        # commit-graph rename failures on its very first `git pull` otherwise.
+        disable_commit_graph()
 
     if mode == "full":
         print("🔍 正在檢查核心組件...")

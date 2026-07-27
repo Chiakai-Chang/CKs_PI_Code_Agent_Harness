@@ -97,5 +97,89 @@ class TestSetupLogic(unittest.TestCase):
         nums = re.findall(r'\d+', messy_out)
         self.assertEqual(nums[0], "17179869184")
 
+
+class TestCommitGraphCleanup(unittest.TestCase):
+    """`update.bat` printed `failed to rename temporary commit-graph file` on
+    every run. Two causes: git leaves read-only (0444) orphan .graph files that
+    a later write cannot rename over, and — the reason a previously-added
+    `git config fetch.writeCommitGraph false` on the superproject did nothing —
+    each submodule keeps its OWN config under .git/modules/<name>/config and
+    inherits nothing from the parent."""
+
+    def setUp(self):
+        import stat as _stat
+        import tempfile
+        self.tmp = tempfile.mkdtemp()
+        self.orig_root = setup.REPO_ROOT
+        setup.REPO_ROOT = self.tmp
+
+        def mk_gitdir(path, with_graph=False, readonly=False):
+            os.makedirs(os.path.join(path, "objects", "info"), exist_ok=True)
+            os.makedirs(os.path.join(path, "refs"), exist_ok=True)
+            open(os.path.join(path, "config"), "w").close()
+            if with_graph:
+                gdir = os.path.join(path, "objects", "info", "commit-graphs")
+                os.makedirs(gdir, exist_ok=True)
+                f = os.path.join(gdir, "commit-graph-chain")
+                with open(f, "w") as fh:
+                    fh.write("deadbeef\n")
+                if readonly:
+                    os.chmod(f, _stat.S_IREAD)
+
+        self.top = os.path.join(self.tmp, ".git")
+        mk_gitdir(self.top, with_graph=True, readonly=True)
+        for name in ("ecc", "superpowers"):
+            mk_gitdir(os.path.join(self.top, "modules", "external", name),
+                      with_graph=True, readonly=True)
+        # A nested submodule, to prove the walk keeps descending into modules/
+        mk_gitdir(os.path.join(self.top, "modules", "external", "ecc", "modules", "inner"))
+
+    def tearDown(self):
+        import shutil as _shutil
+        import stat as _stat
+        setup.REPO_ROOT = self.orig_root
+        for parent, _d, files in os.walk(self.tmp):
+            for f in files:
+                try:
+                    os.chmod(os.path.join(parent, f), _stat.S_IWRITE)
+                except OSError:
+                    pass
+        _shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_finds_superproject_and_every_submodule_git_dir(self):
+        found = setup.git_dirs(self.tmp)
+        self.assertIn(self.top, found)
+        names = {os.path.basename(p) for p in found}
+        self.assertIn("ecc", names)
+        self.assertIn("superpowers", names)
+        self.assertIn("inner", names, "nested submodule git dirs must be reached too")
+        self.assertEqual(len(found), 4)
+
+    def test_missing_repo_returns_empty(self):
+        import tempfile
+        self.assertEqual(setup.git_dirs(tempfile.mkdtemp()), [])
+
+    def test_removes_readonly_commit_graph_caches(self):
+        """Read-only (0444) is exactly why git's own rename failed — deleting
+        without clearing the bit would fail the same way."""
+        with mock.patch.object(setup, "run") as run_mock:
+            removed, targets = setup.disable_commit_graph()
+        self.assertEqual(removed, 3, "one cache per git dir that had one")
+        self.assertEqual(targets, 4)
+        for parent, _d, _f in os.walk(self.tmp):
+            self.assertNotIn("commit-graphs", os.path.basename(parent))
+        # Both knobs, on every git dir: fetch-time writes AND the post-fetch
+        # `git maintenance` commit-graph task (which reported its own error).
+        cmds = " ".join(str(c) for c in run_mock.call_args_list)
+        self.assertEqual(cmds.count("fetch.writeCommitGraph false"), 4)
+        self.assertEqual(cmds.count("maintenance.commit-graph.enabled false"), 4)
+
+    def test_idempotent(self):
+        with mock.patch.object(setup, "run"):
+            setup.disable_commit_graph()
+            removed, _ = setup.disable_commit_graph()
+        self.assertEqual(removed, 0)
+
+
 if __name__ == '__main__':
     unittest.main()
