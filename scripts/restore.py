@@ -494,11 +494,15 @@ def main():
                      "caveman-stats", "caveman-help", "cavecrew"]:
             profile_skills.append(os.path.join(ext_root, "caveman", "skills", name).replace("\\", "/"))
         
-        # Superpowers skills: NOT registered here — obra/superpowers Pi extension
-        # (git:github.com/obra/superpowers) provides them natively. Registering both
-        # caused 13 skill-name collisions every startup (Pi resolved by picking the
-        # extension copy and skipping ours; startup log was full of collision warnings).
-        # The external/superpowers submodule is kept as a learning reference only.
+        # Superpowers skills: registered directly from external/superpowers/skills/
+        # so all 14 superpowers skills are available as standard harness-managed skills
+        # without loading the obra/superpowers extension (which polluted prompts with XML tags).
+        sp_skills_dir = os.path.join(ext_root, "superpowers", "skills")
+        if os.path.isdir(sp_skills_dir):
+            for sp_name in sorted(os.listdir(sp_skills_dir)):
+                sp_path = os.path.join(sp_skills_dir, sp_name)
+                if os.path.isdir(sp_path):
+                    profile_skills.append(sp_path.replace("\\", "/"))
             
         profile_skills.append(os.path.join(ext_root, "karpathy-skills", "skills", "karpathy-guidelines").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "planning-with-files", ".pi", "skills", "planning-with-files").replace("\\", "/"))
