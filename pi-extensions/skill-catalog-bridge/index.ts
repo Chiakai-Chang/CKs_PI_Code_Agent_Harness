@@ -63,13 +63,25 @@ export function readCatalog(root: string): CatalogSkill[] {
   }
 }
 
+// The wording is the product of a live trigger test, not a guess. The first
+// version said "read <catalog> to get its description and SKILL.md path, then
+// read that file". The model did step one — it opened the catalog — and then
+// called web_search twice for the skill instead of reading the local `path` it
+// had just been handed. stealth-web-bridge's own promptGuidelines ("You CAN
+// access the internet: call web_search for any task needing current or external
+// information") actively pull that way, so the catalog has to say plainly that
+// these skills are local files.
 export function buildCatalogBlock(skills: CatalogSkill[], catalogPath: string): string {
   if (skills.length === 0) return "";
   const names = skills.map((s) => s.name).sort().join(", ");
   return (
-    `\n\n[Skill Catalog] ${skills.length} additional specialized skills are available but not ` +
-    `expanded above, to keep the context small. If one of these names matches the task, read ` +
-    `${catalogPath} to get its description and SKILL.md path, then read that file:\n${names}`
+    `\n\n[Skill Catalog] ${skills.length} more skills are installed locally. Their names are ` +
+    `listed below; their descriptions are not expanded here, to keep the context small.\n` +
+    `To use one, take exactly two steps:\n` +
+    `  1. read ${catalogPath} — a JSON list where every entry has "name", "description" and "path".\n` +
+    `  2. read the "path" value of the entry you want. That file is the skill.\n` +
+    `These are files already on this machine. Do NOT use web_search to look a skill up, and do ` +
+    `not guess its contents from the name.\n${names}`
   );
 }
 

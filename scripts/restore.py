@@ -355,6 +355,24 @@ ECC_DEFAULT_MODULES = [
 ECC_ALWAYS_SKILLS = ["ecc-guide", "ecc-recipes", "configure-ecc", "ecc-tools-cost-audit"]
 
 
+def write_catalog(path, entries):
+    """Write skill-catalog.json with ONE LINE PER SKILL.
+
+    Pretty-printed, 104 skills came to 525 lines. Observed in a live trigger
+    test: the model read it with `limit: 300`, so roughly half the catalogue was
+    invisible in the read it actually performed. One line per entry keeps the
+    whole catalogue inside a single default read.
+    """
+    ensure_dir(os.path.dirname(path))
+    lines = ['{', '  "version": 1,', '  "skills": [']
+    for i, e in enumerate(entries):
+        comma = "," if i < len(entries) - 1 else ""
+        lines.append("    " + json.dumps(e, ensure_ascii=False) + comma)
+    lines += ["  ]", "}"]
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+
+
 def manifest_path_of(repo_root):
     return os.path.join(repo_root, "pi-config", "external-skills-manifest.json")
 
@@ -739,7 +757,7 @@ def main():
         # Register the directory of each core skill; the tail is not registered.
         core_dirs = sorted({d for _n, _d, _p, d in core})
         tail_entries = [{"name": n, "description": d, "path": p} for n, d, p, _dir in sorted(tail)]
-        save_json(catalog_path, {"version": 1, "skills": tail_entries})
+        write_catalog(catalog_path, tail_entries)
         save_json(manifest_path_of(REPO_ROOT), [{"path": p} for p in core_dirs])
         log(f"  - skill tiers: {len(core_dirs)} core registered, {len(tail_entries)} in catalog")
         # A core entry that matches nothing is a typo or an upstream rename, and
