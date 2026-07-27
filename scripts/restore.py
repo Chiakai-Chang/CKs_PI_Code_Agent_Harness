@@ -314,10 +314,10 @@ ECC_BROKEN_SKILLS = {"loop-design-check"}  # invalid YAML in description (unquot
 # camofox-stealth skill. deep_merge unions lists (never removes), so emptying
 # pi-config alone cannot evict these from an already-installed live settings;
 # they must be pruned explicitly here.
-DEPRECATED_PACKAGES = {"npm:context-mode", "npm:@tintinweb/pi-tasks"}
+DEPRECATED_PACKAGE_SUBSTRINGS = {"context-mode", "pi-tasks", "superpowers"}
 
 def prune_deprecated_packages(settings):
-    """Drop DEPRECATED_PACKAGES from settings['packages'] in place.
+    """Drop deprecated residue packages from settings['packages'] in place.
 
     deep_merge unions list entries and never removes, so a package left in an
     already-installed ~/.pi/agent/settings.json survives every restore unless
@@ -325,7 +325,10 @@ def prune_deprecated_packages(settings):
     """
     pkgs = settings.get("packages")
     if isinstance(pkgs, list):
-        settings["packages"] = [p for p in pkgs if p not in DEPRECATED_PACKAGES]
+        settings["packages"] = [
+            p for p in pkgs 
+            if not any(sub in p for sub in DEPRECATED_PACKAGE_SUBSTRINGS)
+        ]
     return settings
 
 def ecc_skill_paths(ecc_skills_root):
