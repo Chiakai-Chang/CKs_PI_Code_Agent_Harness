@@ -115,9 +115,9 @@ function containmentGuard(event: ToolCallEvent, ctx: ExtensionContext) {
 }
 
 // Guard 3: catches a turn that ends with NO real tool call but assistant text shaped like
-// one (Claude/Superpowers `<read>`, `<write>`, `<edit>`, `<bash>`, `<invoke>`, `<tool_code>` tags)
-// — text that is never executed. Universal Parser intercepts valid tags and auto-advances.
-const FAKE_TOOL_CALL_PATTERN = /<invoke\b|<\/invoke>|<parameter\s+name=|<\/?read-files?>|<modified-files>|<bash\b|<\/bash>|<read\b|<\/read>|<write\b|<\/write>|<edit\b|<\/edit>|<browse\b|<\/browse>|<tool_code\b|<\/tool_code>|<tool_call\b|<\/tool_call>/i;
+// one (Claude/Superpowers `<read>`, `<write>`, `<edit>`, `<bash>`, `<invoke>`, `<tool_code>` tags,
+// or Markdown ` ```bash ` code blocks) — text that is never executed. Universal Parser intercepts valid tags and auto-advances.
+const FAKE_TOOL_CALL_PATTERN = /<invoke\b|<\/invoke>|<parameter\s+name=|<\/?read-files?>|<modified-files>|<bash\b|<\/bash>|<read\b|<\/read>|<write\b|<\/write>|<edit\b|<\/edit>|<browse\b|<\/browse>|<tool_code\b|<\/tool_code>|<tool_call\b|<\/tool_call>|```(?:bash|sh|cmd|powershell|ps1)\b/i;
 
 interface ParsedToolTag {
   name: string;
@@ -185,7 +185,24 @@ function parseUniversalToolTag(text: string): ParsedToolTag | null {
     return { name: toolName, args, raw: matchAnthropic[0] };
   }
 
-  // 3. Standalone JSON object in text with "name" and "arguments" / "path" / "command"
+  // 3. Markdown Bash code blocks: ```bash command ``` or ```sh command ```
+  const bashBlockPattern = /```(?:bash|sh|cmd|powershell|ps1)\s*([\s\S]*?)\s*```/i;
+  const matchBashBlock = text.match(bashBlockPattern);
+  if (matchBashBlock && matchBashBlock[1]) {
+    const rawBody = matchBashBlock[1].trim();
+    if (rawBody) {
+      let toolName = "bash";
+      let args: Record<string, unknown> = { command: rawBody };
+      if (rawBody.startsWith("read ") || rawBody.startsWith("cat ")) {
+        toolName = "read_file";
+        const targetPath = rawBody.replace(/^(?:read|cat)\s+/, "").trim();
+        args = { path: targetPath };
+      }
+      return { name: toolName, args, raw: matchBashBlock[0] };
+    }
+  }
+
+  // 4. Standalone JSON object in text with "name" and "arguments" / "path" / "command"
   const jsonMatch = text.match(/\{\s*"name"\s*:\s*"([a-zA-Z0-9_\-]+)"\s*,\s*"(?:arguments|input|parameters|path|command)"\s*:[\s\S]*?\}/);
   if (jsonMatch) {
     try {
@@ -233,9 +250,9 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
       {
         customType: "universal-tag-transformer",
         content:
-          `[System Tool-Tag Transformer]: 偵測到模型使用了標籤式工具呼叫（${parsedTag.name}）。` +
+          `[System Tool-Tag Transformer]: 偵測到模型使用了標籤或 Markdown 程式碼塊式工具呼叫（${parsedTag.name}）。` +
           `系統已成功解析參數：${JSON.stringify(parsedTag.args)}。` +
-          `請注意：請改為發起標準的原生 Function Call 呼叫工具，不要在對話文字中輸出 XML 或 JSON 標籤。`,
+          `請注意：請改為發起標準的原生 Function Call 呼叫工具，不要在對話文字中輸出 ```bash 或 XML 標籤。`,
         display: true,
       },
       { deliverAs: "nextTurn" }
@@ -260,8 +277,8 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
       {
         customType: "loop-guard",
         content:
-          "系統偵測到：你連續 3 次的回覆都沒有呼叫真正的工具，卻寫出了看起來像工具呼叫的標籤文字。" +
-          "請直接停止輸出標籤文字。如果你原本想讀檔或執行指令，請改用真正的工具呼叫；如果你不確定下一步，請告訴使用者你卡住的原因。",
+          "系統偵測到：你連續 3 次的回覆都沒有呼叫真正的工具，卻寫出了格式如 ```bash 或 <read> 的標籤文字。" +
+          "請直接停止輸出標籤與程式碼塊文字。如果你原本想讀檔或執行指令，請改用真正的原生工具呼叫；如果你不確定下一步，請告訴使用者你卡住的原因。",
         display: true,
       },
       { deliverAs: "followUp" },
@@ -272,7 +289,7 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
       {
         customType: "loop-guard",
         content:
-          `[System Self-Healing Auto-Retry] 提醒：這輪回覆沒有真正呼叫工具，但文字包含工具標籤（Strike ${consecutiveFakeToolStrikes}/3）。` +
+          `[System Self-Healing Auto-Retry] 提醒：這輪回覆沒有真正呼叫工具，但文字包含工具標籤或 Markdown 程式碼塊（Strike ${consecutiveFakeToolStrikes}/3）。` +
           "請重新回覆並發起標準的原生 Function Call 呼叫工具。",
         display: true,
       },
@@ -282,6 +299,16 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
 }
 
 export default function (pi: ExtensionAPI) {
+  pi.on("before_agent_start", (event, _ctx) => {
+    return {
+      systemPrompt: (event.systemPrompt ?? "") + "\n\n" +
+        "[Native Function-Calling Protocol] HARD RULE FOR LOCAL MODELS:\n" +
+        "• You MUST execute actions using native tool calls (tool_call).\n" +
+        "• NEVER output bash commands or tool calls inside markdown code blocks (e.g. ```bash) or XML tags (<read>, <bash>).\n" +
+        "• Markdown text code blocks are NOT executed by the system and will cause execution to halt."
+    };
+  });
+
   pi.on("tool_call", async (event, ctx) => {
     if (event.toolName === "bash") return bashGuard(event, ctx);
     if (event.toolName === "write" || event.toolName === "edit") return containmentGuard(event, ctx);
