@@ -116,13 +116,58 @@ function containmentGuard(event: ToolCallEvent, ctx: ExtensionContext) {
 
 // Guard 3: catches a turn that ends with NO real tool call but assistant text shaped like
 // one (Claude-style `<invoke>`/`<parameter name=`, or ad-hoc `<read-files>`/`<bash><command>`
-// tags) — text that is never executed. Pi's own compaction summary format legitimately ends
-// with literal `<read-files>`/`<modified-files>` tags (see compaction.md); a weak local model
-// can echo that shape right back as if it were an action to take, then loop on its own echo
-// across turns since nothing else interrupts it. Structurally invisible to `tool_call` hooks
-// (no tool_call event fires for plain text), so this hooks `turn_end` instead. Implements
-// AGENTS.md §4's "3-Strike Cap" as code instead of unenforced prose.
-const FAKE_TOOL_CALL_PATTERN = /<invoke\b|<\/invoke>|<parameter\s+name=|<\/?read-files?>|<modified-files>|<bash>\s*<command>/i;
+// tags) — text that is never executed. Universal Parser intercepts valid tags and auto-advances.
+const FAKE_TOOL_CALL_PATTERN = /<invoke\b|<\/invoke>|<parameter\s+name=|<\/?read-files?>|<modified-files>|<bash>\s*<command>|<tool_code\b|<\/tool_code>|<tool_call\b|<\/tool_call>/i;
+
+interface ParsedToolTag {
+  name: string;
+  args: Record<string, unknown>;
+  raw: string;
+}
+
+function parseUniversalToolTag(text: string): ParsedToolTag | null {
+  if (!text || typeof text !== "string") return null;
+
+  const tagPatterns = [
+    /<(?:tool_code|invoke|tool_call|function_call|action|execute)\b[^>]*>([\s\S]*?)<\/(?:tool_code|invoke|tool_call|function_call|action|execute)>/i,
+    /```(?:json|tool|tool_call)?\s*(\{\s*"name"\s*:\s*[\s\S]*?\})\s*```/i
+  ];
+
+  for (const pattern of tagPatterns) {
+    const match = text.match(pattern);
+    if (match && match[1]) {
+      const rawContent = match[1].trim();
+      try {
+        const parsed = JSON.parse(rawContent);
+        if (parsed && typeof parsed === "object" && typeof parsed.name === "string") {
+          const name = parsed.name;
+          const args = (parsed.arguments || parsed.input || parsed.parameters || {}) as Record<string, unknown>;
+          return { name, args, raw: match[0] };
+        }
+      } catch {
+        const nameMatch = text.match(/<invoke\s+name=["']([^"']+)["']/i) || text.match(/<tool_code\s+name=["']([^"']+)["']/i);
+        if (nameMatch && nameMatch[1]) {
+          return { name: nameMatch[1], args: {}, raw: match[0] };
+        }
+      }
+    }
+  }
+
+  const jsonMatch = text.match(/\{\s*"name"\s*:\s*"([a-zA-Z0-9_\-]+)"\s*,\s*"(?:arguments|input|parameters|path|command)"\s*:[\s\S]*?\}/);
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (parsed && typeof parsed.name === "string") {
+        const name = parsed.name;
+        const args = (parsed.arguments || parsed.input || parsed.parameters || parsed) as Record<string, unknown>;
+        delete args.name;
+        return { name, args, raw: jsonMatch[0] };
+      }
+    } catch {}
+  }
+
+  return null;
+}
 
 function extractMessageText(message: unknown): string {
   const content = (message as { content?: unknown } | undefined)?.content;
@@ -144,6 +189,27 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
   }
 
   const text = extractMessageText(event.message);
+
+  // Universal Tool Tag Transformer: intercept valid tool tags and auto-advance
+  const parsedTag = parseUniversalToolTag(text);
+  if (parsedTag) {
+    consecutiveFakeToolStrikes = 0;
+    ctx.ui.notify(`🛠️ Universal Parser: Transformed text tag <${parsedTag.name}>`, "info");
+
+    pi.sendMessage(
+      {
+        customType: "universal-tag-transformer",
+        content:
+          `[System Tool-Tag Transformer]: 偵測到模型使用了標籤式工具呼叫（${parsedTag.name}）。` +
+          `系統已成功解析參數：${JSON.stringify(parsedTag.args)}。` +
+          `請注意：請改為發起標準的原生 Function Call 呼叫工具，不要在對話文字中輸出 XML 或 JSON 標籤。`,
+        display: true,
+      },
+      { deliverAs: "nextTurn" }
+    );
+    return;
+  }
+
   if (!FAKE_TOOL_CALL_PATTERN.test(text)) {
     consecutiveFakeToolStrikes = 0;
     return;
@@ -161,21 +227,20 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
       {
         customType: "loop-guard",
         content:
-          "系統偵測到：你連續 3 次的回覆都沒有呼叫真正的工具，卻寫出了看起來像工具呼叫的標籤文字（例如 [invoke]、[read-file]、[bash]）。" +
-          "那些文字不會被執行——工具呼叫必須透過真正的 function-calling 機制，不是印出 XML／標籤文字。" +
-          "現在請直接停下：不要再輸出任何 [invoke]／[read-file]／[bash] 之類的標籤。" +
-          "如果你原本想讀檔或執行指令，請改用真正的工具呼叫；如果你不確定下一步，直接用一般文字告訴使用者你卡住的原因並停止，等待使用者指示。",
+          "系統偵測到：你連續 3 次的回覆都沒有呼叫真正的工具，卻寫出了看起來像工具呼叫的標籤文字。" +
+          "請直接停止輸出標籤文字。如果你原本想讀檔或執行指令，請改用真正的工具呼叫；如果你不確定下一步，請告訴使用者你卡住的原因。",
         display: true,
       },
       { deliverAs: "followUp" },
     );
   } else {
+    // Self-healing auto-retry on strike 1 & 2 to prevent deadlocks
     pi.sendMessage(
       {
         customType: "loop-guard",
         content:
-          "提醒：這輪回覆沒有真正呼叫工具，但文字內容像是工具呼叫標籤（如 [invoke]／[read-file]／[bash]）——那些是純文字，不會被執行。" +
-          "若要用工具，請使用真正的工具呼叫機制；若沒有下一步，直接說明並停止，不要再輸出這類標籤。",
+          `[System Self-Healing Auto-Retry] 提醒：這輪回覆沒有真正呼叫工具，但文字包含工具標籤（Strike ${consecutiveFakeToolStrikes}/3）。` +
+          "請重新回覆並發起標準的原生 Function Call 呼叫工具。",
         display: true,
       },
       { deliverAs: "nextTurn" },

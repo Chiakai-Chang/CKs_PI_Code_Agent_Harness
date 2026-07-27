@@ -45,19 +45,39 @@ export default function (pi: ExtensionAPI) {
     const pkg = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf-8"));
     const HARNESS_ROOT = pkg["pi-harness"]?.root || join(__dirname, "../..");
 
+    let isSlim = false;
+    let maxChars = MAX_INJECT_CHARS;
+
+    try {
+      const cfgPath = join(HARNESS_ROOT, "pi-config", "harness-config.json");
+      if (existsSync(cfgPath)) {
+        const cfg = JSON.parse(readFileSync(cfgPath, "utf8"));
+        if (cfg.enableCaseBridge === false) return;
+        if (cfg.promptProfile === "slim") {
+          isSlim = true;
+          maxChars = cfg.caseBridgeMaxChars || 600;
+        }
+      }
+    } catch {}
+
     const BOOTSTRAP_SCRIPT = join(HARNESS_ROOT, "external/Local-Agent-Workspace/scripts/bootstrap.py").replace(/\\/g, "/");
     const VERIFIER_SCRIPT = join(HARNESS_ROOT, "external/Local-Agent-Workspace/verifiers/verify.py").replace(/\\/g, "/");
 
     const parts: string[] = [
-      `[C.A.S.E.] C.A.S.E. (Constitution-Architecture-State-Execution) framework is active in this harness.`,
-      `- To bootstrap C.A.S.E. in a project, run: python "${BOOTSTRAP_SCRIPT}" .`,
-      `- To verify a C.A.S.E. task queue folder, run: python "${VERIFIER_SCRIPT}" <path_to_task_folder>`
+      `[C.A.S.E.] C.A.S.E. (Constitution-Architecture-State-Execution) framework is active in this harness.`
     ];
 
+    if (!isSlim) {
+      parts.push(
+        `- To bootstrap C.A.S.E. in a project, run: python "${BOOTSTRAP_SCRIPT}" .`,
+        `- To verify a C.A.S.E. task queue folder, run: python "${VERIFIER_SCRIPT}" <path_to_task_folder>`
+      );
+    }
+
     if (isCaseProject(ctx.cwd)) {
-      const constitution = readHead(join(ctx.cwd, "00_Constitution"), "core.md", MAX_INJECT_CHARS);
-      const roadmap = readHead(join(ctx.cwd, "01_Roadmap"), "roadmap.md", MAX_INJECT_CHARS);
-      const addendum = readHead(join(HARNESS_ROOT, "pi-rules"), "case-autonomous-execution.md", MAX_INJECT_CHARS);
+      const constitution = readHead(join(ctx.cwd, "00_Constitution"), "core.md", maxChars);
+      const roadmap = readHead(join(ctx.cwd, "01_Roadmap"), "roadmap.md", maxChars);
+      const addendum = isSlim ? "" : readHead(join(HARNESS_ROOT, "pi-rules"), "case-autonomous-execution.md", maxChars);
 
       if (constitution.trim()) {
         parts.push(
@@ -78,7 +98,7 @@ export default function (pi: ExtensionAPI) {
       if (addendum.trim()) {
         parts.push(
           "",
-          "---BEGIN C.A.S.E. HARNESS ADDENDUM (supersedes conflicting instructions above on DONE-gating and retrospectives)---",
+          "---BEGIN C.A.S.E. HARNESS ADDENDUM---",
           addendum.trim(),
           "---END C.A.S.E. HARNESS ADDENDUM---"
         );

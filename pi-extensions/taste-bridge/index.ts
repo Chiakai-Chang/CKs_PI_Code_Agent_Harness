@@ -17,6 +17,15 @@ export default function (pi: ExtensionAPI) {
   // Before each agent turn: inject premium aesthetics guidelines into system prompt
   pi.on("before_agent_start", (event, _ctx) => {
     const __dirname = dirname(require.resolve("./package.json"));
+    const harnessRoot = join(__dirname, "../..");
+    try {
+      const cfgPath = join(harnessRoot, "pi-config", "harness-config.json");
+      if (existsSync(cfgPath)) {
+        const cfg = JSON.parse(readFileSync(cfgPath, "utf8"));
+        if (cfg.enableTasteBridge === false) return; // Skip in slim mode to save 4,000+ chars
+      }
+    } catch {}
+
     const guidelinesPath = join(__dirname, "GEMINI.md");
 
     if (!existsSync(guidelinesPath)) return;
