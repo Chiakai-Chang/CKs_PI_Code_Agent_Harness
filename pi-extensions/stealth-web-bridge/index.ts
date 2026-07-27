@@ -168,6 +168,20 @@ function currentTab(params: any): string | null {
 // Optional tabId param shared by every page tool (defaults to the current tab).
 const TAB_PARAM = Type.Optional(Type.String({ description: "Tab id to act on (from web_open/web_search); defaults to the current tab" }));
 
+// Does the tab still exist server-side? Used to tell "page has nothing to show"
+// apart from "this tab is gone" — the two need opposite next steps from the
+// model, and conflating them is what let it retry a dead tab six times.
+async function tabExists(tabId: string): Promise<boolean> {
+  try {
+    const r = await fetch(`${SERVER}/tabs?userId=${USER}`, { signal: AbortSignal.timeout(5000) });
+    const j: any = await r.json().catch(() => ({}));
+    const tabs = Array.isArray(j) ? j : (j.tabs ?? []);
+    return tabs.some((t: any) => (typeof t === "string" ? t : t?.tabId) === tabId);
+  } catch {
+    return true; // can't tell — assume alive and give the softer message
+  }
+}
+
 // Single snapshot read (no polling) — for reading page state right after an action.
 async function readSnapshot(tabId: string): Promise<string> {
   try {
@@ -434,8 +448,26 @@ export default function (pi: ExtensionAPI) {
         const r = await fetch(`${SERVER}/tabs/${tab}/snapshot?userId=${USER}${qs}`, { signal: AbortSignal.timeout(15_000) });
         const j: any = await r.json().catch(() => ({}));
         const text = j.snapshot ?? "";
+        if (!text) {
+          // Observed in one real session: the first snapshot returned 4,648
+          // chars, then six consecutive calls returned the string
+          // "(empty snapshot)". That was a plain success result — not an error,
+          // with no reason and no next step — so the model simply kept
+          // retrying the same dead tab. An empty page is a failure to report,
+          // not content to hand back.
+          const alive = await tabExists(tab);
+          return toolError(
+            alive
+              ? `Tab ${tab} returned an empty snapshot. The page is open but has no readable content yet — ` +
+                `it may still be loading, may render only after interaction, or may be a blank/redirect page. ` +
+                `Do NOT call web_snapshot again on this tab expecting a different answer: either act on the ` +
+                `page first (web_click / web_scroll / web_press), or re-open the URL with web_open.`
+              : `Tab ${tab} no longer exists (closed, expired, or never opened). Call web_open with the URL ` +
+                `again to get a fresh tab id; snapshotting this one will keep returning nothing.`,
+          );
+        }
         return {
-          content: [{ type: "text" as const, text: truncateForTool(text || "(empty snapshot)", "snapshot") }],
+          content: [{ type: "text" as const, text: truncateForTool(text, "snapshot") }],
           details: { totalChars: j.totalChars, hasMore: j.hasMore, nextOffset: j.nextOffset },
         };
       } catch (e) {

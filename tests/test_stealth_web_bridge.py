@@ -155,6 +155,37 @@ class TestRestoreWiring(unittest.TestCase):
         self.assertEqual(c.count('"stealth-web-bridge"'), 3)
 
 
+class TestEmptySnapshotIsAnError(unittest.TestCase):
+    """Measured in a real session: the first web_snapshot returned 4,648 chars,
+    then six consecutive calls returned the literal string "(empty snapshot)" —
+    as a plain SUCCESS result, with no reason and no next step. The model kept
+    retrying the same dead tab. An empty page is a failure to report, not
+    content to hand back."""
+
+    IDX = "pi-extensions/stealth-web-bridge/index.ts"
+
+    def setUp(self):
+        self.src = read(self.IDX)
+
+    def test_empty_snapshot_no_longer_returned_as_content(self):
+        self.assertNotIn('text || "(empty snapshot)"', self.src)
+        self.assertNotIn('truncateForTool(text || "(empty snapshot)"', self.src)
+
+    def test_empty_snapshot_returns_tool_error(self):
+        self.assertIn("if (!text) {", self.src)
+        self.assertIn("empty snapshot", self.src)
+        self.assertIn("toolError(", self.src)
+
+    def test_distinguishes_dead_tab_from_blank_page(self):
+        """The two need opposite next steps: re-open the URL vs act on the page.
+        Conflating them is what allowed six identical retries."""
+        self.assertIn("tabExists", self.src)
+        self.assertIn("no longer exists", self.src)
+
+    def test_tells_the_model_not_to_retry(self):
+        self.assertIn("Do NOT call web_snapshot again", self.src)
+
+
 def _node_major():
     if not shutil.which("node"):
         return 0
