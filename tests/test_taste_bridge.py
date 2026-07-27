@@ -1,4 +1,5 @@
 import os
+import re
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -23,6 +24,45 @@ class TestTasteBridgeContract(unittest.TestCase):
         pkg = read(self.PKG)
         self.assertIn('"type": "module"', pkg)
         self.assertIn("pi-harness", pkg)
+
+
+class TestEsmBridgesDoNotUseRequire(unittest.TestCase):
+    """A bridge whose package.json declares `"type": "module"` is loaded as ESM,
+    where `require` is undefined. `require.resolve("./package.json")` therefore
+    throws — and Pi catches handler errors and routes them to the TUI, so under
+    --print the handler simply never completes and nothing says so.
+
+    taste-bridge shipped this way: before_agent_start threw on every turn, so
+    the guideline injection never ran once AND the config read meant to disable
+    it never ran either. Proven by importing the installed copy directly:
+        handler THREW: require is not defined
+    Non-ESM bridges (no "type" field) are transpiled to CJS and may use require.
+    """
+
+    def test_no_require_in_esm_bridges(self):
+        import glob
+        import json as _json
+        offenders = []
+        for pkg_path in glob.glob(os.path.join(ROOT, "pi-extensions", "*", "package.json")):
+            with open(pkg_path, encoding="utf-8") as f:
+                pkg = _json.load(f)
+            if pkg.get("type") != "module":
+                continue
+            idx = os.path.join(os.path.dirname(pkg_path), "index.ts")
+            if not os.path.exists(idx):
+                continue
+            with open(idx, encoding="utf-8") as f:
+                body = "\n".join(
+                    ln for ln in f.read().splitlines()
+                    if not ln.lstrip().startswith(("//", "*", "/*"))
+                )
+            if re.search(r"\brequire\s*[.(]", body):
+                offenders.append(os.path.basename(os.path.dirname(pkg_path)))
+        self.assertEqual(
+            offenders, [],
+            'ESM bridges (package.json "type": "module") cannot use require; '
+            "use fileURLToPath(import.meta.url). Offenders: %s" % offenders,
+        )
 
 
 class TestHarnessRootResolution(unittest.TestCase):

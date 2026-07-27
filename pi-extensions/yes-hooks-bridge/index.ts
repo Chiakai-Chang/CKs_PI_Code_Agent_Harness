@@ -440,7 +440,10 @@ function loopGuardConfig(): LoopGuardConfig {
   if (cachedLoopGuardConfig) return cachedLoopGuardConfig;
   const config: LoopGuardConfig = { enableUniversalTagTransformer: true, enableSelfHealingLoopGuard: true };
   try {
-    const here = dirname(require.resolve("./package.json"));
+    // ESM bridge ("type": "module"): `require` does not exist here. Using
+    // require.resolve would throw, get swallowed by this catch, and silently
+    // return the defaults — leaving both flags zombie exactly as before.
+    const here = dirname(fileURLToPath(import.meta.url));
     const pkg = JSON.parse(readFileSync(join(here, "package.json"), "utf-8"));
     const harnessRoot = pkg["pi-harness"]?.root || join(here, "../..");
     const cfgPath = join(harnessRoot, "pi-config", "harness-config.json");

@@ -7,21 +7,32 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
-// restore.py copies this bridge to ~/.pi/agent/extensions/taste-bridge/ and
-// patches the harness root into package.json. Resolving the root as
-// join(__dirname, "../..") — as this bridge used to — lands on ~/.pi, which has
-// no pi-config/, so existsSync() was always false and `enableTasteBridge:
-// false` never took effect: GEMINI.md was injected into every turn regardless
-// of the config, and the status line's "active" was accidentally correct.
-// Every other bridge reads pkg["pi-harness"].root; this one now does too.
+// Two stacked defects made this bridge a no-op that looked alive:
+//
+//  1. This package.json declares "type": "module", so Pi loads the bridge as
+//     ESM, where `require` does not exist. Every call to
+//     `require.resolve("./package.json")` threw. The engine catches handler
+//     errors and reports them to the TUI, so under --print the failure was
+//     completely invisible — before_agent_start never completed once.
+//  2. Even reaching the config read, the root was resolved as
+//     join(__dirname, "../..") — under the installed layout that is ~/.pi,
+//     which holds no pi-config/, so `enableTasteBridge: false` could not have
+//     taken effect either.
+//
+// Proven by importing the installed copy directly:
+//     handler THREW: require is not defined
+// Fix: import.meta.url (the ESM equivalent, as skill-namespace-guard uses) plus
+// the pkg["pi-harness"].root that restore.py patches in, like every other bridge.
+const HERE = dirname(fileURLToPath(import.meta.url));
+
 function harnessRoot(): string {
-  const here = dirname(require.resolve("./package.json"));
   try {
-    const pkg = JSON.parse(readFileSync(join(here, "package.json"), "utf-8"));
+    const pkg = JSON.parse(readFileSync(join(HERE, "package.json"), "utf-8"));
     if (pkg["pi-harness"]?.root) return pkg["pi-harness"].root;
   } catch {}
-  return join(here, "../..");
+  return join(HERE, "../..");
 }
 
 function tasteEnabled(): boolean {
@@ -47,7 +58,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("before_agent_start", (event, _ctx) => {
     if (!tasteEnabled()) return; // slim mode: saves ~1,800 chars every turn
 
-    const guidelinesPath = join(dirname(require.resolve("./package.json")), "GEMINI.md");
+    const guidelinesPath = join(HERE, "GEMINI.md");
     if (!existsSync(guidelinesPath)) return;
 
     try {

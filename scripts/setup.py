@@ -184,6 +184,48 @@ def maybe_prefetch_stealth():
     else:
         print("[*] 略過 stealth 引擎預抓 (可日後執行 pi 時由 camofox-stealth 技能懶啟動)。")
 
+def harness_config(key, default=None):
+    """Read one key from pi-config/harness-config.json (via the shared loader)."""
+    return load_json(HARNESS_CONFIG_PATH).get(key, default)
+
+
+def harness_version():
+    return harness_config("harnessVersion", "unknown")
+
+
+def parse_version(text):
+    """Extract a (major, minor, patch) tuple from arbitrary version output.
+
+    `pi --version` prints things like "pi 0.82.1"; a bare "0.73" is padded.
+    Returns None when no version-looking token is present.
+    """
+    m = re.search(r"(\d+)\.(\d+)(?:\.(\d+))?", text or "")
+    if not m:
+        return None
+    return (int(m.group(1)), int(m.group(2)), int(m.group(3) or 0))
+
+
+def check_pi_version():
+    """Warn when the installed Pi predates minRecommendedPiVersion.
+
+    harness-config.json declared this bound but nothing ever read it, so a user
+    on an old Pi got no signal at all — they just hit missing extension APIs as
+    mysterious runtime failures. Advisory only: never block the install.
+    """
+    declared = harness_config("minRecommendedPiVersion")
+    required = parse_version(declared)
+    if not required or not has_command("pi"):
+        return None
+    _ok, out, err = run("pi --version")
+    installed = parse_version(out or err)
+    if not installed:
+        return None
+    if installed < required:
+        print(f"[!] 偵測到 Pi {'.'.join(map(str, installed))}，低於本 Harness 建議的 {declared}。"
+              f"部分 Extension API 可能不存在，請先執行: pi update")
+    return installed
+
+
 def git_dirs(repo_root):
     """The superproject's .git plus every submodule git dir under .git/modules.
 
@@ -448,7 +490,8 @@ def main():
         mode = "restore"  # safe non-interactive default
     while not mode: mode = show_main_menu()
 
-    print(f"\n[*] 模式: {mode} | 系統: {platform.system()}")
+    print(f"\n[*] 模式: {mode} | 系統: {platform.system()} | Harness v{harness_version()}")
+    check_pi_version()
 
     # Git Initialization
     run(f'git config --global --add safe.directory "{REPO_ROOT}"')
