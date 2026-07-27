@@ -171,6 +171,47 @@ class TestShippedConfig(unittest.TestCase):
         self.assertTrue(external, "no declared core skill is registered — tiering is misconfigured")
 
 
+class TestCatalogStaysSmall(unittest.TestCase):
+    """Reading the catalogue is a tool result the model swallows whole.
+
+    With descriptions it was 42,229 chars (~10,557 tokens). In a live trigger
+    test the model read it, its prompt went 16,613 -> 27,715 tokens, and its
+    very next turn answered a question that had never been asked — it lost the
+    conversation entirely. A mechanism that saves ~11,500 tokens per turn must
+    not inject ~10,700 the moment it is used.
+    """
+
+    def setUp(self):
+        self.path = os.path.join(ROOT, "pi-config", "skill-catalog.json")
+        if not os.path.exists(self.path):
+            self.skipTest("run scripts/restore.py first")
+        with open(self.path, encoding="utf-8") as f:
+            self.catalog = json.load(f)
+
+    def test_entries_carry_no_descriptions(self):
+        for s in self.catalog["skills"]:
+            self.assertNotIn(
+                "description", s,
+                "catalog entries must be name+path only; the SKILL.md the model "
+                "reads next already opens with the description",
+            )
+
+    def test_catalog_is_small_enough_to_read_whole(self):
+        size = os.path.getsize(self.path)
+        self.assertLess(
+            size, 20000,
+            "skill-catalog.json is %d bytes; reading it would dump ~%d tokens into "
+            "the conversation in one tool result" % (size, size // 4),
+        )
+
+    def test_one_line_per_entry(self):
+        """Pretty-printed, 104 skills came to 525 lines and the model read it
+        with limit:300 — half the catalogue was outside the read it performed."""
+        with open(self.path, encoding="utf-8") as f:
+            lines = len(f.readlines())
+        self.assertLess(lines, len(self.catalog["skills"]) + 10)
+
+
 class TestCatalogBridgeWiring(unittest.TestCase):
     def test_bridge_registered_and_managed(self):
         with open(os.path.join(ROOT, "scripts", "restore.py"), encoding="utf-8") as f:

@@ -756,7 +756,15 @@ def main():
         core, tail = partition_skills_by_tier(discovered, core_names)
         # Register the directory of each core skill; the tail is not registered.
         core_dirs = sorted({d for _n, _d, _p, d in core})
-        tail_entries = [{"name": n, "description": d, "path": p} for n, d, p, _dir in sorted(tail)]
+        # Name and path ONLY — deliberately no descriptions. Reading the
+        # catalogue is a tool result the model swallows whole: with
+        # descriptions the file was 42,229 chars (~10,557 tokens), and in a live
+        # trigger test the model read it, its prompt jumped 16,613 -> 27,715
+        # tokens, and its very next turn answered a question that was never
+        # asked. A mechanism built to save ~11,500 tokens per turn must not dump
+        # ~10,700 into the context the moment it is used. The description is
+        # redundant anyway: the model reads the SKILL.md next, which opens with it.
+        tail_entries = [{"name": n, "path": p} for n, _d, p, _dir in sorted(tail)]
         write_catalog(catalog_path, tail_entries)
         save_json(manifest_path_of(REPO_ROOT), [{"path": p} for p in core_dirs])
         log(f"  - skill tiers: {len(core_dirs)} core registered, {len(tail_entries)} in catalog")

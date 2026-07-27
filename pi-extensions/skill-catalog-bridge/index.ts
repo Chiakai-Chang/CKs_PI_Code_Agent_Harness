@@ -78,8 +78,9 @@ export function buildCatalogBlock(skills: CatalogSkill[], catalogPath: string): 
     `\n\n[Skill Catalog] ${skills.length} more skills are installed locally. Their names are ` +
     `listed below; their descriptions are not expanded here, to keep the context small.\n` +
     `To use one, take exactly two steps:\n` +
-    `  1. read ${catalogPath} — a JSON list where every entry has "name", "description" and "path".\n` +
-    `  2. read the "path" value of the entry you want. That file is the skill.\n` +
+    `  1. read ${catalogPath} — a JSON list where every entry has "name" and "path".\n` +
+    `  2. read the "path" value of the entry you want. That file is the skill, and it opens ` +
+    `with the description.\n` +
     `These are files already on this machine. Do NOT use web_search to look a skill up, and do ` +
     `not guess its contents from the name.\n${names}`
   );
