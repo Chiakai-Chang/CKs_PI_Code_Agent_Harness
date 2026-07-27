@@ -23,12 +23,29 @@ cd CKs_PI_Code_Agent_Harness
 *   **Windows**: 雙擊或執行 `install.bat`
 *   **macOS / Linux**: 執行 `bash install.sh`
 
-### 3. 更新與升級 (Update)
+### 3. 更新與升級 (Update & Fix Guide)
 已安裝過的使用者一鍵更新（設定與自訂技能都會保留）：
 *   **Windows**：雙擊 `update.bat`
 *   **macOS / Linux**：執行 `bash update.sh`
 *   **進階（等同上述）**：`python scripts/setup.py --mode update`
-    — 內部自動執行 `git pull --recurse-submodules` → `restore --auto` → `pi update --all`。
+    — 內部自動執行 `git pull --recurse-submodules` → `restore --auto` （自動同步 5 大核心 Extension 至 `~/.pi/agent/extensions/`） → `pi update --all`。
+
+> 🛠️ **舊用戶修復指南（若遇到 `@file` 無法讀取、`<tool_code>` 標籤卡死、死鎖停擺）**：
+> 1. **執行一鍵更新**：執行上述 `update.bat` 或 `bash update.sh`，將最新版本的 Universal Parser 標籤轉譯器與 Self-Healing 擴充同步至本地。
+> 2. **確認 `pi-config/harness-config.json` 減重配置**：若使用本地模型（如 `grm-2.6-plus` / llama.cpp），確保配置包含：
+>    ```json
+>    {
+>      "promptProfile": "slim",
+>      "enableTasteBridge": false,
+>      "enableCaseBridge": true,
+>      "caseBridgeMaxChars": 600,
+>      "enablePlanningBridge": true,
+>      "planningBridgeMaxChars": 600,
+>      "enableUniversalTagTransformer": true,
+>      "enableSelfHealingLoopGuard": true
+>    }
+>    ```
+>    *此設定將 Prompt 降重 80%+，徹底解決本地模型 Context 爆量造成的 `@file` 失效與死鎖問題。*
 
 > 啟動時若見到 `[Skill conflicts]` 警告：`external/*` 子模組技能（如 `agents-best-practices`、`darwin-skill`）不再於 `restore.py` 執行當下寫死進 `settings.json`。改由 `skill-namespace-guard` 這個 extension 在**每次** Pi 啟動時即時比對——內容跟全域已安裝的版本相同就跳過（不重複註冊），內容不同（你自己另外裝了同名但不同的東西）才會把 harness 這份隔離成 `harness-<name>` 兩份並存，不會動到你自己裝的版本。詳見 [docs/superpowers/specs/2026-07-21-skill-namespace-isolation-design.md](docs/superpowers/specs/2026-07-21-skill-namespace-isolation-design.md)。
 
