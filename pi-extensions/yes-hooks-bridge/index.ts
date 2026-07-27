@@ -92,6 +92,50 @@ function bashGuard(event: ToolCallEvent, ctx: ExtensionContext) {
 // Mirrors Pi's own resolveToCwd: relative paths resolve under cwd; absolute paths
 // stay absolute. A target that escapes cwd (sibling project, this harness, home) is
 // blocked so a drifting model can't scatter files across the disk.
+// Guard 2b: writes into a vendored git submodule.
+//
+// Observed for real: asked to load a skill, the model took the path out of
+// skill-catalog.json and, instead of reading it, `write`-d its own invented
+// content over external/ecc/skills/agent-architecture-audit/SKILL.md —
+// destroying the genuine upstream skill. The containment guard let it through
+// because external/ is inside the project root, which is exactly right for
+// containment and exactly wrong here: submodule contents are vendored, they
+// belong to another repository, and an edit there is silently lost on the next
+// `git submodule update` even when it is not a hallucination.
+//
+// Reads are untouched. `bash` is not covered — a human deliberately
+// contributing upstream still can, via git — so this blocks the accident
+// without blocking the intent.
+function submoduleRoots(cwd: string): string[] {
+  try {
+    const gitmodules = readFileSync(join(cwd, ".gitmodules"), "utf-8");
+    return [...gitmodules.matchAll(/^\s*path\s*=\s*(.+?)\s*$/gm)].map((m) => m[1].replace(/\\/g, "/"));
+  } catch {
+    return [];
+  }
+}
+
+function vendoredGuard(
+  event: ToolCallEvent,
+  ctx: ExtensionContext,
+  cwd: string,
+  target: string,
+  rel: string,
+) {
+  const relPosix = rel.replace(/\\/g, "/");
+  const hit = submoduleRoots(cwd).find((p) => relPosix === p || relPosix.startsWith(p + "/"));
+  if (!hit) return;
+  ctx.ui.notify(`🚨 Blocked ${event.toolName} into vendored submodule ${hit}: ${target}`, "error");
+  return {
+    block: true,
+    reason:
+      `Vendored submodule: "${target}" lives inside the git submodule "${hit}", which is another ` +
+      `repository's content. Writing there overwrites upstream files and is discarded by the next ` +
+      `submodule update. If you meant to READ this file (e.g. to load a skill), use the read tool. ` +
+      `If you genuinely need to change upstream code, tell the user rather than editing in place.`,
+  };
+}
+
 function containmentGuard(event: ToolCallEvent, ctx: ExtensionContext) {
   const input = event.input as { path?: unknown; file_path?: unknown };
   const raw = typeof input?.path === "string" ? input.path
@@ -106,7 +150,7 @@ function containmentGuard(event: ToolCallEvent, ctx: ExtensionContext) {
   }
   const rel = relative(cwd, target);
   const inside = rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
-  if (inside) return;
+  if (inside) return vendoredGuard(event, ctx, cwd, target, rel);
   ctx.ui.notify(`🚨 Blocked ${event.toolName} outside project root: ${target}`, "error");
   return {
     block: true,

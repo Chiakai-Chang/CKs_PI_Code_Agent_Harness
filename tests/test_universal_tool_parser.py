@@ -157,6 +157,78 @@ class TestCanonicalToolNames(unittest.TestCase):
         self.assertNotIn('name: "read_file"', src)
 
 
+@unittest.skipUnless(NODE_OK, "node >= 22 required for native TypeScript type stripping")
+class TestVendoredSubmoduleGuard(unittest.TestCase):
+    """Asked to load a skill, the model took the path from skill-catalog.json
+    and `write`-d its own invented content over
+    external/ecc/skills/agent-architecture-audit/SKILL.md, destroying the real
+    upstream skill. The containment guard allowed it because external/ is inside
+    the project root — correct for containment, wrong here: submodule contents
+    belong to another repository and an edit there is discarded by the next
+    `git submodule update` even when it is not a hallucination.
+    """
+
+    DRIVER = r"""
+import { readFileSync } from "node:fs";
+import mod from %(mod)s;
+const cases = JSON.parse(readFileSync(process.argv[2], "utf-8"));
+const store = {};
+mod({ on: (e, f) => { (store[e] ??= []).push(f); }, sendMessage() {}, registerTool() {} });
+const ctx = { cwd: %(cwd)s, ui: { notify() {} } };
+const out = [];
+for (const c of cases) {
+  let blocked = false;
+  for (const fn of store["tool_call"] ?? []) {
+    const r = await fn({ toolName: c.tool, input: { path: c.path } }, ctx);
+    if (r && r.block) blocked = true;
+  }
+  out.push(blocked);
+}
+process.stdout.write(JSON.stringify(out));
+"""
+
+    def _run(self, cases):
+        driver = os.path.join(ROOT, "tests", ".tmp_guard_driver.mjs")
+        payload = os.path.join(ROOT, "tests", ".tmp_guard_input.json")
+        with open(driver, "w", encoding="utf-8") as f:
+            f.write(self.DRIVER % {
+                "mod": json.dumps("file:///" + IDX.replace("\\", "/")),
+                "cwd": json.dumps(ROOT.replace("\\", "/")),
+            })
+        with open(payload, "w", encoding="utf-8") as f:
+            json.dump(cases, f)
+        try:
+            p = subprocess.run(["node", driver, payload], capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", cwd=ROOT, timeout=120)
+            if p.returncode != 0:
+                raise AssertionError("node driver failed:\n%s\n%s" % (p.stdout, p.stderr))
+            return json.loads(p.stdout)
+        finally:
+            for x in (driver, payload):
+                if os.path.exists(x):
+                    os.remove(x)
+
+    def test_blocks_write_into_submodule(self):
+        (blocked,) = self._run([{
+            "tool": "write",
+            "path": ROOT.replace("\\", "/") + "/external/ecc/skills/agent-architecture-audit/SKILL.md",
+        }])
+        self.assertTrue(blocked, "the exact write that destroyed an upstream skill must be blocked")
+
+    def test_blocks_relative_path_into_submodule(self):
+        (blocked,) = self._run([{"tool": "edit", "path": "external/superpowers/skills/x/SKILL.md"}])
+        self.assertTrue(blocked)
+
+    def test_allows_normal_repo_files(self):
+        results = self._run([
+            {"tool": "write", "path": ROOT.replace("\\", "/") + "/scripts/restore.py"},
+            {"tool": "edit", "path": "pi-extensions/taste-bridge/index.ts"},
+            {"tool": "write", "path": "docs/notes.md"},
+        ])
+        self.assertEqual(results, [False, False, False],
+                         "guarding submodules must not block ordinary work in the repo")
+
+
 class TestGuardWiring(unittest.TestCase):
     """Source-level contract: the strike path must use the widened detector and
     the transformer must have its own runaway cap."""
