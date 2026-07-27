@@ -181,5 +181,70 @@ class TestCommitGraphCleanup(unittest.TestCase):
         self.assertEqual(removed, 0)
 
 
+class TestModelDrift(unittest.TestCase):
+    """Swapping a GGUF quant without re-running setup leaves settings.json
+    naming the old file. llama.cpp ignores the `model` field with one model
+    loaded, so nothing errors — Pi's status line just shows a model that is not
+    running. Observed live: settings said Q6_K, the server had Q4_K_M."""
+
+    def test_reports_mismatch(self):
+        drift = setup.model_drift(
+            {"defaultModel": "m-Q6_K.gguf"}, {"name": "m-Q4_K_M.gguf"})
+        self.assertEqual(drift, ("m-Q6_K.gguf", "m-Q4_K_M.gguf"))
+
+    def test_match_is_not_drift(self):
+        self.assertIsNone(setup.model_drift({"defaultModel": "m.gguf"}, {"name": "m.gguf"}))
+
+    def test_unknown_or_missing_is_not_drift(self):
+        """No probe, no server, or an unnamed model must not raise a false alarm."""
+        self.assertIsNone(setup.model_drift({"defaultModel": "m.gguf"}, None))
+        self.assertIsNone(setup.model_drift({"defaultModel": "m.gguf"}, {"name": "unknown"}))
+        self.assertIsNone(setup.model_drift({}, {"name": "m.gguf"}))
+        self.assertIsNone(setup.model_drift(None, None))
+
+
+class TestOrphanSubmoduleDetection(unittest.TestCase):
+    """`git submodule deinit`/removal drops the working tree but leaves
+    .git/modules/<name> behind forever. One such leftover (agi-super-team) was
+    holding 120MB in this repo with nothing referencing it."""
+
+    def setUp(self):
+        import tempfile
+        self.tmp = tempfile.mkdtemp()
+        modules = os.path.join(self.tmp, ".git", "modules", "external")
+        for name in ("ecc", "agi-super-team"):
+            d = os.path.join(modules, name)
+            os.makedirs(d)
+            open(os.path.join(d, "config"), "w").close()
+        # A stray directory with no config is not a submodule git dir.
+        os.makedirs(os.path.join(modules, "not-a-gitdir"))
+        with open(os.path.join(self.tmp, ".gitmodules"), "w", encoding="utf-8") as f:
+            f.write('[submodule "external/ecc"]\n\tpath = external/ecc\n\turl = https://example.com/ecc\n')
+
+    def tearDown(self):
+        import shutil as _shutil
+        _shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_reports_only_undeclared_gitdirs(self):
+        names = [n for n, _p in setup.orphan_submodule_gitdirs(self.tmp)]
+        self.assertEqual(names, ["agi-super-team"])
+
+    def test_no_gitmodules_reports_nothing(self):
+        os.remove(os.path.join(self.tmp, ".gitmodules"))
+        self.assertEqual(setup.orphan_submodule_gitdirs(self.tmp), [])
+
+    def test_detection_is_read_only(self):
+        """Advisory by design: this is user data inside .git, and an installer
+        that silently deletes hundreds of megabytes is the worse failure."""
+        before = sorted(os.listdir(os.path.join(self.tmp, ".git", "modules", "external")))
+        orig_root, setup.REPO_ROOT = setup.REPO_ROOT, self.tmp
+        try:
+            setup.report_orphan_submodules()
+        finally:
+            setup.REPO_ROOT = orig_root
+        after = sorted(os.listdir(os.path.join(self.tmp, ".git", "modules", "external")))
+        self.assertEqual(before, after)
+
+
 if __name__ == '__main__':
     unittest.main()

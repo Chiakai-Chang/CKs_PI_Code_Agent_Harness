@@ -252,6 +252,55 @@ def git_dirs(repo_root):
     return dirs
 
 
+def orphan_submodule_gitdirs(repo_root):
+    """Submodule git dirs under .git/modules that .gitmodules no longer declares.
+
+    Removing a submodule deletes its working tree but leaves the git dir behind,
+    and nothing ever reclaims it. Found 133MB of one such orphan
+    (external/agi-super-team) on the author's machine. Returns [(name, path)].
+    """
+    modules = os.path.join(repo_root, ".git", "modules", "external")
+    gitmodules = os.path.join(repo_root, ".gitmodules")
+    if not os.path.isdir(modules) or not os.path.isfile(gitmodules):
+        return []
+    try:
+        with open(gitmodules, encoding="utf-8") as f:
+            declared = f.read()
+    except OSError:
+        return []
+    orphans = []
+    for name in sorted(os.listdir(modules)):
+        path = os.path.join(modules, name)
+        if not os.path.isfile(os.path.join(path, "config")):
+            continue
+        if f'external/{name}"]' not in declared:
+            orphans.append((name, path))
+    return orphans
+
+
+def report_orphan_submodules():
+    """Report (never delete) leftover git dirs from removed submodules.
+
+    Deliberately advisory: this is user data inside .git, and an installer that
+    silently deletes hundreds of megabytes is a worse failure than the disk use.
+    """
+    orphans = orphan_submodule_gitdirs(REPO_ROOT)
+    if not orphans:
+        return orphans
+    print(f"[!] 偵測到 {len(orphans)} 個已移除 submodule 遺留的 git 目錄（.gitmodules 已無宣告，工作目錄也不存在）：")
+    for name, path in orphans:
+        size_mb = 0
+        for parent, _d, files in os.walk(path):
+            for f in files:
+                try:
+                    size_mb += os.path.getsize(os.path.join(parent, f))
+                except OSError:
+                    pass
+        print(f"      {name}  ({size_mb // (1024 * 1024)} MB)  {path}")
+    print("    這些目錄不會被任何指令使用；確認後可自行刪除以回收空間（本腳本不會替你刪）。")
+    return orphans
+
+
 def disable_commit_graph():
     """Stop the recurring `failed to rename temporary commit-graph file` noise.
 
@@ -295,10 +344,12 @@ def run_update():
     """One-command update: pull repo+submodules, resync config, update Pi."""
     print("[*] 正在更新 Harness 與子模組 (git pull)...")
     disable_commit_graph()
+    report_orphan_submodules()
     run_stream("git pull --recurse-submodules")
     restore_script = os.path.join(REPO_ROOT, "scripts", "restore.py")
     print("[*] 正在重新同步配置 (restore --auto，冪等、保留自訂)...")
     run_stream(f'"{sys.executable}" "{restore_script}" --auto')
+    check_model_drift()
     if has_command("pi"):
         print("[*] 正在更新 Pi 本體與擴充 (pi update --all)...")
         run_stream("pi update --all")
@@ -407,6 +458,42 @@ def probe_llama_cpp(url):
                 if ctx: return {"name": "Detected Slot", "ctx": int(ctx)}
     except: pass
     return None
+
+def model_drift(settings, probe):
+    """Return (declared, served) when settings' defaultModel is not what the
+    local server actually has loaded, else None.
+
+    Swapping a GGUF quant without re-running setup leaves settings.json naming
+    the old file. llama.cpp ignores the `model` field when one model is loaded,
+    so nothing breaks — but Pi's status line then shows a model that is not
+    running, and a multi-model server (llama-swap, --model-alias) would 404 on
+    the stale id. Exact-match on purpose: any difference in the served filename
+    is worth surfacing, and the check is advisory, so a false alarm costs a line
+    of output while a missed one leaves a lying status bar.
+    """
+    declared = (settings or {}).get("defaultModel")
+    served = (probe or {}).get("name")
+    if not declared or not served or served == "unknown":
+        return None
+    if declared == served:
+        return None
+    return (declared, served)
+
+
+def check_model_drift():
+    """Advisory check: does settings.json name the model the server is serving?"""
+    agent_settings = os.path.join(os.path.expanduser("~"), ".pi", "agent", "settings.json")
+    settings = load_json(agent_settings)
+    api_base = (settings or {}).get("apiBase")
+    if not api_base:
+        return None
+    drift = model_drift(settings, probe_llama_cpp(api_base))
+    if drift:
+        declared, served = drift
+        print(f"[!] settings.json 宣告的模型是 {declared}，但 {api_base} 實際載入的是 {served}。")
+        print("    單模型伺服器不會出錯，但 Pi 狀態列會顯示錯的名稱；重跑 `python scripts/setup.py` 可重新偵測。")
+    return drift
+
 
 def detect_llm_services():
     models = probe_ollama()
