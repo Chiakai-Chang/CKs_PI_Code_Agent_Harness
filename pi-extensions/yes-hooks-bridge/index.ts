@@ -115,9 +115,9 @@ function containmentGuard(event: ToolCallEvent, ctx: ExtensionContext) {
 }
 
 // Guard 3: catches a turn that ends with NO real tool call but assistant text shaped like
-// one (Claude/Superpowers `<read>`, `<write>`, `<edit>`, `<bash>`, `<invoke>`, `<tool_code>` tags,
+// one (Claude/Superpowers `<read>`, `<write>`, `<edit>`, `<bash>`, `<ls>`, `<dir>`, `<invoke>`, `<tool_code>` tags,
 // or Markdown ` ```bash ` code blocks) — text that is never executed. Universal Parser intercepts valid tags and auto-advances.
-const FAKE_TOOL_CALL_PATTERN = /<invoke\b|<\/invoke>|<parameter\s+name=|<\/?read-files?>|<modified-files>|<bash\b|<\/bash>|<read\b|<\/read>|<write\b|<\/write>|<edit\b|<\/edit>|<browse\b|<\/browse>|<tool_code\b|<\/tool_code>|<tool_call\b|<\/tool_call>|```(?:bash|sh|cmd|powershell|ps1)\b/i;
+const FAKE_TOOL_CALL_PATTERN = /<invoke\b|<\/invoke>|<parameter\s+name=|<\/?read-files?>|<modified-files>|<bash\b|<\/bash>|<read\b|<\/read>|<write\b|<\/write>|<edit\b|<\/edit>|<browse\b|<\/browse>|<ls\b|<\/ls>|<dir\b|<\/dir>|<tool_code\b|<\/tool_code>|<tool_call\b|<\/tool_call>|```(?:bash|sh|cmd|powershell|ps1)\b/i;
 
 interface ParsedToolTag {
   name: string;
@@ -154,34 +154,51 @@ function parseUniversalToolTag(text: string): ParsedToolTag | null {
     }
   }
 
-  // 2. Anthropic/Superpowers style specific XML tags: <read>, <write>, <edit>, <bash>, <browse>, <read_file>, <write_file>
-  const anthropicTagPattern = /<(read|write|edit|bash|browse|read_file|write_file)\b[^>]*>([\s\S]*?)<\/\1>/i;
+  // 2. Specific tool XML tags: <read>, <write>, <edit>, <bash>, <ls>, <dir>, <browse>, <search>, <command>, <terminal>, <read_file>, <write_file>
+  const anthropicTagPattern = /<(read|write|edit|bash|ls|dir|browse|search|command|terminal|read_file|write_file)\b[^>]*>([\s\S]*?)<\/\1>/i;
   const matchAnthropic = text.match(anthropicTagPattern);
   if (matchAnthropic && matchAnthropic[1] && matchAnthropic[2]) {
     const tagName = matchAnthropic[1].toLowerCase();
     const rawBody = matchAnthropic[2].trim();
 
     let toolName = tagName;
-    if (tagName === "read") toolName = "read_file";
-    if (tagName === "write") toolName = "write";
-    if (tagName === "edit") toolName = "edit";
+    if (tagName === "read" || tagName === "read_file") toolName = "read_file";
+    else if (tagName === "write" || tagName === "write_file") toolName = "write";
+    else if (tagName === "edit") toolName = "edit";
+    else if (tagName === "ls" || tagName === "dir") toolName = "bash";
+    else if (tagName === "command" || tagName === "terminal") toolName = "bash";
 
     let args: Record<string, unknown> = {};
     if (rawBody.startsWith("{") && rawBody.endsWith("}")) {
       try { args = JSON.parse(rawBody); } catch {}
-    } else {
-      try {
-        args = JSON.parse("{" + rawBody + "}");
-      } catch {
-        if (toolName === "bash") {
-          args = { command: rawBody };
-        } else if (toolName === "read_file") {
+    }
+
+    if (Object.keys(args).length === 0) {
+      if (toolName === "bash") {
+        if (tagName === "ls" || tagName === "dir") {
           const pathMatch = rawBody.match(/"path"\s*:\s*"([^"]+)"/) || rawBody.match(/["']([^"']+)["']/);
-          if (pathMatch) args = { path: pathMatch[1] };
-          else args = { path: rawBody.trim() };
+          const dirPath = pathMatch ? pathMatch[1] : (rawBody.trim() || ".");
+          args = { command: `dir "${dirPath}"` };
+        } else {
+          args = { command: rawBody };
         }
+      } else if (toolName === "read_file") {
+        const pathMatch = rawBody.match(/"(?:file_path|path|filePath|filename|file)"\s*:\s*"([^"]+)"/) || rawBody.match(/["']([^"']+)["']/);
+        if (pathMatch) args = { path: pathMatch[1] };
+        else args = { path: rawBody.trim() };
+      } else if (toolName === "write" || toolName === "edit") {
+        const pathMatch = rawBody.match(/"(?:file_path|path|filePath|filename|file)"\s*:\s*"([^"]+)"/);
+        const path = pathMatch ? pathMatch[1] : "";
+        args = { path, content: rawBody };
       }
     }
+
+    // Standardize keys for read_file
+    if (toolName === "read_file" && !args.path) {
+      const p = args.file_path || args.filePath || args.filename || args.file;
+      if (typeof p === "string") args.path = p;
+    }
+
     return { name: toolName, args, raw: matchAnthropic[0] };
   }
 
@@ -203,7 +220,7 @@ function parseUniversalToolTag(text: string): ParsedToolTag | null {
   }
 
   // 4. Standalone JSON object in text with "name" and "arguments" / "path" / "command"
-  const jsonMatch = text.match(/\{\s*"name"\s*:\s*"([a-zA-Z0-9_\-]+)"\s*,\s*"(?:arguments|input|parameters|path|command)"\s*:[\s\S]*?\}/);
+  const jsonMatch = text.match(/\{\s*"name"\s*:\s*"([a-zA-Z0-9_\-]+)"\s*,\s*"(?:arguments|input|parameters|path|command|file_path)"\s*:[\s\S]*?\}/);
   if (jsonMatch) {
     try {
       const parsed = JSON.parse(jsonMatch[0]);
@@ -211,6 +228,9 @@ function parseUniversalToolTag(text: string): ParsedToolTag | null {
         const name = parsed.name;
         const args = (parsed.arguments || parsed.input || parsed.parameters || parsed) as Record<string, unknown>;
         delete args.name;
+        if (name === "read" || name === "read_file") {
+          if (!args.path && args.file_path) args.path = args.file_path;
+        }
         return { name, args, raw: jsonMatch[0] };
       }
     } catch {}
@@ -250,9 +270,12 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
       {
         customType: "universal-tag-transformer",
         content:
-          `[System Tool-Tag Transformer]: 偵測到模型使用了標籤或 Markdown 程式碼塊式工具呼叫（${parsedTag.name}）。` +
-          `系統已成功解析參數：${JSON.stringify(parsedTag.args)}。` +
-          `請注意：請改為發起標準的原生 Function Call 呼叫工具，不要在對話文字中輸出 \`\`\`bash 或 XML 標籤。`,
+          `[SYSTEM CRITICAL AUTO-CORRECTION]\n` +
+          `偵測到你剛才使用了純文字/XML標籤：<${parsedTag.name}> (原始文字：${parsedTag.raw})\n` +
+          `系統已自動識別你的意圖為呼叫原生工具【${parsedTag.name}】，解析後的參數為：\n` +
+          `${JSON.stringify(parsedTag.args, null, 2)}\n\n` +
+          `🔥【指令】：請你在此輪對話中【立即且只能】呼叫原生工具 '${parsedTag.name}'，傳入上述參數！` +
+          `絕對不要再輸出任何 XML 標籤或 \`\`\`bash 程式碼塊！`,
         display: true,
       },
       { deliverAs: "nextTurn" }
@@ -302,10 +325,12 @@ export default function (pi: ExtensionAPI) {
   pi.on("before_agent_start", (event, _ctx) => {
     return {
       systemPrompt: (event.systemPrompt ?? "") + "\n\n" +
-        "[Native Function-Calling Protocol] HARD RULE FOR LOCAL MODELS:\n" +
-        "• You MUST execute actions using native tool calls (tool_call).\n" +
-        "• NEVER output bash commands or tool calls inside markdown code blocks (e.g. ```bash) or XML tags (<read>, <bash>).\n" +
-        "• Markdown text code blocks are NOT executed by the system and will cause execution to halt."
+        "============================================================\n" +
+        "[CRITICAL SYSTEM PROTOCOL: NATIVE TOOL CALLING ONLY]\n" +
+        "• You MUST execute all actions using native JSON function calling (tool_call).\n" +
+        "• NEVER output bash commands or tool calls inside markdown code blocks (e.g. ```bash) or XML tags (<read>, <write>, <bash>, <ls>).\n" +
+        "• Text code blocks and XML tags are NOT executed by the system and will cause execution to halt.\n" +
+        "============================================================\n"
     };
   });
 
