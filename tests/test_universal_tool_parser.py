@@ -229,6 +229,90 @@ process.stdout.write(JSON.stringify(out));
                          "guarding submodules must not block ordinary work in the repo")
 
 
+@unittest.skipUnless(NODE_OK, "node >= 22 required for native TypeScript type stripping")
+class TestRunawayArgumentGuard(unittest.TestCase):
+    """The most damaging failure found in this whole audit, and the one no other
+    guard could see.
+
+    The model opened a REAL web_search call and then, inside the query string,
+    began emitting XML-format tool calls and looping on them — 145,638 chars of
+    "</parameter></function></tool_call><tool_call><function>web_search>..." until
+    the 32,768-token output cap (usage.output 32768, stopReason "length"). Pi
+    refuses such a call, the model retries identically: ~700s, a 297KB session,
+    zero progress.
+
+    Invisible to everything else: the loop guard's "no real tool call" test does
+    not fire because there IS one, and FAKE_TOOL_CALL_PATTERN scans message text,
+    never argument values.
+    """
+
+    DRIVER = r"""
+import { readFileSync } from "node:fs";
+import mod from %(mod)s;
+const cases = JSON.parse(readFileSync(process.argv[2], "utf-8"));
+const store = {};
+mod({ on: (e, f) => { (store[e] ??= []).push(f); }, sendMessage() {}, registerTool() {} });
+const ctx = { cwd: %(cwd)s, ui: { notify() {} } };
+const out = [];
+for (const c of cases) {
+  let blocked = false;
+  for (const fn of store["tool_call"] ?? []) {
+    const r = await fn({ toolName: c.tool, input: c.input }, ctx);
+    if (r && r.block) blocked = true;
+  }
+  out.push(blocked);
+}
+process.stdout.write(JSON.stringify(out));
+"""
+
+    def _run(self, cases):
+        driver = os.path.join(ROOT, "tests", ".tmp_runaway_driver.mjs")
+        payload = os.path.join(ROOT, "tests", ".tmp_runaway_input.json")
+        with open(driver, "w", encoding="utf-8") as f:
+            f.write(self.DRIVER % {
+                "mod": json.dumps("file:///" + IDX.replace("\\", "/")),
+                "cwd": json.dumps(ROOT.replace("\\", "/")),
+            })
+        with open(payload, "w", encoding="utf-8") as f:
+            json.dump(cases, f)
+        try:
+            p = subprocess.run(["node", driver, payload], capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", cwd=ROOT, timeout=120)
+            if p.returncode != 0:
+                raise AssertionError("node driver failed:\n%s\n%s" % (p.stdout, p.stderr))
+            return json.loads(p.stdout)
+        finally:
+            for x in (driver, payload):
+                if os.path.exists(x):
+                    os.remove(x)
+
+    def test_blocks_the_observed_runaway(self):
+        leak = "</parameter>|</function>|</tool_call>|<tool_call>|<function>web_search>".replace("|", chr(10))
+        leaked = 'Wikipedia "Accessibility tree"' + leak * 400
+        (blocked,) = self._run([{"tool": "web_search", "input": {"query": leaked}}])
+        self.assertTrue(blocked)
+
+    def test_blocks_a_small_syntax_leak_too(self):
+        """Size is not the tell — tool-call markup inside a value always is."""
+        (blocked,) = self._run([{"tool": "web_search", "input": {"query": "hi </tool_call>"}}])
+        self.assertTrue(blocked)
+
+    def test_blocks_an_absurd_query_without_a_leak(self):
+        (blocked,) = self._run([{"tool": "web_search", "input": {"query": "x" * 20000}}])
+        self.assertTrue(blocked)
+
+    def test_allows_legitimate_bulk_arguments(self):
+        """Writing a large file and running a long command are normal. A guard
+        that blocks them would be worse than the bug."""
+        results = self._run([
+            {"tool": "web_search", "input": {"query": "pi coding agent badlogic"}},
+            {"tool": "read", "input": {"path": "README.md"}},
+            {"tool": "write", "input": {"path": "a.txt", "content": "y" * 50000}},
+            {"tool": "bash", "input": {"command": "echo " + "z" * 20000}},
+        ])
+        self.assertEqual(results, [False, False, False, False])
+
+
 class TestGuardWiring(unittest.TestCase):
     """Source-level contract: the strike path must use the widened detector and
     the transformer must have its own runaway cap."""

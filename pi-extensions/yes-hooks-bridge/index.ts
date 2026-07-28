@@ -136,6 +136,70 @@ function vendoredGuard(
   };
 }
 
+// Guard 4: a native tool call whose ARGUMENTS ran away.
+//
+// Observed on this machine, and the most damaging failure found all day. The
+// model opened a real `web_search` call and then, inside the `query` string,
+// began emitting XML-format tool calls and looping on them:
+//
+//   {"query": "Wikipedia \"Accessibility tree\"</parameter>\n</function>\n
+//    </tool_call>\n<tool_call>\n<function>web_search>\n<parameter=query>\n…"}
+//
+// 145,638 characters of that, until the 32,768-token output cap was hit
+// (usage.output = 32768, stopReason = "length"). Pi then refuses the call —
+// "the response hit the output token limit, so its arguments may be truncated"
+// — and the model simply tries again the same way. Two attempts, ~700 seconds,
+// a 297KB session, zero progress.
+//
+// None of the other guards see this: it IS a native tool call, so the loop
+// guard's "no real tool call" test never fires, and the garbage lives inside
+// the arguments, which FAKE_TOOL_CALL_PATTERN (a message-text scan) never
+// inspects.
+//
+// Blocking costs nothing — Pi was going to reject the call anyway — but it
+// replaces a confusing engine message with a specific instruction, which is the
+// difference between the model repeating the failure and correcting it.
+const ARG_SYNTAX_LEAK = /<\/?(?:tool_call|function|parameter)\b|<\|tool▁call/i;
+const MAX_ARG_CHARS = 8000;
+
+function runawayArgumentGuard(event: ToolCallEvent, ctx: ExtensionContext) {
+  let serialized: string;
+  try {
+    serialized = JSON.stringify(event.input ?? {});
+  } catch {
+    return; // unserializable input — not our business, fail open
+  }
+  const leaked = ARG_SYNTAX_LEAK.test(serialized);
+  const oversized = serialized.length > MAX_ARG_CHARS;
+  if (!leaked && !oversized) return;
+
+  // An oversized `content`/`command` is legitimate — writing a big file, running
+  // a long script. Only the syntax leak is unambiguous on its own; size alone
+  // is judged on fields that should never be large.
+  if (!leaked) {
+    const input = (event.input ?? {}) as Record<string, unknown>;
+    const bulkFields = ["content", "command", "newText", "text"];
+    const nonBulk = Object.entries(input)
+      .filter(([k]) => !bulkFields.includes(k))
+      .reduce((n, [, v]) => n + (typeof v === "string" ? v.length : 0), 0);
+    if (nonBulk <= MAX_ARG_CHARS) return;
+  }
+
+  ctx.ui.notify(
+    `🚨 ${event.toolName} arguments ran away (${serialized.length} chars${leaked ? ", tool-call syntax leaked into a value" : ""})`,
+    "error",
+  );
+  return {
+    block: true,
+    reason:
+      `Your ${event.toolName} arguments are malformed: ${serialized.length} characters` +
+      (leaked ? `, and a value contains raw tool-call syntax (</parameter>, </tool_call>, <function>).` : ".") +
+      ` You started a tool call and then kept generating instead of stopping at its end. ` +
+      `Emit ONE call with short, plain arguments — for a search, the query is a few words — and ` +
+      `stop generating immediately after it. Do not put tool-call markup inside an argument value.`,
+  };
+}
+
 function containmentGuard(event: ToolCallEvent, ctx: ExtensionContext) {
   const input = event.input as { path?: unknown; file_path?: unknown };
   const raw = typeof input?.path === "string" ? input.path
@@ -662,6 +726,8 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("tool_call", async (event, ctx) => {
+    const runaway = runawayArgumentGuard(event, ctx);
+    if (runaway) return runaway;
     if (event.toolName === "bash") return bashGuard(event, ctx);
     if (event.toolName === "write" || event.toolName === "edit") return containmentGuard(event, ctx);
   });
