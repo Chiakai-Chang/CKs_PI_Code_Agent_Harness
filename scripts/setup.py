@@ -340,12 +340,57 @@ def disable_commit_graph():
     return removed, len(targets)
 
 
+def warn_locally_modified_config():
+    """Warn before a pull that would conflict with the user's own edits.
+
+    README tells users to edit pi-config/harness-config.json (the slim-mode
+    recipe), and that file is TRACKED — so anyone who followed the instructions
+    can hit a merge conflict on update. Saying so before the pull turns a
+    confusing failure into an expected one.
+    """
+    ok, out, _err = run("git status --porcelain -- pi-config")
+    if not ok or not out.strip():
+        return []
+    # `git status --porcelain` puts the status in the first two columns, but the
+    # path does not always start at column 3 (" M x" vs "M  x" vs "R  a -> b").
+    # Slicing a fixed offset ate the first character of the filename.
+    modified = []
+    for ln in out.splitlines():
+        if not ln[:2].strip():
+            continue
+        path = ln[2:].strip()
+        if " -> " in path:
+            path = path.split(" -> ")[-1]
+        modified.append(path.strip('"'))
+    if not modified:
+        return []
+    print("[!] 你修改過這些被追蹤的設定檔，git pull 可能產生衝突：")
+    for m in modified:
+        print(f"      {m}")
+    print("    若衝突：git stash -> 重跑 update -> git stash pop，再手動併回你的設定。")
+    return modified
+
+
 def run_update():
     """One-command update: pull repo+submodules, resync config, update Pi."""
     print("[*] 正在更新 Harness 與子模組 (git pull)...")
     disable_commit_graph()
     report_orphan_submodules()
-    run_stream("git pull --recurse-submodules")
+    warn_locally_modified_config()
+    if not run_stream("git pull --recurse-submodules"):
+        # Previously the return value was ignored, so a failed pull (merge
+        # conflict, no network, dirty tree) was followed by restore + `pi
+        # update` anyway. The update then reported success over a half-updated
+        # repo — the shape of "I updated and it is still broken".
+        print()
+        print("[!] git pull 失敗，更新中止 —— 後續步驟不會執行。")
+        print("    常見原因與處理：")
+        print("      * 你修改過被追蹤的檔案（例如 pi-config/harness-config.json）而產生衝突")
+        print("        -> git status 查看；保留自己的版本用 git checkout --ours <檔案>，")
+        print("           或先 git stash、更新完再 git stash pop 手動併回。")
+        print("      * 沒有網路或遠端不可達 -> 恢復後重跑 update 即可。")
+        print("    排除後重新執行本次更新即可，本腳本是冪等的。")
+        return
     restore_script = os.path.join(REPO_ROOT, "scripts", "restore.py")
     print("[*] 正在重新同步配置 (restore --auto，冪等、保留自訂)...")
     run_stream(f'"{sys.executable}" "{restore_script}" --auto')

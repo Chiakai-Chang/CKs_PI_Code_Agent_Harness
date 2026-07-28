@@ -246,5 +246,37 @@ class TestOrphanSubmoduleDetection(unittest.TestCase):
         self.assertEqual(before, after)
 
 
+class TestUpdateFailureHandling(unittest.TestCase):
+    """`git pull`'s return value used to be ignored, so a failed pull (merge
+    conflict, no network) was followed by restore and `pi update` anyway. The
+    update then reported success over a half-updated repo — exactly the shape of
+    "I ran the updater and it is still broken"."""
+
+    def setUp(self):
+        with open(os.path.join(ROOT, "scripts", "setup.py"), encoding="utf-8") as f:
+            self.src = f.read()
+
+    def test_update_aborts_when_pull_fails(self):
+        self.assertIn('if not run_stream("git pull --recurse-submodules"):', self.src)
+        self.assertIn("更新中止", self.src)
+
+    def test_warns_before_pulling_over_local_config_edits(self):
+        """README instructs users to edit pi-config/harness-config.json, and
+        that file is tracked — following the docs can produce a conflict."""
+        self.assertIn("warn_locally_modified_config()", self.src)
+
+    def test_porcelain_paths_are_parsed_without_truncation(self):
+        """A fixed ln[3:] slice ate the first character: pi-config -> i-config."""
+        import subprocess as sp
+        code = (
+            "import sys; sys.path.insert(0, %r); import setup;"
+            "print(setup.warn_locally_modified_config())" % os.path.join(ROOT, "scripts")
+        )
+        p = sp.run([sys.executable, "-c", code], capture_output=True, text=True,
+                   encoding="utf-8", errors="replace", cwd=ROOT, timeout=120)
+        for line in p.stdout.splitlines():
+            self.assertNotIn("i-config/", line.replace("pi-config/", ""))
+
+
 if __name__ == '__main__':
     unittest.main()

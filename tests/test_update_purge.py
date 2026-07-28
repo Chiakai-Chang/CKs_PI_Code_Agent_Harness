@@ -9,6 +9,19 @@ def read_file(rel):
         return f.read()
 
 
+def run_update_body(src):
+    """The whole run_update() body, not a fixed-size window.
+
+    These tests used to slice src[i:i+800]. When run_update grew an abort path
+    for a failed `git pull`, the later steps fell outside the window and the
+    tests failed for a reason unrelated to what they check."""
+    i = src.find("def run_update")
+    assert i != -1, "run_update not found"
+    rest = src[i + 1:]
+    j = rest.find(chr(10) + "def ")
+    return src[i:i + 1 + j] if j != -1 else src[i:]
+
+
 class TestSetupUpdateMode(unittest.TestCase):
     def test_update_in_choices(self):
         c = read_file("scripts/setup.py")
@@ -22,8 +35,7 @@ class TestSetupUpdateMode(unittest.TestCase):
     def test_run_update_flow(self):
         c = read_file("scripts/setup.py")
         self.assertIn("def run_update", c)
-        i = c.find("def run_update")
-        blk = c[i:i + 800]
+        blk = run_update_body(c)
         self.assertIn("git pull --recurse-submodules", blk)
         self.assertIn("restore.py", blk)
         self.assertIn("pi update --all", blk)
@@ -38,8 +50,7 @@ class TestSetupUpdateMode(unittest.TestCase):
         stealth-engine prefetch prompt, not only fresh installs."""
         c = read_file("scripts/setup.py")
         self.assertIn("def maybe_prefetch_stealth", c)
-        i = c.find("def run_update")
-        blk = c[i:i + 800]
+        blk = run_update_body(c)
         self.assertIn("maybe_prefetch_stealth()", blk)
 
 
