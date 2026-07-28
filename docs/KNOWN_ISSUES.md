@@ -119,6 +119,21 @@ so its arguments may be truncated.
 
 **處理（harness 端）**：`yes-hooks-bridge` 的 Guard 4 `runawayArgumentGuard` 攔截參數值含工具呼叫語法、或非批量欄位超過 8,000 字元的呼叫，並回傳可行動的指示。攔截本身不花成本（Pi 反正會拒絕），買到的是把引擎那句令人困惑的訊息換成具體修正方向。既有守衛全部看不到這個形狀：loop guard 檢查「沒有真工具呼叫」而這**有**一個，`FAKE_TOOL_CALL_PATTERN` 只掃訊息文字、從不看參數值。
 
-**尚未驗證的可疑項**：`-ctk q4_0 -ctv q4_0`（量化 KV cache）在長 context 下會降低注意力品質，與「規模越大越容易重複失控」的觀察相符。可用一次重啟改回 `f16` 做對照，本文未做。
+### 已驗證的根因：量化 KV cache
+
+改回 `-ctk f16 -ctv f16`（其餘完全不動：xml 格式、temperature 0.6、同一組 13 個工具、同一份 28,958 token 的 prompt）：
+
+```
+-ctk q4_0 -ctv q4_0   重負載  ->  0/3 乾淨，失敗全部是 ~1,000 字元的 XML 失控
+-ctk f16  -ctv f16    重負載  ->  4/6 乾淨，**一次 XML 失控都沒有**
+                                   兩次失敗是 args 長度 0 與 1（空參數）
+                      輕負載  ->  3/3 乾淨
+```
+
+**災難性的失效模式（參數失控燒滿 32,768 token）由量化 KV cache 造成。** q4_0 在長 context 下降低注意力品質，模型因而在工具呼叫的參數中陷入重複迴圈——這也解釋了為何小 prompt 測不出來、規模越大越嚴重。
+
+殘餘的 2/6 空參數呼叫是**性質不同、嚴重度低得多**的問題：Pi 會把它當成一次失敗的工具呼叫回報，可以恢復，不會出現 700 秒空轉與數百 KB 的 session。
+
+**代價**：`f16` KV cache 記憶體用量明顯高於 `q4_0`。在 262,144 的 context 下這不是小數字，使用者需自行權衡；若必須降低記憶體，`q8_0` 是介於兩者之間、值得測試的中間值（本文未測）。
 
 詳見 [docs/retro/2026-07-28-web-capability-and-prompt-conflicts.md](retro/2026-07-28-web-capability-and-prompt-conflicts.md)。
