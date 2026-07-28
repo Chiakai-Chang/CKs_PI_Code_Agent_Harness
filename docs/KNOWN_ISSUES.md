@@ -76,7 +76,7 @@
 
 ---
 
-## 自訂 chat template 的 XML 工具格式，導致工具呼叫參數失控（2026-07-28）
+## 工具呼叫參數失控：格式不是原因，負載才是（2026-07-28）
 
 **症狀**：模型「一直出問題」——單一回合跑 350–700 秒、session 檔數百 KB、工具實際上沒有執行。Pi 回報：
 
@@ -85,44 +85,40 @@ Tool call "web_search" was not executed: the response hit the output token limit
 so its arguments may be truncated.
 ```
 
-**實測捕捉到的樣態**（`usage.output = 32768`、`stopReason = "length"`）：模型發出**真正的原生** `web_search` 呼叫，但 `query` 參數長 **145,638 字元**，內容是不斷重複的 XML 工具呼叫語法：
+實測捕捉（`usage.output = 32768`、`stopReason = "length"`）：模型發出**真正的原生** `web_search` 呼叫，但 `query` 參數長 **145,638 字元**，內容是不斷重複的 XML 工具呼叫語法。
 
-```json
-{"query": "Wikipedia \"Accessibility tree\"</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function>web_search>\n<parameter=query>\n…"}
+> ### ⚠️ 本文先前兩版的診斷都是錯的，完整保留以誌其事
+>
+> **第一版**：認定根因是自訂 template 的 `_tool_format` 預設為 `'xml'`，建議在 `.bat` 加
+> `--chat-template-kwargs "{\"tool_call_format\":\"json\"}"`。理由是失控字串與 template 的 XML 範例逐字相符。
+>
+> **第二版**：發現該 CLI 寫法未生效（CMD 對 `\"` 的處理與 C runtime 不符），改建議環境變數
+> `set LLAMA_ARG_CHAT_TEMPLATE_KWARGS={"tool_call_format":"json"}`。
+>
+> **兩版的方向都是反的。** 使用者套用環境變數並重啟後，直接對 `/v1/chat/completions` 帶 `tools` 做對照（條件一致、temperature 0.6、n=5）：
+>
+> ```
+> xml  -> 5/5 乾淨   finish=tool_calls, args=28    {"query":"pi-mono badlogic"}
+> json -> 0/5 乾淨   finish=length,     args~1000  XML 洩漏
+> ```
+>
+> **xml 才是可用的格式，json 反而穩定失敗。** 請**移除**那行環境變數，回到 template 的預設。
+>
+> 為何第一版會誤判：失控字串確實跟 template 的 XML 範例一字不差，看起來像鐵證。但那只說明模型在**輸出**該格式，不說明該格式是**病因**——llama.cpp 對這個 template 的 XML 分支有正確的解析與停止處理，對 JSON 分支則沒有。
+
+**真正的變數是負載。** 同樣 xml 格式、同樣 temperature：
+
+```
+小 prompt（379 tokens）、簡短工具描述        -> 5/5 乾淨
+大 prompt（28,071 tokens）、13 個工具        -> 0/3 乾淨
 ```
 
-**根因**：自訂 `chat_template.jinja` 的工具格式預設是 **xml**：
+失敗是**隨機**的，且隨 prompt 規模與工具描述長度顯著惡化。單一小樣本會誤導——本文第一版就是這樣產生的。
 
-```jinja
-{%- set _tool_format = tool_call_format if tool_call_format is defined else 'xml' %}
-```
+**這直接連回本 harness 的 context 工作**：把每輪 system prompt 從 95,559 降到 49,485 字元、把 web 工具輸出納入 Pi 自身的 50KB 預算、把技能索引從 35,437 tokens 降到 14,202——這些不只是省 token，而是**直接降低這個失效模式的發生率**。
 
-該分支教模型輸出 `<tool_call><function=…><parameter=…>…</parameter></function></tool_call>`，而 Pi 使用 OpenAI 風格的原生 JSON function calling。llama.cpp 以 `--jinja` 把 XML 轉回原生呼叫時轉不乾淨：第一個參數被抓出來，**其餘 XML 串流全部落進那個參數的值裡**，模型再照 template 繼續輸出下一個 `<tool_call>`，直到耗盡輸出上限。
+**處理（harness 端）**：`yes-hooks-bridge` 的 Guard 4 `runawayArgumentGuard` 攔截參數值含工具呼叫語法、或非批量欄位超過 8,000 字元的呼叫，並回傳可行動的指示。攔截本身不花成本（Pi 反正會拒絕），買到的是把引擎那句令人困惑的訊息換成具體修正方向。既有守衛全部看不到這個形狀：loop guard 檢查「沒有真工具呼叫」而這**有**一個，`FAKE_TOOL_CALL_PATTERN` 只掃訊息文字、從不看參數值。
 
-失控字串與 template 範例區塊逐字相符——**模型沒有壞掉，它照著指示做**。
-
-**處理（使用者端）**：該 template 本身就有 JSON 分支，只是預設不走。
-
-> ⚠️ **更正**：本文最初建議在 `.bat` 加 `--chat-template-kwargs "{\"tool_call_format\":\"json\"}" ^`。
-> **實測該寫法沒有生效** —— 加了之後直接打 `/v1/chat/completions` 帶 `tools`，模型仍然吐出 XML 失控參數（`finish_reason: length`）。CMD 對 `\"` 的處理與 C runtime 的期待不一致，參數沒有正確傳到 template。
-
-**改用環境變數**（`set` 的值不經 CMD 引號解析，可完全避開轉義問題）：
-
-```bat
-set LLAMA_ARG_CHAT_TEMPLATE_KWARGS={"tool_call_format":"json"}
-```
-
-放在 `.\llama-server.exe` 那行之前即可，並移除原本的 `--chat-template-kwargs` 行。
-
-**該參數確實有效，已用 per-request 方式證明**：在請求 body 加 `"chat_template_kwargs": {"tool_call_format": "json"}` 後，工具參數從**無上限失控**降為 1,524 字元，且內容轉為 JSON 形式（`<tool_call>
-{"name": "web_search", "arguments": {...}}`）。
-
-**殘留問題（尚未解決）**：即使切到 JSON 格式，模型在發出呼叫後**仍不會停止生成**，會接著輸出更多 `<tool_call>` 區塊，全部被串進第一個參數的值裡。這需要 llama.cpp 對工具呼叫套用語法約束（grammar）；`--jinja` 只在能辨識 template 的工具格式時才會建立該約束，自訂 template 可能落在辨識範圍外。
-
-**下一步可測**：暫時移除 `--chat-template-file "%JINJA_PATH%"`，改用模型內建 template，讓 llama.cpp 使用它自己已知的工具解析與停止條件，再以同一組請求對照。
-
-**不是** MTP 推測解碼（`--spec-type draft-mtp`）或量化 KV cache（`-ctk q4_0`）造成——證據直指 template 的格式字串。
-
-**處理（harness 端）**：`yes-hooks-bridge` 新增 Guard 4 `runawayArgumentGuard`，攔截參數值含工具呼叫語法、或非批量欄位超過 8,000 字元的呼叫，並回傳可行動的指示（發一個呼叫、參數簡短、呼叫後停止生成）。攔截本身不花成本（Pi 反正會拒絕），買到的是把引擎那句令人困惑的訊息換成具體修正方向。既有守衛全部看不到這個形狀：loop guard 檢查「沒有真工具呼叫」而這**有**一個，`FAKE_TOOL_CALL_PATTERN` 只掃訊息文字、從不看參數值。
+**尚未驗證的可疑項**：`-ctk q4_0 -ctv q4_0`（量化 KV cache）在長 context 下會降低注意力品質，與「規模越大越容易重複失控」的觀察相符。可用一次重啟改回 `f16` 做對照，本文未做。
 
 詳見 [docs/retro/2026-07-28-web-capability-and-prompt-conflicts.md](retro/2026-07-28-web-capability-and-prompt-conflicts.md)。
