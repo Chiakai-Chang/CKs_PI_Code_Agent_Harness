@@ -117,7 +117,7 @@ export default function (pi) {
 }
 ''')
         code, out = run(self.tmp)
-        self.assertIn("NOT COVERED", out)
+        self.assertIn("PARTIALLY COVERED", out)
         self.assertIn("c-bridge", out)
 
 
@@ -129,6 +129,36 @@ class TestRepoIsClean(unittest.TestCase):
     def test_reports_the_total_injected_budget(self):
         _code, out = run(ROOT)
         self.assertIn("Total injected guidance", out)
+
+
+class TestSystemPromptCoverage(unittest.TestCase):
+    """Six bridges assemble systemPrompt text at runtime, and the checker used to
+    skip them entirely — it only named them as a blind spot. Their string
+    literals and the markdown they inject verbatim are now scanned, and that
+    markdown is 3x the size of all the tool guidance combined."""
+
+    def setUp(self):
+        self.code, self.out = run(ROOT)
+
+    def test_reports_the_injected_markdown_budget(self):
+        self.assertIn("Injected markdown scanned", self.out)
+
+    def test_no_longer_claims_those_bridges_are_uncovered(self):
+        self.assertNotIn("NOT COVERED", self.out)
+        self.assertIn("PARTIALLY COVERED", self.out)
+
+    def test_flags_absolutist_language_inside_injected_markdown(self):
+        import tempfile, shutil as sh, os as _os
+        tmp = tempfile.mkdtemp()
+        try:
+            _os.makedirs(_os.path.join(tmp, "pi-rules"))
+            with open(_os.path.join(tmp, "pi-rules", "AGENTS.md"), "w", encoding="utf-8") as f:
+                f.write("# Rules\n\nYou must always call the web tool for any task needing data.\n")
+            code, out = run(tmp)
+            self.assertNotEqual(code, 0, out)
+            self.assertIn("AGENTS.md", out)
+        finally:
+            sh.rmtree(tmp, ignore_errors=True)
 
 
 if __name__ == "__main__":

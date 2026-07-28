@@ -154,17 +154,55 @@ def main():
 
     print("\nTotal injected guidance: %d chars (~%d tokens) across every turn" % (total_chars, total_chars // 4))
 
-    # Coverage gap, stated rather than hidden: bridges that append to
-    # event.systemPrompt inject free-form text this checker does not parse. A
-    # silent blind spot in a conflict checker is worse than a named one.
+    # Bridges that append to event.systemPrompt build their text from variables,
+    # so the final string cannot be extracted statically. Two things CAN be:
+    # the instruction-shaped string literals that feed it, and the harness-owned
+    # markdown files it injects wholesale — which are by far the largest
+    # contributors and were entirely unexamined.
     raw = []
     for name, path in bridges(root):
         with open(path, encoding="utf-8") as f:
-            if "systemPrompt:" in strip_comments(f.read()):
-                raw.append(name)
+            src = f.read()
+        if "systemPrompt:" not in strip_comments(src):
+            continue
+        raw.append(name)
+        for s in extract_strings(strip_comments(src)):
+            if len(s) < 40 or "/" in s[:30] or s.count(" ") < 5:
+                continue  # paths, regexes, format fragments — not instructions
+            low = s.lower()
+            for pattern, why in ABSOLUTE_PATTERNS:
+                if re.search(pattern, low):
+                    print("  FAIL: %s (systemPrompt literal) %s\n        %s" % (name, why, s[:150]))
+                    failures += 1
+
+    # Markdown injected verbatim into the system prompt.
+    injected_docs = [
+        os.path.join(root, "pi-rules", "case-autonomous-execution.md"),
+        os.path.join(root, "pi-extensions", "taste-bridge", "GEMINI.md"),
+        os.path.join(root, "pi-rules", "AGENTS.md"),
+    ]
+    doc_chars = 0
+    for doc in injected_docs:
+        if not os.path.isfile(doc):
+            continue
+        with open(doc, encoding="utf-8") as f:
+            body = f.read()
+        doc_chars += len(body)
+        for i, line in enumerate(body.splitlines(), 1):
+            low = line.lower()
+            for pattern, why in ABSOLUTE_PATTERNS:
+                if re.search(pattern, low):
+                    print("  FAIL: %s:%d %s\n        %s"
+                          % (os.path.relpath(doc, root), i, why, line.strip()[:150]))
+                    failures += 1
+    if doc_chars:
+        print("\nInjected markdown scanned: %d chars (~%d tokens) — these dwarf the tool guidance above"
+              % (doc_chars, doc_chars // 4))
+
     if raw:
-        print("\nNOT COVERED — these bridges append free-form text to event.systemPrompt,")
-        print("which this checker does not parse. Read them together when changing wording:")
+        print("\nPARTIALLY COVERED — these bridges assemble systemPrompt text at runtime.")
+        print("Their string literals and the markdown they inject are scanned; text they")
+        print("compose from other files at runtime is not. Read them together when rewording:")
         for name in raw:
             print("  %s" % name)
 

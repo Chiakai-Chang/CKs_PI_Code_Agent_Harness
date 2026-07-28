@@ -178,6 +178,8 @@ def main():
     ap.add_argument("--only", default="")
     ap.add_argument("--timeout", type=int, default=900)
     ap.add_argument("--keep-sessions", action="store_true")
+    ap.add_argument("--report", default=None,
+                    help="append the run to a JSONL baseline file for later comparison")
     args = ap.parse_args()
 
     global PI
@@ -225,6 +227,22 @@ def main():
 
     total_pass = sum(r[1] for r in rows)
     total_runs = sum(r[2] for r in rows)
+
+    if args.report:
+        # A baseline is only useful if it survives the terminal it was printed
+        # in. Append rather than overwrite so the history of prompt changes is
+        # readable side by side.
+        entry = {
+            "at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "repeats": args.repeats,
+            "scenarios": {r[0]: {"pass": r[1], "of": r[2], "notes": r[5][:3]} for r in rows},
+            "total_pass": total_pass,
+            "total_runs": total_runs,
+            "seconds": round(time.time() - started),
+        }
+        with open(args.report, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        print("appended to %s" % args.report)
     print("\nTrigger rate: %d/%d (%.0f%%) in %.0fs"
           % (total_pass, total_runs, 100.0 * total_pass / max(total_runs, 1), time.time() - started))
     print("This is a baseline for future prompt changes. It cannot retroactively validate "
