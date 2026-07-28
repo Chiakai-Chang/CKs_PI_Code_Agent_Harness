@@ -1,0 +1,173 @@
+- table:
+  - rowgroup:
+    - row "Hacker Newsnew | past | comments | ask | show | jobs | submit login":
+      - cell "Hacker Newsnew | past | comments | ask | show | jobs | submit login":
+        - table:
+          - rowgroup:
+            - row "Hacker Newsnew | past | comments | ask | show | jobs | submit login":
+              - cell:
+                - link [e1]:
+                  - /url: https://news.ycombinator.com
+                  - img
+              - cell "Hacker Newsnew | past | comments | ask | show | jobs | submit":
+                - link "Hacker News" [e2]:
+                  - /url: news
+                - link "new" [e3]:
+                  - /url: newest
+                - text: "|"
+                - link "past" [e4]:
+                  - /url: front
+                - text: "|"
+                - link "comments" [e5]:
+                  - /url: newcomments
+                - text: "|"
+                - link "ask" [e6]:
+                  - /url: ask
+                - text: "|"
+                - link "show" [e7]:
+                  - /url: show
+                - text: "|"
+                - link "jobs" [e8]:
+                  - /url: jobs
+                - text: "|"
+                - link "submit" [e9]:
+                  - /url: submit
+              - cell "login":
+                - link "login" [e10]:
+                  - /url: login?goto=item%3Fid%3D1
+    - row
+    - row "upvote Y Combinator (ycombinator.com) 57 points by pg on Oct 9, 2006 | hide | past | favorite | 3 comments upvote sama on Oct 9, 2006 | [–] \"the rising star of venture capital\" -unknown VC eating lunch on SHR upvote pg on Oct 9, 2006 | | [–] Is there anywhere to eat on Sandhill Road? upvote dmon on Feb 25, 2007 | | | [–] sure":
+      - cell "upvote Y Combinator (ycombinator.com) 57 points by pg on Oct 9, 2006 | hide | past | favorite | 3 comments upvote sama on Oct 9, 2006 | [–] \"the rising star of venture capital\" -unknown VC eating lunch on SHR upvote pg on Oct 9, 2006 | | [–] Is there anywhere to eat on Sandhill Road? upvote dmon on Feb 25, 2007 | | | [–] sure":
+        - table:
+          - rowgroup:
+            - row "upvote Y Combinator (ycombinator.com)":
+              - cell
+              - cell "upvote":
+                - link "upvote" [e11]:
+                  - /url: vote?id=1&how=up&goto=item%3Fid%3D1
+              - cell "Y Combinator (ycombinator.com)":
+                - link "Y Combinator" [e12]:
+                  - /url: http://ycombinator.com
+                - text: (
+                - link "ycombinator.com" [e13]:
+                  - /url: from?site=ycombinator.com
+                - text: )
+            - row "57 points by pg on Oct 9, 2006 | hide | past | favorite | 3 comments":
+              - cell
+              - cell "57 points by pg on Oct 9, 2006 | hide | past | favorite | 3 comments":
+                - text: 57 points by
+                - link "pg" [e14]:
+                  - /url: user?id=pg
+                - link "on Oct 9, 2006" [e15]:
+                  - /url: item?id=1
+                - text: "|"
+                - link "hide" [e16]:
+                  - /url: hide?id=1&goto=item%3Fid%3D1
+                - text: "|"
+                - link "past" [e17]:
+                  - /url: https://hn.algolia.com/?query=Y%20Combinator&type=story&dateRange=all&sort=byDate&storyText=false&prefix&page=0
+                - text: "|"
+                - link "favorite" [e18]:
+                  - /url: fave?id=1&auth=5328fcfde7333d68e67a8a2334e25acee5599932
+                - text: "|"
+                - link "3 comments" [e19]:
+                  - /url: item?id=1
+            - row:
+              - cell
+              - cell
+        - table:
+          - rowgroup:
+            - row "upvote sama on Oct 9, 2006 | [–] \"the rising star of venture capital\" -unknown VC eating lunch on SHR":
+              - cell "upvote sama on Oct 9, 2006 | [–] \"the rising star of venture capital\" -unknown VC eating lunch on SHR":
+                - table:
+                  - rowgroup:
+                    - row "upvote sama on Oct 9, 2006 | [–] \"the rising star of venture capital\" -unknown VC eating lunch on SHR":
+                      - cell:
+                        - img
+                      - cell "upvote":
+                        - link "upvote" [e20]:
+                          - /url: vote?id=15&how=up&goto=item%3Fid%3D1
+                      - cell "sama on Oct 9, 2006 | [–] \"the rising star of venture capital\" -unknown VC eating lunch on SHR":
+                        - link "sama" [e21]:
+                          - /url: user?id=sama
+                        - link "on Oct 9, 2006" [e22]:
+                          - /url: item?id=15
+                        - text: "|"
+                        - link "[–]" [e23]:
+                          - /url: javascript:void(0)
+                        - text: "\"the rising star of venture capital\" -unknown VC eating lunch on SHR"
+                        - paragraph
+            - row "upvote pg on Oct 9, 2006 | | [–] Is there anywhere to eat on Sandhill Road?":
+              - cell "upvote pg on Oct 9, 2006 | | [–] Is there anywhere to eat on Sandhill Road?":
+                - table:
+                  - rowgroup:
+                    - row "upvote pg on Oct 9, 2006 | | [–] Is there anywhere to eat on Sandhill Road?":
+                      - cell:
+                        - img
+                      - cell "upvote":
+                        - link "upvote" [e24]:
+                          - /url: vote?id=17&how=up&goto=item%3Fid%3D1
+                      - cell "pg on Oct 9, 2006 | | [–] Is there anywhere to eat on Sandhill Road?":
+                        - link "pg" [e25]:
+                          - /url: user?id=pg
+                        - link "on Oct 9, 2006" [e26]:
+                          - /url: item?id=17
+                        - text: "| |"
+                        - link "[–]" [e27]:
+                          - /url: javascript:void(0)
+                        - text: Is there anywhere to eat on Sandhill Road?
+                        - paragraph
+            - row "upvote dmon on Feb 25, 2007 | | | [–] sure":
+              - cell "upvote dmon on Feb 25, 2007 | | | [–] sure":
+                - table:
+                  - rowgroup:
+                    - row "upvote dmon on Feb 25, 2007 | | | [–] sure":
+                      - cell:
+                        - img
+                      - cell "upvote":
+                        - link "upvote" [e28]:
+                          - /url: vote?id=1079&how=up&goto=item%3Fid%3D1
+                      - cell "dmon on Feb 25, 2007 | | | [–] sure":
+                        - link "dmon" [e29]:
+                          - /url: user?id=dmon
+                        - link "on Feb 25, 2007" [e30]:
+                          - /url: item?id=1079
+                        - text: "| | |"
+                        - link "[–]" [e31]:
+                          - /url: javascript:void(0)
+                        - text: sure
+                        - paragraph
+    - row "Consider applying for YC's Fall 2026 batch! Applications are open till July 27. Guidelines | FAQ | Lists | API | Security | Legal | Apply to YC | Contact Search:":
+      - cell "Consider applying for YC's Fall 2026 batch! Applications are open till July 27. Guidelines | FAQ | Lists | API | Security | Legal | Apply to YC | Contact Search:":
+        - img
+        - table:
+          - rowgroup:
+            - row:
+              - cell
+        - link "Consider applying for YC's Fall 2026 batch! Applications are open till July 27." [e32]:
+          - /url: https://www.ycombinator.com/apply/
+        - link "Guidelines" [e33]:
+          - /url: newsguidelines.html
+        - text: "|"
+        - link "FAQ" [e34]:
+          - /url: newsfaq.html
+        - text: "|"
+        - link "Lists" [e35]:
+          - /url: lists
+        - text: "|"
+        - link "API" [e36]:
+          - /url: https://github.com/HackerNews/API
+        - text: "|"
+        - link "Security" [e37]:
+          - /url: security.html
+        - text: "|"
+        - link "Legal" [e38]:
+          - /url: https://www.ycombinator.com/legal/
+        - text: "|"
+        - link "Apply to YC" [e39]:
+          - /url: https://www.ycombinator.com/apply/
+        - text: "|"
+        - link "Contact" [e40]:
+          - /url: mailto:hn@ycombinator.com
+        - text: "Search:"
+        - textbox [e41]

@@ -180,5 +180,57 @@ class TestBridgeWiring(unittest.TestCase):
         self.assertNotIn("extractReadable", snap_block)
 
 
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestAcrossPageLayouts(unittest.TestCase):
+    """Role-based filtering could plausibly misfire on layouts unlike the two it
+    was built against. These fixtures were captured live through the running
+    camofox server: a docs page, a GitHub issue list (app shell) and a Hacker
+    News thread (table-based, no semantic roles to speak of).
+
+    The assertion is deliberately not "reduces by N%" — a filter that returned
+    nothing would score wonderfully on that. What matters is that the reduction
+    is real but not degenerate, and that the page's actual content survives.
+    """
+
+    LAYOUTS = [
+        ("ax-wikipedia-article.txt", ["Accessibility tree"]),
+        ("ax-news-homepage.txt", []),
+        ("ax-docs-site.txt", ["json", "serialize", "JSONDecoder"]),
+        ("ax-github-issue.txt", ["Issues"]),
+        ("ax-forum-thread.txt", ["Y Combinator"]),
+    ]
+
+    def test_every_layout_reduces_without_collapsing(self):
+        for name, _ in self.LAYOUTS:
+            if not os.path.exists(os.path.join(FIXTURES, name)):
+                continue
+            r = extract(name)
+            ratio = r["readableChars"] / r["originalChars"]
+            self.assertLess(ratio, 0.95, "%s barely reduced (%.0f%%)" % (name, ratio * 100))
+            self.assertGreater(ratio, 0.05, "%s collapsed to almost nothing (%.0f%%)" % (name, ratio * 100))
+
+    def test_no_layout_leaks_refs_or_urls(self):
+        for name, _ in self.LAYOUTS:
+            if not os.path.exists(os.path.join(FIXTURES, name)):
+                continue
+            r = extract(name)
+            self.assertNotIn("/url:", r["text"], name)
+            self.assertIsNone(re.search(r"\[e\d+\]", r["text"]), name)
+
+    def test_content_survives_on_every_layout(self):
+        for name, markers in self.LAYOUTS:
+            path = os.path.join(FIXTURES, name)
+            if not os.path.exists(path) or not markers:
+                continue
+            with open(path, encoding="utf-8") as f:
+                original = f.read()
+            r = extract(name)
+            for marker in markers:
+                if marker.lower() not in original.lower():
+                    continue  # never in the capture; not the filter's doing
+                self.assertIn(marker.lower(), r["text"].lower(),
+                              "%s lost %r" % (name, marker))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,1631 @@
+- navigation "Related":
+  - list:
+    - listitem:
+      - link "index" [e1]:
+        - /url: ../genindex.html
+    - listitem:
+      - link "modules" [e2]:
+        - /url: ../py-modindex.html
+      - text: "|"
+    - listitem:
+      - link "next" [e3]:
+        - /url: mailbox.html
+      - text: "|"
+    - listitem:
+      - link "previous" [e4]:
+        - /url: email.iterators.html
+      - text: "|"
+    - listitem:
+      - img "Python logo"
+    - listitem:
+      - link "Python" [e5]:
+        - /url: https://www.python.org/
+      - text: »
+    - listitem:
+      - combobox "Language":
+        - option "Greek | Ελληνικά"
+        - option "English" [selected]
+        - option "Spanish | español"
+        - option "French | français"
+        - option "Italian | italiano"
+        - option "Japanese | 日本語"
+        - option "Korean | 한국어"
+        - option "Polish | polski"
+        - option "Brazilian Portuguese | Português brasileiro"
+        - option "Romanian | Românește"
+        - option "Turkish | Türkçe"
+        - option "Simplified Chinese | 简体中文"
+        - option "Traditional Chinese | 繁體中文"
+      - combobox "Python version":
+        - option "dev (3.16)"
+        - option "pre (3.15)"
+        - option "3.14.6" [selected]
+        - option "3.13"
+        - option "3.12"
+        - option "3.11"
+        - option "3.10"
+        - option "3.9"
+        - option "3.8"
+        - option "3.7"
+        - option "3.6"
+        - option "3.5"
+        - option "3.4"
+        - option "3.3"
+        - option "3.2"
+        - option "3.1"
+        - option "3.0"
+        - option "2.7"
+        - option "2.6"
+    - listitem
+    - listitem:
+      - link "3.14.6 Documentation" [e6]:
+        - /url: ../index.html
+      - text: »
+    - listitem:
+      - link "The Python Standard Library" [e7]:
+        - /url: index.html
+      - text: »
+    - listitem:
+      - link "Internet Data Handling" [e8]:
+        - /url: netdata.html
+      - text: »
+    - listitem:
+      - link "json — JSON encoder and decoder" [e9]:
+        - /url: ""
+        - code: json
+        - text: — JSON encoder and decoder
+    - listitem:
+      - search:
+        - searchbox "Quick search" [e10]
+        - button "Go" [e11]
+      - text: "|"
+    - listitem:
+      - text: Theme
+      - combobox "Theme":
+        - option "Auto" [selected]
+        - option "Light"
+        - option "Dark"
+      - text: "|"
+- main:
+  - heading "json — JSON encoder and decoder" [level=1]:
+    - code: json
+    - text: — JSON encoder and decoder
+  - paragraph:
+    - strong: "Source code:"
+    - link "Lib/json/__init__.py" [e12]:
+      - /url: https://github.com/python/cpython/tree/3.14/Lib/json/__init__.py
+  - separator
+  - paragraph:
+    - link "JSON (JavaScript Object Notation)" [e13]:
+      - /url: https://json.org
+    - text: ", specified by"
+    - link "RFC 7159" [e14]:
+      - /url: https://datatracker.ietf.org/doc/html/rfc7159.html
+      - strong: RFC 7159
+    - text: (which obsoletes
+    - link "RFC 4627" [e15]:
+      - /url: https://datatracker.ietf.org/doc/html/rfc4627.html
+      - strong: RFC 4627
+    - text: ) and by
+    - link "ECMA-404" [e16]:
+      - /url: https://ecma-international.org/publications-and-standards/standards/ecma-404/
+    - text: ", is a lightweight data interchange format inspired by"
+    - link "JavaScript" [e17]:
+      - /url: https://en.wikipedia.org/wiki/JavaScript
+    - text: object literal syntax (although it is not a strict subset of JavaScript
+    - link "[1]" [e18]:
+      - /url: "#rfc-errata"
+    - text: ).
+  - paragraph: "Note:"
+  - paragraph: The term “object” in the context of JSON processing in Python can be ambiguous. All values in Python are objects. In JSON, an object refers to any data wrapped in curly braces, similar to a Python dictionary.
+  - paragraph: "Warning:"
+  - paragraph: Be cautious when parsing JSON data from untrusted sources. A malicious JSON string may cause the decoder to consume considerable CPU and memory resources. Limiting the size of data to be parsed is recommended.
+  - paragraph:
+    - text: This module exposes an API familiar to users of the standard library
+    - link "marshal" [e19]:
+      - /url: marshal.html#module-marshal
+      - code: marshal
+    - text: and
+    - link "pickle" [e20]:
+      - /url: pickle.html#module-pickle
+      - code: pickle
+    - text: modules.
+  - paragraph: "Encoding basic Python object hierarchies:"
+  - text: ">>> import json >>> json.dumps(['foo', {'bar': ('baz', None, 1.0, 2)}]) '[\"foo\", {\"bar\": [\"baz\", null, 1.0, 2]}]' >>> print(json.dumps(\"\\\"foo\\bar\")) \"\\\"foo\\bar\" >>> print(json.dumps('\\u1234')) \"\\u1234\" >>> print(json.dumps('\\\\')) \"\\\\\" >>> print(json.dumps({\"c\": 0, \"b\": 0, \"a\": 0}, sort_keys=True)) {\"a\": 0, \"b\": 0, \"c\": 0} >>> from io import StringIO >>> io = StringIO() >>> json.dump(['streaming API'], io) >>> io.getvalue() '[\"streaming API\"]'"
+  - paragraph: "Compact encoding:"
+  - text: ">>> import json >>> json.dumps([1, 2, 3, {'4': 5, '6': 7}], separators=(',', ':')) '[1,2,3,{\"4\":5,\"6\":7}]'"
+  - paragraph: "Pretty printing:"
+  - text: ">>> import json >>> print(json.dumps({'6': 7, '4': 5}, sort_keys=True, indent=4)) { \"4\": 5, \"6\": 7 }"
+  - paragraph: "Customizing JSON object encoding:"
+  - text: ">>> import json >>> def custom_json(obj): ... if isinstance(obj, complex): ... return {'__complex__': True, 'real': obj.real, 'imag': obj.imag} ... raise TypeError(f'Cannot serialize object of {type(obj)}') ... >>> json.dumps(1 + 2j, default=custom_json) '{\"__complex__\": true, \"real\": 1.0, \"imag\": 2.0}'"
+  - paragraph: "Decoding JSON:"
+  - text: ">>> import json >>> json.loads('[\"foo\", {\"bar\":[\"baz\", null, 1.0, 2]}]') ['foo', {'bar': ['baz', None, 1.0, 2]}] >>> json.loads('\"\\\\\"foo\\\\bar\"') '\"foo\\x08ar' >>> from io import StringIO >>> io = StringIO('[\"streaming API\"]') >>> json.load(io) ['streaming API']"
+  - paragraph: "Customizing JSON object decoding:"
+  - text: ">>> import json >>> def as_complex(dct): ... if '__complex__' in dct: ... return complex(dct['real'], dct['imag']) ... return dct ... >>> json.loads('{\"__complex__\": true, \"real\": 1, \"imag\": 2}', ... object_hook=as_complex) (1+2j) >>> import decimal >>> json.loads('1.1', parse_float=decimal.Decimal) Decimal('1.1')"
+  - paragraph:
+    - text: Extending
+    - link "JSONEncoder" [e21]:
+      - /url: "#json.JSONEncoder"
+      - code: JSONEncoder
+    - text: ":"
+  - text: ">>> import json >>> class ComplexEncoder(json.JSONEncoder): ... def default(self, obj): ... if isinstance(obj, complex): ... return [obj.real, obj.imag] ... # Let the base class default method raise the TypeError ... return super().default(obj) ... >>> json.dumps(2 + 1j, cls=ComplexEncoder) '[2.0, 1.0]' >>> ComplexEncoder().encode(2 + 1j) '[2.0, 1.0]' >>> list(ComplexEncoder().iterencode(2 + 1j)) ['[2.0', ', 1.0', ']']"
+  - paragraph:
+    - text: Using
+    - code: json
+    - text: "from the shell to validate and pretty-print:"
+  - text: "$ echo '{\"json\":\"obj\"}' | python -m json { \"json\": \"obj\" } $ echo '{1.2:3.4}' | python -m json Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+  - paragraph:
+    - text: See
+    - link "Command-line interface" [e22]:
+      - /url: "#json-commandline"
+    - text: for detailed documentation.
+  - paragraph: "Note:"
+  - paragraph:
+    - text: JSON is a subset of
+    - link "YAML" [e23]:
+      - /url: https://yaml.org/
+    - text: 1.2. The JSON produced by this module’s default settings (in particular, the default
+    - emphasis: separators
+    - text: value) is also a subset of YAML 1.0 and 1.1. This module can thus also be used as a YAML serializer.
+  - paragraph: "Note:"
+  - paragraph: This module’s encoders and decoders preserve input and output order by default. Order is only lost if the underlying containers are unordered.
+  - heading "Basic Usage" [level=2]
+  - term:
+    - text: json.dump(
+    - emphasis: obj
+    - text: ","
+    - emphasis: fp
+    - text: ","
+    - emphasis: "*"
+    - text: ","
+    - emphasis: skipkeys=False
+    - text: ","
+    - emphasis: ensure_ascii=True
+    - text: ","
+    - emphasis: check_circular=True
+    - text: ","
+    - emphasis: allow_nan=True
+    - text: ","
+    - emphasis: cls=None
+    - text: ","
+    - emphasis: indent=None
+    - text: ","
+    - emphasis: separators=None
+    - text: ","
+    - emphasis: default=None
+    - text: ","
+    - emphasis: sort_keys=False
+    - text: ","
+    - emphasis: "**kw"
+    - text: )
+  - definition:
+    - paragraph:
+      - text: Serialize
+      - emphasis: obj
+      - text: as a JSON formatted stream to
+      - emphasis: fp
+      - text: (a
+      - code: .write()
+      - text: "-supporting"
+      - link "file-like object" [e24]:
+        - /url: ../glossary.html#term-file-like-object
+      - text: ) using this
+      - link "Python-to-JSON conversion table" [e25]:
+        - /url: "#py-to-json-table"
+      - text: .
+    - paragraph: "Note:"
+    - paragraph:
+      - text: Unlike
+      - link "pickle" [e26]:
+        - /url: pickle.html#module-pickle
+        - code: pickle
+      - text: and
+      - link "marshal" [e27]:
+        - /url: marshal.html#module-marshal
+        - code: marshal
+      - text: ", JSON is not a framed protocol, so trying to serialize multiple objects with repeated calls to"
+      - code: dump()
+      - text: using the same
+      - emphasis: fp
+      - text: will result in an invalid JSON file.
+    - term: "Parameters:"
+    - definition:
+      - list:
+        - listitem:
+          - paragraph:
+            - strong: obj
+            - text: (
+            - link "object" [e28]:
+              - /url: functions.html#object
+              - emphasis: object
+            - text: ) – The Python object to be serialized.
+        - listitem:
+          - paragraph:
+            - strong: fp
+            - text: (
+            - link "file-like object" [e29]:
+              - /url: ../glossary.html#term-file-like-object
+            - text: ) – The file-like object
+            - emphasis: obj
+            - text: will be serialized to. The
+            - code: json
+            - text: module always produces
+            - link "str" [e30]:
+              - /url: stdtypes.html#str
+              - code: str
+            - text: objects, not
+            - link "bytes" [e31]:
+              - /url: stdtypes.html#bytes
+              - code: bytes
+            - text: objects, therefore
+            - code: fp.write()
+            - text: must support
+            - code: str
+            - text: input.
+        - listitem:
+          - paragraph:
+            - strong: skipkeys
+            - text: (
+            - link "bool" [e32]:
+              - /url: functions.html#bool
+              - emphasis: bool
+            - text: ) – If
+            - code: "True"
+            - text: ", keys that are not of a basic type ("
+            - link "str" [e33]:
+              - /url: stdtypes.html#str
+              - code: str
+            - text: ","
+            - link "int" [e34]:
+              - /url: functions.html#int
+              - code: int
+            - text: ","
+            - link "float" [e35]:
+              - /url: functions.html#float
+              - code: float
+            - text: ","
+            - code: bool
+            - text: ","
+            - code: None
+            - text: ) will be skipped instead of raising a
+            - link "TypeError" [e36]:
+              - /url: exceptions.html#TypeError
+              - code: TypeError
+            - text: . Default
+            - code: "False"
+            - text: .
+        - listitem:
+          - paragraph:
+            - strong: ensure_ascii
+            - text: (
+            - link "bool" [e37]:
+              - /url: functions.html#bool
+              - emphasis: bool
+            - text: ) – If
+            - code: "True"
+            - text: (the default), the output is guaranteed to have all incoming non-ASCII and non-printable characters escaped. If
+            - code: "False"
+            - text: ", all characters will be outputted as-is, except for the characters that must be escaped: quotation mark, reverse solidus, and the control characters U+0000 through U+001F."
+        - listitem:
+          - paragraph:
+            - strong: check_circular
+            - text: (
+            - link "bool" [e38]:
+              - /url: functions.html#bool
+              - emphasis: bool
+            - text: ) – If
+            - code: "False"
+            - text: ", the circular reference check for container types is skipped and a circular reference will result in a"
+            - link "RecursionError" [e39]:
+              - /url: exceptions.html#RecursionError
+              - code: RecursionError
+            - text: (or worse). Default
+            - code: "True"
+            - text: .
+        - listitem:
+          - paragraph:
+            - strong: allow_nan
+            - text: (
+            - link "bool" [e40]:
+              - /url: functions.html#bool
+              - emphasis: bool
+            - text: ) – If
+            - code: "False"
+            - text: ", serialization of out-of-range"
+            - link "float" [e41]:
+              - /url: functions.html#float
+              - code: float
+            - text: values (
+            - code: nan
+            - text: ","
+            - code: inf
+            - text: ","
+            - code: "-inf"
+            - text: ) will result in a
+            - link "ValueError" [e42]:
+              - /url: exceptions.html#ValueError
+              - code: ValueError
+            - text: ", in strict compliance with the JSON specification. If"
+            - code: "True"
+            - text: (the default), their JavaScript equivalents (
+            - code: NaN
+            - text: ","
+            - code: "Infinity"
+            - text: ","
+            - code: "-Infinity"
+            - text: ) are used.
+        - listitem:
+          - paragraph:
+            - strong: cls
+            - text: (a
+            - link "JSONEncoder" [e43]:
+              - /url: "#json.JSONEncoder"
+              - code: JSONEncoder
+            - text: subclass) – If set, a custom JSON encoder with the
+            - link "default()" [e44]:
+              - /url: "#json.JSONEncoder.default"
+              - code: default()
+            - text: method overridden, for serializing into custom datatypes. If
+            - code: None
+            - text: (the default),
+            - code: JSONEncoder
+            - text: is used.
+        - listitem:
+          - paragraph:
+            - strong: indent
+            - text: (
+            - link "int" [e45]:
+              - /url: functions.html#int
+              - emphasis: int
+            - emphasis: "|"
+            - link "str" [e46]:
+              - /url: stdtypes.html#str
+              - emphasis: str
+            - emphasis: "|"
+            - emphasis: None
+            - text: ) – If a positive integer or string, JSON array elements and object members will be pretty-printed with that indent level. A positive integer indents that many spaces per level; a string (such as
+            - code: "\"\\t\""
+            - text: ) is used to indent each level. If zero, negative, or
+            - code: "\"\""
+            - text: (the empty string), only newlines are inserted. If
+            - code: None
+            - text: (the default), no newlines are inserted.
+        - listitem:
+          - paragraph:
+            - strong: separators
+            - text: (
+            - link "tuple" [e47]:
+              - /url: stdtypes.html#tuple
+              - emphasis: tuple
+            - emphasis: "|"
+            - emphasis: None
+            - text: ") – A two-tuple:"
+            - code: (item_separator, key_separator)
+            - text: . If
+            - code: None
+            - text: (the default),
+            - emphasis: separators
+            - text: defaults to
+            - code: "(', ', ': ')"
+            - text: if
+            - emphasis: indent
+            - text: is
+            - code: None
+            - text: ", and"
+            - code: "(',', ': ')"
+            - text: otherwise. For the most compact JSON, specify
+            - code: (',', ':')
+            - text: to eliminate whitespace.
+        - listitem:
+          - paragraph:
+            - strong: default
+            - text: (
+            - link "callable" [e48]:
+              - /url: ../glossary.html#term-callable
+            - text: "| None) – A function that is called for objects that can’t otherwise be serialized. It should return a JSON encodable version of the object or raise a"
+            - link "TypeError" [e49]:
+              - /url: exceptions.html#TypeError
+              - code: TypeError
+            - text: . If
+            - code: None
+            - text: (the default),
+            - code: TypeError
+            - text: is raised.
+        - listitem:
+          - paragraph:
+            - strong: sort_keys
+            - text: (
+            - link "bool" [e50]:
+              - /url: functions.html#bool
+              - emphasis: bool
+            - text: ) – If
+            - code: "True"
+            - text: ", dictionaries will be outputted sorted by key. Default"
+            - code: "False"
+            - text: .
+    - paragraph:
+      - text: "Changed in version 3.2: Allow strings for"
+      - emphasis: indent
+      - text: in addition to integers.
+    - paragraph:
+      - text: "Changed in version 3.4: Use"
+      - code: "(',', ': ')"
+      - text: as default if
+      - emphasis: indent
+      - text: is not
+      - code: None
+      - text: .
+    - paragraph:
+      - text: "Changed in version 3.6: All optional parameters are now"
+      - link "keyword-only" [e51]:
+        - /url: ../glossary.html#keyword-only-parameter
+      - text: .
+  - term:
+    - text: json.dumps(
+    - emphasis: obj
+    - text: ","
+    - emphasis: "*"
+    - text: ","
+    - emphasis: skipkeys=False
+    - text: ","
+    - emphasis: ensure_ascii=True
+    - text: ","
+    - emphasis: check_circular=True
+    - text: ","
+    - emphasis: allow_nan=True
+    - text: ","
+    - emphasis: cls=None
+    - text: ","
+    - emphasis: indent=None
+    - text: ","
+    - emphasis: separators=None
+    - text: ","
+    - emphasis: default=None
+    - text: ","
+    - emphasis: sort_keys=False
+    - text: ","
+    - emphasis: "**kw"
+    - text: )
+  - definition:
+    - paragraph:
+      - text: Serialize
+      - emphasis: obj
+      - text: to a JSON formatted
+      - link "str" [e52]:
+        - /url: stdtypes.html#str
+        - code: str
+      - text: using this
+      - link "conversion table" [e53]:
+        - /url: "#py-to-json-table"
+      - text: . The arguments have the same meaning as in
+      - link "dump()" [e54]:
+        - /url: "#json.dump"
+        - code: dump()
+      - text: .
+    - paragraph: "Note:"
+    - paragraph:
+      - text: Keys in key/value pairs of JSON are always of the type
+      - link "str" [e55]:
+        - /url: stdtypes.html#str
+        - code: str
+      - text: . When a dictionary is converted into JSON, all the keys of the dictionary are coerced to strings. As a result of this, if a dictionary is converted into JSON and then back into a dictionary, the dictionary may not equal the original one. That is,
+      - code: loads(dumps(x)) != x
+      - text: if x has non-string keys.
+  - term:
+    - text: json.load(
+    - emphasis: fp
+    - text: ","
+    - emphasis: "*"
+    - text: ","
+    - emphasis: cls=None
+    - text: ","
+    - emphasis: object_hook=None
+    - text: ","
+    - emphasis: parse_float=None
+    - text: ","
+    - emphasis: parse_int=None
+    - text: ","
+    - emphasis: parse_constant=None
+    - text: ","
+    - emphasis: object_pairs_hook=None
+    - text: ","
+    - emphasis: "**kw"
+    - text: )
+  - definition:
+    - paragraph:
+      - text: Deserialize
+      - emphasis: fp
+      - text: to a Python object using the
+      - link "JSON-to-Python conversion table" [e56]:
+        - /url: "#json-to-py-table"
+      - text: .
+    - term: "Parameters:"
+    - definition:
+      - list:
+        - listitem:
+          - paragraph:
+            - strong: fp
+            - text: (
+            - link "file-like object" [e57]:
+              - /url: ../glossary.html#term-file-like-object
+            - text: ) – A
+            - code: .read()
+            - text: "-supporting"
+            - link "text file" [e58]:
+              - /url: ../glossary.html#term-text-file
+            - text: or
+            - link "binary file" [e59]:
+              - /url: ../glossary.html#term-binary-file
+            - text: containing the JSON document to be deserialized.
+        - listitem:
+          - paragraph:
+            - strong: cls
+            - text: (a
+            - link "JSONDecoder" [e60]:
+              - /url: "#json.JSONDecoder"
+              - code: JSONDecoder
+            - text: subclass) – If set, a custom JSON decoder. Additional keyword arguments to
+            - code: load()
+            - text: will be passed to the constructor of
+            - emphasis: cls
+            - text: . If
+            - code: None
+            - text: (the default),
+            - code: JSONDecoder
+            - text: is used.
+        - listitem:
+          - paragraph:
+            - strong: object_hook
+            - text: (
+            - link "callable" [e61]:
+              - /url: ../glossary.html#term-callable
+            - text: "| None) – If set, a function that is called with the result of any JSON object literal decoded (a"
+            - link "dict" [e62]:
+              - /url: stdtypes.html#dict
+              - code: dict
+            - text: ). The return value of this function will be used instead of the
+            - code: dict
+            - text: . This feature can be used to implement custom decoders, for example
+            - link "JSON-RPC" [e63]:
+              - /url: https://www.jsonrpc.org
+            - text: class hinting. Default
+            - code: None
+            - text: .
+        - listitem:
+          - paragraph:
+            - strong: object_pairs_hook
+            - text: (
+            - link "callable" [e64]:
+              - /url: ../glossary.html#term-callable
+            - text: "| None) – If set, a function that is called with the result of any JSON object literal decoded with an ordered list of pairs. The return value of this function will be used instead of the"
+            - link "dict" [e65]:
+              - /url: stdtypes.html#dict
+              - code: dict
+            - text: . This feature can be used to implement custom decoders. If
+            - emphasis: object_hook
+            - text: is also set,
+            - emphasis: object_pairs_hook
+            - text: takes priority. Default
+            - code: None
+            - text: .
+        - listitem:
+          - paragraph:
+            - strong: parse_float
+            - text: (
+            - link "callable" [e66]:
+              - /url: ../glossary.html#term-callable
+            - text: "| None) – If set, a function that is called with the string of every JSON float to be decoded. If"
+            - code: None
+            - text: (the default), it is equivalent to
+            - code: float(num_str)
+            - text: . This can be used to parse JSON floats into custom datatypes, for example
+            - link "decimal.Decimal" [e67]:
+              - /url: decimal.html#decimal.Decimal
+              - code: decimal.Decimal
+            - text: .
+        - listitem:
+          - paragraph:
+            - strong: parse_int
+            - text: (
+            - link "callable" [e68]:
+              - /url: ../glossary.html#term-callable
+            - text: "| None) – If set, a function that is called with the string of every JSON int to be decoded. If"
+            - code: None
+            - text: (the default), it is equivalent to
+            - code: int(num_str)
+            - text: . This can be used to parse JSON integers into custom datatypes, for example
+            - link "float" [e69]:
+              - /url: functions.html#float
+              - code: float
+            - text: .
+        - listitem:
+          - paragraph:
+            - strong: parse_constant
+            - text: (
+            - link "callable" [e70]:
+              - /url: ../glossary.html#term-callable
+            - text: "| None) – If set, a function that is called with one of the following strings:"
+            - code: "'-Infinity'"
+            - text: ","
+            - code: "'Infinity'"
+            - text: ", or"
+            - code: "'NaN'"
+            - text: . This can be used to raise an exception if invalid JSON numbers are encountered. Default
+            - code: None
+            - text: .
+    - term: "Raises:"
+    - definition:
+      - list:
+        - listitem:
+          - paragraph:
+            - link "JSONDecodeError" [e71]:
+              - /url: "#json.JSONDecodeError"
+              - strong: JSONDecodeError
+            - text: – When the data being deserialized is not a valid JSON document.
+        - listitem:
+          - paragraph:
+            - link "UnicodeDecodeError" [e72]:
+              - /url: exceptions.html#UnicodeDecodeError
+              - strong: UnicodeDecodeError
+            - text: – When the data being deserialized does not contain UTF-8, UTF-16 or UTF-32 encoded data.
+    - paragraph: "Changed in version 3.1:"
+    - list:
+      - listitem:
+        - paragraph:
+          - text: Added the optional
+          - emphasis: object_pairs_hook
+          - text: parameter.
+      - listitem:
+        - paragraph:
+          - emphasis: parse_constant
+          - text: doesn’t get called on ‘null’, ‘true’, ‘false’ anymore.
+    - paragraph: "Changed in version 3.6:"
+    - list:
+      - listitem:
+        - paragraph:
+          - text: All optional parameters are now
+          - link "keyword-only" [e73]:
+            - /url: ../glossary.html#keyword-only-parameter
+          - text: .
+      - listitem:
+        - paragraph:
+          - emphasis: fp
+          - text: can now be a
+          - link "binary file" [e74]:
+            - /url: ../glossary.html#term-binary-file
+          - text: . The input encoding should be UTF-8, UTF-16 or UTF-32.
+    - paragraph:
+      - text: "Changed in version 3.11: The default"
+      - emphasis: parse_int
+      - text: of
+      - link "int()" [e75]:
+        - /url: functions.html#int
+        - code: int()
+      - text: now limits the maximum length of the integer string via the interpreter’s
+      - link "integer string conversion length limitation" [e76]:
+        - /url: stdtypes.html#int-max-str-digits
+      - text: to help avoid denial of service attacks.
+  - term:
+    - text: json.loads(
+    - emphasis: s
+    - text: ","
+    - emphasis: "*"
+    - text: ","
+    - emphasis: cls=None
+    - text: ","
+    - emphasis: object_hook=None
+    - text: ","
+    - emphasis: parse_float=None
+    - text: ","
+    - emphasis: parse_int=None
+    - text: ","
+    - emphasis: parse_constant=None
+    - text: ","
+    - emphasis: object_pairs_hook=None
+    - text: ","
+    - emphasis: "**kw"
+    - text: )
+  - definition:
+    - paragraph:
+      - text: Identical to
+      - link "load()" [e77]:
+        - /url: "#json.load"
+        - code: load()
+      - text: ", but instead of a file-like object, deserialize"
+      - emphasis: s
+      - text: (a
+      - link "str" [e78]:
+        - /url: stdtypes.html#str
+        - code: str
+      - text: ","
+      - link "bytes" [e79]:
+        - /url: stdtypes.html#bytes
+        - code: bytes
+      - text: or
+      - link "bytearray" [e80]:
+        - /url: stdtypes.html#bytearray
+        - code: bytearray
+      - text: instance containing a JSON document) to a Python object using this
+      - link "conversion table" [e81]:
+        - /url: "#json-to-py-table"
+      - text: .
+    - paragraph:
+      - text: "Changed in version 3.6:"
+      - emphasis: s
+      - text: can now be of type
+      - link "bytes" [e82]:
+        - /url: stdtypes.html#bytes
+        - code: bytes
+      - text: or
+      - link "bytearray" [e83]:
+        - /url: stdtypes.html#bytearray
+        - code: bytearray
+      - text: . The input encoding should be UTF-8, UTF-16 or UTF-32.
+    - paragraph:
+      - text: "Changed in version 3.9: The keyword argument"
+      - emphasis: encoding
+      - text: has been removed.
+  - heading "Encoders and Decoders" [level=2]
+  - term:
+    - emphasis: class
+    - text: json.JSONDecoder(
+    - emphasis: "*"
+    - text: ","
+    - emphasis: object_hook=None
+    - text: ","
+    - emphasis: parse_float=None
+    - text: ","
+    - emphasis: parse_int=None
+    - text: ","
+    - emphasis: parse_constant=None
+    - text: ","
+    - emphasis: strict=True
+    - text: ","
+    - emphasis: object_pairs_hook=None
+    - text: )
+  - definition:
+    - paragraph: Simple JSON decoder.
+    - paragraph: "Performs the following translations in decoding by default:"
+    - table:
+      - rowgroup:
+        - row "JSON Python":
+          - cell "JSON":
+            - paragraph: JSON
+          - cell "Python":
+            - paragraph: Python
+      - rowgroup:
+        - row "object dict":
+          - cell "object":
+            - paragraph: object
+          - cell "dict":
+            - paragraph: dict
+        - row "array list":
+          - cell "array":
+            - paragraph: array
+          - cell "list":
+            - paragraph: list
+        - row "string str":
+          - cell "string":
+            - paragraph: string
+          - cell "str":
+            - paragraph: str
+        - row "number (int) int":
+          - cell "number (int)":
+            - paragraph: number (int)
+          - cell "int":
+            - paragraph: int
+        - row "number (real) float":
+          - cell "number (real)":
+            - paragraph: number (real)
+          - cell "float":
+            - paragraph: float
+        - row "true True":
+          - cell "true":
+            - paragraph: "true"
+          - cell "True":
+            - paragraph: "True"
+        - row "false False":
+          - cell "false":
+            - paragraph: "false"
+          - cell "False":
+            - paragraph: "False"
+        - row "null None":
+          - cell "null":
+            - paragraph: "null"
+          - cell "None":
+            - paragraph: None
+    - paragraph:
+      - text: It also understands
+      - code: NaN
+      - text: ","
+      - code: "Infinity"
+      - text: ", and"
+      - code: "-Infinity"
+      - text: as their corresponding
+      - code: float
+      - text: values, which is outside the JSON spec.
+    - paragraph:
+      - emphasis: object_hook
+      - text: is an optional function that will be called with the result of every JSON object decoded and its return value will be used in place of the given
+      - link "dict" [e84]:
+        - /url: stdtypes.html#dict
+        - code: dict
+      - text: . This can be used to provide custom deserializations (e.g. to support
+      - link "JSON-RPC" [e85]:
+        - /url: https://www.jsonrpc.org
+      - text: class hinting).
+    - paragraph:
+      - emphasis: object_pairs_hook
+      - text: is an optional function that will be called with the result of every JSON object decoded with an ordered list of pairs. The return value of
+      - emphasis: object_pairs_hook
+      - text: will be used instead of the
+      - link "dict" [e86]:
+        - /url: stdtypes.html#dict
+        - code: dict
+      - text: . This feature can be used to implement custom decoders. If
+      - emphasis: object_hook
+      - text: is also defined, the
+      - emphasis: object_pairs_hook
+      - text: takes priority.
+    - paragraph:
+      - text: "Changed in version 3.1: Added support for"
+      - emphasis: object_pairs_hook
+      - text: .
+    - paragraph:
+      - emphasis: parse_float
+      - text: is an optional function that will be called with the string of every JSON float to be decoded. By default, this is equivalent to
+      - code: float(num_str)
+      - text: . This can be used to use another datatype or parser for JSON floats (e.g.
+      - link "decimal.Decimal" [e87]:
+        - /url: decimal.html#decimal.Decimal
+        - code: decimal.Decimal
+      - text: ).
+    - paragraph:
+      - emphasis: parse_int
+      - text: is an optional function that will be called with the string of every JSON int to be decoded. By default, this is equivalent to
+      - code: int(num_str)
+      - text: . This can be used to use another datatype or parser for JSON integers (e.g.
+      - link "float" [e88]:
+        - /url: functions.html#float
+        - code: float
+      - text: ).
+    - paragraph:
+      - emphasis: parse_constant
+      - text: "is an optional function that will be called with one of the following strings:"
+      - code: "'-Infinity'"
+      - text: ","
+      - code: "'Infinity'"
+      - text: ","
+      - code: "'NaN'"
+      - text: . This can be used to raise an exception if invalid JSON numbers are encountered.
+    - paragraph:
+      - text: If
+      - emphasis: strict
+      - text: is false (
+      - code: "True"
+      - text: is the default), then control characters will be allowed inside strings. Control characters in this context are those with character codes in the 0–31 range, including
+      - code: "'\\t'"
+      - text: (tab),
+      - code: "'\\n'"
+      - text: ","
+      - code: "'\\r'"
+      - text: and
+      - code: "'\\0'"
+      - text: .
+    - paragraph:
+      - text: If the data being deserialized is not a valid JSON document, a
+      - link "JSONDecodeError" [e89]:
+        - /url: "#json.JSONDecodeError"
+        - code: JSONDecodeError
+      - text: will be raised.
+    - paragraph:
+      - text: "Changed in version 3.6: All parameters are now"
+      - link "keyword-only" [e90]:
+        - /url: ../glossary.html#keyword-only-parameter
+      - text: .
+    - term:
+      - text: decode(
+      - emphasis: s
+      - text: )
+    - definition:
+      - paragraph:
+        - text: Return the Python representation of
+        - emphasis: s
+        - text: (a
+        - link "str" [e91]:
+          - /url: stdtypes.html#str
+          - code: str
+        - text: instance containing a JSON document).
+      - paragraph:
+        - link "JSONDecodeError" [e92]:
+          - /url: "#json.JSONDecodeError"
+          - code: JSONDecodeError
+        - text: will be raised if the given JSON document is not valid.
+    - term:
+      - text: raw_decode(
+      - emphasis: s
+      - text: )
+    - definition:
+      - paragraph:
+        - text: Decode a JSON document from
+        - emphasis: s
+        - text: (a
+        - link "str" [e93]:
+          - /url: stdtypes.html#str
+          - code: str
+        - text: beginning with a JSON document) and return a 2-tuple of the Python representation and the index in
+        - emphasis: s
+        - text: where the document ended.
+      - paragraph: This can be used to decode a JSON document from a string that may have extraneous data at the end.
+  - term:
+    - emphasis: class
+    - text: json.JSONEncoder(
+    - emphasis: "*"
+    - text: ","
+    - emphasis: skipkeys=False
+    - text: ","
+    - emphasis: ensure_ascii=True
+    - text: ","
+    - emphasis: check_circular=True
+    - text: ","
+    - emphasis: allow_nan=True
+    - text: ","
+    - emphasis: sort_keys=False
+    - text: ","
+    - emphasis: indent=None
+    - text: ","
+    - emphasis: separators=None
+    - text: ","
+    - emphasis: default=None
+    - text: )
+  - definition:
+    - paragraph: Extensible JSON encoder for Python data structures.
+    - paragraph: "Supports the following objects and types by default:"
+    - table:
+      - rowgroup:
+        - row "Python JSON":
+          - cell "Python":
+            - paragraph: Python
+          - cell "JSON":
+            - paragraph: JSON
+      - rowgroup:
+        - row "dict object":
+          - cell "dict":
+            - paragraph: dict
+          - cell "object":
+            - paragraph: object
+        - row "list, tuple array":
+          - cell "list, tuple":
+            - paragraph: list, tuple
+          - cell "array":
+            - paragraph: array
+        - row "str string":
+          - cell "str":
+            - paragraph: str
+          - cell "string":
+            - paragraph: string
+        - row "int, float, int- & float-derived Enums number":
+          - cell "int, float, int- & float-derived Enums":
+            - paragraph: int, float, int- & float-derived Enums
+          - cell "number":
+            - paragraph: number
+        - row "True true":
+          - cell "True":
+            - paragraph: "True"
+          - cell "true":
+            - paragraph: "true"
+        - row "False false":
+          - cell "False":
+            - paragraph: "False"
+          - cell "false":
+            - paragraph: "false"
+        - row "None null":
+          - cell "None":
+            - paragraph: None
+          - cell "null":
+            - paragraph: "null"
+    - paragraph: "Changed in version 3.4: Added support for int- and float-derived Enum classes."
+    - paragraph:
+      - text: To extend this to recognize other objects, subclass and implement a
+      - link "default()" [e94]:
+        - /url: "#json.JSONEncoder.default"
+        - code: default()
+      - text: method with another method that returns a serializable object for
+      - code: o
+      - text: if possible, otherwise it should call the superclass implementation (to raise
+      - link "TypeError" [e95]:
+        - /url: exceptions.html#TypeError
+        - code: TypeError
+      - text: ).
+    - paragraph:
+      - text: If
+      - emphasis: skipkeys
+      - text: is false (the default), a
+      - link "TypeError" [e96]:
+        - /url: exceptions.html#TypeError
+        - code: TypeError
+      - text: will be raised when trying to encode keys that are not
+      - link "str" [e97]:
+        - /url: stdtypes.html#str
+        - code: str
+      - text: ","
+      - link "int" [e98]:
+        - /url: functions.html#int
+        - code: int
+      - text: ","
+      - link "float" [e99]:
+        - /url: functions.html#float
+        - code: float
+      - text: ","
+      - link "bool" [e100]:
+        - /url: functions.html#bool
+        - code: bool
+      - text: or
+      - code: None
+      - text: . If
+      - emphasis: skipkeys
+      - text: is true, such items are simply skipped.
+    - paragraph:
+      - text: If
+      - emphasis: ensure_ascii
+      - text: is true (the default), the output is guaranteed to have all incoming non-ASCII and non-printable characters escaped. If
+      - emphasis: ensure_ascii
+      - text: "is false, all characters will be output as-is, except for the characters that must be escaped: quotation mark, reverse solidus, and the control characters U+0000 through U+001F."
+    - paragraph:
+      - text: If
+      - emphasis: check_circular
+      - text: is true (the default), then lists, dicts, and custom encoded objects will be checked for circular references during encoding to prevent an infinite recursion (which would cause a
+      - link "RecursionError" [e101]:
+        - /url: exceptions.html#RecursionError
+        - code: RecursionError
+      - text: ). Otherwise, no such check takes place.
+    - paragraph:
+      - text: If
+      - emphasis: allow_nan
+      - text: is true (the default), then
+      - code: NaN
+      - text: ","
+      - code: "Infinity"
+      - text: ", and"
+      - code: "-Infinity"
+      - text: will be encoded as such. This behavior is not JSON specification compliant, but is consistent with most JavaScript based encoders and decoders. Otherwise, it will be a
+      - link "ValueError" [e102]:
+        - /url: exceptions.html#ValueError
+        - code: ValueError
+      - text: to encode such floats.
+    - paragraph:
+      - text: If
+      - emphasis: sort_keys
+      - text: "is true (default:"
+      - code: "False"
+      - text: ), then the output of dictionaries will be sorted by key; this is useful for regression tests to ensure that JSON serializations can be compared on a day-to-day basis.
+    - paragraph:
+      - text: If
+      - emphasis: indent
+      - text: is a non-negative integer or string, then JSON array elements and object members will be pretty-printed with that indent level. An indent level of 0, negative, or
+      - code: "\"\""
+      - text: will only insert newlines.
+      - code: None
+      - text: (the default) selects the most compact representation. Using a positive integer indent indents that many spaces per level. If
+      - emphasis: indent
+      - text: is a string (such as
+      - code: "\"\\t\""
+      - text: ), that string is used to indent each level.
+    - paragraph:
+      - text: "Changed in version 3.2: Allow strings for"
+      - emphasis: indent
+      - text: in addition to integers.
+    - paragraph:
+      - text: If specified,
+      - emphasis: separators
+      - text: should be an
+      - code: (item_separator, key_separator)
+      - text: tuple. The default is
+      - code: "(', ', ': ')"
+      - text: if
+      - emphasis: indent
+      - text: is
+      - code: None
+      - text: and
+      - code: "(',', ': ')"
+      - text: otherwise. To get the most compact JSON representation, you should specify
+      - code: (',', ':')
+      - text: to eliminate whitespace.
+    - paragraph:
+      - text: "Changed in version 3.4: Use"
+      - code: "(',', ': ')"
+      - text: as default if
+      - emphasis: indent
+      - text: is not
+      - code: None
+      - text: .
+    - paragraph:
+      - text: If specified,
+      - emphasis: default
+      - text: should be a function that gets called for objects that can’t otherwise be serialized. It should return a JSON encodable version of the object or raise a
+      - link "TypeError" [e103]:
+        - /url: exceptions.html#TypeError
+        - code: TypeError
+      - text: . If not specified,
+      - code: TypeError
+      - text: is raised.
+    - paragraph:
+      - text: "Changed in version 3.6: All parameters are now"
+      - link "keyword-only" [e104]:
+        - /url: ../glossary.html#keyword-only-parameter
+      - text: .
+    - term:
+      - text: default(
+      - emphasis: o
+      - text: )
+    - definition:
+      - paragraph:
+        - text: Implement this method in a subclass such that it returns a serializable object for
+        - emphasis: o
+        - text: ", or calls the base implementation (to raise a"
+        - link "TypeError" [e105]:
+          - /url: exceptions.html#TypeError
+          - code: TypeError
+        - text: ).
+      - paragraph:
+        - text: For example, to support arbitrary iterators, you could implement
+        - code: default()
+        - text: "like this:"
+      - text: "def default(self, o): try: iterable = iter(o) except TypeError: pass else: return list(iterable) # Let the base class default method raise the TypeError return super().default(o)"
+    - term:
+      - text: encode(
+      - emphasis: o
+      - text: )
+    - definition:
+      - paragraph:
+        - text: Return a JSON string representation of a Python data structure,
+        - emphasis: o
+        - text: ". For example:"
+      - text: ">>> json.JSONEncoder().encode({\"foo\": [\"bar\", \"baz\"]}) '{\"foo\": [\"bar\", \"baz\"]}'"
+    - term:
+      - text: iterencode(
+      - emphasis: o
+      - text: )
+    - definition:
+      - paragraph:
+        - text: Encode the given object,
+        - emphasis: o
+        - text: ", and yield each string representation as available. For example:"
+      - text: "for chunk in json.JSONEncoder().iterencode(bigobject): mysocket.write(chunk)"
+  - heading "Exceptions" [level=2]
+  - term:
+    - emphasis: exception
+    - text: json.JSONDecodeError(
+    - emphasis: msg
+    - text: ","
+    - emphasis: doc
+    - text: ","
+    - emphasis: pos
+    - text: )
+  - definition:
+    - paragraph:
+      - text: Subclass of
+      - link "ValueError" [e106]:
+        - /url: exceptions.html#ValueError
+        - code: ValueError
+      - text: "with the following additional attributes:"
+    - term: msg
+    - definition:
+      - paragraph: The unformatted error message.
+    - term: doc
+    - definition:
+      - paragraph: The JSON document being parsed.
+    - term: pos
+    - definition:
+      - paragraph:
+        - text: The start index of
+        - emphasis: doc
+        - text: where parsing failed.
+    - term: lineno
+    - definition:
+      - paragraph:
+        - text: The line corresponding to
+        - emphasis: pos
+        - text: .
+    - term: colno
+    - definition:
+      - paragraph:
+        - text: The column corresponding to
+        - emphasis: pos
+        - text: .
+    - paragraph: Added in version 3.5.
+  - heading "Standard Compliance and Interoperability" [level=2]
+  - paragraph:
+    - text: The JSON format is specified by
+    - link "RFC 7159" [e107]:
+      - /url: https://datatracker.ietf.org/doc/html/rfc7159.html
+      - strong: RFC 7159
+    - text: and by
+    - link "ECMA-404" [e108]:
+      - /url: https://ecma-international.org/publications-and-standards/standards/ecma-404/
+    - text: . This section details this module’s level of compliance with the RFC. For simplicity,
+    - link "JSONEncoder" [e109]:
+      - /url: "#json.JSONEncoder"
+      - code: JSONEncoder
+    - text: and
+    - link "JSONDecoder" [e110]:
+      - /url: "#json.JSONDecoder"
+      - code: JSONDecoder
+    - text: subclasses, and parameters other than those explicitly mentioned, are not considered.
+  - paragraph: "This module does not comply with the RFC in a strict fashion, implementing some extensions that are valid JavaScript but not valid JSON. In particular:"
+  - list:
+    - listitem:
+      - paragraph: Infinite and NaN number values are accepted and output;
+    - listitem:
+      - paragraph: Repeated names within an object are accepted, and only the value of the last name-value pair is used.
+  - paragraph: Since the RFC permits RFC-compliant parsers to accept input texts that are not RFC-compliant, this module’s deserializer is technically RFC-compliant under default settings.
+  - heading "Character Encodings" [level=3]
+  - paragraph: The RFC requires that JSON be represented using either UTF-8, UTF-16, or UTF-32, with UTF-8 being the recommended default for maximum interoperability.
+  - paragraph:
+    - text: As permitted, though not required, by the RFC, this module’s serializer sets
+    - emphasis: ensure_ascii=True
+    - text: by default, thus escaping the output so that the resulting strings only contain printable ASCII characters.
+  - paragraph:
+    - text: Other than the
+    - emphasis: ensure_ascii
+    - text: parameter, this module is defined strictly in terms of conversion between Python objects and
+    - link "Unicode strings" [e111]:
+      - /url: stdtypes.html#str
+      - code: Unicode strings
+    - text: ", and thus does not otherwise directly address the issue of character encodings."
+  - paragraph:
+    - text: The RFC prohibits adding a byte order mark (BOM) to the start of a JSON text, and this module’s serializer does not add a BOM to its output. The RFC permits, but does not require, JSON deserializers to ignore an initial BOM in their input. This module’s deserializer raises a
+    - link "ValueError" [e112]:
+      - /url: exceptions.html#ValueError
+      - code: ValueError
+    - text: when an initial BOM is present.
+  - paragraph:
+    - text: The RFC does not explicitly forbid JSON strings which contain byte sequences that don’t correspond to valid Unicode characters (e.g. unpaired UTF-16 surrogates), but it does note that they may cause interoperability problems. By default, this module accepts and outputs (when present in the original
+    - link "str" [e113]:
+      - /url: stdtypes.html#str
+      - code: str
+    - text: ) code points for such sequences.
+  - heading "Infinite and NaN Number Values" [level=3]
+  - paragraph:
+    - text: The RFC does not permit the representation of infinite or NaN number values. Despite that, by default, this module accepts and outputs
+    - code: "Infinity"
+    - text: ","
+    - code: "-Infinity"
+    - text: ", and"
+    - code: NaN
+    - text: "as if they were valid JSON number literal values:"
+  - text: ">>> # Neither of these calls raises an exception, but the results are not valid JSON >>> json.dumps(float('-inf')) '-Infinity' >>> json.dumps(float('nan')) 'NaN' >>> # Same when deserializing >>> json.loads('-Infinity') -inf >>> json.loads('NaN') nan"
+  - paragraph:
+    - text: In the serializer, the
+    - emphasis: allow_nan
+    - text: parameter can be used to alter this behavior. In the deserializer, the
+    - emphasis: parse_constant
+    - text: parameter can be used to alter this behavior.
+  - heading "Repeated Names Within an Object" [level=3]
+  - paragraph: "The RFC specifies that the names within a JSON object should be unique, but does not mandate how repeated names in JSON objects should be handled. By default, this module does not raise an exception; instead, it ignores all but the last name-value pair for a given name:"
+  - text: ">>> weird_json = '{\"x\": 1, \"x\": 2, \"x\": 3}' >>> json.loads(weird_json) {'x': 3}"
+  - paragraph:
+    - text: The
+    - emphasis: object_pairs_hook
+    - text: parameter can be used to alter this behavior.
+  - heading "Top-level Non-Object, Non-Array Values" [level=3]
+  - paragraph:
+    - text: The old version of JSON specified by the obsolete
+    - link "RFC 4627" [e114]:
+      - /url: https://datatracker.ietf.org/doc/html/rfc4627.html
+      - strong: RFC 4627
+    - text: required that the top-level value of a JSON text must be either a JSON object or array (Python
+    - link "dict" [e115]:
+      - /url: stdtypes.html#dict
+      - code: dict
+    - text: or
+    - link "list" [e116]:
+      - /url: stdtypes.html#list
+      - code: list
+    - text: ), and could not be a JSON null, boolean, number, or string value.
+    - link "RFC 7159" [e117]:
+      - /url: https://datatracker.ietf.org/doc/html/rfc7159.html
+      - strong: RFC 7159
+    - text: removed that restriction, and this module does not and has never implemented that restriction in either its serializer or its deserializer.
+  - paragraph: Regardless, for maximum interoperability, you may wish to voluntarily adhere to the restriction yourself.
+  - heading "Implementation Limitations" [level=3]
+  - paragraph: "Some JSON deserializer implementations may set limits on:"
+  - list:
+    - listitem:
+      - paragraph: the size of accepted JSON texts
+    - listitem:
+      - paragraph: the maximum level of nesting of JSON objects and arrays
+    - listitem:
+      - paragraph: the range and precision of JSON numbers
+    - listitem:
+      - paragraph: the content and maximum length of JSON strings
+  - paragraph: This module does not impose any such limits beyond those of the relevant Python datatypes themselves or the Python interpreter itself.
+  - paragraph:
+    - text: When serializing to JSON, beware any such limitations in applications that may consume your JSON. In particular, it is common for JSON numbers to be deserialized into IEEE 754 double precision numbers and thus subject to that representation’s range and precision limitations. This is especially relevant when serializing Python
+    - link "int" [e118]:
+      - /url: functions.html#int
+      - code: int
+    - text: values of extremely large magnitude, or when serializing instances of “exotic” numerical types such as
+    - link "decimal.Decimal" [e119]:
+      - /url: decimal.html#decimal.Decimal
+      - code: decimal.Decimal
+    - text: .
+  - heading "Command-line interface" [level=2]
+  - paragraph:
+    - strong: "Source code:"
+    - link "Lib/json/tool.py" [e120]:
+      - /url: https://github.com/python/cpython/tree/3.14/Lib/json/tool.py
+  - separator
+  - paragraph:
+    - text: The
+    - code: json
+    - text: module can be invoked as a script via
+    - code: python -m json
+    - text: to validate and pretty-print JSON objects. The
+    - code: json.tool
+    - text: submodule implements this interface.
+  - paragraph:
+    - text: If the optional
+    - code: infile
+    - text: and
+    - code: outfile
+    - text: arguments are not specified,
+    - link "sys.stdin" [e121]:
+      - /url: sys.html#sys.stdin
+      - code: sys.stdin
+    - text: and
+    - link "sys.stdout" [e122]:
+      - /url: sys.html#sys.stdout
+      - code: sys.stdout
+    - text: "will be used respectively:"
+  - text: "$ echo '{\"json\": \"obj\"}' | python -m json { \"json\": \"obj\" } $ echo '{1.2:3.4}' | python -m json Expecting property name enclosed in double quotes: line 1 column 2 (char 1)"
+  - paragraph:
+    - text: "Changed in version 3.5: The output is now in the same order as the input. Use the"
+    - link "--sort-keys" [e123]:
+      - /url: "#cmdoption-json-sort-keys"
+      - code: "--sort-keys"
+    - text: option to sort the output of dictionaries alphabetically by key.
+  - paragraph:
+    - text: "Changed in version 3.14: The"
+    - code: json
+    - text: module may now be directly executed as
+    - code: python -m json
+    - text: . For backwards compatibility, invoking the CLI as
+    - code: python -m json.tool
+    - text: remains supported.
+  - heading "Command-line options" [level=3]
+  - term: infile
+  - definition:
+    - paragraph: "The JSON file to be validated or pretty-printed:"
+    - text: "$ python -m json mp_films.json [ { \"title\": \"And Now for Something Completely Different\", \"year\": 1971 }, { \"title\": \"Monty Python and the Holy Grail\", \"year\": 1975 } ]"
+    - paragraph:
+      - text: If
+      - emphasis: infile
+      - text: is not specified, read from
+      - link "sys.stdin" [e124]:
+        - /url: sys.html#sys.stdin
+        - code: sys.stdin
+      - text: .
+  - term: outfile
+  - definition:
+    - paragraph:
+      - text: Write the output of the
+      - emphasis: infile
+      - text: to the given
+      - emphasis: outfile
+      - text: . Otherwise, write it to
+      - link "sys.stdout" [e125]:
+        - /url: sys.html#sys.stdout
+        - code: sys.stdout
+      - text: .
+  - term: "--sort-keys"
+  - definition:
+    - paragraph: Sort the output of dictionaries alphabetically by key.
+    - paragraph: Added in version 3.5.
+  - term: "--no-ensure-ascii"
+  - definition:
+    - paragraph:
+      - text: Disable escaping of non-ascii characters, see
+      - link "json.dumps()" [e126]:
+        - /url: "#json.dumps"
+        - code: json.dumps()
+      - text: for more information.
+    - paragraph: Added in version 3.9.
+  - term: "--json-lines"
+  - definition:
+    - paragraph: Parse every input line as separate JSON object.
+    - paragraph: Added in version 3.8.
+  - term: "--indent, --tab, --no-indent, --compact"
+  - definition:
+    - paragraph: Mutually exclusive options for whitespace control.
+    - paragraph: Added in version 3.9.
+  - term: "-h, --help"
+  - definition:
+    - paragraph: Show the help message.
+  - paragraph: Footnotes
+  - complementary:
+    - complementary:
+      - text: "["
+      - link "1" [e127]:
+        - /url: "#id1"
+      - text: "]"
+      - paragraph:
+        - text: As noted in
+        - link "the errata for RFC 7159" [e128]:
+          - /url: https://www.rfc-editor.org/errata_search.php?rfc=7159
+        - text: ", JSON permits literal U+2028 (LINE SEPARATOR) and U+2029 (PARAGRAPH SEPARATOR) characters in strings, whereas JavaScript (as of ECMAScript Edition 5.1) does not."
+- navigation "Main":
+  - heading "Table of Contents" [level=3]:
+    - link "Table of Contents" [e129]:
+      - /url: ../contents.html
+  - list:
+    - listitem:
+      - link "json — JSON encoder and decoder" [e130]:
+        - /url: "#"
+        - code: json
+        - text: — JSON encoder and decoder
+      - list:
+        - listitem:
+          - link "Basic Usage" [e131]:
+            - /url: "#basic-usage"
+        - listitem:
+          - link "Encoders and Decoders" [e132]:
+            - /url: "#encoders-and-decoders"
+        - listitem:
+          - link "Exceptions" [e133]:
+            - /url: "#exceptions"
+        - listitem:
+          - link "Standard Compliance and Interoperability" [e134]:
+            - /url: "#standard-compliance-and-interoperability"
+          - list:
+            - listitem:
+              - link "Character Encodings" [e135]:
+                - /url: "#character-encodings"
+            - listitem:
+              - link "Infinite and NaN Number Values" [e136]:
+                - /url: "#infinite-and-nan-number-values"
+            - listitem:
+              - link "Repeated Names Within an Object" [e137]:
+                - /url: "#repeated-names-within-an-object"
+            - listitem:
+              - link "Top-level Non-Object, Non-Array Values" [e138]:
+                - /url: "#top-level-non-object-non-array-values"
+            - listitem:
+              - link "Implementation Limitations" [e139]:
+                - /url: "#implementation-limitations"
+        - listitem:
+          - link "Command-line interface" [e140]:
+            - /url: "#module-json.tool"
+          - list:
+            - listitem:
+              - link "Command-line options" [e141]:
+                - /url: "#command-line-options"
+  - heading "Previous topic" [level=4]
+  - paragraph:
+    - 'link "email.iterators: Iterators"':
+      - /url: email.iterators.html
+      - code: email.iterators
+      - text: ": Iterators"
+  - heading "Next topic" [level=4]
+  - paragraph:
+    - link "mailbox — Manipulate mailboxes in various formats" [e142]:
+      - /url: mailbox.html
+      - code: mailbox
+      - text: — Manipulate mailboxes in various formats
+  - note "source link":
+    - heading "This page" [level=3]
+    - list:
+      - listitem:
+        - link "Report a bug" [e143]:
+          - /url: ../bugs.html
+      - listitem:
+        - link "Improve this page" [e144]:
+          - /url: https://docs.python.org/3/improve-page.html?pagetitle=json+%E2%80%94+JSON+encoder+and+decoder&pageurl=https%3A%2F%2Fdocs.python.org%2F3%2Flibrary%2Fjson.html&pagesource=library%2Fjson.rst
+      - listitem:
+        - link "Show source" [e145]:
+          - /url: https://github.com/python/cpython/blob/main/Doc/library/json.rst?plain=1
+  - text: «
+- navigation "Related":
+  - list:
+    - listitem:
+      - link "index" [e146]:
+        - /url: ../genindex.html
+    - listitem:
+      - link "modules" [e147]:
+        - /url: ../py-modindex.html
+      - text: "|"
+    - listitem:
+      - link "next" [e148]:
+        - /url: mailbox.html
+      - text: "|"
+    - listitem:
+      - link "previous" [e149]:
+        - /url: email.iterators.html
+      - text: "|"
+    - listitem:
+      - img "Python logo"
+    - listitem:
+      - link "Python" [e150]:
+        - /url: https://www.python.org/
+      - text: »
+    - listitem:
+      - combobox "Language":
+        - option "Greek | Ελληνικά"
+        - option "English" [selected]
+        - option "Spanish | español"
+        - option "French | français"
+        - option "Italian | italiano"
+        - option "Japanese | 日本語"
+        - option "Korean | 한국어"
+        - option "Polish | polski"
+        - option "Brazilian Portuguese | Português brasileiro"
+        - option "Romanian | Românește"
+        - option "Turkish | Türkçe"
+        - option "Simplified Chinese | 简体中文"
+        - option "Traditional Chinese | 繁體中文"
+      - combobox "Python version":
+        - option "dev (3.16)"
+        - option "pre (3.15)"
+        - option "3.14.6" [selected]
+        - option "3.13"
+        - option "3.12"
+        - option "3.11"
+        - option "3.10"
+        - option "3.9"
+        - option "3.8"
+        - option "3.7"
+        - option "3.6"
+        - option "3.5"
+        - option "3.4"
+        - option "3.3"
+        - option "3.2"
+        - option "3.1"
+        - option "3.0"
+        - option "2.7"
+        - option "2.6"
+    - listitem
+    - listitem:
+      - link "3.14.6 Documentation" [e151]:
+        - /url: ../index.html
+      - text: »
+    - listitem:
+      - link "The Python Standard Library" [e152]:
+        - /url: index.html
+      - text: »
+    - listitem:
+      - link "Internet Data Handling" [e153]:
+        - /url: netdata.html
+      - text: »
+    - listitem:
+      - link "json — JSON encoder and decoder" [e154]:
+        - /url: ""
+        - code: json
+        - text: — JSON encoder and decoder
+    - listitem:
+      - search:
+        - searchbox "Quick search" [e155]
+        - button "Go" [e156]
+      - text: "|"
+    - listitem:
+      - text: Theme
+      - combobox "Theme":
+        - option "Auto" [selected]
+        - option "Light"
+        - option "Dark"
+      - text: "|"
+- text: ©
+- link "Copyright" [e157]:
+  - /url: ../copyright.html
+- text: 2001 Python Software Foundation. This page is licensed under the Python Software Foundation License Version 2. Examples, recipes, and other code in the documentation are additionally licensed under the Zero Clause BSD License. See
+- link "History and License" [e158]:
+  - /url: /license.html
+- text: for more information. The Python Software Foundation is a non-profit corporation.
+- link "Please donate." [e159]:
+  - /url: https://www.python.org/psf/donations/
+- text: Last updated on Jul 28, 2026 (10:34 UTC).
+- link "Found a bug" [e160]:
+  - /url: /bugs.html
+- text: "? Created using"
+- link "Sphinx" [e161]:
+  - /url: https://www.sphinx-doc.org/
+- text: 8.2.3.

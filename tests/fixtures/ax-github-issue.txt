@@ -1,0 +1,435 @@
+- link "Skip to content" [e1]:
+  - /url: "#start-of-content"
+- banner:
+  - heading "Navigation Menu" [level=2]
+  - link "Homepage" [e2]:
+    - /url: /
+  - navigation "Global":
+    - list:
+      - listitem:
+        - button "Platform" [e3]
+      - listitem:
+        - button "Solutions" [e4]
+      - listitem:
+        - button "Resources" [e5]
+      - listitem:
+        - button "Open Source" [e6]
+      - listitem:
+        - button "Enterprise" [e7]
+      - listitem:
+        - link "Pricing" [e8]:
+          - /url: https://github.com/pricing
+  - button "Search or jump to…" [e9]: Search or jump to...
+  - link "Sign in" [e10]:
+    - /url: /login?return_to=https%3A%2F%2Fgithub.com%2Fearendil-works%2Fpi%2Fissues
+  - link "Sign up" [e11]:
+    - /url: /signup?ref_cta=Sign+up&ref_loc=header+logged+out&ref_page=%2F%3Cuser-name%3E%2F%3Crepo-name%3E%2Fissues%2Findex&source=header-repo&source_repo=earendil-works%2Fpi
+  - button "Appearance settings" [e12]
+- main:
+  - link "earendil-works" [e13]:
+    - /url: /earendil-works
+  - text: /
+  - strong:
+    - link "pi" [e14]:
+      - /url: /earendil-works/pi
+  - text: Public
+  - list:
+    - listitem:
+      - link "You must be signed in to change notification settings" [e15]:
+        - /url: /login?return_to=%2Fearendil-works%2Fpi
+        - text: Notifications
+    - listitem:
+      - link "Fork 9.8k" [e16]:
+        - /url: /login?return_to=%2Fearendil-works%2Fpi
+    - listitem:
+      - link "You must be signed in to star a repository" [e17]:
+        - /url: /login?return_to=%2Fearendil-works%2Fpi
+        - text: Star 79.5k
+  - navigation "Repository":
+    - list:
+      - listitem:
+        - link "Code" [e18]:
+          - /url: /earendil-works/pi
+      - listitem:
+        - link "Issues 77" [e19]:
+          - /url: /earendil-works/pi/issues
+      - listitem:
+        - link "Pull requests 14" [e20]:
+          - /url: /earendil-works/pi/pulls
+      - listitem:
+        - link "Discussions" [e21]:
+          - /url: /earendil-works/pi/discussions
+      - listitem:
+        - link "Actions" [e22]:
+          - /url: /earendil-works/pi/actions
+      - listitem:
+        - link "Projects" [e23]:
+          - /url: /earendil-works/pi/projects
+      - listitem:
+        - link "Security and quality 4" [e24]:
+          - /url: /earendil-works/pi/security
+      - listitem:
+        - link "Insights" [e25]:
+          - /url: /earendil-works/pi/pulse
+  - complementary "Issues sidebar navigation":
+    - navigation "Issue filters":
+      - list:
+        - listitem:
+          - link "Issues" [e26]:
+            - /url: /earendil-works/pi/issues?q=is%3Aissue+state%3Aopen
+        - listitem:
+          - link "Assigned to me" [e27]:
+            - /url: /earendil-works/pi/issues?q=is%3Aissue+state%3Aopen+assignee%3A%40me
+        - listitem:
+          - link "Created by me" [e28]:
+            - /url: /earendil-works/pi/issues?q=is%3Aissue+state%3Aopen+author%3A%40me
+        - listitem:
+          - link "Mentioned" [e29]:
+            - /url: /earendil-works/pi/issues?q=is%3Aissue+state%3Aopen+mentions%3A%40me
+        - listitem:
+          - link "Recent activity" [e30]:
+            - /url: /earendil-works/pi/issues?q=is%3Aissue+updated%3A%3E%40today-1w+sort%3Aupdated-desc
+    - separator
+    - navigation "Pages":
+      - list:
+        - listitem:
+          - link "Views" [e31]:
+            - /url: /earendil-works/pi/issues/views
+        - listitem:
+          - link "Projects" [e32]:
+            - /url: /earendil-works/pi/projects
+        - listitem:
+          - link "Milestones" [e33]:
+            - /url: /earendil-works/pi/milestones
+        - listitem:
+          - link "Labels" [e34]:
+            - /url: /earendil-works/pi/labels
+    - navigation "Feedback":
+      - list:
+        - listitem:
+          - link "Feedback Preview" [e35]:
+            - /url: https://gh.io/issues-sidebar-feedback
+    - list:
+      - listitem:
+        - button "Collapse sidebar" [e36] [expanded]
+  - heading "All issues" [level=1]
+  - button "New issue" [e37]
+  - heading "Issues" [level=2]
+  - form "Search Issues":
+    - text: Search Issues
+    - combobox "Search Issues": is:issue state:open
+    - button "Search" [e38]
+  - region "All issues":
+    - heading "Search results" [level=2]
+    - list:
+      - listitem:
+        - link "Open (77)" [e39]:
+          - /url: /earendil-works/pi/issues
+      - listitem:
+        - link "Closed (4,412)" [e40]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aclosed
+    - toolbar "Actions":
+      - button "Filter by author" [e41]: Author
+      - button "Filter by label" [e42]: Labels
+      - button "Filter by project" [e43]: Projects
+      - button "Filter by milestone" [e44]: Milestones
+      - button "Filter by assignees" [e45]: Assignees
+      - button "Filter by issue type" [e46]: Types
+      - button "Sort by Newest , descending" [e47]
+    - list "Search results":
+      - 'listitem "feat(ai): support Kimi K3 on Fireworks via OpenAI-compatible API: Status: Open. #7199 In earendil-works/pi;· XBeg9 opened on Jul 27, 2026. More information available below."':
+        - 'heading "feat(ai): support Kimi K3 on Fireworks via OpenAI-compatible API" [level=3]':
+          - 'link "feat(ai): support Kimi K3 on Fireworks via OpenAI-compatible API"':
+            - /url: /earendil-works/pi/issues/7199
+        - link "inprogress Issue is being worked on" [e48]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20label%3Ainprogress
+        - text: "Status: Open. #7199 In earendil-works/pi; ·"
+        - link "XBeg9" [e49]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3AXBeg9
+        - text: opened on Jul 27, 202611h ago 2 comments
+        - link "davidbrai is assigned" [e50]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20assignee%3Adavidbrai
+          - img "davidbrai"
+      - 'listitem "Extensions don''t load if directory is a symlink: Status: Open. #7195 In earendil-works/pi;· zacoons opened on Jul 27, 2026. More information available below."':
+        - heading "Extensions don't load if directory is a symlink" [level=3]:
+          - link "Extensions don't load if directory is a symlink" [e51]:
+            - /url: /earendil-works/pi/issues/7195
+        - link "bug Something isn't working" [e52]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug
+        - link "inprogress Issue is being worked on" [e53]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20label%3Ainprogress
+        - text: "Status: Open. #7195 In earendil-works/pi; ·"
+        - link "zacoons" [e54]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3Azacoons
+        - text: opened on Jul 27, 202616h ago 3 comments
+        - link "davidbrai is assigned" [e55]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20assignee%3Adavidbrai
+          - img "davidbrai"
+      - 'listitem "Pi does a full re-render every 1s when an active tool card scrolls outside the viewport: Status: Open. #7194 In earendil-works/pi;· slim-bean opened on Jul 27, 2026. More information available below."':
+        - heading "Pi does a full re-render every 1s when an active tool card scrolls outside the viewport" [level=3]:
+          - link "Pi does a full re-render every 1s when an active tool card scrolls outside the viewport" [e56]:
+            - /url: /earendil-works/pi/issues/7194
+        - link "bug Something isn't working" [e57]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug
+        - text: "Status: Open. #7194 In earendil-works/pi; ·"
+        - link "slim-bean" [e58]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3Aslim-bean
+        - text: opened on Jul 27, 202618h ago 4 comments
+      - 'listitem "Extension event-bus listeners survive session reloads and disposal: Status: Open. #7193 In earendil-works/pi;· tudoroancea opened on Jul 27, 2026. More information available below."':
+        - heading "Extension event-bus listeners survive session reloads and disposal" [level=3]:
+          - link "Extension event-bus listeners survive session reloads and disposal" [e59]:
+            - /url: /earendil-works/pi/issues/7193
+        - link "bug Something isn't working" [e60]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug
+        - text: "Status: Open. #7193 In earendil-works/pi; ·"
+        - link "tudoroancea" [e61]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3Atudoroancea
+        - text: opened on Jul 27, 202618h ago
+      - 'listitem "Silent crash caused by inconsistent error handling and schema validation: Status: Open. #7187 In earendil-works/pi;· EzraEllette opened on Jul 27, 2026. More information available below."':
+        - heading "Silent crash caused by inconsistent error handling and schema validation" [level=3]:
+          - link "Silent crash caused by inconsistent error handling and schema validation" [e62]:
+            - /url: /earendil-works/pi/issues/7187
+        - link "bug Something isn't working" [e63]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug
+        - text: "Status: Open. #7187 In earendil-works/pi; ·"
+        - link "EzraEllette" [e64]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3AEzraEllette
+        - text: opened on Jul 27, 202620h ago 3 comments
+      - 'listitem "Basic mouse support in the prompt input: Status: Open. #7185 In earendil-works/pi;· aaronkyriesenbach opened on Jul 27, 2026. More information available below."':
+        - heading "Basic mouse support in the prompt input" [level=3]:
+          - link "Basic mouse support in the prompt input" [e65]:
+            - /url: /earendil-works/pi/issues/7185
+        - text: "Status: Open. #7185 In earendil-works/pi; ·"
+        - link "aaronkyriesenbach" [e66]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3Aaaronkyriesenbach
+        - text: opened on Jul 27, 20261d ago
+      - 'listitem "Bug: autocompleteMaxVisible resets to default after restart: Status: Open. #7179 In earendil-works/pi;· wuxubiao opened on Jul 27, 2026. More information available below."':
+        - 'heading "Bug: autocompleteMaxVisible resets to default after restart" [level=3]':
+          - 'link "Bug: autocompleteMaxVisible resets to default after restart"':
+            - /url: /earendil-works/pi/issues/7179
+        - text: "Status: Open. #7179 In earendil-works/pi; ·"
+        - link "wuxubiao" [e67]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3Awuxubiao
+        - text: opened on Jul 27, 20261d ago 1 comment
+      - 'listitem "anthropic-messages never sends x-client-request-id, unlike all OpenAI paths: Status: Open. #7161 In earendil-works/pi;· mteam88 opened on Jul 26, 2026. More information available below."':
+        - heading "anthropic-messages never sends x-client-request-id, unlike all OpenAI paths" [level=3]:
+          - link "anthropic-messages never sends x-client-request-id, unlike all OpenAI paths" [e68]:
+            - /url: /earendil-works/pi/issues/7161
+        - text: "Status: Open. #7161 In earendil-works/pi; ·"
+        - link "mteam88" [e69]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3Amteam88
+        - text: opened on Jul 26, 20261d ago
+        - button "1 linked PR" [e70]: "1"
+        - text: 4 comments
+      - 'listitem "Preserve function arguments when custom is empty: Status: Open. #7160 In earendil-works/pi;· sunnyyoung opened on Jul 26, 2026. More information available below."':
+        - heading "Preserve function arguments when custom is empty" [level=3]:
+          - link "Preserve function arguments when custom is empty" [e71]:
+            - /url: /earendil-works/pi/issues/7160
+        - text: "Status: Open. #7160 In earendil-works/pi; ·"
+        - link "sunnyyoung" [e72]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3Asunnyyoung
+        - text: opened on Jul 26, 20261d ago 1 comment
+        - link "mitsuhiko is assigned" [e73]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20assignee%3Amitsuhiko
+          - img "mitsuhiko"
+      - 'listitem "OpenCode Go provider displays as \"OpenCode Zen Go\": Status: Open. #7157 In earendil-works/pi;· aaronjheng opened on Jul 26, 2026. More information available below."':
+        - heading "OpenCode Go provider displays as \"OpenCode Zen Go\"" [level=3]:
+          - link "OpenCode Go provider displays as \" [e74]OpenCode Zen Go\"":
+            - /url: /earendil-works/pi/issues/7157
+        - link "bug Something isn't working" [e75]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug
+        - text: "Status: Open. #7157 In earendil-works/pi; ·"
+        - link "aaronjheng" [e76]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3Aaaronjheng
+        - text: opened on Jul 26, 20262d ago
+        - button "1 linked PR" [e77]: "1"
+        - text: 5 comments
+      - 'listitem "/scoped-models appears to do nothing for ~5 minutes while awaiting stalled catalog refresh: Status: Open. #7153 In earendil-works/pi;· ross-jill-ws opened on Jul 26, 2026. More information available below."':
+        - heading "/scoped-models appears to do nothing for ~5 minutes while awaiting stalled catalog refresh" [level=3]:
+          - link "/scoped-models appears to do nothing for ~5 minutes while awaiting stalled catalog refresh" [e78]:
+            - /url: /earendil-works/pi/issues/7153
+            - code: /scoped-models
+            - text: appears to do nothing for ~5 minutes while awaiting stalled catalog refresh
+        - text: "Status: Open. #7153 In earendil-works/pi; ·"
+        - link "ross-jill-ws" [e79]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3Aross-jill-ws
+        - text: opened on Jul 26, 20262d ago 2 comments
+      - 'listitem "RPC prompt during in-flight compaction: ACKed success:true, then silently dropped (0.82.1): Status: Open. #7150 In earendil-works/pi;· AnshulJ98 opened on Jul 26, 2026. More information available below."':
+        - 'heading "RPC prompt during in-flight compaction: ACKed success:true, then silently dropped (0.82.1)" [level=3]':
+          - 'link "RPC prompt during in-flight compaction: ACKed success:true, then silently dropped (0.82.1)"':
+            - /url: /earendil-works/pi/issues/7150
+        - text: "Status: Open. #7150 In earendil-works/pi; ·"
+        - link "AnshulJ98" [e80]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3AAnshulJ98
+        - text: opened on Jul 26, 20262d ago 1 comment
+      - 'listitem "Standalone linux-x64 binary SIGILL on pre-Haswell CPUs (BMI2): Status: Open. #7149 In earendil-works/pi;· xifan2333 opened on Jul 26, 2026. More information available below."':
+        - heading "Standalone linux-x64 binary SIGILL on pre-Haswell CPUs (BMI2)" [level=3]:
+          - link "Standalone linux-x64 binary SIGILL on pre-Haswell CPUs (BMI2)" [e81]:
+            - /url: /earendil-works/pi/issues/7149
+        - text: "Status: Open. #7149 In earendil-works/pi; ·"
+        - link "xifan2333" [e82]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3Axifan2333
+        - text: opened on Jul 26, 20262d ago 1 comment
+      - 'listitem "Emit extension events around UI dialogs: Status: Open. #7147 In earendil-works/pi;· alasano opened on Jul 26, 2026. More information available below."':
+        - heading "Emit extension events around UI dialogs" [level=3]:
+          - link "Emit extension events around UI dialogs" [e83]:
+            - /url: /earendil-works/pi/issues/7147
+        - text: "Status: Open. #7147 In earendil-works/pi; ·"
+        - link "alasano" [e84]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3Aalasano
+        - text: opened on Jul 26, 20262d ago
+      - 'listitem "Backspace deletes 2 chars in Kitty (Kitty protocol release events not filtered): Status: Open. #7130 In earendil-works/pi;· mister-booth opened on Jul 26, 2026. More information available below."':
+        - heading "Backspace deletes 2 chars in Kitty (Kitty protocol release events not filtered)" [level=3]:
+          - link "Backspace deletes 2 chars in Kitty (Kitty protocol release events not filtered)" [e85]:
+            - /url: /earendil-works/pi/issues/7130
+        - link "bug Something isn't working" [e86]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug
+        - text: "Status: Open. #7130 In earendil-works/pi; ·"
+        - link "mister-booth" [e87]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3Amister-booth
+        - text: opened on Jul 26, 20262d ago 1 comment
+      - 'listitem "Rename session via Ctrl+R needs Enter pressed twice; Esc after one Enter discards the rename: Status: Open. #7126 In earendil-works/pi;· wawow830 opened on Jul 25, 2026. More information available below."':
+        - heading "Rename session via Ctrl+R needs Enter pressed twice; Esc after one Enter discards the rename" [level=3]:
+          - link "Rename session via Ctrl+R needs Enter pressed twice; Esc after one Enter discards the rename" [e88]:
+            - /url: /earendil-works/pi/issues/7126
+        - text: "Status: Open. #7126 In earendil-works/pi; ·"
+        - link "wawow830" [e89]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3Awawow830
+        - text: opened on Jul 25, 20262d ago 1 comment
+      - 'listitem "fix(tools): byte count in write, false limit warning in find, surrogate split in truncateLine: Status: Open. #7121 In earendil-works/pi;· IKEASven69 opened on Jul 25, 2026. More information available below."':
+        - 'heading "fix(tools): byte count in write, false limit warning in find, surrogate split in truncateLine" [level=3]':
+          - 'link "fix(tools): byte count in write, false limit warning in find, surrogate split in truncateLine"':
+            - /url: /earendil-works/pi/issues/7121
+        - text: "Status: Open. #7121 In earendil-works/pi; ·"
+        - link "IKEASven69" [e90]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3AIKEASven69
+        - text: opened on Jul 25, 20262d ago 1 comment
+      - 'listitem "TUI freezes after entering an API key in /login when the pi.dev model catalog is unreachable: Status: Open. #7113 In earendil-works/pi;· Simonjks-dev opened on Jul 25, 2026. More information available below."':
+        - heading "TUI freezes after entering an API key in /login when the pi.dev model catalog is unreachable" [level=3]:
+          - link "TUI freezes after entering an API key in /login when the pi.dev model catalog is unreachable" [e91]:
+            - /url: /earendil-works/pi/issues/7113
+        - text: "Status: Open. #7113 In earendil-works/pi; ·"
+        - link "Simonjks-dev" [e92]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3ASimonjks-dev
+        - text: opened on Jul 25, 20263d ago 1 comment
+      - 'listitem "Show SYSTEM.md and APPEND_SYSTEM.md in the startup [Context] banner: Status: Open. #7096 In earendil-works/pi;· m7l5 opened on Jul 25, 2026. More information available below."':
+        - heading "Show SYSTEM.md and APPEND_SYSTEM.md in the startup [Context] banner" [level=3]:
+          - link "Show SYSTEM.md and APPEND_SYSTEM.md in the startup [Context] banner" [e93]:
+            - /url: /earendil-works/pi/issues/7096
+        - link "inprogress Issue is being worked on" [e94]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20label%3Ainprogress
+        - text: "Status: Open. #7096 In earendil-works/pi; ·"
+        - link "m7l5" [e95]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3Am7l5
+        - text: opened on Jul 25, 20263d ago
+        - button "1 linked PR" [e96]: "1"
+        - text: 1 comment
+        - link "davidbrai is assigned" [e97]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20assignee%3Adavidbrai
+          - img "davidbrai"
+      - 'listitem "WSL absolute windows paths are mishandled: Status: Open. #7064 In earendil-works/pi;· lionkor opened on Jul 24, 2026. More information available below."':
+        - heading "WSL absolute windows paths are mishandled" [level=3]:
+          - link "WSL absolute windows paths are mishandled" [e98]:
+            - /url: /earendil-works/pi/issues/7064
+        - link "bug Something isn't working" [e99]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug
+        - text: "Status: Open. #7064 In earendil-works/pi; ·"
+        - link "lionkor" [e100]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3Alionkor
+        - text: opened on Jul 24, 20264d ago 6 comments
+      - 'listitem "fix(openai-completions): handle array content and missing finish_reason: Status: Open. #7062 In earendil-works/pi;· TomeHirata opened on Jul 24, 2026. More information available below."':
+        - 'heading "fix(openai-completions): handle array content and missing finish_reason" [level=3]':
+          - 'link "fix(openai-completions): handle array content and missing finish_reason"':
+            - /url: /earendil-works/pi/issues/7062
+        - text: "Status: Open. #7062 In earendil-works/pi; ·"
+        - link "TomeHirata" [e101]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3ATomeHirata
+        - text: opened on Jul 24, 20264d ago 4 comments
+        - link "cristinaponcela is assigned" [e102]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20assignee%3Acristinaponcela
+          - img "cristinaponcela"
+      - 'listitem "Parallel tool batches lose already-completed tool results when one sibling stalls (orphaned toolCalls -> \"No result provided\"): Status: Open. #7053 In earendil-works/pi;· Cyberceratops opened on Jul 23, 2026. More information available below."':
+        - heading "Parallel tool batches lose already-completed tool results when one sibling stalls (orphaned toolCalls -> \"No result provided\")" [level=3]:
+          - link "Parallel tool batches lose already-completed tool results when one sibling stalls (orphaned toolCalls -> \" [e103]No result provided\")":
+            - /url: /earendil-works/pi/issues/7053
+        - text: "Status: Open. #7053 In earendil-works/pi; ·"
+        - link "Cyberceratops" [e104]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3ACyberceratops
+        - text: opened on Jul 23, 20264d ago 1 comment
+      - 'listitem "Upgrade Undici to 8.8.0 for correct plain-HTTP proxy forwarding: Status: Open. #7049 In earendil-works/pi;· feifeigood opened on Jul 23, 2026. More information available below."':
+        - heading "Upgrade Undici to 8.8.0 for correct plain-HTTP proxy forwarding" [level=3]:
+          - link "Upgrade Undici to 8.8.0 for correct plain-HTTP proxy forwarding" [e105]:
+            - /url: /earendil-works/pi/issues/7049
+        - text: "Status: Open. #7049 In earendil-works/pi; ·"
+        - link "feifeigood" [e106]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3Afeifeigood
+        - text: opened on Jul 23, 20264d ago 4 comments
+      - 'listitem "Compaction summary can be persisted truncated mid-word when generation hits the token cap (stopReason ''length'' not checked): Status: Open. #7048 In earendil-works/pi;· donwellsav opened on Jul 23, 2026. More information available below."':
+        - heading "Compaction summary can be persisted truncated mid-word when generation hits the token cap (stopReason 'length' not checked)" [level=3]:
+          - link "Compaction summary can be persisted truncated mid-word when generation hits the token cap (stopReason 'length' not checked)" [e107]:
+            - /url: /earendil-works/pi/issues/7048
+        - link "last-read A marker label for triaging" [e108]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20label%3Alast-read
+        - text: "Status: Open. #7048 In earendil-works/pi; ·"
+        - link "donwellsav" [e109]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3Adonwellsav
+        - text: opened on Jul 23, 20264d ago 3 comments
+      - 'listitem "Gemini 3.x tool-call IDs stripped from function calls/responses (google-generative-ai): Status: Open. #7047 In earendil-works/pi;· mcowger opened on Jul 23, 2026. More information available below."':
+        - heading "Gemini 3.x tool-call IDs stripped from function calls/responses (google-generative-ai)" [level=3]:
+          - link "Gemini 3.x tool-call IDs stripped from function calls/responses (google-generative-ai)" [e110]:
+            - /url: /earendil-works/pi/issues/7047
+        - link "bug Something isn't working" [e111]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20label%3Abug
+        - text: "Status: Open. #7047 In earendil-works/pi; ·"
+        - link "mcowger" [e112]:
+          - /url: /earendil-works/pi/issues?q=is%3Aissue%20state%3Aopen%20author%3Amcowger
+        - text: opened on Jul 23, 20264d ago 4 comments
+    - navigation "Pagination":
+      - link "Page 1" [e113]:
+        - /url: /earendil-works/pi/issues?page=1
+        - text: "1"
+      - link "Page 2" [e114]:
+        - /url: /earendil-works/pi/issues?page=2
+        - text: "2"
+      - link "Page 3" [e115]:
+        - /url: /earendil-works/pi/issues?page=3
+        - text: "3"
+      - link "Page 4" [e116]:
+        - /url: /earendil-works/pi/issues?page=4
+        - text: "4"
+      - link "Next Page" [e117]:
+        - /url: /earendil-works/pi/issues?page=2
+        - text: Next
+- contentinfo:
+  - heading "Footer" [level=2]
+  - link "GitHub Homepage" [e118]:
+    - /url: https://github.com
+  - text: © 2026 GitHub, Inc.
+  - navigation "Footer":
+    - heading "Footer navigation" [level=3]
+    - list "Footer navigation":
+      - listitem:
+        - link "Terms" [e119]:
+          - /url: https://docs.github.com/site-policy/github-terms/github-terms-of-service
+      - listitem:
+        - link "Privacy" [e120]:
+          - /url: https://docs.github.com/site-policy/privacy-policies/github-privacy-statement
+      - listitem:
+        - link "Security" [e121]:
+          - /url: https://github.com/security
+      - listitem:
+        - link "Status" [e122]:
+          - /url: https://www.githubstatus.com/
+      - listitem:
+        - link "Community" [e123]:
+          - /url: https://github.community/
+      - listitem:
+        - link "Docs" [e124]:
+          - /url: https://docs.github.com/
+      - listitem:
+        - link "Contact" [e125]:
+          - /url: https://support.github.com?tags=dotcom-footer
+      - listitem:
+        - button "Manage cookies" [e126]
+      - listitem:
+        - button "Do not share my personal information" [e127]
