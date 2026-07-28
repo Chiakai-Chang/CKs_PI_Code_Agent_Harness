@@ -73,3 +73,44 @@
 **處理**：
 - `setup.py` 加入 `maybe_heal_linux_stealth()`，於 `--mode full` 與 `--mode update` 流程中自動修復 systemd unit 的 PATH 缺失，並對 pinned-server 的 `server.js` 執行 `pi-skills/optional/camofox-stealth/camofox-server-fixes.sh` patch（冪等、grep 特徵驅動）。
 - 層 3/5/6 是 `@askjo/camofox-browser` 的代碼 bug（Firefox Juggler 協議兼容缺口、async 編碼錯誤），不在 harness 控制範圍。harness 透過 patch 腳本補救；upstream 修復後 patch 檢查可自動跳過。
+
+---
+
+## 自訂 chat template 的 XML 工具格式，導致工具呼叫參數失控（2026-07-28）
+
+**症狀**：模型「一直出問題」——單一回合跑 350–700 秒、session 檔數百 KB、工具實際上沒有執行。Pi 回報：
+
+```
+Tool call "web_search" was not executed: the response hit the output token limit,
+so its arguments may be truncated.
+```
+
+**實測捕捉到的樣態**（`usage.output = 32768`、`stopReason = "length"`）：模型發出**真正的原生** `web_search` 呼叫，但 `query` 參數長 **145,638 字元**，內容是不斷重複的 XML 工具呼叫語法：
+
+```json
+{"query": "Wikipedia \"Accessibility tree\"</parameter>\n</function>\n</tool_call>\n<tool_call>\n<function>web_search>\n<parameter=query>\n…"}
+```
+
+**根因**：自訂 `chat_template.jinja` 的工具格式預設是 **xml**：
+
+```jinja
+{%- set _tool_format = tool_call_format if tool_call_format is defined else 'xml' %}
+```
+
+該分支教模型輸出 `<tool_call><function=…><parameter=…>…</parameter></function></tool_call>`，而 Pi 使用 OpenAI 風格的原生 JSON function calling。llama.cpp 以 `--jinja` 把 XML 轉回原生呼叫時轉不乾淨：第一個參數被抓出來，**其餘 XML 串流全部落進那個參數的值裡**，模型再照 template 繼續輸出下一個 `<tool_call>`，直到耗盡輸出上限。
+
+失控字串與 template 範例區塊逐字相符——**模型沒有壞掉，它照著指示做**。
+
+**處理（使用者端，一行）**：在 `llama-server` 啟動參數加入
+
+```bat
+--chat-template-kwargs "{\"tool_call_format\":\"json\"}" ^
+```
+
+該 template 本身就有 JSON 分支，只是預設不走。切換後模型輸出單一 JSON 物件，符合 Pi 的期待。
+
+**不是** MTP 推測解碼（`--spec-type draft-mtp`）或量化 KV cache（`-ctk q4_0`）造成——證據直指 template 的格式字串。
+
+**處理（harness 端）**：`yes-hooks-bridge` 新增 Guard 4 `runawayArgumentGuard`，攔截參數值含工具呼叫語法、或非批量欄位超過 8,000 字元的呼叫，並回傳可行動的指示（發一個呼叫、參數簡短、呼叫後停止生成）。攔截本身不花成本（Pi 反正會拒絕），買到的是把引擎那句令人困惑的訊息換成具體修正方向。既有守衛全部看不到這個形狀：loop guard 檢查「沒有真工具呼叫」而這**有**一個，`FAKE_TOOL_CALL_PATTERN` 只掃訊息文字、從不看參數值。
+
+詳見 [docs/retro/2026-07-28-web-capability-and-prompt-conflicts.md](retro/2026-07-28-web-capability-and-prompt-conflicts.md)。
