@@ -115,7 +115,7 @@ cd CKs_PI_Code_Agent_Harness
 |  Layer 4: Evidence Gate (證據驗證與基因進化層)                        |
 |  • autonomous-experiment-guide (MAD 統計顯著性驗證)                    |
 |  • harness-factory-guide (Repo Fit 打分、Darwin 演化 & mcp-scan)        |
-|  • 276 個自動化單元測試網 (含 TestManagedSkillsConsistency 一致性校驗) |
+|  • 289 個自動化單元測試網 (含 TestManagedSkillsConsistency 一致性校驗) |
 +-----------------------------------------------------------------------+
 ```
 
@@ -123,7 +123,7 @@ cd CKs_PI_Code_Agent_Harness
 
 #### 1. 🌐 網頁檢索與自動化實務 (Web Research & Automation)
 *   **深度網頁研究 (`deep_research` 工具 + `deep-research-guide`)**：不再只是散文指引——`deep-research-bridge` 註冊真正的 `deep_research` 工具，把每個子問題 spawn 成獨立的 `pi --print` 子行程（Pi 官方 subagent 做法）。子行程用自己的 context 讀網頁，只回傳精簡發現。**序列執行、上限 5 個子問題**，因為本機 llama.cpp 以 `-np 1` 啟動時並行請求會序列化（實測：兩個並行請求分別於 7.3s / 14.3s 完成），並行不會更快、只會讓牆鐘時間乘以 N。價值在 **context 隔離**：實測一次研究回傳父層僅 1,408 字元，而父層直接 `web_search` 單次就是 14,613 字元。
-*   **隱身網頁瀏覽與搜尋 (`camofox-stealth` + `stealth-web-bridge`)**：內建 Camoufox 反偵測瀏覽器，提供 `web_search` 與 `web_open` 工具，可穿透 Cloudflare 與複雜 JS 牆，支援分頁與登入態管理。
+*   **隱身網頁瀏覽與搜尋 (`camofox-stealth` + `stealth-web-bridge`)**：內建 Camoufox 反偵測瀏覽器，提供 `web_search` 與 `web_open` 工具，可穿透 Cloudflare 與複雜 JS 牆，支援分頁與登入態管理。實測 126 次搜尋僅 1 次被擋。回傳採**閱讀檢視**：依 AX-tree 語意角色剝除導覽子樹、`/url:` 管線與 `[eN]` 參照（實測文章頁 8,253→1,936 字元、連結密集首頁 34,012→18,954 且 48 個標題連結全保留），並統一套用 Pi 自身的 2000 行 / 50KB 工具輸出預算、超出部分落檔並在結果中告知路徑。需要點擊/輸入時以 `raw: true` 或 `web_snapshot` 取回完整樹。
 *   **AX-Tree 語意定位 (`browser-automation-guide`)**：蒸餾自 `pi-browser-harness`，優先使用 Accessibility Tree (AX-Tree) 語意節點進行頁面元素定位與變更驗證，大幅提升網頁資料抓取與操作精準度。
 
 #### 2. 🛡️ 安全治理與工程紀律 (Security & Engineering Discipline)

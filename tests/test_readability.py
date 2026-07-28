@@ -154,6 +154,23 @@ class TestBridgeWiring(unittest.TestCase):
         self.assertIn("RAW_PARAM", self.src)
         self.assertEqual(self.src.count("raw: RAW_PARAM"), 2)
 
+    def test_every_relative_import_has_a_shipped_sibling(self):
+        """A bridge importing ./x.js needs x.ts next to it in the SOURCE tree,
+        because restore.py copytree's the directory wholesale. Add an import
+        without the file and the bridge dies at load time with every tool it
+        registers — which for stealth-web is all web access."""
+        import glob
+        for idx in glob.glob(os.path.join(ROOT, "pi-extensions", "*", "index.ts")):
+            with open(idx, encoding="utf-8") as f:
+                src = f.read()
+            base = os.path.dirname(idx)
+            for spec in re.findall(r'from\s+"\./([A-Za-z0-9_.-]+)\.js"', src):
+                self.assertTrue(
+                    os.path.exists(os.path.join(base, spec + ".ts")),
+                    "%s imports ./%s.js but %s.ts is not in the bridge directory"
+                    % (os.path.relpath(idx, ROOT), spec, spec),
+                )
+
     def test_web_snapshot_still_returns_the_full_tree(self):
         """web_snapshot is the tool you call before clicking; stripping refs
         there would remove the capability rather than defer it."""
