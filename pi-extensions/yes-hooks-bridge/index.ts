@@ -299,9 +299,20 @@ const ARG_ALIASES: Record<string, string> = {
   file_path: "path", filepath: "path", filename: "path", file: "path", absolute_path: "path",
   target_file: "path", dir: "path", directory: "path", folder: "path",
   cmd: "command", script: "command", shell_command: "command", commandline: "command",
-  query: "pattern", regex: "pattern", search: "pattern",
+  regex: "pattern", search: "pattern",
   text: "content", contents: "content", body: "content", new_text: "content",
 };
+
+// `query` means different things to different tools, so it cannot live in the
+// table above. grep and find take `pattern`; web_search and deep_research take
+// `query` and renaming it BREAKS them.
+//
+// Observed live: the model produced a correct
+// `{"name":"web_search","arguments":{"query":"pi-mono by badlogic"}}`, this
+// canonicalizer rewrote query -> pattern, the correction message told the model
+// to use `pattern`, and its next two attempts dutifully used the wrong argument
+// name. The guard corrupted a call that had been right.
+const PATTERN_TOOLS = new Set(["grep", "find"]);
 
 function canonicalizeToolName(name: string): string {
   const key = String(name).trim().toLowerCase().replace(/[\s-]+/g, "_");
@@ -311,7 +322,10 @@ function canonicalizeToolName(name: string): string {
 function canonicalizeArgs(toolName: string, args: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(args ?? {})) {
-    const canonical = ARG_ALIASES[k.toLowerCase()] ?? k;
+    const lower = k.toLowerCase();
+    let canonical = ARG_ALIASES[lower] ?? k;
+    // `query` -> `pattern` only where `pattern` is the real parameter name.
+    if (lower === "query") canonical = PATTERN_TOOLS.has(toolName) ? "pattern" : "query";
     // Never let an alias clobber a key the model already spelled correctly.
     if (!(canonical in out) || out[canonical] === undefined) out[canonical] = v;
   }
@@ -601,7 +615,6 @@ let consecutiveFakeToolStrikes = 0;
 // forever (each retry sets triggerTurn: true). This counter caps that path on
 // its own budget and hands control back to the human at 3.
 let consecutiveTransformStrikes = 0;
-const MAX_RAW_ECHO = 400;
 
 function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: ExtensionContext, pi: ExtensionAPI) {
   const hadRealToolCall = Array.isArray(event.toolResults) && event.toolResults.length > 0;
@@ -638,7 +651,24 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
       return;
     }
 
-    const rawEcho = parsedTag.raw.length > MAX_RAW_ECHO ? `${parsedTag.raw.slice(0, MAX_RAW_ECHO)}…（已截斷）` : parsedTag.raw;
+    // Describe the offending output; never reproduce it.
+    //
+    // This message used to quote the model's raw markup back at it under a
+    // "SYSTEM CRITICAL" header. Observed consequence: the model emitted
+    // `<function_calls><invoke name="web_search">`, the correction echoed that
+    // XML verbatim, and the next turn emitted it again — three corrections
+    // meant three fresh examples of the exact format being forbidden, sitting
+    // in context. It never recovered and gave up asking the user for help.
+    //
+    // This repo had already learned the lesson elsewhere (87abf09 sanitised XML
+    // tag instructions out of the systemPrompt); the correction path
+    // reintroduced it. The parsed intent below carries everything the model
+    // needs — the markup adds nothing but reinforcement.
+    const shape = /<[a-z_]+[\s>]/i.test(parsedTag.raw)
+      ? "XML/標籤形式"
+      : /```/.test(parsedTag.raw)
+        ? "Markdown 程式碼區塊形式"
+        : "純文字 JSON 形式";
     const batchNote =
       parsedTag.count && parsedTag.count > 1
         ? `\n（你一次描述了 ${parsedTag.count} 個工具呼叫。請先發出第一個，其餘的在後續回合逐一發出。）`
@@ -663,7 +693,8 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
         customType: "universal-tag-transformer",
         content:
           `[SYSTEM CRITICAL AUTO-CORRECTION]\n` +
-          `偵測到你剛才用純文字（XML 標籤或 JSON）描述工具呼叫，而不是發出真正的呼叫。原始文字：\n${rawEcho}\n\n` +
+          `偵測到你剛才以${shape}描述工具呼叫，而不是發出真正的呼叫。` +
+          `（原文不在此重複，以免你再照著寫一次。）\n\n` +
           `系統已識別你的意圖為呼叫原生工具【${parsedTag.name}】，解析後的參數為：\n` +
           `${JSON.stringify(parsedTag.args, null, 2)}${batchNote}${unknownNote}\n\n` +
           `🔥【指令】：請你在此輪對話中【立即且只能】呼叫原生工具 '${parsedTag.name}'，傳入上述參數！` +

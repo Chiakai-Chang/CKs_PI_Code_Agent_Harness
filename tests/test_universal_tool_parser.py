@@ -120,6 +120,23 @@ class TestJsonToolCallParsing(unittest.TestCase):
             self.assertEqual(got["name"], tool)
             self.assertFalse(got["unknownTool"], "%s is registered by a harness bridge" % tool)
 
+    def test_query_is_preserved_for_tools_that_take_query(self):
+        """`query` means different things to different tools. grep and find take
+        `pattern`; web_search and deep_research take `query`, and renaming it
+        breaks them.
+
+        Observed live: the model produced a correct
+        {"name":"web_search","arguments":{"query":"pi-mono by badlogic"}}, the
+        canonicalizer rewrote query -> pattern, the correction told the model to
+        use `pattern`, and its next two attempts used the wrong argument name.
+        The guard corrupted a call that had been right."""
+        for tool, expected in (("web_search", "query"), ("deep_research", "query"),
+                               ("grep", "pattern"), ("find", "pattern")):
+            sample = '```json\n{"name": "%s", "arguments": {"query": "x"}}\n```' % tool
+            (got,) = run_parser([sample])
+            self.assertIn(expected, got["args"], "%s should receive %s" % (tool, expected))
+            self.assertEqual(got["args"][expected], "x")
+
     def test_genuinely_unknown_tool_is_still_flagged(self):
         sample = '```json\n{"tool": "bogus_tool", "arguments": {"query": "x"}}\n```'
         (got,) = run_parser([sample])
@@ -376,8 +393,22 @@ class TestGuardWiring(unittest.TestCase):
         self.assertIn("consecutiveTransformStrikes >= 3", self.src)
         self.assertIn('"followUp"', self.src)
 
-    def test_raw_echo_is_capped(self):
-        self.assertIn("MAX_RAW_ECHO", self.src)
+    def test_correction_does_not_reproduce_the_offending_markup(self):
+        """Capping the echo was not enough — echoing at all was the problem.
+
+        The message quoted the model's raw markup back under a "SYSTEM CRITICAL"
+        header. Observed live: the model emitted
+        `<function_calls><invoke name="web_search">`, the correction reproduced
+        that XML, and the next turn emitted it again. Three corrections put
+        three fresh examples of the forbidden format into context; the model
+        never recovered and gave up asking the user for help.
+
+        87abf09 had already sanitised XML tag instructions out of the
+        systemPrompt for the same reason. The correction path reintroduced them.
+        """
+        self.assertNotIn("${rawEcho}", self.src)
+        self.assertNotIn("MAX_RAW_ECHO", self.src)
+        self.assertIn("原文不在此重複", self.src)
 
     def test_documented_config_flags_are_actually_read(self):
         """README tells users to set these in pi-config/harness-config.json to
