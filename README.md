@@ -59,6 +59,7 @@ cd CKs_PI_Code_Agent_Harness
 *   **Bridge 驗證**：`python scripts/verify-bridges.py` — 檢查所有橋接程式的入口路徑存在性、manifest 與 package.json 註冊一致性（零依賴）。
 *   **設定檔驗證**：`python scripts/validate-config.py` — 檢查 `pi-config/settings.json` 格式完整性、反模式偵測（已提交之機器特定路徑、明文金鑰）。
 *   **提示衝突稽核**：`python scripts/check-prompt-conflicts.py` — 把 9 個 bridge 各自注入的指令**合起來看**：偵測「for any task」這類無條件宣稱（會吃掉其他工具的適用範圍）、列出被多個工具同時宣稱的觸發詞、統計每輪注入總量，並明確標出它**沒有**涵蓋的部分（直接改寫 `systemPrompt` 的 bridge）。
+*   **觸發率量測**：`python scripts/measure-triggers.py` — 以**不點名工具/技能**的情境描述任務，量測該觸發的機制有沒有真的觸發，並含「不該觸發」的反向情境（避免把指引寫得越來越強勢）。每情境重複 N 次取比率（本機模型 temp 0.6，單次樣本不可判讀），session 寫入隔離暫存目錄、cwd 為中性空目錄，避免污染真實歷史。速度慢，**不進 CI**。
 
 ### 外部來源管理
 *   `external-manifest.json` 統一記錄全部外部來源（17 個 Git Submodule、參考克隆、蒸餾來源），取代過去 submodule / clone / 蒸餾混用無統一紀錄的狀態。每個來源標明整合方式（bridge / skill bridge / 僅參考）與更新策略。
@@ -115,7 +116,7 @@ cd CKs_PI_Code_Agent_Harness
 |  Layer 4: Evidence Gate (證據驗證與基因進化層)                        |
 |  • autonomous-experiment-guide (MAD 統計顯著性驗證)                    |
 |  • harness-factory-guide (Repo Fit 打分、Darwin 演化 & mcp-scan)        |
-|  • 289 個自動化單元測試網 (含 TestManagedSkillsConsistency 一致性校驗) |
+|  • 302 個自動化單元測試網 (含 TestManagedSkillsConsistency 一致性校驗) |
 +-----------------------------------------------------------------------+
 ```
 
