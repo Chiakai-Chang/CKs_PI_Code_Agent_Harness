@@ -1,0 +1,496 @@
+- link "Skip to content" [e1]:
+  - /url: "#bbc-main"
+- banner:
+  - button "Open menu" [e2]:
+    - img
+  - link "British Broadcasting Corporation" [e3]:
+    - /url: /
+    - img "British Broadcasting Corporation"
+  - link "Register" [e4]:
+    - /url: https://session.bbc.com/session?action=register&userOrigin=BBCS_BBC&ptrt=https%3A%2F%2Fwww.bbc.com%2Fnews
+    - button "Register" [e5]
+  - link "Sign In" [e6]:
+    - /url: https://session.bbc.com/session?userOrigin=BBCS_BBC&ptrt=https%3A%2F%2Fwww.bbc.com%2Fnews
+    - button "Sign In" [e7]
+- navigation:
+  - navigation:
+    - list:
+      - listitem:
+        - link "Home" [e8]:
+          - /url: /
+      - listitem:
+        - link "News" [e9]:
+          - /url: /news
+      - listitem:
+        - link "Sport" [e10]:
+          - /url: /sport
+      - listitem:
+        - link "Business" [e11]:
+          - /url: /business
+      - listitem:
+        - link "Technology" [e12]:
+          - /url: /technology
+      - listitem:
+        - link "Health" [e13]:
+          - /url: /health
+      - listitem:
+        - link "Culture" [e14]:
+          - /url: /culture
+      - listitem:
+        - link "Arts" [e15]:
+          - /url: /arts
+      - listitem:
+        - link "Travel" [e16]:
+          - /url: /travel
+      - listitem:
+        - link "Earth" [e17]:
+          - /url: /future-planet
+      - listitem:
+        - link "Audio" [e18]:
+          - /url: /audio
+      - listitem:
+        - link "Video" [e19]:
+          - /url: /video
+      - listitem:
+        - link "Live" [e20]:
+          - /url: /live
+  - navigation:
+    - navigation:
+      - list:
+        - listitem:
+          - link "US & Canada" [e21]:
+            - /url: /news/us-canada
+        - listitem:
+          - link "UK" [e22]:
+            - /url: /news/uk
+        - listitem:
+          - link "Africa" [e23]:
+            - /url: /news/world/africa
+        - listitem:
+          - link "Asia" [e24]:
+            - /url: /news/world/asia
+        - listitem:
+          - link "Australia" [e25]:
+            - /url: /news/world/australia
+        - listitem:
+          - link "Europe" [e26]:
+            - /url: /news/world/europe
+        - listitem:
+          - link "Latin America" [e27]:
+            - /url: /news/world/latin_america
+        - listitem:
+          - link "Middle East" [e28]:
+            - /url: /news/world/middle_east
+        - listitem:
+          - link "In Pictures" [e29]:
+            - /url: /news/in_pictures
+        - listitem:
+          - link "BBC InDepth" [e30]:
+            - /url: /news/bbcindepth
+        - listitem:
+          - link "BBC Verify" [e31]:
+            - /url: /news/bbcverify
+- main:
+  - article:
+    - heading "News" [level=1]:
+      - img "News"
+    - link "A firefighting crew is deployed to battle a wildfire in Saint-Jean-d'Illac, southwestern France." [e32]:
+      - /url: /news/articles/ckg34128nvpo
+      - img "A firefighting crew is deployed to battle a wildfire in Saint-Jean-d'Illac, southwestern France."
+    - link "Spain and France brace for new heatwaves as wildfire closes in on Bordeaux Temperatures are expected to soar past 40C in some regions as a heatwave builds, further hampering firefighting efforts. 1 hr ago Europe" [e33]:
+      - /url: /news/articles/ckg34128nvpo
+      - heading "Spain and France brace for new heatwaves as wildfire closes in on Bordeaux" [level=2]
+      - paragraph: Temperatures are expected to soar past 40C in some regions as a heatwave builds, further hampering firefighting efforts.
+      - text: 1 hr ago Europe
+    - link "a small yellow airplane flies over flames. Devastating European wildfires in maps - and how they're being tackled A blaze near Bordeaux has torn through more than 162 sq miles (420 sq km) in less than four days, while the Madrid region is seeing its worst fires ever. 14 hrs ago Europe" [e34]:
+      - /url: /news/articles/cj638jx0l53o
+      - img "a small yellow airplane flies over flames."
+      - heading "Devastating European wildfires in maps - and how they're being tackled" [level=2]
+      - paragraph: A blaze near Bordeaux has torn through more than 162 sq miles (420 sq km) in less than four days, while the Madrid region is seeing its worst fires ever.
+      - text: 14 hrs ago Europe
+    - link "Hong Kong activist allowed to stay in UK after deportation threat Wu was detained for hours at London's Heathrow Airport last week and refused entry, he told the BBC. 53 mins ago Asia" [e35]:
+      - /url: /news/articles/cpd74e0yy12o
+      - heading "Hong Kong activist allowed to stay in UK after deportation threat" [level=2]
+      - paragraph: Wu was detained for hours at London's Heathrow Airport last week and refused entry, he told the BBC.
+      - text: 53 mins ago Asia
+    - link "As the US pauses the war with Iran, is Trump really running out of weapons? The US has fired thousands of hard-to-replace missiles during its war with Iran. We unpack whether its \" [e36]arsenal of freedom\" is perilously low. 9 hrs ago BBC InDepth":
+      - /url: /news/articles/c0qvnk2ezp7o
+      - heading "As the US pauses the war with Iran, is Trump really running out of weapons?" [level=2]
+      - paragraph: The US has fired thousands of hard-to-replace missiles during its war with Iran. We unpack whether its "arsenal of freedom" is perilously low.
+      - text: 9 hrs ago BBC InDepth
+    - link "Two Ecuadoran police officers in dark sunglasses, helmets and balaclavas - which entirely obscure their faces - sit in a car in front of the BBC's Orla Guerin, wearing a flak jacket with the word \" [e37]PRESS\" on it. On the front line of Ecuador's drugs war, police fight gangs, guns and corruption The BBC goes on patrol with Ecuador's police, who are grappling with a huge surge in drug crime. 51 mins ago Latin America":
+      - /url: /news/articles/cdx7n1r54nno
+      - img "Two Ecuadoran police officers in dark sunglasses, helmets and balaclavas - which entirely obscure their faces - sit in a car in front of the BBC's Orla Guerin, wearing a flak jacket with the word \"PRESS\" on it."
+      - heading "On the front line of Ecuador's drugs war, police fight gangs, guns and corruption" [level=2]
+      - paragraph: The BBC goes on patrol with Ecuador's police, who are grappling with a huge surge in drug crime.
+      - text: 51 mins ago Latin America
+    - link "Barriers are seen alongside a road where the mosque is being built A Japanese town wrestles with identity after protests over its first mosque As Japan increasingly relies on foreign workers, it is also grappling with how to integrate new cultures and religions. 8 hrs ago Asia" [e38]:
+      - /url: /news/articles/c36d79nd5w8o
+      - img "Barriers are seen alongside a road where the mosque is being built"
+      - heading "A Japanese town wrestles with identity after protests over its first mosque" [level=2]
+      - paragraph: As Japan increasingly relies on foreign workers, it is also grappling with how to integrate new cultures and religions.
+      - text: 8 hrs ago Asia
+    - 'link "Assam floods ''It took everything from us'': India''s Assam faces worst floods in years While flooding happens in Assam every year, a state minister described this year as the worst in six decades. 7 hrs ago Asia"':
+      - /url: /news/articles/cqlx61p3wz0o
+      - img "Assam floods"
+      - 'heading "''It took everything from us'': India''s Assam faces worst floods in years" [level=2]'
+      - paragraph: While flooding happens in Assam every year, a state minister described this year as the worst in six decades.
+      - text: 7 hrs ago Asia
+    - link "Screenshot showing AI content aired on China's CCTV that has been marked as AI-generated China's new challenge as natural disasters strike - fake AI videos Storms and flooding incidents over the last few months have seen fake videos inundating social media. 8 hrs ago Asia" [e39]:
+      - /url: /news/articles/cx27mjvxgg1o
+      - img "Screenshot showing AI content aired on China's CCTV that has been marked as AI-generated"
+      - heading "China's new challenge as natural disasters strike - fake AI videos" [level=2]
+      - paragraph: Storms and flooding incidents over the last few months have seen fake videos inundating social media.
+      - text: 8 hrs ago Asia
+    - link "Confronting gang members at the heart of Ecuador's drug battle" [e40]:
+      - /url: /news/videos/c1l1d429m8eo
+      - img
+      - heading "Confronting gang members at the heart of Ecuador's drug battle" [level=2]
+    - link "Chip stocks slide in US and Asia as AI jitters rattle investors" [e41]:
+      - /url: /news/articles/cly8zng43npo
+      - heading "Chip stocks slide in US and Asia as AI jitters rattle investors" [level=2]
+    - link "Johnson & Johnson offers up to $5.5bn to settle US baby powder lawsuits" [e42]:
+      - /url: /news/articles/clyqnz52rp6o
+      - heading "Johnson & Johnson offers up to $5.5bn to settle US baby powder lawsuits" [level=2]
+    - link "US singer D4vd to go on trial for murder in death of 14-year-old" [e43]:
+      - /url: /news/articles/c70gkg62w0ro
+      - heading "US singer D4vd to go on trial for murder in death of 14-year-old" [level=2]
+    - link "Bali bans Dutch expats whose run club allegedly excluded Indonesians" [e44]:
+      - /url: /news/articles/c1l1m6e08e2o
+      - heading "Bali bans Dutch expats whose run club allegedly excluded Indonesians" [level=2]
+    - separator
+    - heading "More to explore" [level=2]
+    - link "A woman waves a large Indian flag in the midst of a crowd carrying similar flags. She wears a white blouse and blue jeans, and is smiling broadly. Trees surround the large crowd." [e45]:
+      - /url: /news/articles/c8dng1v72lno
+      - img "A woman waves a large Indian flag in the midst of a crowd carrying similar flags. She wears a white blouse and blue jeans, and is smiling broadly. Trees surround the large crowd."
+    - 'link "''This is just the start'': India''s Gen Z protesters force out a minister, but what next? The education minister''s resignation, a rare setback for the Modi government, brings hope to many young protesters that their voices will be heard. 24 hrs ago Asia"':
+      - /url: /news/articles/c8dng1v72lno
+      - 'heading "''This is just the start'': India''s Gen Z protesters force out a minister, but what next?" [level=2]'
+      - paragraph: The education minister's resignation, a rare setback for the Modi government, brings hope to many young protesters that their voices will be heard.
+      - text: 24 hrs ago Asia
+    - link "Yung Filly performing at a concert (file image) Rapper Yung Filly testifies at his rape trial in Australia The British performer told a court that the \" [e46]vibes were good\" between him and a woman he is accused of raping after performing at a nightclub. 17 hrs ago":
+      - /url: /news/videos/czdm39jgzg7o
+      - img "Yung Filly performing at a concert (file image)"
+      - img
+      - heading "Rapper Yung Filly testifies at his rape trial in Australia" [level=2]
+      - paragraph: The British performer told a court that the "vibes were good" between him and a woman he is accused of raping after performing at a nightclub.
+      - text: 17 hrs ago
+    - link "A Nigerian soldier is arrested for tipping off criminals - but does it go deeper? A private's detention reignites concerns that troops are contributing to the country's security challenges. 14 hrs ago Africa" [e47]:
+      - /url: /news/articles/cr7k8y5272eo
+      - heading "A Nigerian soldier is arrested for tipping off criminals - but does it go deeper?" [level=2]
+      - paragraph: A private's detention reignites concerns that troops are contributing to the country's security challenges.
+      - text: 14 hrs ago Africa
+    - 'link "Watch: Scaffolding tumbles from Hong Kong building as Typhoon Noul makes landfall Typhoon Noul is the strongest to make landfall in China so far this year, according to state media. 1 day ago Asia"':
+      - /url: /news/videos/ckg9ewekpk1o
+      - img
+      - 'heading "Watch: Scaffolding tumbles from Hong Kong building as Typhoon Noul makes landfall" [level=2]'
+      - paragraph: Typhoon Noul is the strongest to make landfall in China so far this year, according to state media.
+      - text: 1 day ago Asia
+    - link "image unavailable Lizzy has long reddish hair and is wearing a black top whilst standing on a grassy cliff near the beach. The sky is cloudy and wooden steps to the beach and white chairs are visible behind her. Why attachment theory is everywhere right now and how it can help you Attachment theory is everywhere right now, but what is it and how can you use it to improve your relationships? 6 hrs ago" [e48]:
+      - /url: /news/articles/cnv95790mgpo
+      - img "image unavailable"
+      - img "Lizzy has long reddish hair and is wearing a black top whilst standing on a grassy cliff near the beach. The sky is cloudy and wooden steps to the beach and white chairs are visible behind her."
+      - heading "Why attachment theory is everywhere right now and how it can help you" [level=2]
+      - paragraph: Attachment theory is everywhere right now, but what is it and how can you use it to improve your relationships?
+      - text: 6 hrs ago
+    - link "image unavailable An aerial view of a long bridge connecting the US and Canada, with blue skies and water. How a bridge became a symbol of US-Canada tensions The Gordie Howe International Bridge has officially opened to motorists amid a trade row between both countries. 11 hrs ago US & Canada" [e49]:
+      - /url: /news/videos/cq564e1l6zno
+      - img "image unavailable"
+      - img "An aerial view of a long bridge connecting the US and Canada, with blue skies and water."
+      - img
+      - heading "How a bridge became a symbol of US-Canada tensions" [level=2]
+      - paragraph: The Gordie Howe International Bridge has officially opened to motorists amid a trade row between both countries.
+      - text: 11 hrs ago US & Canada
+    - link "image unavailable Three people hug each other with a rainbow LGBT flag visible in the background and the Brandenburg Gate behind Anger as Berlin Pride attacker revealed to have been freed weeks earlier As details emerge about the suspected Berlin Pride attacker's past, many are asking why he was not in prison. 17 hrs ago Europe" [e50]:
+      - /url: /news/articles/cy9wv74qje9o
+      - img "image unavailable"
+      - img "Three people hug each other with a rainbow LGBT flag visible in the background and the Brandenburg Gate behind"
+      - heading "Anger as Berlin Pride attacker revealed to have been freed weeks earlier" [level=2]
+      - paragraph: As details emerge about the suspected Berlin Pride attacker's past, many are asking why he was not in prison.
+      - text: 17 hrs ago Europe
+    - separator
+    - heading "Most watched" [level=2]
+    - link "1 BBC reports from outside court after judge rules singer D4vd will stand trial for murder" [e51]:
+      - /url: /news/videos/cy745x171rjo
+      - text: "1"
+      - img
+      - heading "BBC reports from outside court after judge rules singer D4vd will stand trial for murder" [level=2]
+    - 'link "2 Watch: Scaffolding tumbles from Hong Kong building as Typhoon Noul makes landfall"':
+      - /url: /news/videos/ckg9ewekpk1o
+      - text: "2"
+      - img
+      - 'heading "Watch: Scaffolding tumbles from Hong Kong building as Typhoon Noul makes landfall" [level=2]'
+    - link "3 Confronting gang members at the heart of Ecuador's drug battle" [e52]:
+      - /url: /news/videos/c1l1d429m8eo
+      - text: "3"
+      - img
+      - heading "Confronting gang members at the heart of Ecuador's drug battle" [level=2]
+    - link "4 What to expect from Zelensky and Netanyahu's visit to Washington" [e53]:
+      - /url: /news/videos/cd0xlnz2yk1o
+      - text: "4"
+      - img
+      - heading "What to expect from Zelensky and Netanyahu's visit to Washington" [level=2]
+    - link "5 North America wildfires burn millions of acres in western US and Canada" [e54]:
+      - /url: /news/videos/clyv341nwn6o
+      - text: "5"
+      - img
+      - heading "North America wildfires burn millions of acres in western US and Canada" [level=2]
+    - separator
+    - heading "Also in news" [level=2]
+    - link "image unavailable A woman with black glasses and a red jacket speaks on the left, with a courtroom sketch of a man in orange is seen on the right." [e55]:
+      - /url: /news/videos/cy745x171rjo
+      - img "image unavailable"
+      - img "A woman with black glasses and a red jacket speaks on the left, with a courtroom sketch of a man in orange is seen on the right."
+      - img
+    - link "BBC reports from outside court after judge rules singer D4vd will stand trial for murder The body of 14-year-old Celeste Rivas Hernandez was found last September inside the trunk of a Tesla registered to singer D4vd. 4 hrs ago" [e56]:
+      - /url: /news/videos/cy745x171rjo
+      - heading "BBC reports from outside court after judge rules singer D4vd will stand trial for murder" [level=2]
+      - paragraph: The body of 14-year-old Celeste Rivas Hernandez was found last September inside the trunk of a Tesla registered to singer D4vd.
+      - text: 4 hrs ago
+    - link "image unavailable A woman stands on a Caspian Sea beach in Iran. File photo Ukraine dismisses Iranian threats as Caspian Sea strike directly links wars Iran has reacted with fury to the assault on the vessel, with Tehran's foreign minister saying it \" [e57]cannot go unanswered\". 13 hrs ago Europe":
+      - /url: /news/articles/cwyj7yl0xndo
+      - img "image unavailable"
+      - img "A woman stands on a Caspian Sea beach in Iran. File photo"
+      - heading "Ukraine dismisses Iranian threats as Caspian Sea strike directly links wars" [level=2]
+      - paragraph: Iran has reacted with fury to the assault on the vessel, with Tehran's foreign minister saying it "cannot go unanswered".
+      - text: 13 hrs ago Europe
+    - link "Shots fired at US consulate in Toronto for a second time this year Police said they engaged in a high-speed car chase but failed to arrest the suspect, who remains at large. Three people were arrested in June after a similar attack. 5 hrs ago US & Canada" [e58]:
+      - /url: /news/articles/ckgvnw44rz9o
+      - heading "Shots fired at US consulate in Toronto for a second time this year" [level=2]
+      - paragraph: Police said they engaged in a high-speed car chase but failed to arrest the suspect, who remains at large. Three people were arrested in June after a similar attack.
+      - text: 5 hrs ago US & Canada
+    - link "Trump defends tariffs in hard-hit Michigan as Canada tax hike looms The president says his economic policies are reinvigorating the auto industry and forcing overseas companies to relocate to the US. 6 hrs ago US & Canada" [e59]:
+      - /url: /news/articles/cy0jknp3e6yo
+      - heading "Trump defends tariffs in hard-hit Michigan as Canada tax hike looms" [level=2]
+      - paragraph: The president says his economic policies are reinvigorating the auto industry and forcing overseas companies to relocate to the US.
+      - text: 6 hrs ago US & Canada
+    - link "image unavailable Carly Simon Carly Simon reveals Parkinson's diagnosis The singer also reveals she has received treatment for skin cancer, but vows to keep singing. 16 hrs ago" [e60]:
+      - /url: /news/articles/c5y3gymn6p6o
+      - img "image unavailable"
+      - img "Carly Simon"
+      - heading "Carly Simon reveals Parkinson's diagnosis" [level=2]
+      - paragraph: The singer also reveals she has received treatment for skin cancer, but vows to keep singing.
+      - text: 16 hrs ago
+    - link "image unavailable A headshot of Andrea Pirlo Pirlo out of Italy football top job after backlash over Russian betting firm links The uproar throws the Italian Football Federation into further disarray following Italy's third consecutive failure to qualify for the World Cup. 10 hrs ago Europe" [e61]:
+      - /url: /news/articles/c4g49r2338xo
+      - img "image unavailable"
+      - img "A headshot of Andrea Pirlo"
+      - heading "Pirlo out of Italy football top job after backlash over Russian betting firm links" [level=2]
+      - paragraph: The uproar throws the Italian Football Federation into further disarray following Italy's third consecutive failure to qualify for the World Cup.
+      - text: 10 hrs ago Europe
+    - 'link "image unavailable Savannah, all in white, and Nancy Guthrie in a black suit jacket and pink patterned scarf, smile as they stand shoulder to shoulder. People behind them hold up signs. ''Do the right thing'': Savannah Guthrie makes another plea to mother''s kidnappers The US journalist has made several social media pleas for the abductors of her mother Nancy to share where she is. 10 hrs ago US & Canada"':
+      - /url: /news/articles/c5y4grv7pp8o
+      - img "image unavailable"
+      - img "Savannah, all in white, and Nancy Guthrie in a black suit jacket and pink patterned scarf, smile as they stand shoulder to shoulder. People behind them hold up signs."
+      - 'heading "''Do the right thing'': Savannah Guthrie makes another plea to mother''s kidnappers" [level=2]'
+      - paragraph: The US journalist has made several social media pleas for the abductors of her mother Nancy to share where she is.
+      - text: 10 hrs ago US & Canada
+    - separator
+    - heading "Most read" [level=2]
+    - link "1 As the US pauses the war with Iran, is Trump really running out of weapons?" [e62]:
+      - /url: /news/articles/c0qvnk2ezp7o
+      - text: "1"
+      - heading "As the US pauses the war with Iran, is Trump really running out of weapons?" [level=2]
+    - link "2 A Japanese town wrestles with identity after protests over its first mosque" [e63]:
+      - /url: /news/articles/c36d79nd5w8o
+      - text: "2"
+      - heading "A Japanese town wrestles with identity after protests over its first mosque" [level=2]
+    - link "3 Devastating European wildfires in maps - and how they're being tackled" [e64]:
+      - /url: /news/articles/cj638jx0l53o
+      - text: "3"
+      - heading "Devastating European wildfires in maps - and how they're being tackled" [level=2]
+    - link "4 Spain and France brace for new heatwaves as wildfire closes in on Bordeaux" [e65]:
+      - /url: /news/articles/ckg34128nvpo
+      - text: "4"
+      - heading "Spain and France brace for new heatwaves as wildfire closes in on Bordeaux" [level=2]
+    - link "5 Trump says Iran war talks taking place during lull in strikes" [e66]:
+      - /url: /news/articles/c62xn4vzmnpo
+      - text: "5"
+      - heading "Trump says Iran war talks taking place during lull in strikes" [level=2]
+    - link "6 Johnson & Johnson offers up to $5.5bn to settle US baby powder lawsuits" [e67]:
+      - /url: /news/articles/clyqnz52rp6o
+      - text: "6"
+      - heading "Johnson & Johnson offers up to $5.5bn to settle US baby powder lawsuits" [level=2]
+    - link "7 Bali bans Dutch expats whose run club allegedly excluded Indonesians" [e68]:
+      - /url: /news/articles/c1l1m6e08e2o
+      - text: "7"
+      - heading "Bali bans Dutch expats whose run club allegedly excluded Indonesians" [level=2]
+    - link "8 Two Scots charged in Australia over 107kg ketamine raids" [e69]:
+      - /url: /news/articles/cn0n50vxrq4o
+      - text: "8"
+      - heading "Two Scots charged in Australia over 107kg ketamine raids" [level=2]
+    - 'link "9 ''It took everything from us'': India''s Assam faces worst floods in years"':
+      - /url: /news/articles/cqlx61p3wz0o
+      - text: "9"
+      - 'heading "''It took everything from us'': India''s Assam faces worst floods in years" [level=2]'
+    - link "10 Why attachment theory is everywhere right now and how it can help you" [e70]:
+      - /url: /news/articles/cnv95790mgpo
+      - text: "10"
+      - heading "Why attachment theory is everywhere right now and how it can help you" [level=2]
+    - separator
+    - heading "Sport" [level=2]
+    - link "image unavailable Defender Maxence Lacroix cupping his ear while playing for Crystal Palace and Danny Welbeck concentrating while playing for Brighton" [e71]:
+      - /url: /sport/football/articles/cn0nw0lyrkdo
+      - img "image unavailable"
+      - img "Defender Maxence Lacroix cupping his ear while playing for Crystal Palace and Danny Welbeck concentrating while playing for Brighton"
+    - link "Why Chelsea want to sign older players Chelsea are targeting deals for Maxence Lacroix, Jordan Henderson and Danny Welbeck - three experienced heads, in an age when the focus has been on youth. 18 mins ago Premier League" [e72]:
+      - /url: /sport/football/articles/cn0nw0lyrkdo
+      - heading "Why Chelsea want to sign older players" [level=2]
+      - paragraph: Chelsea are targeting deals for Maxence Lacroix, Jordan Henderson and Danny Welbeck - three experienced heads, in an age when the focus has been on youth.
+      - text: 18 mins ago Premier League
+    - link "image unavailable West Indies all-rounder Justin Greaves holds the ball aloft as he is clapped off the field by his team-mates in Trinidad Greaves takes 5-0 in incredible Test bowling spell West Indies all-rounder Justin Greaves takes five wickets without conceding a run during an incredible spell of bowling on day three of the first Test against Pakistan. 7 hrs ago Cricket" [e73]:
+      - /url: /sport/cricket/articles/cx2rjv5599go
+      - img "image unavailable"
+      - img "West Indies all-rounder Justin Greaves holds the ball aloft as he is clapped off the field by his team-mates in Trinidad"
+      - heading "Greaves takes 5-0 in incredible Test bowling spell" [level=2]
+      - paragraph: West Indies all-rounder Justin Greaves takes five wickets without conceding a run during an incredible spell of bowling on day three of the first Test against Pakistan.
+      - text: 7 hrs ago Cricket
+    - link "Philadelphia 76ers confirm signing of NBA superstar LeBron James The Philadelphia 76ers have confirmed the signing of NBA superstar LeBron James. 7 hrs ago Basketball" [e74]:
+      - /url: /sport/articles/cx27r0me3zno
+      - heading "Philadelphia 76ers confirm signing of NBA superstar LeBron James" [level=2]
+      - paragraph: The Philadelphia 76ers have confirmed the signing of NBA superstar LeBron James.
+      - text: 7 hrs ago Basketball
+    - link "English football agrees trial to end goalkeeper tactical timeouts English football will implement a trial to try to eradicate the goalkeeper tactical timeout this season. 12 hrs ago Football" [e75]:
+      - /url: /sport/football/articles/clyjxd53zkpo
+      - heading "English football agrees trial to end goalkeeper tactical timeouts" [level=2]
+      - paragraph: English football will implement a trial to try to eradicate the goalkeeper tactical timeout this season.
+      - text: 12 hrs ago Football
+    - link "image unavailable Manchester City defender John Stones celebrates with arms aloft after his side's FA Cup win over Newcastle United Inter in advanced talks with England defender Stones England defender John Stones is in advanced talks with Inter Milan about joining the Italian side on a free transfer. 10 hrs ago England Men" [e76]:
+      - /url: /sport/football/articles/cgewgj8qwvjo
+      - img "image unavailable"
+      - img "Manchester City defender John Stones celebrates with arms aloft after his side's FA Cup win over Newcastle United"
+      - heading "Inter in advanced talks with England defender Stones" [level=2]
+      - paragraph: England defender John Stones is in advanced talks with Inter Milan about joining the Italian side on a free transfer.
+      - text: 10 hrs ago England Men
+    - link "image unavailable Adam Ramsay-Peaty with his head above water and goggles pulled up to his forehead as he wears a red swimming cap bearing his name 'Nothing makes sense' - Ramsay-Peaty beaten again Adam Ramsay-Peaty says \" [e77]nothing makes sense\" as he again has to settle for bronze at the Commonwealth Games in Glasgow. 9 hrs ago Commonwealth Games":
+      - /url: /sport/swimming/articles/cqlx2r3l6z3o
+      - img "image unavailable"
+      - img "Adam Ramsay-Peaty with his head above water and goggles pulled up to his forehead as he wears a red swimming cap bearing his name"
+      - heading "'Nothing makes sense' - Ramsay-Peaty beaten again" [level=2]
+      - paragraph: Adam Ramsay-Peaty says "nothing makes sense" as he again has to settle for bronze at the Commonwealth Games in Glasgow.
+      - text: 9 hrs ago Commonwealth Games
+    - link "image unavailable Joe Gomez, sitting on the pitch, is attended to by medical staff after an early injury against Sunderland Liverpool's centre-back situation and why Iraola must act BBC Sport looks at Liverpool's issues at centre-back, and what Andoni Iraola might do to fix them. 13 hrs ago Liverpool" [e78]:
+      - /url: /sport/football/articles/cpw9zw972l2o
+      - img "image unavailable"
+      - img "Joe Gomez, sitting on the pitch, is attended to by medical staff after an early injury against Sunderland"
+      - heading "Liverpool's centre-back situation and why Iraola must act" [level=2]
+      - paragraph: BBC Sport looks at Liverpool's issues at centre-back, and what Andoni Iraola might do to fix them.
+      - text: 13 hrs ago Liverpool
+- separator
+- contentinfo:
+  - link "British Broadcasting Corporation" [e79]:
+    - /url: /
+    - img "British Broadcasting Corporation"
+  - navigation "Footer navigation":
+    - list:
+      - listitem:
+        - link "Home" [e80]:
+          - /url: https://www.bbc.com/
+      - listitem:
+        - link "News" [e81]:
+          - /url: /news
+      - listitem:
+        - link "Sport" [e82]:
+          - /url: /sport
+      - listitem:
+        - link "Business" [e83]:
+          - /url: /business
+      - listitem:
+        - link "Technology" [e84]:
+          - /url: /technology
+      - listitem:
+        - link "Health" [e85]:
+          - /url: /health
+      - listitem:
+        - link "Culture" [e86]:
+          - /url: /culture
+      - listitem:
+        - link "Arts" [e87]:
+          - /url: /arts
+      - listitem:
+        - link "Travel" [e88]:
+          - /url: /travel
+      - listitem:
+        - link "Earth" [e89]:
+          - /url: /future-planet
+      - listitem:
+        - link "Audio" [e90]:
+          - /url: /audio
+      - listitem:
+        - link "Video" [e91]:
+          - /url: /video
+      - listitem:
+        - link "Live" [e92]:
+          - /url: /live
+      - listitem:
+        - link "Weather" [e93]:
+          - /url: https://www.bbc.com/weather
+      - listitem:
+        - link "BBC Shop" [e94]:
+          - /url: https://shop.bbc.com/
+      - listitem:
+        - link "BritBox" [e95]:
+          - /url: https://www.britbox.com/?utm_source=bbc.com&utm_medium=referral&utm_campaign=footer
+  - button "BBC in other languages" [e96]:
+    - text: BBC in other languages
+    - img
+  - text: "Follow BBC on:"
+  - button "Follow BBC on x" [e97]:
+    - img
+  - button "Follow BBC on facebook" [e98]:
+    - img
+  - button "Follow BBC on instagram" [e99]:
+    - img
+  - button "Follow BBC on tiktok" [e100]:
+    - img
+  - button "Follow BBC on linkedin" [e101]:
+    - img
+  - button "Follow BBC on youtube" [e102]:
+    - img
+  - navigation:
+    - list:
+      - listitem:
+        - link "Terms of Use" [e103]:
+          - /url: https://www.bbc.com/pages/terms-of-use
+      - listitem:
+        - link "Subscription Terms" [e104]:
+          - /url: https://www.bbc.com/pages/subscription-terms
+      - listitem:
+        - link "About the BBC" [e105]:
+          - /url: https://www.bbc.co.uk/aboutthebbc
+      - listitem:
+        - link "Privacy Policy" [e106]:
+          - /url: https://www.bbc.com/pages/privacy-policy
+      - listitem:
+        - link "Cookies" [e107]:
+          - /url: https://www.bbc.com/usingthebbc/cookies/
+      - listitem:
+        - link "Accessibility Help" [e108]:
+          - /url: https://www.bbc.co.uk/accessibility/
+      - listitem:
+        - link "Contact the BBC" [e109]:
+          - /url: https://www.bbc.co.uk/contact
+      - listitem:
+        - link "Advertise with us" [e110]:
+          - /url: https://advertising.bbcstudios.com/
+      - listitem:
+        - link "Do not share or sell my info" [e111]:
+          - /url: https://www.bbc.com/usingthebbc/cookies/how-can-i-change-my-bbc-cookie-settings/
+      - listitem:
+        - link "BBC.com Help & FAQs" [e112]:
+          - /url: https://help.bbc.com/hc/
+      - listitem:
+        - link "Content Index" [e113]:
+          - /url: https://www.bbc.com/pages/content-index
+      - listitem:
+        - link "Set Preferred Source" [e114]:
+          - /url: https://www.bbc.com/future/article/20260128-how-to-make-google-put-trusted-sources-up-top-when-you-search
+  - paragraph:
+    - text: Copyright 2026 BBC. All rights reserved. The BBC is not responsible for the content of external sites.
+    - link "Read about our approach to external linking." [e115]:
+      - /url: https://www.bbc.com/editorialguidelines/guidance/links-and-feeds
+  - paragraph
+- alert
+- iframe "www.bbc.com":
+  - link [e116]:
+    - /url: https://googleads.g.doubleclick.net/pcs/click?xai=AKAOjsvxl-fn6QxsX1hv9ghGgJcOykWU1aFXe_SQ0XiwoyCNhReujiv7QB7UJ3LK6vypEit6qq8X4Sh-8-P5JGAIcrjCvjGPwfr32GahXtVfqKFdZohhr0A93AnvujD6YmLIEwZcLsu-LgDdghLgH5uBcqgHHaP6hKegDBCO-SdXrIOVaU6jX5o6nd1q3er46T6zOTMukPQVKdiBF6Lk755ykPC9OCIsyPfdqHHDvqwtaPSmmGCqUfidMaWY85FeL6tO7B4cS2AP416h9xIEGbHRUfHyCojVKnFk8oZcBCHH4kT3NmgBPZwKe5B6l2D7d5gJUNmni-v_1EMNiwoUn3hTEwdQKDYRrtOZ44c2UT3G1QgFx-YpxIpH_hK82UMWafxXuz_JhYiBHwLEamRuoPsYCVcxfBPvbt4IH9BzS4ue2ufbY1HVvjw&sai=AMfl-YQdPh_CmY4NnjILpFZHaqfx_C4n9hOanJHjeudUUkujZabesPtc_tBj1uAuyHGHjNjKZ0BsZRQsyLsaiVWh1-dGEs0pjU7Wmwl356GcdJlRJqFSaf1cOJ8r4IdDhA-ntoJaKiPsW7bDmCAb78ql2mdHrivkBmKPNx37b29xeTIvkJCRM8lfB740ON_wYyTe141L_eq48vTbjP-cX5QqSIe-gG0P3cVeLgBlTJn39oQEvSl8lI07P7CBlohVB__8VmY1wJzP9XgkOLMtidKGfNm0eGmgQ840U8twSO-nxkN6abx0gXm2l3p1dRuj6QB2XBRHeyYwqcuqwYeq_dsOCCt3MW08qrtJPOffdOhAkx5mT-YVe4UKKiz-g8DAiFUh0VEkvPPOzgvYIaI&sig=Cg0ArKJSzNX8riKQs4Qk&fbs_aeid=%5Bgw_fbsaeid%5D&adurl=https://bbc-global.onelink.me/Ezi6/euuf4gj2

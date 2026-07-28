@@ -19,6 +19,7 @@ import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import { spawn } from "node:child_process";
 import { truncateForTool } from "./truncate.js";
+import { extractReadable, formatReadingView } from "./readability.js";
 
 const SERVER = process.env.STEALTH_RECON_URL || "http://127.0.0.1:9377";
 const USER = "recon";
@@ -142,6 +143,28 @@ async function snapshot(tabId: string, minChars = 400, tries = 6): Promise<strin
     } catch {}
   }
   return last;
+}
+
+// Every observed use of these tools has been reading: 223 web_* calls across
+// this machine's session history, of which web_click/web_type/web_press/
+// web_scroll accounted for ZERO. The full AX tree is therefore overhead on the
+// path that is actually used, so the reading view is the default and the raw
+// tree is one explicit flag (or one web_snapshot call) away. The capability is
+// not removed — "never used so far" is not "never needed".
+const RAW_PARAM = Type.Optional(
+  Type.Boolean({
+    description:
+      "Return the full accessibility tree with [eN] element refs instead of the reading view. "
+      + "Needed only when you intend to click or type on the page.",
+  }),
+);
+
+function renderPage(tabId: string, snap: string, raw?: boolean): string {
+  const header = `[tab ${tabId} — now the current page; pass tabId to a tool to target it specifically]`;
+  if (raw) return `${header}
+
+${snap}`;
+  return formatReadingView(header, extractReadable(snap));
 }
 
 function toolError(text: string) {
@@ -299,9 +322,11 @@ export default function (pi: ExtensionAPI) {
       "For a question needing several separate things looked up, prefer deep_research: it researches each sub-question in its own agent process, so the pages never enter this context. web_search here puts every page you open into it.",
       "web_search returns only titles/snippets — that is NOT enough to analyze or answer accurately. After searching, call web_open on the 1-3 most relevant result URLs to read the full articles.",
       "web_open goes through the same stealth browser, so it reads pages that block plain fetch (Cloudflare, JS-rendered, soft paywalls). Prefer it over giving up on a source.",
+      "web_search and web_open return a reading view: navigation, URLs and [eN] element refs are stripped. If you need to click or type, pass raw: true or call web_snapshot for the full tree.",
     ],
     parameters: Type.Object({
       query: Type.String({ description: "The search query, e.g. '矢板明夫 案件 最新'" }),
+      raw: RAW_PARAM,
     }),
     async execute(_id, params, _signal, _onUpdate, _ctx) {
       const ready = await ensureServer();
@@ -322,7 +347,7 @@ export default function (pi: ExtensionAPI) {
         );
       }
       return {
-        content: [{ type: "text" as const, text: truncateForTool(`[tab ${tabId} — now the current page; pass tabId to a tool to target it specifically]\n\n${snap}`, "page") }],
+        content: [{ type: "text" as const, text: truncateForTool(renderPage(tabId, snap, params.raw), "page") }],
         details: { query: params.query, url, tabId },
       };
     },
@@ -337,6 +362,7 @@ export default function (pi: ExtensionAPI) {
       "web_open(url): read a full/bot-protected web page through the stealth browser (Cloudflare, JS, soft paywalls).",
     parameters: Type.Object({
       url: Type.String({ description: "The absolute URL to open, e.g. https://example.com/article" }),
+      raw: RAW_PARAM,
     }),
     async execute(_id, params, _signal, _onUpdate, _ctx) {
       const ready = await ensureServer();
@@ -356,7 +382,7 @@ export default function (pi: ExtensionAPI) {
         );
       }
       return {
-        content: [{ type: "text" as const, text: truncateForTool(`[tab ${tabId} — now the current page; pass tabId to a tool to target it specifically]\n\n${snap}`, "page") }],
+        content: [{ type: "text" as const, text: truncateForTool(renderPage(tabId, snap, params.raw), "page") }],
         details: { url: params.url, tabId },
       };
     },

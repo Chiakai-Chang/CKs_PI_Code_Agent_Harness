@@ -1,0 +1,204 @@
+- link "Jump to content" [e1]:
+  - /url: "#bodyContent"
+- banner:
+  - navigation "Site":
+    - button "Main menu" [e2]
+  - link "Wikipedia The Free Encyclopedia" [e3]:
+    - /url: /wiki/Main_Page
+    - img "Wikipedia"
+    - img "The Free Encyclopedia"
+  - search:
+    - searchbox "Search Wikipedia" [e4]
+    - button "Search" [e5]
+  - navigation "Personal tools":
+    - list:
+      - listitem:
+        - link "Donate" [e6]:
+          - /url: https://donate.wikimedia.org/?wmf_source=donate&wmf_medium=sidebar&wmf_campaign=en.wikipedia.org&uselang=en
+      - listitem:
+        - link "Create account" [e7]:
+          - /url: https://en.wikipedia.org/w/index.php?title=Special%3ACreateAccount&returnto=Accessibility+tree&experiments%5B0%5D=we-1-8-account-creation-no-desktop-benefits%3Aunsampled
+      - listitem:
+        - link "Log in" [e8]:
+          - /url: https://en.wikipedia.org/w/index.php?title=Special%3AUserLogin&returnto=Accessibility+tree&experiments%5B0%5D=we-1-8-account-creation-no-desktop-benefits%3Aunsampled
+- link "Hide" [e9]:
+  - /url: "#"
+  - img "Hide"
+- link "WLE Austria Logo (no text).svg" [e10]:
+  - /url: https://commons.wikimedia.org/wiki/Commons:Wiki_Loves_Earth_2026_in_Taiwan
+  - img "WLE Austria Logo (no text).svg"
+- 'link "Wikipedia Loves the Earth: Upload photos of Taiwan''s natural ecology to help Wikipedia and win prizes!"':
+  - /url: https://commons.wikimedia.org/wiki/Commons:Wiki_Loves_Earth_2026_in_Taiwan
+- main:
+  - heading "Accessibility tree" [level=1]
+  - button "Add languages" [e11]
+  - navigation "Namespaces":
+    - list:
+      - listitem:
+        - link "Article" [e12]:
+          - /url: /w/index.php?title=Accessibility_tree&action=edit&redlink=1
+      - listitem:
+        - link "Talk" [e13]:
+          - /url: /w/index.php?title=Talk:Accessibility_tree&action=edit&redlink=1
+  - navigation "Views"
+  - navigation "Page tools":
+    - button "Tools" [e14]
+  - navigation "Appearance":
+    - text: Appearance
+    - button "Hide Appearance" [e15]: hide
+    - text: Text
+    - list:
+      - listitem:
+        - radio "Small" [e16]
+        - text: Small
+        - radio "Standard" [e17] [checked]
+        - text: Standard
+        - radio "Large" [e18]
+        - text: Large
+    - text: Width
+    - list:
+      - listitem:
+        - radio "Standard" [e19] [checked]
+        - text: Standard
+        - radio "Wide" [e20]
+        - text: Wide
+    - text: Color
+    - list:
+      - listitem:
+        - radio "Automatic" [e21]
+        - text: Automatic
+        - radio "Light" [e22] [checked]
+        - text: Light
+        - radio "Dark" [e23]
+        - text: Dark
+  - text: From Wikipedia, the free encyclopedia Look for Accessibility tree on one of Wikipedia's
+  - link "sister projects" [e24]:
+    - /url: /wiki/Special:SiteMatrix
+  - text: ":"
+  - list:
+    - listitem:
+      - link "Wiktionary" [e25]:
+        - /url: https://en.wiktionary.org/wiki/Special:Search/Accessibility_tree
+      - text: (dictionary)
+    - listitem:
+      - link "Wikibooks" [e26]:
+        - /url: https://en.wikibooks.org/wiki/Special:Search/Accessibility_tree
+      - text: (textbooks)
+    - listitem:
+      - link "Wikiquote" [e27]:
+        - /url: https://en.wikiquote.org/wiki/Special:Search/Accessibility_tree
+      - text: (quotations)
+    - listitem:
+      - link "Wikisource" [e28]:
+        - /url: https://en.wikisource.org/wiki/Special:Search/Accessibility_tree
+      - text: (library)
+    - listitem:
+      - link "Wikiversity" [e29]:
+        - /url: https://en.wikiversity.org/wiki/Special:Search/Accessibility_tree
+      - text: (learning resources)
+    - listitem:
+      - link "Commons" [e30]:
+        - /url: https://commons.wikimedia.org/wiki/Special:Search/Accessibility_tree
+      - text: (media)
+    - listitem:
+      - link "Wikivoyage" [e31]:
+        - /url: https://en.wikivoyage.org/wiki/Special:Search/Accessibility_tree
+      - text: (travel guide)
+    - listitem:
+      - link "Wikidata" [e32]:
+        - /url: https://www.wikidata.org/wiki/Special:Search/Accessibility_tree
+      - text: (linked database)
+    - listitem:
+      - link "Wikispecies" [e33]:
+        - /url: https://species.wikimedia.org/wiki/Special:Search/Accessibility_tree
+      - text: (species directory)
+  - text: Wikipedia does not have an article with this exact name. Please
+  - link "search for Accessibility tree in Wikipedia" [e34]:
+    - /url: https://en.wikipedia.org/w/index.php?search=Accessibility+tree&title=Special%3ASearch&fulltext=1
+  - text: to check for alternative titles or spellings.
+  - list:
+    - listitem:
+      - text: You need to
+      - link "log in or create an account" [e35]:
+        - /url: https://en.wikipedia.org/w/index.php?title=Special%3AUserLogin&returnto=Accessibility+tree&experiments%5B0%5D=we-1-8-account-creation-no-desktop-benefits%3Aunsampled
+      - text: and be
+      - link "autoconfirmed" [e36]:
+        - /url: /wiki/Wikipedia:User_access_levels#Autoconfirmed_users
+      - text: to create new articles. Alternatively, you can use the
+      - link "article wizard" [e37]:
+        - /url: /wiki/Wikipedia:Article_wizard
+      - text: to submit a draft for review, or
+      - link "request a new article" [e38]:
+        - /url: /wiki/Wikipedia:Requested_articles
+      - text: .
+    - listitem:
+      - link "Search for \" [e39]Accessibility tree\"":
+        - /url: https://en.wikipedia.org/w/index.php?search=Accessibility+tree&title=Special%3ASearch&fulltext=1&ns0=1
+      - text: in existing articles.
+    - listitem:
+      - link "Look for pages within Wikipedia that link to this title" [e40]:
+        - /url: /wiki/Special:WhatLinksHere/Accessibility_tree
+      - text: .
+  - separator
+  - paragraph: "Other reasons this message may be displayed:"
+  - list:
+    - listitem:
+      - text: Titles on Wikipedia are
+      - link "case sensitive" [e41]:
+        - /url: /wiki/Case_sensitivity
+      - text: except for the first character; please
+      - link "check alternative capitalizations" [e42]:
+        - /url: https://en.wikipedia.org/w/index.php?search=Accessibility+tree&title=Special%3ASearch&fulltext=1
+      - text: and consider adding a
+      - link "redirect" [e43]:
+        - /url: /wiki/Wikipedia:Redirect
+      - text: here to the correct title.
+    - listitem:
+      - text: If the page has been deleted,
+      - link "check the deletion log" [e44]:
+        - /url: https://en.wikipedia.org/w/index.php?title=Special:Log/delete&page=Accessibility_tree
+      - text: ", and see"
+      - link "Why was the page I created deleted?" [e45]:
+        - /url: /wiki/Wikipedia:Why_was_the_page_I_created_deleted%3F
+- contentinfo:
+  - list:
+    - listitem:
+      - link "Privacy policy" [e46]:
+        - /url: https://foundation.wikimedia.org/wiki/Special:MyLanguage/Policy:Privacy_policy
+    - listitem:
+      - link "About Wikipedia" [e47]:
+        - /url: /wiki/Wikipedia:About
+    - listitem:
+      - link "Disclaimers" [e48]:
+        - /url: /wiki/Wikipedia:General_disclaimer
+    - listitem:
+      - link "Contact Wikipedia" [e49]:
+        - /url: //en.wikipedia.org/wiki/Wikipedia:Contact_us
+    - listitem:
+      - link "Legal & safety contacts" [e50]:
+        - /url: https://foundation.wikimedia.org/wiki/Special:MyLanguage/Legal:Wikimedia_Foundation_Legal_and_Safety_Contact_Information
+    - listitem:
+      - link "Code of Conduct" [e51]:
+        - /url: https://foundation.wikimedia.org/wiki/Special:MyLanguage/Policy:Universal_Code_of_Conduct
+    - listitem:
+      - link "Developers" [e52]:
+        - /url: https://developer.wikimedia.org
+    - listitem:
+      - link "Statistics" [e53]:
+        - /url: https://stats.wikimedia.org/#/en.wikipedia.org
+    - listitem:
+      - link "Cookie statement" [e54]:
+        - /url: https://foundation.wikimedia.org/wiki/Special:MyLanguage/Policy:Cookie_statement
+    - listitem:
+      - link "Mobile view" [e55]:
+        - /url: //en.wikipedia.org/w/index.php?title=Accessibility_tree&mobileaction=toggle_view_mobile
+  - list:
+    - listitem:
+      - link "Wikimedia Foundation" [e56]:
+        - /url: https://www.wikimedia.org/
+        - img "Wikimedia Foundation"
+    - listitem:
+      - link "Powered by MediaWiki" [e57]:
+        - /url: https://www.mediawiki.org/
+        - img "Powered by MediaWiki"
+- list
