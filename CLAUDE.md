@@ -12,6 +12,7 @@
 * Run tests (zero-dependency, stdlib unittest): `python -m unittest discover -s tests`
 * Verify bridge health (entry points exist, manifest vs package.json cross-check): `python scripts/verify-bridges.py`
 * Validate pi-config files (schema, anti-patterns, secret detection): `python scripts/validate-config.py`
+* Audit the combined injected prompt across bridges (absolutist scope claims, shared trigger vocabulary, total budget): `python scripts/check-prompt-conflicts.py`
 
 ## 📌 CRITICAL Guidelines & Philosophy (Must Read First)
 Before planning any optimizations, refactoring, or modifications to this repository, you **MUST** read and fully comprehend the following documentation to align with our engineering guidelines:

@@ -58,6 +58,7 @@ cd CKs_PI_Code_Agent_Harness
 ### 健康度驗證 (Health Checks)
 *   **Bridge 驗證**：`python scripts/verify-bridges.py` — 檢查所有橋接程式的入口路徑存在性、manifest 與 package.json 註冊一致性（零依賴）。
 *   **設定檔驗證**：`python scripts/validate-config.py` — 檢查 `pi-config/settings.json` 格式完整性、反模式偵測（已提交之機器特定路徑、明文金鑰）。
+*   **提示衝突稽核**：`python scripts/check-prompt-conflicts.py` — 把 9 個 bridge 各自注入的指令**合起來看**：偵測「for any task」這類無條件宣稱（會吃掉其他工具的適用範圍）、列出被多個工具同時宣稱的觸發詞、統計每輪注入總量，並明確標出它**沒有**涵蓋的部分（直接改寫 `systemPrompt` 的 bridge）。
 
 ### 外部來源管理
 *   `external-manifest.json` 統一記錄全部外部來源（17 個 Git Submodule、參考克隆、蒸餾來源），取代過去 submodule / clone / 蒸餾混用無統一紀錄的狀態。每個來源標明整合方式（bridge / skill bridge / 僅參考）與更新策略。
@@ -74,7 +75,7 @@ cd CKs_PI_Code_Agent_Harness
 
 ## 🛠️ 核心功能與 5 層 Harness OS 架構
 
-本專案將 **13 大開源蒸餾核心技能**、**9 大 Extension Bridges** 與 **17 個外部子模組** 無縫熔鑄為 5 層閉環操作系統 (Harness OS)，兼顧開發效率、網頁檢索能力與系統安全：
+本專案將 **13 大開源蒸餾核心技能**、**11 大 Extension Bridges** 與 **17 個外部子模組** 無縫熔鑄為 5 層閉環操作系統 (Harness OS)，兼顧開發效率、網頁檢索能力與系統安全：
 
 ```
 +-----------------------------------------------------------------------+
@@ -114,14 +115,14 @@ cd CKs_PI_Code_Agent_Harness
 |  Layer 4: Evidence Gate (證據驗證與基因進化層)                        |
 |  • autonomous-experiment-guide (MAD 統計顯著性驗證)                    |
 |  • harness-factory-guide (Repo Fit 打分、Darwin 演化 & mcp-scan)        |
-|  • 234 個自動化單元測試網 (含 TestManagedSkillsConsistency 一致性校驗) |
+|  • 276 個自動化單元測試網 (含 TestManagedSkillsConsistency 一致性校驗) |
 +-----------------------------------------------------------------------+
 ```
 
 ### 核心功能三大維度與蒸餾技能整合
 
 #### 1. 🌐 網頁檢索與自動化實務 (Web Research & Automation)
-*   **深度網頁研究與多源綜述 (`deep-research-guide`)**：蒸餾自 `pi-browser-harness` 的 `deep-research` 核心，提供問題 3–6 子子拆解、多子代理發散並行檢索、2 輪 8 代理雙重硬上限門控，自動生成具名出處引用的 Markdown 深度研究報告。
+*   **深度網頁研究 (`deep_research` 工具 + `deep-research-guide`)**：不再只是散文指引——`deep-research-bridge` 註冊真正的 `deep_research` 工具，把每個子問題 spawn 成獨立的 `pi --print` 子行程（Pi 官方 subagent 做法）。子行程用自己的 context 讀網頁，只回傳精簡發現。**序列執行、上限 5 個子問題**，因為本機 llama.cpp 以 `-np 1` 啟動時並行請求會序列化（實測：兩個並行請求分別於 7.3s / 14.3s 完成），並行不會更快、只會讓牆鐘時間乘以 N。價值在 **context 隔離**：實測一次研究回傳父層僅 1,408 字元，而父層直接 `web_search` 單次就是 14,613 字元。
 *   **隱身網頁瀏覽與搜尋 (`camofox-stealth` + `stealth-web-bridge`)**：內建 Camoufox 反偵測瀏覽器，提供 `web_search` 與 `web_open` 工具，可穿透 Cloudflare 與複雜 JS 牆，支援分頁與登入態管理。
 *   **AX-Tree 語意定位 (`browser-automation-guide`)**：蒸餾自 `pi-browser-harness`，優先使用 Accessibility Tree (AX-Tree) 語意節點進行頁面元素定位與變更驗證，大幅提升網頁資料抓取與操作精準度。
 
@@ -146,7 +147,7 @@ cd CKs_PI_Code_Agent_Harness
 
 1. **零覆蓋保護 (Zero Overwrite)**：`restore.py` 與 `uninstall.py` 嚴格限定僅管理 `managed_skills` 清單，絕不任意刪除或覆蓋使用者自行安裝於全域的 `.pi/agent/skills/` 與 `extensions`。
 2. **動態碰撞隔離 (Namespace Guard)**：當使用者安裝之技能與本專案外部技能同名時，`skill-namespace-guard` 在每次 Pi 啟動時自動比對，若內容不同則平滑重命名為 `harness-<name>` 獨立並存。
-3. **零擴充雙重註冊碰撞 (Config Hygiene)**：本 Harness 內部 9 大 Extension Bridges（如 `yes-hooks-bridge`、`stealth-web-bridge` 等）由 `restore.py` 實體複製至擴充目錄並由 Pi 自動載入，**絕不**重複寫入 `settings.json` 的 `extensions` 陣列中，防止 `registerTool()` 工具同名衝突崩潰。
+3. **零擴充雙重註冊碰撞 (Config Hygiene)**：本 Harness 內部 11 大 Extension Bridges（如 `yes-hooks-bridge`、`stealth-web-bridge` 等）由 `restore.py` 實體複製至擴充目錄並由 Pi 自動載入，**絕不**重複寫入 `settings.json` 的 `extensions` 陣列中，防止 `registerTool()` 工具同名衝突崩潰。
 
 ---
 

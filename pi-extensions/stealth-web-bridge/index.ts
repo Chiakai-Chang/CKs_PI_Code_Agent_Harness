@@ -283,7 +283,7 @@ export default function (pi: ExtensionAPI) {
     name: "web_search",
     label: "Web Search",
     description:
-      "Search the live web via a stealth browser (Camoufox) and return result titles, snippets, and URLs. Use this whenever you need current/external information: news, docs, library/API usage, other people's approaches. Routes through DuckDuckGo so bot walls (Cloudflare, Google /sorry) do not block it.",
+      "Search the live web via a stealth browser (Camoufox) and return result titles, snippets, and URLs. Use for a lookup whose results you want in this conversation: news, docs, library/API usage, other people's approaches. Not for anything already on this machine, and not for a question needing several separate lookups — that is deep_research. Routes through DuckDuckGo so bot walls (Cloudflare, Google /sorry) do not block it.",
     promptSnippet:
       "web_search(query): search the live web through a stealth browser; use for any current/external info instead of claiming you cannot go online.",
     promptGuidelines: [
