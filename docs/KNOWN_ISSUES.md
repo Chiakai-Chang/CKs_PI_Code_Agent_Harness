@@ -101,13 +101,25 @@ so its arguments may be truncated.
 
 失控字串與 template 範例區塊逐字相符——**模型沒有壞掉，它照著指示做**。
 
-**處理（使用者端，一行）**：在 `llama-server` 啟動參數加入
+**處理（使用者端）**：該 template 本身就有 JSON 分支，只是預設不走。
+
+> ⚠️ **更正**：本文最初建議在 `.bat` 加 `--chat-template-kwargs "{\"tool_call_format\":\"json\"}" ^`。
+> **實測該寫法沒有生效** —— 加了之後直接打 `/v1/chat/completions` 帶 `tools`，模型仍然吐出 XML 失控參數（`finish_reason: length`）。CMD 對 `\"` 的處理與 C runtime 的期待不一致，參數沒有正確傳到 template。
+
+**改用環境變數**（`set` 的值不經 CMD 引號解析，可完全避開轉義問題）：
 
 ```bat
---chat-template-kwargs "{\"tool_call_format\":\"json\"}" ^
+set LLAMA_ARG_CHAT_TEMPLATE_KWARGS={"tool_call_format":"json"}
 ```
 
-該 template 本身就有 JSON 分支，只是預設不走。切換後模型輸出單一 JSON 物件，符合 Pi 的期待。
+放在 `.\llama-server.exe` 那行之前即可，並移除原本的 `--chat-template-kwargs` 行。
+
+**該參數確實有效，已用 per-request 方式證明**：在請求 body 加 `"chat_template_kwargs": {"tool_call_format": "json"}` 後，工具參數從**無上限失控**降為 1,524 字元，且內容轉為 JSON 形式（`<tool_call>
+{"name": "web_search", "arguments": {...}}`）。
+
+**殘留問題（尚未解決）**：即使切到 JSON 格式，模型在發出呼叫後**仍不會停止生成**，會接著輸出更多 `<tool_call>` 區塊，全部被串進第一個參數的值裡。這需要 llama.cpp 對工具呼叫套用語法約束（grammar）；`--jinja` 只在能辨識 template 的工具格式時才會建立該約束，自訂 template 可能落在辨識範圍外。
+
+**下一步可測**：暫時移除 `--chat-template-file "%JINJA_PATH%"`，改用模型內建 template，讓 llama.cpp 使用它自己已知的工具解析與停止條件，再以同一組請求對照。
 
 **不是** MTP 推測解碼（`--spec-type draft-mtp`）或量化 KV cache（`-ctk q4_0`）造成——證據直指 template 的格式字串。
 
