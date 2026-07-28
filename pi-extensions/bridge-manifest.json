@@ -61,6 +61,12 @@
       "entry": "pi-extensions/skill-catalog-bridge/index.ts",
       "version": "1.0.0",
       "description": "Injects the long-tail skill name catalog when skillTiers mode is 'tiered'"
+    },
+    {
+      "name": "deep-research-bridge",
+      "entry": "pi-extensions/deep-research-bridge/index.ts",
+      "version": "1.0.0",
+      "description": "Sequential subagent fan-out for deep research (context isolation)"
     }
   ]
 }

@@ -726,6 +726,8 @@ def main():
         # Surfaces the long-tail skills that tiered registration keeps out of
         # the natively-registered set (no-op when skillTiers mode is "all").
         profile_extensions.append(os.path.join(pi_extensions_root, "skill-catalog-bridge").replace("\\", "/"))
+        # Sequential subagent fan-out; keeps page content out of the main context.
+        profile_extensions.append(os.path.join(pi_extensions_root, "deep-research-bridge").replace("\\", "/"))
         # Exposes camofox-stealth as first-class web_search/web_open tools so weak
         # models call them reflexively instead of denying they can browse.
         profile_extensions.append(os.path.join(pi_extensions_root, "stealth-web-bridge").replace("\\", "/"))
@@ -808,7 +810,7 @@ def main():
         settings["skills"] = clean_skills
 
         existing_extensions = settings.get("extensions", [])
-        internal_bridge_names = ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge", "stealth-web-bridge", "yes-hooks-bridge", "skill-namespace-guard", "compact-continuation-bridge", "skill-catalog-bridge"]
+        internal_bridge_names = ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge", "stealth-web-bridge", "yes-hooks-bridge", "skill-namespace-guard", "compact-continuation-bridge", "skill-catalog-bridge", "deep-research-bridge"]
         clean_extensions = []
         for p in existing_extensions:
             p_normalized = p.replace("\\", "/").lower()
@@ -935,7 +937,7 @@ def main():
     ext_dst = os.path.join(AGENT_DIR, "extensions")
     if os.path.isdir(ext_src):
         # We selectively delete only the bridges managed by this harness to preserve other extensions.
-        for bridge in ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge", "stealth-web-bridge", "yes-hooks-bridge", "skill-namespace-guard", "compact-continuation-bridge", "skill-catalog-bridge"]:
+        for bridge in ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge", "stealth-web-bridge", "yes-hooks-bridge", "skill-namespace-guard", "compact-continuation-bridge", "skill-catalog-bridge", "deep-research-bridge"]:
             delete_path(os.path.join(ext_dst, bridge))
             
         for ext_path in profile_extensions:
