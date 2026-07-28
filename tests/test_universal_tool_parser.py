@@ -261,5 +261,48 @@ class TestGuardWiring(unittest.TestCase):
         self.assertIn("enableSelfHealingLoopGuard: true", self.src)
 
 
+class TestCorrectionsActuallyFire(unittest.TestCase):
+    """Pi's docs are explicit (docs/extensions.md):
+
+        "nextTurn" - Queued for next user prompt. Does not interrupt or trigger anything.
+        triggerTurn: true - Only applies to "steer" and "followUp" (ignored for "nextTurn").
+
+    So a correction sent with deliverAs "nextTurn" sits in a queue until the
+    human types again — it auto-advances nothing, which is the exact stall these
+    guards exist to break. Commit 87abf09 added triggerTurn: true to those calls
+    believing it took effect; it was silently ignored for that mode.
+
+    Found by scripts/measure-triggers.py on its first real run: a session emitted
+    <tool_code> and ended with no correction message recorded at all. The
+    3-strike escalation had always used "followUp" and did work, which is why
+    this hid — the loud path functioned while the quiet, common path did not.
+    """
+
+    def test_no_bridge_pairs_nextTurn_with_triggerTurn(self):
+        import glob
+        offenders = []
+        for idx in glob.glob(os.path.join(ROOT, "pi-extensions", "*", "index.ts")):
+            with open(idx, encoding="utf-8") as f:
+                # Comments explaining this very defect quote the bad pairing.
+                body = "\n".join(
+                    ln for ln in f.read().splitlines()
+                    if not ln.lstrip().startswith(("//", "*", "/*"))
+                )
+            if re.search(r'deliverAs:\s*"nextTurn"[^}]*triggerTurn:\s*true', body):
+                offenders.append(os.path.basename(os.path.dirname(idx)))
+        self.assertEqual(
+            offenders, [],
+            'deliverAs "nextTurn" ignores triggerTurn — the message waits for the '
+            "user to type. Use \"followUp\" for anything meant to auto-advance. "
+            "Offenders: %s" % offenders,
+        )
+
+    def test_transformer_and_retry_use_followUp(self):
+        with open(IDX, encoding="utf-8") as f:
+            c = f.read()
+        self.assertNotIn('deliverAs: "nextTurn"', c)
+        self.assertGreaterEqual(c.count('deliverAs: "followUp"'), 4)
+
+
 if __name__ == "__main__":
     unittest.main()

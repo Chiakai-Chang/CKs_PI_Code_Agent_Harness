@@ -574,7 +574,24 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
           `絕對不要再輸出任何 XML 標籤、\`\`\`json 工具清單或 \`\`\`bash 程式碼塊！`,
         display: true,
       },
-      { deliverAs: "nextTurn", triggerTurn: true }
+      // MUST be "followUp", not "nextTurn". Pi's docs (docs/extensions.md) are
+      // explicit: "nextTurn" is "queued for next user prompt, does not
+      // interrupt or trigger anything", and `triggerTurn` is "only applied to
+      // steer and followUp modes (ignored for nextTurn)".
+      //
+      // With "nextTurn" the correction sat in a queue until the human typed
+      // again — so the transformer never auto-advanced anything. That is the
+      // stall this guard exists to break: the agent emits a tag-shaped call,
+      // the transformer "fires", and nothing happens until you press a key.
+      // Commit 87abf09 added triggerTurn: true here believing it would take
+      // effect; it was silently ignored for this delivery mode.
+      //
+      // Found by scripts/measure-triggers.py on its first real run: a --print
+      // session emitted <tool_code> and the session ended with no correction
+      // message recorded at all. The 3-strike escalation below always used
+      // "followUp" and did work, which is why the failure hid — the loud path
+      // functioned while the quiet, common path did not.
+      { deliverAs: "followUp", triggerTurn: true }
     );
     return;
   }
@@ -616,7 +633,11 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
           "請重新回覆並發起標準的原生 Function Call 呼叫工具。",
         display: true,
       },
-      { deliverAs: "nextTurn", triggerTurn: true },
+      // "followUp", not "nextTurn": this is the *auto-retry* on strikes 1 and 2.
+      // Queued for the next user prompt it retries nothing on its own — the
+      // agent stays stalled until a human types, which is the exact failure the
+      // self-healing path exists to prevent.
+      { deliverAs: "followUp", triggerTurn: true },
     );
   }
 }

@@ -201,7 +201,10 @@ export default function (pi: ExtensionAPI) {
             + `with them, then synthesize the returned findings into a cited answer. Keep the source URLs.`,
           display: true,
         },
-        { deliverAs: "nextTurn", triggerTurn: true },
+        // "followUp" so the run actually starts. `triggerTurn` is ignored for
+        // "nextTurn" (Pi docs), which would leave /deep-research queueing a
+        // prompt that does nothing until the user types again.
+        { deliverAs: "followUp", triggerTurn: true },
       );
     },
   });
