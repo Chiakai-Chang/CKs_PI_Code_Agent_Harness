@@ -287,7 +287,16 @@ export default function (pi: ExtensionAPI) {
     promptSnippet:
       "web_search(query): search the live web through a stealth browser; use for any current/external info instead of claiming you cannot go online.",
     promptGuidelines: [
-      "You CAN access the internet: call web_search for any task needing current or external information. Never say you cannot browse.",
+      // This line used to end "...for any task needing current or external
+      // information", which is unconditional and swallows every other route to
+      // the web. Observed twice: the model web_searched for a LOCAL skill file
+      // whose path it had just been handed, and it web_searched instead of
+      // calling deep_research when explicitly told to call deep_research. Two
+      // bridges each injecting confident guidance, with nothing checking the
+      // combination. Scope it, and name the case that belongs elsewhere.
+      "You CAN access the internet: call web_search for a lookup you want the results of in THIS conversation. Never say you cannot browse.",
+      "Do not web_search for something already on this machine — a local file, a skill, a repo path. Read it.",
+      "For a question needing several separate things looked up, prefer deep_research: it researches each sub-question in its own agent process, so the pages never enter this context. web_search here puts every page you open into it.",
       "web_search returns only titles/snippets — that is NOT enough to analyze or answer accurately. After searching, call web_open on the 1-3 most relevant result URLs to read the full articles.",
       "web_open goes through the same stealth browser, so it reads pages that block plain fetch (Cloudflare, JS-rendered, soft paywalls). Prefer it over giving up on a source.",
     ],

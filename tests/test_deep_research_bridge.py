@@ -173,5 +173,34 @@ class TestRestoreWiring(unittest.TestCase):
         self.assertNotIn("require(", read("pi-extensions/deep-research-bridge/index.ts"))
 
 
+class TestCrossBridgeGuidanceIsCoherent(unittest.TestCase):
+    """Two bridges each injecting confident guidance, with nothing checking the
+    combination. stealth-web's guideline said to call web_search "for any task
+    needing current or external information" — unconditional, and it swallowed
+    every other route to the web. Observed twice: the model web_searched for a
+    LOCAL skill file whose path it had just been given, and it web_searched
+    instead of calling deep_research when told explicitly to call deep_research.
+    """
+
+    def test_web_search_guidance_is_scoped_not_absolute(self):
+        c = read("pi-extensions/stealth-web-bridge/index.ts")
+        self.assertNotIn("call web_search for any task needing current or external information", c)
+        self.assertIn("results of in THIS conversation", c)
+
+    def test_web_search_defers_to_deep_research_for_multi_part_questions(self):
+        c = read("pi-extensions/stealth-web-bridge/index.ts")
+        self.assertIn("prefer deep_research", c)
+
+    def test_web_search_says_not_to_search_for_local_files(self):
+        c = read("pi-extensions/stealth-web-bridge/index.ts")
+        self.assertIn("already on this machine", c)
+
+    def test_deep_research_states_it_is_a_tool_not_a_skill(self):
+        """Observed in the live run: the model's first thought was 'a skill
+        called deep_research. I need to first find it in the skill catalog'."""
+        c = read("pi-extensions/deep-research-bridge/index.ts")
+        self.assertIn("is a TOOL, not a skill", c)
+
+
 if __name__ == "__main__":
     unittest.main()

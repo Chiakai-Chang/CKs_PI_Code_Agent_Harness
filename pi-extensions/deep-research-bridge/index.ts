@@ -126,6 +126,7 @@ export default function (pi: ExtensionAPI) {
     promptSnippet:
       "deep_research(question, subQuestions[]): fan out sub-questions to isolated agent processes, get findings back",
     promptGuidelines: [
+      "deep_research is a TOOL, not a skill — call it directly. Do not look it up in the skill catalog.",
       "Use deep_research when a question needs several distinct things looked up and you do not want the raw pages in this context.",
       "Decompose first: pass sub-questions that are separately answerable, not restatements of each other.",
       "For a single lookup, call web_search/web_open directly — deep_research costs one agent run per sub-question.",
