@@ -255,6 +255,32 @@ function looksLikeFakeToolCall(text: string): boolean {
 // turn, which is how a single miss turns into a loop.
 const PI_TOOLS = new Set(["bash", "edit", "find", "grep", "ls", "read", "write"]);
 
+// Tools this harness registers through its own bridges. They are NOT Pi
+// built-ins, but they are entirely real, and the correction message must never
+// imply otherwise.
+//
+// Observed doing exactly that: the model emitted a Claude-style
+// `<function_calls><invoke name="web_search">` fake call, the transformer
+// correctly caught it, and then told the model "'web_search' is not a built-in
+// tool for Pi — only bash, edit, find, grep, ls, read, write are available".
+// The model's own reasoning recorded the contradiction: "the user explicitly
+// asked me to call web_search... the system is now saying web_search isn't
+// available and I should use one of the others. This is contradictory." It
+// burned all three strikes and handed back to the user asking whether it should
+// simulate a search with curl.
+//
+// A guard that talks the model out of a tool that exists is worse than no
+// guard. Keep this in sync with the tools the bridges register.
+const HARNESS_TOOLS = new Set([
+  "web_search", "web_open", "web_snapshot", "web_click", "web_type",
+  "web_press", "web_scroll", "web_screenshot", "web_evaluate",
+  "deep_research",
+]);
+
+function isKnownTool(name: string): boolean {
+  return PI_TOOLS.has(name) || HARNESS_TOOLS.has(name);
+}
+
 const TOOL_ALIASES: Record<string, string> = {
   read: "read", read_file: "read", readfile: "read", view: "read", cat: "read", open_file: "read", get_file: "read",
   write: "write", write_file: "write", writefile: "write", create_file: "write", create: "write", str_replace_editor: "edit",
@@ -311,7 +337,7 @@ interface ParsedToolTag {
 // Normalizes a raw {name, args} pair into Pi's tool vocabulary.
 function toParsedTag(rawName: string, rawArgs: Record<string, unknown>, raw: string, count = 1): ParsedToolTag {
   const name = canonicalizeToolName(rawName);
-  return { name, args: canonicalizeArgs(name, rawArgs), raw, count, unknownTool: !PI_TOOLS.has(name) };
+  return { name, args: canonicalizeArgs(name, rawArgs), raw, count, unknownTool: !isKnownTool(name) };
 }
 
 // Extracts every tool-call-shaped object from a JSON payload, fenced or bare,
@@ -617,8 +643,14 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
       parsedTag.count && parsedTag.count > 1
         ? `\n（你一次描述了 ${parsedTag.count} 個工具呼叫。請先發出第一個，其餘的在後續回合逐一發出。）`
         : "";
+    // Never assert that a tool does not exist. This guard knows Pi's built-ins
+    // and this harness's bridges; other extensions, packages and MCP servers
+    // register tools it cannot see. Telling a model "that tool is unavailable"
+    // when it was correctly asked to use it produces the contradiction
+    // documented above HARNESS_TOOLS — it burned all three strikes arguing with
+    // the guard instead of calling a tool that existed the whole time.
     const unknownNote = parsedTag.unknownTool
-      ? `\n⚠️ 注意：'${parsedTag.name}' 不是 Pi 的內建工具。可用的內建工具只有：${[...PI_TOOLS].join(", ")}。請改用其中最接近的一個。`
+      ? `\n（'${parsedTag.name}' 不在本守衛已知的清單內。若它由某個擴充提供，照樣以原生呼叫發出即可；若你其實想用內建工具，可用的是：${[...PI_TOOLS].join(", ")}。）`
       : "";
 
     ctx.ui.notify(

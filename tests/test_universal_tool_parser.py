@@ -106,11 +106,32 @@ class TestJsonToolCallParsing(unittest.TestCase):
         self.assertEqual(got["name"], "write")
         self.assertEqual(got["args"], {"path": "a.txt", "content": "hi"})
 
-    def test_unknown_tool_is_flagged_not_dropped(self):
-        sample = '```json\n{"tool": "web_search", "arguments": {"query": "pi agent"}}\n```'
+    def test_harness_registered_tools_are_not_flagged_as_unknown(self):
+        """A guard that talks the model out of a tool that exists is worse than
+        no guard. Observed live: the transformer told the model "'web_search' is
+        not a built-in tool for Pi", and the model's own reasoning recorded the
+        contradiction — "the user explicitly asked me to call web_search... the
+        system is now saying web_search isn't available. This is contradictory."
+        It burned all three strikes and asked the user whether to simulate the
+        search with curl instead."""
+        for tool in ("web_search", "web_open", "deep_research"):
+            sample = '```json\n{"tool": "%s", "arguments": {"query": "x"}}\n```' % tool
+            (got,) = run_parser([sample])
+            self.assertEqual(got["name"], tool)
+            self.assertFalse(got["unknownTool"], "%s is registered by a harness bridge" % tool)
+
+    def test_genuinely_unknown_tool_is_still_flagged(self):
+        sample = '```json\n{"tool": "bogus_tool", "arguments": {"query": "x"}}\n```'
         (got,) = run_parser([sample])
-        self.assertEqual(got["name"], "web_search")
-        self.assertTrue(got["unknownTool"], "non-builtin tool must be flagged so the prompt can list valid tools")
+        self.assertTrue(got["unknownTool"])
+
+    def test_correction_never_claims_a_tool_is_unavailable(self):
+        """The guard knows Pi's built-ins plus this harness's bridges; other
+        extensions, packages and MCP servers register tools it cannot see."""
+        with open(IDX, encoding="utf-8") as f:
+            src = f.read()
+        self.assertNotIn("不是 Pi 的內建工具", src)
+        self.assertIn("HARNESS_TOOLS", src)
 
     def test_pathological_unbalanced_input_terminates_fast(self):
         """An unbalanced opener restarts the balanced scan one char later —
