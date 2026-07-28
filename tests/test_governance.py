@@ -121,5 +121,26 @@ class TestMethodologyFirstPrinciple(unittest.TestCase):
         self.assertIn("Methodology-First", c)
 
 
+class TestDocumentedChecksRunInCI(unittest.TestCase):
+    """README and CLAUDE.md present these as the health checks. CI ran none of
+    them — a broken bridge registration or a machine path committed into the
+    tracked config template would have gone green."""
+
+    def setUp(self):
+        with open(os.path.join(ROOT, ".github", "workflows", "ci.yml"), encoding="utf-8") as f:
+            self.ci = f.read()
+
+    def test_every_documented_check_is_wired_into_ci(self):
+        with open(os.path.join(ROOT, "CLAUDE.md"), encoding="utf-8") as f:
+            claude = f.read()
+        import re as _re
+        documented = set(_re.findall(r"python (scripts/[a-z-]+\.py)", claude))
+        # measure-triggers runs the local model for minutes; deliberately not CI.
+        documented.discard("scripts/measure-triggers.py")
+        documented.discard("scripts/setup.py")
+        missing = [c for c in sorted(documented) if c not in self.ci]
+        self.assertEqual(missing, [], "documented checks absent from CI: %s" % missing)
+
+
 if __name__ == "__main__":
     unittest.main()

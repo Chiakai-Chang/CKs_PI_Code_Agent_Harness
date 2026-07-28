@@ -35,6 +35,14 @@ jobs:
         run: |
           python scripts/check-prompt-conflicts.py
 
+      - name: Verify bridge health
+        run: |
+          python scripts/verify-bridges.py
+
+      - name: Validate pi-config
+        run: |
+          python scripts/validate-config.py
+
       - name: Install shellcheck
         run: |
           sudo apt-get update
