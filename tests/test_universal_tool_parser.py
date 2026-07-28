@@ -125,6 +125,31 @@ class TestJsonToolCallParsing(unittest.TestCase):
         (got,) = run_parser([sample])
         self.assertTrue(got["unknownTool"])
 
+    def test_harness_tools_list_matches_what_the_bridges_register(self):
+        """HARNESS_TOOLS is a hand-maintained copy of what other bridges
+        register. It was correct the day it was written; a new tool added to a
+        bridge without updating it puts the guard straight back into telling the
+        model that a real tool does not exist."""
+        import glob
+        registered = set()
+        for idx in glob.glob(os.path.join(ROOT, "pi-extensions", "*", "index.ts")):
+            if idx.endswith(os.path.join("yes-hooks-bridge", "index.ts")):
+                continue
+            with open(idx, encoding="utf-8") as f:
+                src = f.read()
+            for m in re.finditer(r'registerTool\(\{[^}]*?name:\s*"([a-z_][a-z_0-9]*)"', src, re.S):
+                registered.add(m.group(1))
+        with open(IDX, encoding="utf-8") as f:
+            block = re.search(r"const HARNESS_TOOLS = new Set\(\[(.*?)\]\)", f.read(), re.S)
+        self.assertIsNotNone(block, "HARNESS_TOOLS set not found")
+        listed = set(re.findall(r'"([a-z_][a-z_0-9]*)"', block.group(1)))
+        self.assertEqual(
+            registered - listed, set(),
+            "bridges register tools missing from HARNESS_TOOLS: %s" % sorted(registered - listed))
+        self.assertEqual(
+            listed - registered, set(),
+            "HARNESS_TOOLS lists tools no bridge registers: %s" % sorted(listed - registered))
+
     def test_correction_never_claims_a_tool_is_unavailable(self):
         """The guard knows Pi's built-ins plus this harness's bridges; other
         extensions, packages and MCP servers register tools it cannot see."""
