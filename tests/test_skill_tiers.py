@@ -228,5 +228,56 @@ class TestCatalogBridgeWiring(unittest.TestCase):
         self.assertIn("event.systemPrompt ?? \"\"", src)
 
 
+class TestLocalSkillTiering(unittest.TestCase):
+    """pi-skills/core and pi-skills/optional were copied into the agent dir
+    wholesale, so the tiering that external/* skills go through never applied to
+    them.
+
+    Measured on the real system prompt (PI_HARNESS_DUMP_PROMPT, 2026-07-29):
+    60 natively registered skills = 6,446 tokens of <available_skills>, 46% of a
+    14,057-token system prompt — against 642 tokens for the 104 catalogued ones.
+    The catalogued ones cost ~6 tokens each; the natively registered ones ~307.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_non_core_local_skills_go_to_the_catalog(self):
+        write_skill(self.tmp, "brainstorming", name="brainstorming")
+        write_skill(self.tmp, "nothing-design", name="nothing-design")
+        write_skill(self.tmp, "cua-commander", name="cua-commander")
+        kept, tail = restore.tier_local_skills(self.tmp, {"brainstorming"})
+        self.assertEqual(kept, {"brainstorming"})
+        self.assertEqual(sorted(e["name"] for e in tail), ["cua-commander", "nothing-design"])
+        for e in tail:
+            self.assertTrue(e["path"].endswith("SKILL.md"))
+
+    def test_directory_without_a_skill_md_is_not_catalogued(self):
+        """pi-skills/core/bridges holds decision docs, not a skill."""
+        os.makedirs(os.path.join(self.tmp, "bridges"), exist_ok=True)
+        kept, tail = restore.tier_local_skills(self.tmp, set())
+        self.assertEqual(tail, [])
+
+    def test_missing_root_is_not_fatal(self):
+        kept, tail = restore.tier_local_skills(os.path.join(self.tmp, "nope"), {"x"})
+        self.assertEqual((kept, tail), (set(), []))
+
+    def test_catalog_merge_is_deduplicated_and_sorted(self):
+        path = os.path.join(self.tmp, "catalog.json")
+        restore.write_catalog(path, [{"name": "zeta", "path": "z/SKILL.md"}])
+        restore.merge_into_catalog(path, [
+            {"name": "alpha", "path": "a/SKILL.md"},
+            {"name": "zeta", "path": "OTHER/SKILL.md"},
+        ])
+        data = json.load(open(path, encoding="utf-8"))
+        names = [s["name"] for s in data["skills"]]
+        self.assertEqual(names, ["alpha", "zeta"])
+        self.assertEqual([s for s in data["skills"] if s["name"] == "zeta"][0]["path"],
+                         "z/SKILL.md", "an existing entry must win over a duplicate")
+
+
 if __name__ == "__main__":
     unittest.main()

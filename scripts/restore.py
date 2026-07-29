@@ -373,6 +373,52 @@ def write_catalog(path, entries):
         f.write("\n".join(lines) + "\n")
 
 
+def tier_local_skills(src_root, core_names):
+    """Split a local skill root (pi-skills/core, pi-skills/optional) into the
+    names that stay natively registered and catalog entries for the rest.
+
+    These directories were copied into the agent dir wholesale, so the tiering
+    that external/* skills go through never applied to them. Measured on the
+    real system prompt (PI_HARNESS_DUMP_PROMPT, 2026-07-29): 60 natively
+    registered skills = 6,446 tokens of <available_skills>, 46% of a
+    14,057-token system prompt, against 642 tokens for the 104 catalogued ones
+    — ~307 tokens each natively versus ~6 in the catalog.
+
+    A directory without a SKILL.md is not a skill (pi-skills/core/bridges holds
+    decision docs) and is neither kept nor catalogued here.
+    """
+    kept, tail = set(), []
+    if not os.path.isdir(src_root):
+        return kept, tail
+    for name in sorted(os.listdir(src_root)):
+        path = os.path.join(src_root, name)
+        if not os.path.isdir(path):
+            continue
+        skill_md = os.path.join(path, "SKILL.md")
+        if name in core_names:
+            kept.add(name)
+        elif os.path.exists(skill_md):
+            tail.append({"name": name, "path": skill_md.replace("\\", "/")})
+    return kept, tail
+
+
+def merge_into_catalog(path, entries):
+    """Add entries to an existing skill-catalog.json, keeping it sorted by name.
+
+    The catalog is written before local skills are copied, so the demoted local
+    ones are folded in afterwards rather than reordering the restore flow. An
+    existing entry wins: the external tiering already resolved that name.
+    """
+    try:
+        with open(path, encoding="utf-8") as f:
+            existing = json.load(f).get("skills", [])
+    except Exception:
+        existing = []
+    by_name = {e["name"]: e for e in reversed(entries) if isinstance(e, dict) and "name" in e}
+    by_name.update({e["name"]: e for e in existing if isinstance(e, dict) and "name" in e})
+    write_catalog(path, [by_name[n] for n in sorted(by_name)])
+
+
 def manifest_path_of(repo_root):
     return os.path.join(repo_root, "pi-config", "external-skills-manifest.json")
 
@@ -891,10 +937,30 @@ def main():
     for s_name in managed_skills:
         delete_path(os.path.join(skills_dst, s_name))
 
+    # Local skills go through the same tiering as external/* ones. Without this
+    # they were copied wholesale and natively registered: measured on the real
+    # prompt, 60 registered skills = 6,446 tokens every turn (46% of it), while
+    # the 104 catalogued ones cost 642. See tier_local_skills().
+    local_tier_mode, local_core_names = skill_tiers_from_config(
+        os.path.join(REPO_ROOT, "pi-config", "harness-config.json"))
+    local_tail = []
+
+    def tier_exclusions(src_root, base_exclude):
+        if local_tier_mode != "tiered":
+            return set(base_exclude)
+        _kept, tail = tier_local_skills(src_root, set(local_core_names))
+        local_tail.extend(tail)
+        # A demoted skill copied by an earlier restore is still registered until
+        # it is removed from the agent dir.
+        for entry in tail:
+            delete_path(os.path.join(skills_dst, entry["name"]))
+        return set(base_exclude) | {e["name"] for e in tail}
+
     if os.path.isdir(core_src):
         # "bridges" holds RATIONALE decision docs, not skills — keep it out of the agent dir
         # Also exclude "planning-with-files" because external submodule version is preferred
-        copy_dir_contents(core_src, skills_dst, exclude={"bridges", "planning-with-files"})
+        copy_dir_contents(core_src, skills_dst,
+                          exclude=tier_exclusions(core_src, {"bridges", "planning-with-files"}))
     else:
         log("Core skills directory not found, skipping.")
 
@@ -913,9 +979,14 @@ def main():
 
     if restore_optional and os.path.isdir(optional_src) and profile == "standard":
         log("Restoring optional skills...")
-        copy_dir_contents(optional_src, skills_dst)
+        copy_dir_contents(optional_src, skills_dst, exclude=tier_exclusions(optional_src, set()))
     else:
         log("Optional skills skipped (or not standard profile).")
+
+    if local_tail:
+        merge_into_catalog(os.path.join(REPO_ROOT, "pi-config", "skill-catalog.json"), local_tail)
+        log("  - %d local skill(s) moved to the on-demand catalog (not in skillTiers.core)"
+            % len(local_tail))
 
     # Rules
     log("Restoring rules...")
