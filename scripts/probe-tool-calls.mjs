@@ -42,7 +42,26 @@ if (!systemFile) {
 const url = arg("url", "http://127.0.0.1:8080").replace(/\/$/, "");
 const model = arg("model", "grm-2.6-plus");
 const repeats = Number(arg("repeats", "6"));
+// Every sampler is pinned in the request, not left to the server's defaults.
+// Comparing two models means comparing two launch scripts, and theirs differ
+// (grm: min_p 0.05 / repeat-penalty 1.05; fable-fusion: min_p 0.0 / 1.0) — that
+// is a second variable in what is supposed to be a single-variable comparison.
+// Defaults below are the intersection of both model cards' "thinking mode,
+// precise coding" preset, and honour Fable-Fusion's MTP rule (temp <= 1,
+// repeat-penalty off).
 const temp = Number(arg("temp", "0.6"));
+const topK = Number(arg("top-k", "20"));
+const topP = Number(arg("top-p", "0.95"));
+const minP = Number(arg("min-p", "0"));
+const repPen = Number(arg("rep-pen", "1.0"));
+// llama.cpp reuses the slot's KV prefix across requests. Every repeat after the
+// first therefore runs against a different engine state than the first, and
+// state left by whatever ran before the batch carries in too. Measured
+// 2026-07-29: the same server, prompt and samplers gave 0/6 in the morning and
+// 5/6 ten hours later, so something time- or state-dependent dominates a
+// six-run batch. --no-cache-prompt forces a full reprocess per request, which
+// costs ~90s each here but removes cross-request state as an explanation.
+const noCachePrompt = has("no-cache-prompt");
 const target = arg("target", "scripts/verify-bridges.py");
 const toolCount = Number(arg("tools", "13"));
 const asJson = has("json");
@@ -93,6 +112,11 @@ for (let i = 1; i <= repeats; i++) {
         ],
         tools,
         temperature: temp,
+        top_p: topP,
+        top_k: topK,
+        min_p: minP,
+        repeat_penalty: repPen,
+        ...(noCachePrompt ? { cache_prompt: false } : {}),
         max_tokens: 32768,
       }),
     });
@@ -142,11 +166,12 @@ for (let i = 1; i <= repeats; i++) {
 
 const cleanCount = results.filter((r) => r.clean).length;
 if (asJson) {
-  process.stdout.write(JSON.stringify({ model, tools: tools.length, temp, systemFile, clean: cleanCount, total: results.length, results }, null, 2));
+  process.stdout.write(JSON.stringify({ model, tools: tools.length, samplers: { temp, topK, topP, minP, repPen }, systemFile, clean: cleanCount, total: results.length, results }, null, 2));
 } else {
   const shapes = {};
   for (const r of results) shapes[r.shape ?? "request-failed"] = (shapes[r.shape ?? "request-failed"] ?? 0) + 1;
-  console.log(`\nclean ${cleanCount}/${results.length}  tools=${tools.length} temp=${temp} model=${model}`);
+  console.log(`\nclean ${cleanCount}/${results.length}  model=${model} tools=${tools.length}` +
+    ` temp=${temp} top_k=${topK} top_p=${topP} min_p=${minP} rep_pen=${repPen}`);
   console.log("shapes: " + Object.entries(shapes).map(([k, v]) => `${k}=${v}`).join(", "));
 }
 process.exit(cleanCount === results.length ? 0 : 1);

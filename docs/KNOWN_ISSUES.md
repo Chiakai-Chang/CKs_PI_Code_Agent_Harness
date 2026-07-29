@@ -144,37 +144,71 @@ so its arguments may be truncated.
 
 **症狀**：session 從頭到尾一個工具都沒真正呼叫。模型改以標籤文字描述呼叫（`<read><path>…</path></read>`），transformer 連續糾正三次，loop guard 交還使用者。
 
-**量測**（同一份 `chat_template.jinja`（qwen3.6-froggeric-v21.3）、同一組 13 個工具、23,284 token 的 system prompt、temperature 0.6，全部 `-ctk f16 -ctv f16`。乾淨 = `finish_reason` 為 `tool_calls` 且參數無標籤洩漏）：
+**量測**（`scripts/probe-tool-calls.mjs`。同一份 `chat_template.jinja`（qwen3.6-froggeric-v21.3）、同一組 13 個工具、同一份釘死的 fixture、全部 `-ctk f16 -ctv f16`、請求端釘死 temp 0.6 / top_k 20 / top_p 0.95 / min_p 0 / rep_pen 1。乾淨 = `finish_reason` 為 `tool_calls`、工具名正確、無標籤洩漏）：
 
 ```
-Q6_K   輕負載（504 tok、2 工具）      ->  3/3 乾淨
-Q6_K   重負載（23,284 tok、13 工具）  ->  0/6 乾淨
-Q6_K   多回合（4 回合工具鏈、24k 起）  ->  1/7 乾淨（3 個 session；2 次因生成 3,700+ token 散文而 client 逾時）
-Q4_K_M 輕負載（504 tok、2 工具）      ->  3/3 乾淨
-Q4_K_M 重負載（23,284 tok、13 工具）  ->  0/6 乾淨
+輕負載（~504 tok、2 工具）
+  GRM Q4_K_M   + lemonade          ->  3/3
+  GRM Q6_K     + lemonade          ->  3/3
+  Fable-711    + lemonade          ->  4/4
+
+重負載（23,280 tok、13 工具）
+  GRM Q4_K_M   + lemonade          ->  0/6
+  GRM Q6_K     + lemonade（新啟動） ->  1/12
+  GRM Q6_K     + 官方 HIP b10173   ->  0/12
+  Fable-711    + lemonade（新啟動） ->  0/12   （7 次 client 逾時）
+  GRM Q6_K     + lemonade（長時間運行中的實例，同日中午）
+                                   ->  4/6、5/6、1/1  ← 未能解釋
+多回合（4 回合工具鏈，GRM Q6_K）    ->  1/7
 ```
 
-**變數是 prompt 規模，不是量化。** 兩種量化在輕負載都乾淨、在重負載都失敗。
+**輕負載乾淨、重負載失敗，這一點在每個配置上都成立。**
 
-> ### ⚠️ 本節初稿的結論是錯的，保留以誌其事
+**已排除的變數**（每個都單獨測過）：權重量化（Q4_K_M / Q6_K）、推論引擎（lemonade `91d2fc3` / 官方 HIP `b10173`，後者含 `Disable -ffast-math on HIP`）、模型（GRM-2.6-Plus / Qwen3.6-27B-Fable-Fusion-711）、draft KV 量化、`--rope-freq-base`、`top_k`、`min_p` 與 `repeat_penalty`。
+
+> ### ⚠️ 這個量測的變異極大，不要用單一批次下結論
 >
-> 初稿標題是「權重量化才是變數，Q4_K_M 不堪用」，根據是 Q6_K 重負載跑出 **6/6 乾淨**、Q4_K_M 同條件 **0/6**。
+> 本節前兩版各宣告過一次根因，兩次都被自己的重測推翻：
 >
-> 那個 6/6 **重現不出來**。同一支腳本、同一台 Q6_K server、用 `git show HEAD:docs/KNOWN_ISSUES.md` 還原出一模一樣的 23,284 token prompt，重跑得到 **0/6**。差別在輸出長度：6/6 那次每回合只生 76–93 token 就發出呼叫，重跑時每回合生 587–964 token 的散文再拒絕。原因未查明，**不要當成已知**。
+> 1. **「權重量化才是變數，Q4_K_M 不堪用」** — 根據 Q6_K 6/6 對 Q4_K_M 0/6。那個 6/6 重現不出來，同條件重跑 0/6。
+> 2. **「變數是 prompt 規模，不是量化」** — 前半仍然成立（輕負載處處乾淨），
+>    但「重負載 0/6」被當成穩定事實寫進來。**同一台 server、同一份 prompt、同一組取樣，
+>    相隔十小時量到 0/6 與 5/6。**
 >
-> 教訓有二：（1）n=6 的單向結果不足以支撐根因宣告，要先重現再寫；（2）這支探測腳本的 system prompt 是用 repo 文件組出來的，寫這一節本身就讓 prompt 從 23,284 漲到 24,393 token——量測工具讀著自己正在被修改的輸入。
+> 目前已知：一個開機十小時、跑過大量流量的 server 實例給出 9/13 乾淨；
+> 三個全新啟動的實例給出 1/12、0/12、0/12。狀態或時間相關的因素支配著結果，
+> 來源不明（`--no-cache-prompt` 已加入探測作為下一個候選控制項，尚未使用）。
+>
+> **實務規則**：n=12 起跳；換配置一定要在同一時間窗內 ABAB 重測，不要跟幾小時前的數字比；
+> 差距沒有大過已觀察到的漂移幅度（幾乎滿幅）就當成「這個變數沒影響」。
 
 失敗**不是**參數失控，是更難察覺的形狀：`finish_reason=stop`、`tool_calls=0`，然後宣稱「File `scripts/verify-bridges.py` read. Stopping as instructed.」（沒讀）或「I don't have direct access to your local filesystem」（工具清單裡就有 `read`）。一次甚至把整份檔案內容捏造在 ```python 區塊裡。**這種輸出對 Pi 而言是一個正常結束的回合**，沒有任何守衛看得見。
 
-**逐一排除的混淆變數**（各自單獨測試，Q4_K_M 重負載）：
+換模型後失敗形狀會變，但不會消失。Fable-Fusion-711 在重負載下發明了不存在的呼叫語法：
 
 ```
--ctkd/-ctvd q8_0 -> f16   （draft KV 去量化）  ->  0/6 乾淨
-移除 --rope-freq-base 10000000                ->  0/6 乾淨
-top_k 20 -> 40（對齊 Q6 啟動器的預設）         ->  0/4 乾淨
+<tool_code><call_function name="read_file"><parameter name="path">…</parameter></call_function></tool_code>
+<tool_code>print(read_file("scripts/verify-bridges.py"))</tool_code>
+<antThinking>The user wants me to read the file …
 ```
 
-三個都無效。這連回本文上一節的結論：**降低每輪 prompt 規模不只是省 token，是直接降低這個失效模式的發生率**——目前唯一被重現過的有效槓桿就是這個。兩種量化在輕負載都測起來完全正常，正是這點讓人以為配置沒問題。
+**逐一排除的混淆變數**（各自單獨測試）：
+
+```
+-ctkd/-ctvd q8_0 -> f16（draft KV 去量化）        ->  0/6
+移除 --rope-freq-base 10000000                   ->  0/6
+top_k 20 -> 40                                   ->  0/4
+min_p 0.05 -> 0 且 repeat_penalty 1.05 -> 1.0    ->  4/6（同窗對照組 5/6，即噪音）
+lemonade 91d2fc3 -> 官方 HIP b10173               ->  0/12（同窗對照組 1/12）
+GRM-2.6-Plus -> Fable-Fusion-711                 ->  0/12（同窗對照組 1/12）
+```
+
+全部無效。**目前沒有任何被重現過的槓桿能讓重負載變乾淨**——包括本文上一節說的「降低 prompt 規模」：
+輕負載確實處處乾淨，但那是 ~500 tokens 對 23,280 tokens 的差距，
+而實務上把每輪 prompt 從 16,965 砍到 15,287 之後並未觀察到乾淨率變化。
+「砍 prompt 有幫助」目前只有「兩端點差異」這一個證據，中間段沒有量過，**不要當成已驗證的因果**。
+
+每個配置在輕負載都測起來完全正常，正是這點讓人以為配置沒問題。
 
 **處理**：
 - `C:\models\GRM-2.6-Plus_rocm7.bat`（Q6_K 主啟動器）原本只有 `--jinja`、沒有 `--chat-template-file`，等於根本沒載入修好的 template；已補上並實跑驗證（`/props` 回報 `qwen3.6-froggeric-v21.3`）。
