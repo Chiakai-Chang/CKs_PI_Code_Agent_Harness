@@ -1,22 +1,28 @@
 # 換模型驗收清單（2026-07-29 建立）
 
 背景見 [2026-07-29-tool-call-failure-modes-and-prompt-budget.md](2026-07-29-tool-call-failure-modes-and-prompt-budget.md)。
-`grm-2.6-plus` 在本 harness 的 prompt 規模下重負載 0/6 乾淨（Q4_K_M 與 Q6_K 皆然），
-下一步是換 `Qwen3.6-27B-Fable-Fusion-711`（DavidAU，AMD/MTP Q6_K 變體）比對。
 
-**這份清單存在的理由**：上一輪我用 n=6 的單向結果宣告了一個重現不出來的根因。
-換模型比對很容易再犯同一個錯，所以步驟裡把「釘死輸入」和「先重現」寫成硬性要求。
+**這份清單存在的理由**：2026-07-29 當天做的模型比較與引擎比較**全部作廢**，
+因為 fixture（23,280 tokens）比要模擬的對象（harness 真實每輪 15,287）重了 50%，
+落在門檻之上——那裡所有配置都會壞，於是每個比較都得到「沒有差別」。
+清單裡的每一條都是那天買到的，特別是 §2 的「fixture 大小要對齊真實負載」
+與 §4 的「兩邊都必須落在非地板區」。
+
+已完成、可直接沿用的部分：`Qwen3.6-27B-Fable-Fusion-711` 已下載並跑得起來
+（`C:\models\FableFusion-711-AMD_rocm7.bat`，載入與 template 都驗證過），
+規模階梯（§3 基線）也是用它量的。**尚未做的是「與 GRM 的有效比較」。**
 
 ---
 
 ## 0. 前置
 
-* GGUF 下載完成（`*.gguf.aria2` 消失才算完成，24 GB）。
-* `C:\models\FableFusion-711-AMD_rocm7.bat` 已備妥（未實跑驗證）。
+* `C:\models\FableFusion-711-AMD_rocm7.bat` 已實跑驗證（`/props` 回報正確的
+  `model_path` 與 `qwen3.6-froggeric-v21.3`）。
   它修掉了舊 `FableFusion-711_HIP.bat` 的三個問題：指向不存在的 BF16 mmproj、
   `-ctk/-ctv q8_0`、缺 `--chat-template-file`。
-* 決定要不要先更新 llama.cpp（見第 4 節）。**一次只動一個變數**：
-  要嘛先換模型、要嘛先更新引擎，不要一起。
+* **server 啟動後先暖機再量測。** 剛啟動與運行兩小時的同一台 server，
+  同一份 fixture 量到 0/12 與 6/8。暖機是目前最大的未解釋變異來源。
+* **一次只動一個變數**：要嘛換模型、要嘛換引擎，不要一起。
 
 ## 1. 啟動並確認載到的東西
 
@@ -37,23 +43,28 @@ console.log(j.model_path);console.log((j.chat_template||"").split("\n")[0])'
 
 * 載入中 `/props` 會回應但 `/v1/chat/completions` 回 503。**等到後者回 200 再開始量測。**
 
-## 2. 釘死量測輸入
+## 2. 釘死量測輸入，而且大小要對齊真實負載
 
-探測腳本的 system prompt 必須來自固定檔，不能指向工作區的活檔——
-寫報告會改動那些檔案，等於邊量邊改條件。
+兩條規則，第二條是 2026-07-29 花了一整天買到的：
+
+1. system prompt 必須來自固定檔，不能指向工作區的活檔——寫報告會改動那些檔案，
+   等於邊量邊改條件。
+2. **fixture 的大小必須對齊要模擬的對象。** 當天的「重負載」是 23,280 tokens，
+   而 harness 真實每輪只有 15,287；23k 在門檻之上，門檻之上所有配置都會壞，
+   於是每個配置比較都得到「沒有差別」——那是 fixture 造成的假象。
+
+所以先量目標，再造 fixture：
 
 ```bash
-# 輕負載基線
-printf 'You are a coding agent working in D:/MyProject/CKs_PI_Code_Agent_Harness.\n' > /tmp/sys-light.txt
+# 目標的真實值（Pi 實際送出的 system prompt）
+PI_HARNESS_DUMP_PROMPT=/tmp/real-prompt.txt pi --print "Reply with exactly: OK"
 
-# 重負載：用 git object 釘死，不要用工作區的檔案
-git show HEAD:CLAUDE.md            >  /tmp/sys-heavy.txt
-git show HEAD:pi-rules/AGENTS.md   >> /tmp/sys-heavy.txt
-git show HEAD:docs/KNOWN_ISSUES.md >> /tmp/sys-heavy.txt
-git show HEAD:README.md            >> /tmp/sys-heavy.txt
+# 至少三個點：乾淨區、目標值、門檻區
+#   乾淨區 ~14k、目標 ~15k、門檻 ~23k
+# 填充物要與工作無關（虛構文件即可），否則「大小」與「內容」會混在一起
 ```
 
-之後每次比對都用**同一份**檔案。要換內容就換檔名，不要就地修改。
+之後每次比對都用**同一組**檔案。要換內容就換檔名，不要就地修改。
 
 ## 3. 跑探測
 
@@ -77,21 +88,27 @@ node scripts/probe-tool-calls.mjs --system /tmp/sys-heavy.txt --tools 13 --repea
 | `markup-leak` | 標籤或 XML 洩漏進文字或參數 |
 | `no-call` / `wrong-call` | 其他 |
 
-**對照基線（grm-2.6-plus，同條件）**：
+**對照基線（Fable-Fusion-711，同一時間窗、已運行約兩小時的 server）**：
 
 ```
-輕負載（504 tok、2 工具）      ->  3/3 clean
-重負載（23,284 tok、13 工具）  ->  0/6 clean
+   671 tok  -> 12/12      14,095 tok -> 12/12      16,880 tok -> 8/8
+20,100 tok  ->  8/8       23,083 tok ->  6/8       26,052 tok -> 6/8
 ```
+
+同一份 23,280 fixture 在**剛啟動**的 server 上是 **0/12**。基線必須註明暖機狀態，
+否則不可比。
 
 ## 4. 判定規則（先重現，再下結論）
 
-* 重負載跑出 **≥5/6 clean** 才值得往下看；**先原樣再跑一次**確認能重現。
-  上一輪就是 6/6 沒重現，害我寫了個相反的結論。
-* 只有 1–2 次 clean = 噪音，不是改善。
-* 拿到穩定改善後，再跑多回合工具鏈（grm 基線 1/7），那才貼近真實 session。
+* **兩邊都必須落在非地板區。** 若兩個配置都在門檻之上（或都在剛啟動的 server 上），
+  結果會一起觸底，「沒有差別」是量測失效不是結論。當天的引擎與模型比較就是這樣作廢的。
+* 至少在**乾淨區與目標值各比一次**；只在門檻區比等於沒比。
+* **先原樣重跑一次**確認能重現，再下結論。當天有兩次 6/6 與 0/6 都沒重現。
+* 只有 1–2 次差異 = 噪音。差距要大過已觀察到的窗間漂移（0/12 ↔ 6/8，接近滿幅）才算數。
+* 拿到穩定改善後，再跑多回合工具鏈，那才貼近真實 session。
 * 最後才是真的開 Pi 跑一輪，看兩個新守衛（Guard 5 repeat-call、Guard 6 fabricated-work）
-  在實戰裡是否誤傷。它們目前只有單元測試。
+  在實戰裡是否誤傷。它們目前只有單元測試，而且它們攔的形狀只在門檻之上才常見，
+  所以要在長 session 裡驗，不是在乾淨的短 session 裡。
 
 ## 5. 引擎版本（獨立變數，今天就能測）
 
@@ -108,19 +125,21 @@ lemonade 那版有自己的編號（`version: 1`），不能跟 ggml-org 的 `bN
 官方兩版則明確是 **b10173**，也就是含 `b10156` 的
 **Disable -ffast-math on HIP**（commit `91f8c9c`）。
 
-這使「HIP 的 `-ffast-math` 是否參與了重負載下的品質崩壞」變成**可直接對照的實驗**：
-同一個 GGUF、同一份釘死 fixture、同一組取樣參數，只換 binary 目錄：
+**這個對照 2026-07-29 跑過，結果作廢，不是「無差別」**：
 
 ```
-C:\models\llama-bin-win-rocm7-gfx1151   (91d2fc3, 目前主力)
-C:\models\llama-bin-win-hip-radeon-x64  (b10173, 含 -ffast-math 修正)
+lemonade 91d2fc3        + GRM Q6_K，23,280 tok，新啟動 server  ->  1/12
+官方 HIP b10173         + GRM Q6_K，同上                       ->  0/12
 ```
 
-取捨：lemonade 版是這台機器的 PP 冠軍（`GRM-2.6-Plus_rocm7.bat` 註解記錄
-PP 320 t/s vs 官方 HIP 264，Vulkan 145）。若官方 HIP 的乾淨率明顯較高，
-慢一點是划算的；若兩者一樣爛，就確定跟這個 commit 無關，可以收掉這條線。
+兩邊都在門檻之上、又都是剛啟動的 server，也就是**同時觸底**。這種條件下
+1/12 對 0/12 分辨不出任何東西。要重做就照 §2 造對齊過的 fixture、
+在暖機後的 server 上，於乾淨區與目標值各比一次。
 
-**引擎與模型分開測。** 兩個變數一起動又是一次白測——這一天已經因此白跑過一輪。
+取捨（若重做且真有差）：lemonade 版是這台機器的 PP 冠軍（`GRM-2.6-Plus_rocm7.bat`
+註解記錄 PP 320 t/s vs 官方 HIP 264，Vulkan 145）。
+
+**引擎與模型分開測。** 兩個變數一起動又是一次白測。
 
 ## 6. 換模型後要一起改的
 
