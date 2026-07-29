@@ -652,6 +652,59 @@ def cap_context_window(models, ceiling):
     return capped
 
 
+def load_harness_config(repo_root):
+    """harness-config.json, with harness-config.local.json layered on top.
+
+    Context limits are a property of the machine — model, quant, GPU, installed
+    skill set — not of the harness. Committing one machine's measurements into
+    the shared config would ship them to every user, the same way a hardcoded
+    `C:\\Program Files\\Git` would. The local file is gitignored; the shared one
+    keeps inert defaults so a fresh clone behaves exactly as before.
+
+    A malformed local file is ignored rather than fatal: it must not be able to
+    stop someone running restore.
+    """
+    shared = load_json(os.path.join(repo_root, "pi-config", "harness-config.json")) or {}
+    local_path = os.path.join(repo_root, "pi-config", "harness-config.local.json")
+    if os.path.exists(local_path):
+        try:
+            with open(local_path, encoding="utf-8") as f:
+                local = json.load(f)
+            if isinstance(local, dict):
+                shared = {**shared, **local}
+        except Exception:
+            pass
+    return shared
+
+
+# A rung is (prompt_tokens, clean_runs, total_runs).
+CEILING_MIN_SAMPLES = 6
+
+
+def suggest_usable_ceiling(ladder):
+    """Largest ladder rung that came back fully clean with enough samples.
+
+    Rungs measured with fewer than CEILING_MIN_SAMPLES runs are ignored: on
+    2026-07-29 a 6/6 and a 12/12 both failed to reproduce, and small batches
+    measured the server's state rather than the prompt size. Returns None when
+    nothing qualifies — better no ceiling than a ceiling above the cliff.
+
+    The returned value is scaled up so that the *trigger* — ceiling minus a
+    reserve of ceiling // 4 — lands on the largest clean rung. The session sits
+    at the trigger, not at the ceiling; returning the rung itself would park the
+    trigger 25% below the largest size measured to work and throw away headroom
+    that was paid for in probe runs.
+    """
+    best = None
+    for size, clean, total in sorted(ladder or []):
+        if total < CEILING_MIN_SAMPLES or clean < total:
+            continue
+        best = size
+    if best is None:
+        return None
+    return int(round(best * 4 / 3))
+
+
 # Rough room for the summary compaction writes back into the context.
 COMPACTION_SUMMARY_ALLOWANCE = 1200
 # Landing exactly on the trigger still re-fires; leave a little air.
@@ -694,12 +747,19 @@ def compaction_headroom_warning(ceiling, per_turn_floor):
     settings = compaction_settings_for(ceiling, per_turn_floor)
     trigger = ceiling - settings["reserveTokens"]
     landing = per_turn_floor + COMPACTION_SUMMARY_ALLOWANCE + settings["keepRecentTokens"]
-    if landing < trigger:
+    # Landing just under the trigger is not success. With a floor of 15,414
+    # against a 20,100 trigger, compaction lands at 19,588 — no loop, but only
+    # 512 tokens of conversation before it fires again. Report that too: the
+    # cause is the same (the per-turn prompt is too large for the window) and
+    # calling it healthy would hide it.
+    headroom = trigger - landing
+    if headroom >= max(1024, trigger // 6):
         return None
     return (
         f"per-turn prompt is {per_turn_floor} tokens against a {ceiling}-token usable ceiling: "
-        f"even keeping the minimum, compaction lands at ~{landing} against a {trigger} trigger, "
-        f"so it would fire every turn. Cut the per-turn prompt or raise usableContextTokens."
+        f"compaction lands at ~{landing} against a {trigger} trigger, leaving {max(0, headroom)} "
+        f"tokens of conversation before it fires again. Cut the per-turn prompt "
+        f"(skills registered natively, rules files, tool schemas) or raise usableContextTokens."
     )
 
 
@@ -982,7 +1042,7 @@ def main():
     usable_ceiling = 0
     per_turn_floor = 0
     try:
-        _hc = load_json(os.path.join(REPO_ROOT, "pi-config", "harness-config.json")) or {}
+        _hc = load_harness_config(REPO_ROOT)
         usable_ceiling = int(_hc.get("usableContextTokens") or 0)
         per_turn_floor = int(_hc.get("perTurnPromptTokens") or 0)
     except Exception:

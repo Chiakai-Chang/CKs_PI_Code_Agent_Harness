@@ -349,15 +349,159 @@ class TestUsableContextCeiling(unittest.TestCase):
     def test_floor_too_large_for_the_ceiling_is_reported(self):
         """No keepRecent value can help when the fixed prompt alone nearly fills
         the usable window — that has to be said out loud, not silently clamped."""
-        self.assertIsNone(restore.compaction_headroom_warning(26000, 15287))
+        self.assertIsNone(restore.compaction_headroom_warning(26000, 8000),
+                          "a floor with room to spare stays silent")
         w = restore.compaction_headroom_warning(26000, 19000)
         self.assertIsNotNone(w)
         self.assertIn("19000", w)
+
+
+    def test_thrashing_is_reported_even_when_it_technically_fits(self):
+        """Landing just under the trigger is not success.
+
+        Measured setup: floor 15,414, ceiling 26,800, trigger 20,100. Compaction
+        lands at 19,588 — below the trigger, so no loop, but only 512 tokens of
+        conversation before it fires again. That is thrashing, and calling it
+        healthy would hide the real problem: the per-turn prompt is too large
+        for this model's usable window.
+        """
+        w = restore.compaction_headroom_warning(26800, 15414)
+        self.assertIsNotNone(w)
+        self.assertIn("15414", w)
+
+    def test_comfortable_headroom_is_silent(self):
+        self.assertIsNone(restore.compaction_headroom_warning(26800, 8000))
 
     def test_floor_unknown_keeps_the_old_derivation(self):
         s = restore.compaction_settings_for(26000)
         self.assertEqual(s["keepRecentTokens"], 26000 // 8)
 
+
+
+class TestHarnessConfigLocalOverride(unittest.TestCase):
+    """Context limits are a property of the machine, not of the harness.
+
+    usableContextTokens and perTurnPromptTokens depend on the model, the quant,
+    the GPU and the installed skill set. Committing one machine's measurements
+    into the shared config would ship them to everyone — the same rule that
+    keeps machine paths out of the templates (CLAUDE.md, Forbidden
+    Anti-Patterns). They belong in a gitignored local file, like settings.json
+    and models.json already are.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        os.makedirs(os.path.join(self.tmp, "pi-config"), exist_ok=True)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _write(self, name, data):
+        with open(os.path.join(self.tmp, "pi-config", name), "w", encoding="utf-8") as f:
+            json.dump(data, f)
+
+    def test_local_file_overrides_shared_values(self):
+        self._write("harness-config.json", {"usableContextTokens": 0, "promptProfile": "slim"})
+        self._write("harness-config.local.json", {"usableContextTokens": 26000})
+        cfg = restore.load_harness_config(self.tmp)
+        self.assertEqual(cfg["usableContextTokens"], 26000)
+        self.assertEqual(cfg["promptProfile"], "slim", "unrelated shared keys must survive")
+
+    def test_without_a_local_file_the_shared_defaults_stand(self):
+        self._write("harness-config.json", {"usableContextTokens": 0})
+        cfg = restore.load_harness_config(self.tmp)
+        self.assertEqual(cfg["usableContextTokens"], 0)
+
+    def test_malformed_local_file_is_ignored_not_fatal(self):
+        """A broken override must not stop someone from running restore."""
+        self._write("harness-config.json", {"usableContextTokens": 0})
+        with open(os.path.join(self.tmp, "pi-config", "harness-config.local.json"), "w") as f:
+            f.write("{not json")
+        cfg = restore.load_harness_config(self.tmp)
+        self.assertEqual(cfg["usableContextTokens"], 0)
+
+    def test_shared_config_ships_no_machine_measurements(self):
+        """Guards the actual repo file, not a fixture: these two keys must stay
+        at their inert defaults so a fresh clone changes nothing."""
+        cfg = json.load(open(os.path.join(ROOT, "pi-config", "harness-config.json"), encoding="utf-8"))
+        self.assertEqual(cfg.get("usableContextTokens", 0), 0)
+        self.assertEqual(cfg.get("perTurnPromptTokens", 0), 0)
+
+
+class TestCeilingSuggestion(unittest.TestCase):
+    """Turning a measured ladder into a ceiling, so nobody has to eyeball it."""
+
+    def test_picks_the_largest_fully_clean_rung(self):
+        ladder = [(14000, 12, 12), (17000, 8, 8), (20000, 8, 8), (23000, 6, 8), (26000, 6, 8)]
+        # Scaled so the trigger (ceiling - ceiling//4) lands on the 20,000 rung.
+        self.assertEqual(restore.suggest_usable_ceiling(ladder), 26667)
+
+    def test_returns_none_when_even_the_smallest_rung_fails(self):
+        self.assertIsNone(restore.suggest_usable_ceiling([(14000, 5, 8), (17000, 4, 8)]))
+
+
+    def test_ceiling_is_derived_so_the_trigger_lands_on_the_clean_rung(self):
+        """The ceiling is not where the session sits — the trigger is.
+
+        Compaction fires at ceiling - reserve (reserve = ceiling // 4), so
+        returning the clean rung as the ceiling parks the trigger 25% BELOW the
+        largest size known to work, throwing away headroom that was measured.
+        """
+        ladder = [(14000, 8, 8), (20100, 8, 8), (23083, 6, 8)]
+        ceiling = restore.suggest_usable_ceiling(ladder)
+        trigger = ceiling - restore.compaction_settings_for(ceiling)["reserveTokens"]
+        self.assertGreaterEqual(trigger, 20100 * 0.95,
+                                "the trigger should land at the largest clean rung, not below it")
+        self.assertLessEqual(trigger, 23083, "and never above a rung known to degrade")
+
+    def test_ignores_rungs_measured_with_too_few_samples(self):
+        """One clean run at a big size is noise; the whole day proved that."""
+        self.assertEqual(restore.suggest_usable_ceiling([(14000, 8, 8), (26000, 2, 2)]), 18667)
+
+
+class TestCalibrateContext(unittest.TestCase):
+    """The harness ships the measurement, not one machine's result."""
+
+    def setUp(self):
+        sys.path.insert(0, os.path.join(ROOT, "scripts"))
+        import importlib
+        self.cal = importlib.import_module("calibrate-context".replace("-", "_"))             if False else self._load()
+        self.tmp = tempfile.mkdtemp()
+
+    def _load(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "calibrate_context", os.path.join(ROOT, "scripts", "calibrate-context.py"))
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_token_estimate_matches_pis_own_heuristic(self):
+        """Pi estimates untokenized messages at chars/4; using a different rule
+        would make our written number disagree with what Pi compares against."""
+        self.assertEqual(self.cal.estimate_tokens("a" * 400), 100)
+        self.assertEqual(self.cal.estimate_tokens(""), 0)
+
+    def test_falls_back_to_the_estimate_without_a_server(self):
+        tokens, how = self.cal.count_tokens("x" * 800, None)
+        self.assertEqual(tokens, 200)
+        self.assertIn("estimate", how)
+
+    def test_unreachable_server_is_not_fatal(self):
+        self.assertIsNone(self.cal.tokenize_via_server("hi", "http://127.0.0.1:1"))
+
+    def test_write_local_preserves_unrelated_keys(self):
+        path = os.path.join(self.tmp, "local.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"somethingElse": True}, f)
+        self.cal.LOCAL_CONFIG = path
+        self.cal.write_local({"perTurnPromptTokens": 15287})
+        data = json.load(open(path, encoding="utf-8"))
+        self.assertTrue(data["somethingElse"])
+        self.assertEqual(data["perTurnPromptTokens"], 15287)
 
 
 if __name__ == "__main__":

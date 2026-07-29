@@ -24,3 +24,6 @@ start-agents-a1.bat
 
 # Upstream source clones for reference (not tracked)
 reference/
+
+# Machine-specific context calibration (see harness-config.local.json.example)
+pi-config/harness-config.local.json

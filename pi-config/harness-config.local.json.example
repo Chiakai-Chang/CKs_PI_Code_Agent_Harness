@@ -1,0 +1,5 @@
+{
+  "_comment": "Machine-specific overrides, layered over harness-config.json. Gitignored: these values depend on your model, quant, GPU and installed skills, not on the harness. Generate with `python scripts/calibrate-context.py --write`. Copy to harness-config.local.json to hand-edit.",
+  "usableContextTokens": 0,
+  "perTurnPromptTokens": 0
+}
