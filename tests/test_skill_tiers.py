@@ -279,5 +279,86 @@ class TestLocalSkillTiering(unittest.TestCase):
                          "z/SKILL.md", "an existing entry must win over a duplicate")
 
 
+class TestUsableContextCeiling(unittest.TestCase):
+    """llama.cpp is launched with -c 262144 and models.json declared the same,
+    so Pi computed its compaction trigger as
+
+        contextTokens > contextWindow - reserveTokens = 262144 - 16384 = 245,760
+
+    while the model measurably starts fabricating tool calls at ~23,000
+    (docs/KNOWN_ISSUES.md). Compaction could never fire before quality
+    collapsed: the captured runaway reached 51,915 tokens still going.
+
+    The engine's context window is not the usable one. Declaring the usable
+    ceiling is what makes compaction protective instead of decorative.
+    """
+
+    def test_ceiling_lowers_context_window_and_max_tokens(self):
+        models = {"providers": {"local": {"models": [
+            {"id": "m", "contextWindow": 262144, "maxTokens": 32768}]}}}
+        capped = restore.cap_context_window(models, 26000)
+        m = models["providers"]["local"]["models"][0]
+        self.assertEqual(m["contextWindow"], 26000)
+        self.assertLessEqual(m["maxTokens"], 26000 // 4)
+        self.assertEqual(capped, ["m"])
+
+    def test_ceiling_never_raises_a_smaller_window(self):
+        """A model genuinely limited to 8k must not be told it has 26k."""
+        models = {"providers": {"local": {"models": [
+            {"id": "small", "contextWindow": 8192, "maxTokens": 2048}]}}}
+        self.assertEqual(restore.cap_context_window(models, 26000), [])
+        m = models["providers"]["local"]["models"][0]
+        self.assertEqual(m["contextWindow"], 8192)
+        self.assertEqual(m["maxTokens"], 2048)
+
+    def test_disabled_by_default_is_a_no_op(self):
+        """Platform-agnostic default: other people's models may be fine at full
+        context, so an unset ceiling must change nothing."""
+        models = {"providers": {"local": {"models": [
+            {"id": "m", "contextWindow": 262144, "maxTokens": 32768}]}}}
+        for ceiling in (0, None):
+            self.assertEqual(restore.cap_context_window(models, ceiling), [])
+        self.assertEqual(models["providers"]["local"]["models"][0]["contextWindow"], 262144)
+
+    def test_compaction_settings_fire_inside_the_ceiling(self):
+        s = restore.compaction_settings_for(26000)
+        self.assertTrue(s["enabled"])
+        trigger = 26000 - s["reserveTokens"]
+        self.assertLess(trigger, 26000, "compaction must trigger below the ceiling")
+        self.assertGreater(trigger, s["keepRecentTokens"],
+                           "keeping more than the trigger allows would compact forever")
+
+    def test_compaction_settings_disabled_ceiling_returns_nothing(self):
+        self.assertIsNone(restore.compaction_settings_for(0))
+
+    def test_keep_recent_leaves_room_for_the_fixed_per_turn_floor(self):
+        """The system prompt is present in every turn, so it is a floor under
+        the post-compaction context, not part of what compaction can remove.
+
+        Measured on this harness: 15,287 tokens per turn. With a 26,000 ceiling
+        the trigger is 19,500, so keeping Pi's derived 3,250 recent tokens would
+        land at 15,287 + summary + 3,250 = over the trigger again — compaction
+        would fire forever without ever getting under it.
+        """
+        s = restore.compaction_settings_for(26000, per_turn_floor=15287)
+        trigger = 26000 - s["reserveTokens"]
+        self.assertLess(15287 + restore.COMPACTION_SUMMARY_ALLOWANCE + s["keepRecentTokens"],
+                        trigger,
+                        "post-compaction context must land below the trigger")
+
+    def test_floor_too_large_for_the_ceiling_is_reported(self):
+        """No keepRecent value can help when the fixed prompt alone nearly fills
+        the usable window — that has to be said out loud, not silently clamped."""
+        self.assertIsNone(restore.compaction_headroom_warning(26000, 15287))
+        w = restore.compaction_headroom_warning(26000, 19000)
+        self.assertIsNotNone(w)
+        self.assertIn("19000", w)
+
+    def test_floor_unknown_keeps_the_old_derivation(self):
+        s = restore.compaction_settings_for(26000)
+        self.assertEqual(s["keepRecentTokens"], 26000 // 8)
+
+
+
 if __name__ == "__main__":
     unittest.main()

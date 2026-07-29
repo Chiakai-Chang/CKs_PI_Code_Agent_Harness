@@ -614,6 +614,95 @@ def heal_max_tokens(models):
                 healed.append(model.get("id"))
     return healed
 
+# The engine's context window is not the usable one.
+#
+# llama.cpp is launched with -c 262144 and models.json declared the same, so Pi
+# computed its compaction trigger as
+#
+#     contextTokens > contextWindow - reserveTokens = 262144 - 16384 = 245,760
+#
+# while this machine's models measurably start fabricating tool calls at around
+# 23,000 tokens (docs/KNOWN_ISSUES.md: 20,100 -> 8/8 clean, 23,083 -> 6/8).
+# Compaction could not fire before quality collapsed — the captured runaway was
+# still going at 51,915 tokens.
+#
+# Declaring the usable ceiling is what turns compaction from decorative into
+# protective. Disabled by default: other people's models may be fine at their
+# full context, and this harness must not assume this machine's.
+def cap_context_window(models, ceiling):
+    """Lower every declared contextWindow to `ceiling`, never raise it.
+
+    maxTokens comes down with it — a model allowed to emit 32,768 tokens can
+    blow the whole budget in one turn, and runaway prose of 3,534 tokens was
+    observed repeatedly. Returns the ids actually changed.
+    """
+    if not ceiling or ceiling <= 0:
+        return []
+    capped = []
+    for provider in (models.get("providers") or {}).values():
+        for model in provider.get("models") or []:
+            declared = model.get("contextWindow") or 0
+            if declared <= ceiling:
+                continue
+            model["contextWindow"] = ceiling
+            room = max(1024, ceiling // 4)
+            if (model.get("maxTokens") or 0) > room:
+                model["maxTokens"] = room
+            capped.append(model.get("id"))
+    return capped
+
+
+# Rough room for the summary compaction writes back into the context.
+COMPACTION_SUMMARY_ALLOWANCE = 1200
+# Landing exactly on the trigger still re-fires; leave a little air.
+COMPACTION_MARGIN = 512
+
+
+def compaction_settings_for(ceiling, per_turn_floor=0):
+    """Compaction settings that fire inside the ceiling instead of above it.
+
+    Pi's defaults (reserve 16,384 / keepRecent 20,000) are sized for a 200k
+    frontier context; against a ~26k usable window they would both trigger too
+    late and keep more than the window allows.
+
+    `per_turn_floor` is the system prompt + tool schemas: present in every turn,
+    so it is a floor under the post-compaction context, not something compaction
+    can remove. Ignoring it is how the first version of this function produced
+    settings that would compact forever — 15,287 floor + 1,200 summary + 3,250
+    kept = 19,737 against a 19,500 trigger. Returns None when no ceiling is
+    configured, so settings.json is left alone.
+    """
+    if not ceiling or ceiling <= 0:
+        return None
+    reserve = max(2048, ceiling // 4)
+    keep = max(1024, ceiling // 8)
+    if per_turn_floor:
+        room = (ceiling - reserve) - per_turn_floor - COMPACTION_SUMMARY_ALLOWANCE - COMPACTION_MARGIN
+        keep = max(1024, min(keep, room))
+    return {"enabled": True, "reserveTokens": reserve, "keepRecentTokens": keep}
+
+
+def compaction_headroom_warning(ceiling, per_turn_floor):
+    """Say it out loud when the fixed prompt leaves no room to compact into.
+
+    Below a floor of one full exchange there is nothing compaction can do: it
+    will fire, keep the minimum, and still be over the trigger. The answer then
+    is a smaller per-turn prompt or a higher ceiling, not a different keepRecent.
+    """
+    if not ceiling or not per_turn_floor:
+        return None
+    settings = compaction_settings_for(ceiling, per_turn_floor)
+    trigger = ceiling - settings["reserveTokens"]
+    landing = per_turn_floor + COMPACTION_SUMMARY_ALLOWANCE + settings["keepRecentTokens"]
+    if landing < trigger:
+        return None
+    return (
+        f"per-turn prompt is {per_turn_floor} tokens against a {ceiling}-token usable ceiling: "
+        f"even keeping the minimum, compaction lands at ~{landing} against a {trigger} trigger, "
+        f"so it would fire every turn. Cut the per-turn prompt or raise usableContextTokens."
+    )
+
+
 def check_models_against_server(models, probe=None):
     """Compare declared model specs against the live local server's truth.
 
@@ -888,6 +977,26 @@ def main():
                 clean_prompts.append(pr)
         settings["prompts"] = clean_prompts
 
+    # Compaction must fire inside the usable window, not the engine's. Pi's
+    # defaults are sized for a 200k frontier context; see cap_context_window().
+    usable_ceiling = 0
+    per_turn_floor = 0
+    try:
+        _hc = load_json(os.path.join(REPO_ROOT, "pi-config", "harness-config.json")) or {}
+        usable_ceiling = int(_hc.get("usableContextTokens") or 0)
+        per_turn_floor = int(_hc.get("perTurnPromptTokens") or 0)
+    except Exception:
+        usable_ceiling, per_turn_floor = 0, 0
+    compaction = compaction_settings_for(usable_ceiling, per_turn_floor)
+    if compaction:
+        settings["compaction"] = compaction
+        log(f"  - compaction: trigger at {usable_ceiling - compaction['reserveTokens']} tokens, "
+            f"keep {compaction['keepRecentTokens']} recent"
+            + (f" (per-turn floor {per_turn_floor})" if per_turn_floor else ""))
+        headroom = compaction_headroom_warning(usable_ceiling, per_turn_floor)
+        if headroom:
+            log(f"  ! {headroom}")
+
     save_json(settings_dest, settings)
     log("  - settings.json updated" + ("" if args.config_only else " with submodule paths"))
 
@@ -900,10 +1009,14 @@ def main():
             existing_models = load_json(models_dest) if os.path.exists(models_dest) else {}
             merged_models = merge_models(existing_models, models_data)
             healed = heal_max_tokens(merged_models)
+            capped = cap_context_window(merged_models, usable_ceiling)
             save_json(models_dest, merged_models)
             log("  - models.json synced (merged)")
             for mid in healed:
                 log(f"  - {mid}: maxTokens raised from legacy 4096 to fit contextWindow")
+            for mid in capped:
+                log(f"  - {mid}: contextWindow capped to usableContextTokens={usable_ceiling} "
+                    f"(compaction now fires at {usable_ceiling - max(2048, usable_ceiling // 4)})")
             for warning in check_models_against_server(merged_models):
                 log(f"  ! {warning}")
 
