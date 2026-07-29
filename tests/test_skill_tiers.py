@@ -372,6 +372,28 @@ class TestUsableContextCeiling(unittest.TestCase):
     def test_comfortable_headroom_is_silent(self):
         self.assertIsNone(restore.compaction_headroom_warning(26800, 8000))
 
+
+    def test_turning_the_ceiling_off_removes_the_override(self):
+        """Disabling usableContextTokens must not leave the derived compaction
+        settings behind.
+
+        Observed 2026-07-29: after reverting the ceiling to 0, models.json went
+        back to 262,144 but settings.json kept reserveTokens 6700 /
+        keepRecentTokens 2974 — so compaction would trigger at 255,444 and keep
+        only 2,974 tokens, which is worse than Pi's own defaults. A stale value
+        nobody chose is exactly the zombie config CLAUDE.md forbids.
+        """
+        settings = {"compaction": {"enabled": True, "reserveTokens": 6700, "keepRecentTokens": 2974}}
+        restore.apply_compaction_settings(settings, 0, 0)
+        self.assertNotIn("compaction", settings)
+
+    def test_a_users_own_compaction_block_is_left_alone(self):
+        """Only remove what this harness derived. If the ceiling is off and the
+        values do not match anything we would have written, they are the user's."""
+        mine = {"compaction": {"enabled": False}}
+        restore.apply_compaction_settings(mine, 0, 0)
+        self.assertEqual(mine["compaction"], {"enabled": False})
+
     def test_floor_unknown_keeps_the_old_derivation(self):
         s = restore.compaction_settings_for(26000)
         self.assertEqual(s["keepRecentTokens"], 26000 // 8)

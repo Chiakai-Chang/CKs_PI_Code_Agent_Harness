@@ -735,6 +735,25 @@ def compaction_settings_for(ceiling, per_turn_floor=0):
     return {"enabled": True, "reserveTokens": reserve, "keepRecentTokens": keep}
 
 
+def apply_compaction_settings(settings, ceiling, per_turn_floor):
+    """Write the derived compaction block, or remove one we wrote earlier.
+
+    Turning the ceiling off has to undo itself. Leaving the derived values
+    behind means compaction triggers relative to the full declared window while
+    keeping the tiny amount sized for the small one — worse than Pi's defaults
+    and chosen by nobody. Only a block that matches what this function would
+    have produced is removed; anything else is the user's and stays.
+    """
+    derived = compaction_settings_for(ceiling, per_turn_floor)
+    if derived:
+        settings["compaction"] = derived
+        return derived
+    current = settings.get("compaction")
+    if isinstance(current, dict) and {"enabled", "reserveTokens", "keepRecentTokens"} <= set(current):
+        settings.pop("compaction", None)
+    return None
+
+
 def compaction_headroom_warning(ceiling, per_turn_floor):
     """Say it out loud when the fixed prompt leaves no room to compact into.
 
@@ -1047,9 +1066,8 @@ def main():
         per_turn_floor = int(_hc.get("perTurnPromptTokens") or 0)
     except Exception:
         usable_ceiling, per_turn_floor = 0, 0
-    compaction = compaction_settings_for(usable_ceiling, per_turn_floor)
+    compaction = apply_compaction_settings(settings, usable_ceiling, per_turn_floor)
     if compaction:
-        settings["compaction"] = compaction
         log(f"  - compaction: trigger at {usable_ceiling - compaction['reserveTokens']} tokens, "
             f"keep {compaction['keepRecentTokens']} recent"
             + (f" (per-turn floor {per_turn_floor})" if per_turn_floor else ""))
