@@ -28,7 +28,7 @@
  *      turn — AGENTS.md §4's "3-Strike Cap", enforced as code.
  */
 import type { ExtensionAPI, ToolCallEvent, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve, relative, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
@@ -200,6 +200,54 @@ function runawayArgumentGuard(event: ToolCallEvent, ctx: ExtensionContext) {
   };
 }
 
+// Guard 5: the same call, over and over, each one succeeding.
+//
+// Captured live (session 019fab1e): 26 consecutive
+// `read {"path":"scripts/verify-bridges.py"}` calls in answer to a one-line
+// prompt, each returning the same file, prompt growing ~1,464 tokens per turn
+// to 51,915 before the 10-minute cap killed it.
+//
+// No existing guard could see it. The loop guard keys on "turn ended with NO
+// real tool call" and every one of these turns had one, so its counters reset
+// each time. runawayArgumentGuard looks for oversized or markup-bearing
+// argument values; these arguments were short and correct. A call that
+// succeeds and teaches the model nothing is a blind spot for both.
+//
+// Consecutive only: any different call resets the count, so edit/test/edit/test
+// cycles — identical `bash` calls separated by real work — are untouched.
+const REPEAT_CALL_LIMIT = 4;
+let lastCallSignature = "";
+let repeatedCallCount = 0;
+
+function repeatCallGuard(event: ToolCallEvent) {
+  let signature: string;
+  try {
+    signature = `${event.toolName}:${JSON.stringify(event.input ?? {})}`;
+  } catch {
+    return; // unserializable input — can't fingerprint, fail open
+  }
+  if (signature !== lastCallSignature) {
+    lastCallSignature = signature;
+    repeatedCallCount = 1;
+    return;
+  }
+  repeatedCallCount += 1;
+  if (repeatedCallCount < REPEAT_CALL_LIMIT) return;
+  // Reset so the model gets a fresh budget after being told; blocking every
+  // subsequent call would trade one loop for another.
+  repeatedCallCount = 0;
+  lastCallSignature = "";
+  return {
+    block: true,
+    reason:
+      `Repeat-call guard: this is call ${REPEAT_CALL_LIMIT} of an identical ` +
+      `\`${event.toolName}\` with identical arguments, with nothing in between. ` +
+      `You already have this result in the conversation — scroll up and use it. ` +
+      `If the result was not what you needed, change the arguments or use a different tool; ` +
+      `if you are stuck, say so in plain text instead of calling again.`,
+  };
+}
+
 function containmentGuard(event: ToolCallEvent, ctx: ExtensionContext) {
   const input = event.input as { path?: unknown; file_path?: unknown };
   const raw = typeof input?.path === "string" ? input.path
@@ -338,6 +386,46 @@ function canonicalizeArgs(toolName: string, args: Record<string, unknown>): Reco
   return out;
 }
 
+// Arguments carried by child tags rather than by the tag body:
+//
+//     <read><path>README.md</path></read>
+//     <tool_call><function=read><parameter=path>README.md</parameter></function></tool_call>
+//
+// Both shapes were observed live. Without this the body was taken verbatim, so
+// `path` became the string `<path>README.md</path>` and the correction message
+// handed those broken arguments back to the model.
+const PARAM_TAG_PATTERN = /<parameter(?:\s+name\s*=\s*["']([^"']+)["']|\s*=\s*([a-zA-Z0-9_.-]+))\s*>([\s\S]*?)<\/parameter>/gi;
+const CHILD_TAG_PATTERN = /<([a-zA-Z_][a-zA-Z0-9_.-]*)\s*>([\s\S]*?)<\/\1>/g;
+
+// Names a child tag may carry as an argument. Anything else is content: a
+// `<write>` whose `<content>` embeds `<div>hi</div>` must not gain a `div`
+// argument. Falls back to every child tag when none of them is recognized, so
+// an argument name this table has never seen still reaches the model.
+const ARG_TAG_NAMES = new Set<string>([
+  ...Object.keys(ARG_ALIASES),
+  ...Object.values(ARG_ALIASES),
+  "query",
+]);
+
+function extractChildTagArgs(body: string): Record<string, unknown> {
+  const explicit: Record<string, unknown> = {};
+  for (const m of body.matchAll(PARAM_TAG_PATTERN)) {
+    const key = m[1] ?? m[2];
+    if (key) explicit[key] = m[3].trim();
+  }
+  if (Object.keys(explicit).length > 0) return explicit;
+
+  const all: Record<string, unknown> = {};
+  const recognized: Record<string, unknown> = {};
+  for (const m of body.matchAll(CHILD_TAG_PATTERN)) {
+    const key = m[1];
+    const value = m[2].trim();
+    if (!(key in all)) all[key] = value;
+    if (ARG_TAG_NAMES.has(key.toLowerCase())) recognized[key] = value;
+  }
+  return Object.keys(recognized).length > 0 ? recognized : all;
+}
+
 interface ParsedToolTag {
   name: string;
   args: Record<string, unknown>;
@@ -448,6 +536,63 @@ function safeJsonObject(raw: string): Record<string, unknown> {
   }
 }
 
+// Parsing the intent is only half the job. The transformer used to stop there
+// and ask the model to re-issue the call natively — but a model able to do that
+// would not have emitted markup in the first place, so three asks in a row ended
+// the session by design.
+//
+// Pi gives extensions no way to run a tool on the model's behalf (verified
+// against the installed engine's dist/core/extensions/types.d.ts: sendMessage,
+// sendUserMessage, appendEntry and exec — there is no executeTool), so for
+// read-only intents this bridge does the work itself and feeds the result back.
+// Read-only strictly: `write`, `edit` and `bash` are never performed for the
+// model, and the target must satisfy the same containment rule the tool_call
+// guard enforces.
+const AUTO_EXEC_CHAR_BUDGET = 8000;
+const AUTO_EXEC_MAX_ENTRIES = 200;
+
+export function autoExecuteReadOnly(
+  parsed: { name: string; args: Record<string, unknown> },
+  cwd: unknown,
+): { path: string; text: string } | null {
+  if (parsed.name !== "read" && parsed.name !== "ls") return null;
+  const raw = typeof parsed.args?.path === "string" ? parsed.args.path : "";
+  if (!raw || typeof cwd !== "string" || !cwd) return null;
+
+  let root: string, target: string;
+  try {
+    root = resolve(cwd);
+    target = resolve(root, raw);
+  } catch {
+    return null;
+  }
+  const rel = relative(root, target);
+  if (rel !== "" && (rel.startsWith("..") || isAbsolute(rel))) return null;
+  if (!existsSync(target)) return null;
+
+  try {
+    const stat = statSync(target);
+    if (stat.isDirectory()) {
+      const all = readdirSync(target);
+      const shown = all.slice(0, AUTO_EXEC_MAX_ENTRIES);
+      const note = all.length > shown.length ? `\n… (truncated, ${all.length} entries total)` : "";
+      return { path: target, text: shown.join("\n") + note };
+    }
+    if (!stat.isFile()) return null;
+    const body = readFileSync(target, "utf-8");
+    // An unbounded paste back into context is the failure mode this harness
+    // already paid for once. Cap it and say so.
+    const text =
+      body.length > AUTO_EXEC_CHAR_BUDGET
+        ? body.slice(0, AUTO_EXEC_CHAR_BUDGET) +
+          `\n… (truncated at ${AUTO_EXEC_CHAR_BUDGET} of ${body.length} chars — re-read with an offset for the rest)`
+        : body;
+    return { path: target, text };
+  } catch {
+    return null; // unreadable for any reason — fall back to the normal correction
+  }
+}
+
 export function parseUniversalToolTag(text: string): ParsedToolTag | null {
   if (!text || typeof text !== "string") return null;
 
@@ -491,6 +636,21 @@ export function parseUniversalToolTag(text: string): ParsedToolTag | null {
     }
   }
 
+  // 1b. The format the local chat template actually teaches
+  //     (`C:\models\chat_template.jinja`, qwen3.6-froggeric-v21.3):
+  //     <tool_call><function=NAME><parameter=key>value</parameter></function>.
+  //     llama.cpp parses this into a real tool call while generation holds up;
+  //     when it degrades under a large prompt the markup leaks into the message
+  //     text instead. Every branch here used to miss it — step 1 matches the
+  //     <tool_call> wrapper but bails when the body is not JSON — so the turn
+  //     ended with no strike, no correction and no signal to the user.
+  const fnMatch = text.match(/<function\s*=\s*([a-zA-Z0-9_.-]+)\s*>([\s\S]*?)<\/function>/i);
+  if (fnMatch) {
+    const wrapper = text.match(/<tool_call>[\s\S]*?<\/tool_call>/i);
+    const fnCount = [...text.matchAll(/<function\s*=\s*[a-zA-Z0-9_.-]+\s*>/gi)].length;
+    return toParsedTag(fnMatch[1], extractChildTagArgs(fnMatch[2]), wrapper?.[0] ?? fnMatch[0], fnCount);
+  }
+
   // 2. Specific tool XML tags: <read>, <write>, <edit>, <bash>, <ls>, <dir>, <browse>, <search>, <command>, <terminal>, <read_file>, <write_file>
   const anthropicTagPattern = /<(read|write|edit|bash|ls|dir|browse|search|command|terminal|read_file|write_file)\b[^>]*>([\s\S]*?)<\/\1>/i;
   const matchAnthropic = text.match(anthropicTagPattern);
@@ -506,6 +666,12 @@ export function parseUniversalToolTag(text: string): ParsedToolTag | null {
     let args: Record<string, unknown> = {};
     if (rawBody.startsWith("{") && rawBody.endsWith("}")) {
       try { args = JSON.parse(rawBody); } catch {}
+    }
+
+    // Child tags before the body heuristics below: `<read><path>x</path></read>`
+    // has a body, it just is not the argument value.
+    if (Object.keys(args).length === 0) {
+      args = extractChildTagArgs(rawBody);
     }
 
     if (Object.keys(args).length === 0) {
@@ -615,12 +781,40 @@ let consecutiveFakeToolStrikes = 0;
 // forever (each retry sets triggerTurn: true). This counter caps that path on
 // its own budget and hands control back to the human at 3.
 let consecutiveTransformStrikes = 0;
+// Read-only intents the bridge performed for the model. Kept apart from the
+// strike counters because serving is progress, not a failed correction — but
+// bounded, or a model that never issues a native call gets fed forever.
+let consecutiveServedTurns = 0;
+const AUTO_EXEC_MAX_TURNS = 8;
+
+// Guard 6: a turn that ends cleanly having done nothing.
+//
+// Measured 2026-07-29 (23,284 prompt tokens, 13 tools, both quants): 0/6 turns
+// produced a tool call. The model ends with finish_reason=stop and either
+// denies the capability it was just handed ("I don't have direct access to your
+// local filesystem") or claims work it never did ("File `x.py` read. Stopping
+// as instructed."). One run fabricated the whole file into a ```python block.
+//
+// Invisible to everything else here: no tool call to inspect, no markup for
+// FAKE_TOOL_CALL_PATTERN, nothing for the loop guard to count. This is the
+// dominant failure at this prompt scale, and it had no guard at all.
+const CAPABILITY_DENIAL = /(?:do(?:n['’]?t| not)|cannot|can['’]?t|no)\s+(?:have\s+)?(?:direct(?:ly)?\s+|live\s+)?access\s+(?:to\s+)?(?:your|the|this)?\s*(?:local\s+)?(?:file\s?system|files?|repositor|folder|director|machine|disk)|無法(?:直接)?(?:存取|讀取|訪問)/i;
+// Claiming a read/run. Deliberately narrow: it must look like a report of a
+// completed action, not a plan ("I will read…") or a question.
+const FABRICATED_COMPLETION = /(?:I(?:'ve| have)\s+(?:already\s+)?read|(?:File|The file)\s+[`"'][^`"']+[`"']\s+(?:has been\s+)?read\b|已(?:經)?讀取|已讀完)/i;
+
+// Whether a real tool call has EVER happened this session. "I have read X" is
+// usually true once the model has actually used tools, and a guard that calls
+// that a lie is worse than no guard.
+let sawAnyRealToolCall = false;
 
 function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: ExtensionContext, pi: ExtensionAPI) {
   const hadRealToolCall = Array.isArray(event.toolResults) && event.toolResults.length > 0;
   if (hadRealToolCall) {
+    sawAnyRealToolCall = true;
     consecutiveFakeToolStrikes = 0;
     consecutiveTransformStrikes = 0;
+    consecutiveServedTurns = 0;
     return;
   }
 
@@ -633,6 +827,36 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
   const parsedTag = cfg.enableUniversalTagTransformer ? parseUniversalToolTag(text) : null;
   if (parsedTag) {
     consecutiveFakeToolStrikes = 0;
+
+    // Read-only intents are served, not re-asked. See autoExecuteReadOnly.
+    // Serving does NOT consume a strike: a correction the model ignored and a
+    // file the model now has are not the same event, and counting them together
+    // handed the session back after two served reads. Bounded separately so a
+    // model that never issues a native call is not fed forever.
+    const served = consecutiveServedTurns < AUTO_EXEC_MAX_TURNS
+      ? autoExecuteReadOnly(parsedTag, ctx.cwd)
+      : null;
+    if (served) {
+      consecutiveServedTurns += 1;
+      ctx.ui.notify(
+        `🛠️ Universal Parser: served '${parsedTag.name}' for the model (${consecutiveServedTurns}/${AUTO_EXEC_MAX_TURNS})`,
+        "info",
+      );
+      pi.sendMessage(
+        {
+          customType: "universal-tag-transformer",
+          content:
+            `[SYSTEM] 你剛才用標籤文字描述了 ${parsedTag.name}，不是原生工具呼叫。\n` +
+            `系統已代為執行並取得結果（唯讀操作才會這樣處理；write/edit/bash 不會）：\n\n` +
+            `--- ${parsedTag.name}: ${served.path} ---\n${served.text}\n--- end ---\n\n` +
+            `請直接根據上面的結果繼續工作。下一步若還要用工具，請發出真正的原生 Function Call。`,
+          display: true,
+        },
+        { deliverAs: "followUp", triggerTurn: true },
+      );
+      return;
+    }
+
     consecutiveTransformStrikes += 1;
 
     if (consecutiveTransformStrikes >= 3) {
@@ -725,9 +949,39 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
 
   if (!cfg.enableSelfHealingLoopGuard) return;
 
+  // Guard 6, before the markup check below: these turns carry no markup at all,
+  // so looksLikeFakeToolCall returns false and resets every counter.
+  const denied = CAPABILITY_DENIAL.test(text);
+  const fabricated = !sawAnyRealToolCall && FABRICATED_COMPLETION.test(text);
+  if (denied || fabricated) {
+    consecutiveFakeToolStrikes += 1;
+    if (consecutiveFakeToolStrikes <= 3) {
+      ctx.ui.notify(
+        `🚨 Turn ended with no tool call but ${denied ? "denied filesystem access" : "claimed work it never did"} (strike ${consecutiveFakeToolStrikes}/3).`,
+        "error",
+      );
+      pi.sendMessage(
+        {
+          customType: "loop-guard",
+          content:
+            (denied
+              ? "[SYSTEM] 你剛才說沒有檔案系統存取權，但這個 session 有原生工具可用：" +
+                `${[...PI_TOOLS].join(", ")}。它們直接在這台機器上執行。`
+              : "[SYSTEM] 你剛才宣稱已經讀取／執行了某個東西，但這個 session 到目前為止沒有任何一次真正的工具呼叫。" +
+                "不要陳述你沒有實際做過的動作。") +
+            "\n請立刻發出真正的原生 Function Call 完成該動作；若你判斷不需要動作，請直接說明理由，不要宣稱做過。",
+          display: true,
+        },
+        { deliverAs: "followUp", triggerTurn: true },
+      );
+    }
+    return;
+  }
+
   if (!looksLikeFakeToolCall(text)) {
     consecutiveFakeToolStrikes = 0;
     consecutiveTransformStrikes = 0;
+    consecutiveServedTurns = 0;
     return;
   }
 
@@ -777,20 +1031,39 @@ export default function (pi: ExtensionAPI) {
     // to prevent local GGUF models from imitating XML text tags.
     rawPrompt = rawPrompt.replace(/<(?:read|write|edit|bash|ls|dir|browse|search)>\s*[\s\S]*?<\/(?:read|write|edit|bash|ls|dir|browse|search)>/gi, "");
 
-    return {
-      systemPrompt: rawPrompt + "\n\n" +
-        "============================================================\n" +
-        "[CRITICAL SYSTEM PROTOCOL: NATIVE TOOL CALLING ONLY]\n" +
-        "• You MUST execute all actions using native JSON function calling (tool_call).\n" +
-        "• NEVER output bash commands or tool calls inside markdown code blocks (e.g. ```bash) or XML tags (<read>, <write>, <bash>, <ls>).\n" +
-        "• Text code blocks and XML tags are NOT executed by the system and will cause execution to halt.\n" +
-        "============================================================\n"
-    };
+    const systemPrompt = rawPrompt + "\n\n" +
+      "============================================================\n" +
+      "[CRITICAL SYSTEM PROTOCOL: NATIVE TOOL CALLING ONLY]\n" +
+      "• You MUST execute all actions using native JSON function calling (tool_call).\n" +
+      "• NEVER output bash commands or tool calls inside markdown code blocks (e.g. ```bash) or XML tags (<read>, <write>, <bash>, <ls>).\n" +
+      "• Text code blocks and XML tags are NOT executed by the system and will cause execution to halt.\n" +
+      "============================================================\n";
+
+    // Prompt-budget measurement. Every number in docs/KNOWN_ISSUES.md's prompt
+    // accounting was previously assembled by tokenizing candidate files and
+    // subtracting — which assumes each file is injected at all. Dump the real
+    // thing instead. Off unless the env var names a file; this runs on every
+    // agent start and the prompt carries whatever the project's files carry.
+    const dumpTo = process.env.PI_HARNESS_DUMP_PROMPT;
+    if (dumpTo) {
+      try {
+        writeFileSync(dumpTo, systemPrompt, "utf-8");
+      } catch {
+        // Measurement must never break a session.
+      }
+    }
+
+    return { systemPrompt };
   });
 
   pi.on("tool_call", async (event, ctx) => {
     const runaway = runawayArgumentGuard(event, ctx);
     if (runaway) return runaway;
+    const repeat = repeatCallGuard(event);
+    if (repeat) {
+      ctx.ui.notify(`🔁 Blocked identical '${event.toolName}' call repeated ${REPEAT_CALL_LIMIT}×`, "warning");
+      return repeat;
+    }
     if (event.toolName === "bash") return bashGuard(event, ctx);
     if (event.toolName === "write" || event.toolName === "edit") return containmentGuard(event, ctx);
   });
