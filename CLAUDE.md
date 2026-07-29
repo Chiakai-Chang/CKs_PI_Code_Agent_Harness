@@ -15,6 +15,8 @@
 * Audit the combined injected prompt across bridges (absolutist scope claims, shared trigger vocabulary, total budget): `python scripts/check-prompt-conflicts.py`
 * Measure whether mechanisms actually fire, without naming them (slow — runs the local model; NOT in CI): `python scripts/measure-triggers.py [--only ID] [--repeats N]`
 * Measure whether the local model still emits native tool calls under load (slow — runs the local model; NOT in CI): `node scripts/probe-tool-calls.mjs --system <pinned file> --tools 13 --repeats 6`. The system prompt must be a **pinned** file (`git show HEAD:…`), never a live repo doc — editing the doc changes the measurement.
+* Measure whether a retry recovers after the model fabricates a completed action (slow — runs the local model; NOT in CI; no results yet as of 2026-07-29): `node scripts/probe-retry-recovery.mjs <pinned file> [n]`
+* Measure this machine's usable context and write the gitignored local override (slow — runs the local model and the `pi` binary; NOT in CI): `python scripts/calibrate-context.py [--ladder] [--write]`
 * Dump the system prompt Pi actually sends, for prompt-budget work: `PI_HARNESS_DUMP_PROMPT=<file> pi --print "..."` (off unless the variable names a file).
 
 ## 📌 CRITICAL Guidelines & Philosophy (Must Read First)

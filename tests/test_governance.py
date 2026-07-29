@@ -138,6 +138,10 @@ class TestDocumentedChecksRunInCI(unittest.TestCase):
         # measure-triggers runs the local model for minutes; deliberately not CI.
         documented.discard("scripts/measure-triggers.py")
         documented.discard("scripts/setup.py")
+        # calibrate-context needs a running local model AND the pi binary to
+        # measure against; there is nothing for CI to check. It writes only the
+        # gitignored local override, so it cannot affect a clean checkout.
+        documented.discard("scripts/calibrate-context.py")
         missing = [c for c in sorted(documented) if c not in self.ci]
         self.assertEqual(missing, [], "documented checks absent from CI: %s" % missing)
 
