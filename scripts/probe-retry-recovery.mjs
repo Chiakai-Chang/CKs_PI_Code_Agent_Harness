@@ -64,15 +64,30 @@ const TOOLS = [
   t("compact", "Summarise and compact the conversation context.", { instructions: { type: "string" } }, []),
 ];
 
+// A turn that spends minutes generating prose is a failed turn, not a broken
+// measurement. The n=3 smoke run lost two entire arms — including the upper
+// bound the whole experiment rests on — because undici's default timeout fired
+// and the script recorded those as errors, which silently removed exactly the
+// cases most likely to be failures.
+const TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT_MS ?? 240000);
+
 async function ask(messages) {
-  const r = await fetch(URL, {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      model: MODEL, messages, tools: TOOLS,
-      temperature: 0.6, top_p: 0.95, top_k: 20, min_p: 0, repeat_penalty: 1.0,
-      max_tokens: 32768,
-    }),
-  });
+  let r;
+  try {
+    r = await fetch(URL, {
+      method: "POST", headers: { "content-type": "application/json" },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      body: JSON.stringify({
+        model: MODEL, messages, tools: TOOLS,
+        temperature: 0.6, top_p: 0.95, top_k: 20, min_p: 0, repeat_penalty: 1.0,
+        max_tokens: 32768,
+      }),
+    });
+  } catch (e) {
+    const timedOut = e?.name === "TimeoutError" || /timeout|aborted/i.test(String(e?.message));
+    if (timedOut) return { ok: false, text: `(no answer within ${TIMEOUT_MS}ms)` };
+    throw e;
+  }
   if (r.status !== 200) throw new Error(`HTTP ${r.status}`);
   const j = await r.json();
   const c = j.choices?.[0] ?? {};
