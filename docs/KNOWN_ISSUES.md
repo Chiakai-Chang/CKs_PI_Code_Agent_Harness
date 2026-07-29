@@ -137,3 +137,85 @@ so its arguments may be truncated.
 **代價**：`f16` KV cache 記憶體用量明顯高於 `q4_0`。在 262,144 的 context 下這不是小數字，使用者需自行權衡；若必須降低記憶體，`q8_0` 是介於兩者之間、值得測試的中間值（本文未測）。
 
 詳見 [docs/retro/2026-07-28-web-capability-and-prompt-conflicts.md](retro/2026-07-28-web-capability-and-prompt-conflicts.md)。
+
+---
+
+## 重負載下模型不呼叫工具，改用「拒絕」或「捏造」（2026-07-29）
+
+**症狀**：session 從頭到尾一個工具都沒真正呼叫。模型改以標籤文字描述呼叫（`<read><path>…</path></read>`），transformer 連續糾正三次，loop guard 交還使用者。
+
+**量測**（同一份 `chat_template.jinja`（qwen3.6-froggeric-v21.3）、同一組 13 個工具、23,284 token 的 system prompt、temperature 0.6，全部 `-ctk f16 -ctv f16`。乾淨 = `finish_reason` 為 `tool_calls` 且參數無標籤洩漏）：
+
+```
+Q6_K   輕負載（504 tok、2 工具）      ->  3/3 乾淨
+Q6_K   重負載（23,284 tok、13 工具）  ->  0/6 乾淨
+Q6_K   多回合（4 回合工具鏈、24k 起）  ->  1/7 乾淨（3 個 session；2 次因生成 3,700+ token 散文而 client 逾時）
+Q4_K_M 輕負載（504 tok、2 工具）      ->  3/3 乾淨
+Q4_K_M 重負載（23,284 tok、13 工具）  ->  0/6 乾淨
+```
+
+**變數是 prompt 規模，不是量化。** 兩種量化在輕負載都乾淨、在重負載都失敗。
+
+> ### ⚠️ 本節初稿的結論是錯的，保留以誌其事
+>
+> 初稿標題是「權重量化才是變數，Q4_K_M 不堪用」，根據是 Q6_K 重負載跑出 **6/6 乾淨**、Q4_K_M 同條件 **0/6**。
+>
+> 那個 6/6 **重現不出來**。同一支腳本、同一台 Q6_K server、用 `git show HEAD:docs/KNOWN_ISSUES.md` 還原出一模一樣的 23,284 token prompt，重跑得到 **0/6**。差別在輸出長度：6/6 那次每回合只生 76–93 token 就發出呼叫，重跑時每回合生 587–964 token 的散文再拒絕。原因未查明，**不要當成已知**。
+>
+> 教訓有二：（1）n=6 的單向結果不足以支撐根因宣告，要先重現再寫；（2）這支探測腳本的 system prompt 是用 repo 文件組出來的，寫這一節本身就讓 prompt 從 23,284 漲到 24,393 token——量測工具讀著自己正在被修改的輸入。
+
+失敗**不是**參數失控，是更難察覺的形狀：`finish_reason=stop`、`tool_calls=0`，然後宣稱「File `scripts/verify-bridges.py` read. Stopping as instructed.」（沒讀）或「I don't have direct access to your local filesystem」（工具清單裡就有 `read`）。一次甚至把整份檔案內容捏造在 ```python 區塊裡。**這種輸出對 Pi 而言是一個正常結束的回合**，沒有任何守衛看得見。
+
+**逐一排除的混淆變數**（各自單獨測試，Q4_K_M 重負載）：
+
+```
+-ctkd/-ctvd q8_0 -> f16   （draft KV 去量化）  ->  0/6 乾淨
+移除 --rope-freq-base 10000000                ->  0/6 乾淨
+top_k 20 -> 40（對齊 Q6 啟動器的預設）         ->  0/4 乾淨
+```
+
+三個都無效。這連回本文上一節的結論：**降低每輪 prompt 規模不只是省 token，是直接降低這個失效模式的發生率**——目前唯一被重現過的有效槓桿就是這個。兩種量化在輕負載都測起來完全正常，正是這點讓人以為配置沒問題。
+
+**處理**：
+- `C:\models\GRM-2.6-Plus_rocm7.bat`（Q6_K 主啟動器）原本只有 `--jinja`、沒有 `--chat-template-file`，等於根本沒載入修好的 template；已補上並實跑驗證（`/props` 回報 `qwen3.6-froggeric-v21.3`）。
+- `pi-config/settings.json` 的 `defaultModel` 是 `…Q4_K_M…`，但 `pi-config/models.json` 只宣告 `…Q6_K…`。兩者都是 gitignore 的本機檔，需自行對齊。
+- harness 端（見下）改為在唯讀意圖上代為執行，讓標籤形式的失敗至少能繼續推進。
+
+### Prompt 預算：量出來的，不是推出來的（2026-07-29）
+
+先前所有 prompt 歸因都是「把候選檔案 tokenize 再相減」，那等於假設每個檔案都真的被注入。`yes-hooks-bridge` 的 `before_agent_start` 新增 `PI_HARNESS_DUMP_PROMPT=<file>`（未設就完全不動作），把 Pi 實際送出的 system prompt 倒出來量：
+
+```
+   644 tokens   Pi base / preamble
+   620 tokens   web + deep-research guidance
+  3923 tokens   AGENTS.md
+  1418 tokens   CLAUDE.md          <- 推測時以為沒被注入，實際有
+  6446 tokens   <available_skills>  <- 46%，60 個原生註冊技能
+   274 tokens   case + mece bridge blocks
+   642 tokens   skill catalog（104 個技能，只列名稱）
+    90 tokens   native-tool protocol
+ 14055 tokens   TOTAL systemPrompt（單輪 input 合計 16,965）
+```
+
+**大宗是 `<available_skills>`，不是 AGENTS.md、也不是目錄。** 每個原生註冊技能約 307 tokens；catalog 裡的每個約 6 tokens。
+
+根因：`skillTiers` 只作用在 `external/*` 的技能，`pi-skills/core` 與 `pi-skills/optional` 是整包 `copy_dir_contents` 進 `~/.pi/agent/skills/`，完全繞過分層。
+
+**處理**：`restore.py` 新增 `tier_local_skills()` / `merge_into_catalog()`，讓本機技能走同一套分層。實測：
+
+```
+~/.pi/agent/skills   35 -> 17 個
+<available_skills>   60 -> 42 個，6,446 -> 4,681 tokens
+systemPrompt         14,055 -> 12,377 tokens
+單輪 input           16,965 -> 15,287 tokens（-9.9%）
+```
+
+剩下的 4,681 是 20 個 core-tier 技能（方法論那批）。再砍就是砍 `skillTiers.core`，那會讓方法論技能不再自動觸發，與 CLAUDE.md 的「方法論優先」直接衝突——屬於取捨，不是缺陷。
+
+### transformer 自己造成的死結（同日修復）
+
+`parseUniversalToolTag` 沒有子標籤分支，`<read><path>X</path></read>` 解出來的 `path` 是整串 XML 字面值；`<parameter name="path">X</parameter>` 更糟，解成字串 `"path"`。糾正訊息把這些壞參數回灌給模型並要求照著呼叫，模型只能重寫原本的標籤——三次後交還使用者。**糾正機制自己餵出死循環。**
+
+同時 `<tool_call><function=NAME><parameter=key>` —— 也就是 `chat_template.jinja` 教模型的原生格式 —— 每個分支都沒接到，回傳 `null`：沒有 strike、沒有糾正、沒有訊號，session 靜默卡死。
+
+另外，Pi 沒有提供讓擴充代替模型執行工具的 API（對照裝好的引擎 `dist/core/extensions/types.d.ts`：只有 `sendMessage` / `sendUserMessage` / `appendEntry` / `exec`）。因此 `yes-hooks-bridge` 改為**唯讀意圖自己執行並回灌結果**（`read` / `ls`，8,000 字元上限，沿用與 `tool_call` 守衛相同的目錄圍堵規則，連續 8 次為上限）；`write` / `edit` / `bash` 一律不代為執行。回灌不計入 strike——把「模型忽略的糾正」和「模型已經拿到的檔案」算成同一件事，等於服務兩次就交還使用者。

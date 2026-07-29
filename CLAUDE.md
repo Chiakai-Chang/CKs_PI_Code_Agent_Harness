@@ -14,6 +14,8 @@
 * Validate pi-config files (schema, anti-patterns, secret detection): `python scripts/validate-config.py`
 * Audit the combined injected prompt across bridges (absolutist scope claims, shared trigger vocabulary, total budget): `python scripts/check-prompt-conflicts.py`
 * Measure whether mechanisms actually fire, without naming them (slow — runs the local model; NOT in CI): `python scripts/measure-triggers.py [--only ID] [--repeats N]`
+* Measure whether the local model still emits native tool calls under load (slow — runs the local model; NOT in CI): `node scripts/probe-tool-calls.mjs --system <pinned file> --tools 13 --repeats 6`. The system prompt must be a **pinned** file (`git show HEAD:…`), never a live repo doc — editing the doc changes the measurement.
+* Dump the system prompt Pi actually sends, for prompt-budget work: `PI_HARNESS_DUMP_PROMPT=<file> pi --print "..."` (off unless the variable names a file).
 
 ## 📌 CRITICAL Guidelines & Philosophy (Must Read First)
 Before planning any optimizations, refactoring, or modifications to this repository, you **MUST** read and fully comprehend the following documentation to align with our engineering guidelines:
