@@ -137,6 +137,53 @@ class TestRecursionGuard(unittest.TestCase):
         self.assertIn("if (process.env[CHILD_MARKER])", self.idx)
 
 
+class TestChildWriteBoundary(unittest.TestCase):
+    """Children must not be able to change the machine they research from.
+
+    Found 2026-07-30 in a real session. The question was pure research — "what
+    is llama.cpp's Qwen3.5 MTP support?" — and the parent made exactly one tool
+    call, `deep_research`. Inside its window a child modified
+    `scripts/make-probe-fixture.py` and dropped a stray file in the repo root.
+    Neither write appears anywhere in the parent's session log, because children
+    run with `--no-session`.
+
+    Three things stacked: cwd is the parent's cwd, so children stand in the
+    repo; no tool restriction, so they hold the full built-in set; and no
+    session, so there is no audit trail by construction. Recursion had been
+    anticipated (CHILD_MARKER); write access had not.
+
+    A denylist is used rather than a `--tools` allowlist on purpose. The harm is
+    exactly "mutates the local machine", which is three names; an allowlist has
+    to enumerate every research tool and silently reduces a child to nothing if
+    one name drifts — and producing nothing is an already-observed failure mode
+    of this bridge.
+    """
+
+    def setUp(self):
+        self.idx = read("pi-extensions/deep-research-bridge/index.ts")
+
+    def _excluded(self):
+        m = re.search(r'"--exclude-tools"\s*,\s*"([^"]+)"', self.idx)
+        return [t.strip() for t in m.group(1).split(",")] if m else []
+
+    def test_children_cannot_write_edit_or_run_shell(self):
+        excluded = self._excluded()
+        self.assertTrue(excluded, "children must be spawned with --exclude-tools")
+        for tool in ("bash", "edit", "write"):
+            self.assertIn(tool, excluded, f"a research child must not hold `{tool}`")
+
+    def test_research_tools_are_left_alone(self):
+        """Negative control: blocking mutation must not disarm the research."""
+        excluded = self._excluded()
+        for tool in ("web_search", "web_open", "read", "grep", "find", "ls"):
+            self.assertNotIn(tool, excluded, f"`{tool}` is read-only and must stay available")
+
+    def test_the_reason_is_recorded_next_to_the_flag(self):
+        """This flag looks removable to anyone who has not seen a child edit the
+        repo. The incident has to be readable from the source."""
+        self.assertRegex(self.idx, r"(?s)exclude-tools.{0,1200}?(cwd|repo|write)")
+
+
 class TestSequentialByDesign(unittest.TestCase):
     def setUp(self):
         self.idx = read("pi-extensions/deep-research-bridge/index.ts")

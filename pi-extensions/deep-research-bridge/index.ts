@@ -79,6 +79,24 @@ function runChild(
       "--print",
       "--mode", "json",
       "--no-session",
+      // A child stands in the PARENT'S cwd — the repo — and until 2026-07-30 it
+      // also held the full built-in tool set. A pure research question ("what
+      // is llama.cpp's Qwen3.5 MTP support?") ended with a child editing
+      // scripts/make-probe-fixture.py and dropping a stray file in the repo
+      // root. Neither write appears in the parent's session log, because
+      // `--no-session` means children leave no audit trail by construction: the
+      // parent had made exactly one tool call, `deep_research`, and the damage
+      // was found only by an incidental `git status`.
+      //
+      // Recursion was already anticipated (CHILD_MARKER below); mutation was
+      // not. A research child has no business changing this machine.
+      //
+      // Denylist, not a `--tools` allowlist: the harm is exactly "mutates the
+      // local machine", which is these three names. An allowlist would have to
+      // enumerate every research tool and would silently reduce a child to
+      // nothing the moment one name drifts — and returning nothing is an
+      // already-observed failure mode of this bridge.
+      "--exclude-tools", "bash,edit,write",
       "--append-system-prompt", promptFile,
       childPrompt(subQuestion),
     ]);
