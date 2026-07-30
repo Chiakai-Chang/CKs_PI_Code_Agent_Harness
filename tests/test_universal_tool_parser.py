@@ -777,6 +777,99 @@ process.stdout.write(JSON.stringify(sent));
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required for native TypeScript type stripping")
+class TestUnfulfilledIntentGuard(TestFabricatedWorkGuard):
+    """P0 from the 2026-07-30 real-session validation: the turn announces its
+    next step and then ends.
+
+    Observed five times across six real sessions, three of them inside
+    deep-research sub-agents, and it accounted for three of the six tasks
+    producing nothing usable:
+
+        Real model paths in these scripts. Check existence:
+        I've read the code. Write failing test first.
+        Continuing to read the article:
+        No results. Fetch GitHub issues directly.
+
+    Every existing guard is blind to it. There is no markup, so
+    FAKE_TOOL_CALL_PATTERN misses. Nothing is repeated, so the repeat-call guard
+    never counts. And it claims INTENDED work, not completed work, so
+    FABRICATED_COMPLETION — which matches "I have read X" — is semantically the
+    opposite. Pi sees a well-formed turn and `--print` exits.
+
+    Inherits the driver from TestFabricatedWorkGuard.
+    """
+
+    def test_announced_next_step_with_no_call_is_nudged(self):
+        for text in [
+            "Real model paths in these scripts. Check existence:",
+            "I've read the code. Write failing test first.",
+            "Continuing to read the article:",
+            "No results. Fetch GitHub issues directly.",
+            "Now collect more info about the draft mechanism itself.",
+            "Next, I'll run the test suite.",
+            "Let me check whether those files exist.",
+        ]:
+            sent = self._run([{"text": text, "hadTool": True}, {"text": text, "hadTool": False}])
+            self.assertTrue(sent, "an announced-but-unperformed next step must be nudged: %r" % text)
+
+    def test_nudge_tells_the_model_to_act_not_to_restate(self):
+        sent = self._run([{"text": "x", "hadTool": True},
+                          {"text": "Real model paths in these scripts. Check existence:", "hadTool": False}])
+        self.assertTrue(sent)
+        joined = " ".join(sent)
+        self.assertNotIn("Check existence:", joined,
+                         "the correction must not quote the stalled text back — that is how the "
+                         "transformer fed its own deadlock on 2026-07-28")
+
+    def test_a_finished_report_is_left_alone(self):
+        """Negative control. These are real final answers from the same runs;
+        nudging them would restart work that is already done."""
+        for text in [
+            "Bug fixed. All 5 tests green. The issue: apply_discount_cents used strict > against "
+            "the threshold, contrary to the docstring. Changed to >=.",
+            "完成。測試已加入 tests/test_make_probe_fixture.py，全 21 tests 綠燈（OK）。",
+            "OK，22 tests 全過。",
+            "The bridge manifest lists 11 bridges.",
+        ]:
+            sent = self._run([{"text": "x", "hadTool": True}, {"text": text, "hadTool": False}])
+            self.assertEqual(sent, [], "a completed report must not be nudged: %r" % text[:50])
+
+    def test_asking_the_user_is_a_legitimate_ending(self):
+        """Negative control. Handing a decision back is a correct terminal state;
+        re-triggering it talks over the user."""
+        for text in [
+            "目前 repo 只有這一筆待 commit 的修改，要收工嗎？",
+            "如果你願意，我可以繼續針對這些方向逐一追查。",
+            "Which project should I target next?",
+        ]:
+            sent = self._run([{"text": "x", "hadTool": True}, {"text": text, "hadTool": False}])
+            self.assertEqual(sent, [], "a question to the user must not be nudged: %r" % text[:40])
+
+    def test_recommendations_are_not_announcements(self):
+        """Negative control, and the subtlest one. T3's honest failure report
+        listed next steps, but as advice to the user, not as work it was about
+        to do. It ran 44 minutes; re-triggering it would have been the wrong
+        call."""
+        text = ("本次深度研究沒有取得足夠的具名出處來下結論。若要真正回答這個問題，"
+                "下一步應該手動瀏覽 llama.cpp 倉庫、搜尋官方技術報告。")
+        sent = self._run([{"text": "x", "hadTool": True}, {"text": text, "hadTool": False}])
+        self.assertEqual(sent, [], "recommendations addressed to the user are not an unfulfilled intent")
+
+    def test_a_turn_that_used_tools_is_never_nudged(self):
+        sent = self._run([{"text": "Check existence:", "hadTool": True}])
+        self.assertEqual(sent, [], "a turn that actually called a tool is not stalled")
+
+    def test_nudging_is_bounded(self):
+        """A model that keeps announcing must not be nudged forever — that is a
+        loop with extra steps."""
+        turns = [{"text": "x", "hadTool": True}]
+        turns += [{"text": "Next, I'll check the files.", "hadTool": False} for _ in range(6)]
+        sent = self._run(turns)
+        self.assertGreater(len(sent), 0)
+        self.assertLessEqual(len(sent), 3, "the nudge must be capped, not unbounded")
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required for native TypeScript type stripping")
 class TestRepeatCallGuard(unittest.TestCase):
     """Captured live (session 019fab1e, `pi --print "Reply with exactly: OK"`):
     the model issued the SAME call 26 times in a row —

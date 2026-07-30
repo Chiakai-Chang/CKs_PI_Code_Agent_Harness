@@ -870,6 +870,47 @@ const FABRICATED_COMPLETION = /(?:I(?:'ve| have)\s+(?:already\s+)?read|(?:File|T
 // that a lie is worse than no guard.
 let sawAnyRealToolCall = false;
 
+// Guard 7 — a turn that announces its next step and then ends.
+//
+// Found by the 2026-07-30 real-session validation: five occurrences across six
+// sessions, three of them inside deep-research sub-agents, accounting for three
+// of the six tasks producing nothing usable. The shape is always the same —
+// correct tool calls up to a point, then:
+//
+//     Real model paths in these scripts. Check existence:
+//     I've read the code. Write failing test first.
+//     Continuing to read the article:
+//
+// stopReason=stop, zero tool calls, and Pi exits `--print` because that is a
+// well-formed turn. Every other guard is blind: there is no markup, nothing is
+// repeated, and FABRICATED_COMPLETION matches claims of COMPLETED work, which
+// is the semantic opposite of an announcement.
+const NEXT_STEP_OPENER =
+  /^(?:now\s+|next[,:]?\s+|then\s+|first[,:]?\s+)?(?:i(?:'ll|'m\s+going\s+to|\s+will|\s+am\s+going\s+to)\b|let(?:'s|\s+me)\b|check\b|verify\b|write\b|fetch\b|read\b|run\b|collect\b|continu(?:e|ing)\b|inspect\b|search\b|接下來|我(?:先|來)\b)/i;
+
+// Handing a decision back is a correct terminal state. Re-triggering it talks
+// over the user, which is a worse failure than leaving one stall unnudged.
+const ASKS_THE_USER = /[?？]\s*$|嗎[?？]?\s*$|如果你(?:願意|想|需要)/;
+
+function announcesUnfulfilledNextStep(text: string): boolean {
+  const trimmed = String(text ?? "").trim();
+  if (!trimmed) return false;
+  if (ASKS_THE_USER.test(trimmed)) return false;
+  // A message left hanging on a colon promised something that never arrived.
+  if (/[:：]$/.test(trimmed)) return true;
+  // Otherwise judge only the LAST sentence: "The issue: X used strict >.
+  // Changed to >=." is a finished report whose middle happens to look forward.
+  const sentences = trimmed.split(/(?<=[.!?。！？])\s+/).filter(Boolean);
+  const last = (sentences[sentences.length - 1] ?? "").trim();
+  return NEXT_STEP_OPENER.test(last);
+}
+
+let consecutiveIntentNudges = 0;
+// Two nudges, then stop. A model that keeps announcing instead of acting is a
+// loop with extra steps, and nudging it forever is the deadlock this guard
+// exists to break.
+const MAX_INTENT_NUDGES = 2;
+
 function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: ExtensionContext, pi: ExtensionAPI) {
   const hadRealToolCall = Array.isArray(event.toolResults) && event.toolResults.length > 0;
   if (hadRealToolCall) {
@@ -877,6 +918,7 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
     consecutiveFakeToolStrikes = 0;
     consecutiveTransformStrikes = 0;
     consecutiveServedTurns = 0;
+    consecutiveIntentNudges = 0;
     return;
   }
 
@@ -1032,6 +1074,35 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
               : "[SYSTEM] 你剛才宣稱已經讀取／執行了某個東西，但這個 session 到目前為止沒有任何一次真正的工具呼叫。" +
                 "不要陳述你沒有實際做過的動作。") +
             "\n請立刻發出真正的原生 Function Call 完成該動作；若你判斷不需要動作，請直接說明理由，不要宣稱做過。",
+          display: true,
+        },
+        { deliverAs: "followUp", triggerTurn: true },
+      );
+    }
+    return;
+  }
+
+  // Guard 7, before the reset below: these turns carry no markup either, so
+  // without this branch they fall straight through to "nothing to see" and the
+  // session ends silently.
+  if (announcesUnfulfilledNextStep(text)) {
+    if (consecutiveIntentNudges < MAX_INTENT_NUDGES) {
+      consecutiveIntentNudges += 1;
+      ctx.ui.notify(
+        `🚨 Turn announced a next step but made no tool call (nudge ${consecutiveIntentNudges}/${MAX_INTENT_NUDGES}).`,
+        "error",
+      );
+      pi.sendMessage(
+        {
+          customType: "loop-guard",
+          // Deliberately does NOT quote the stalled text back. Feeding a model
+          // its own broken output and asking it to act on it is how the
+          // transformer produced a three-strike deadlock on 2026-07-28.
+          content:
+            "[SYSTEM] 你剛才描述了接下來要做的動作，但這一輪沒有發出任何工具呼叫，回合就結束了。" +
+            "宣告下一步不等於執行它。\n" +
+            "請立刻用原生 Function Call 執行那個動作。若那個動作其實不需要，或你需要使用者提供資訊，" +
+            "請直接說明，不要以描述動作作結。",
           display: true,
         },
         { deliverAs: "followUp", triggerTurn: true },
