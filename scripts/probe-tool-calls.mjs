@@ -104,7 +104,15 @@ const ALL_TOOLS = [
 const tools = ALL_TOOLS.slice(0, Math.max(1, Math.min(toolCount, ALL_TOOLS.length)));
 
 // Tool-call markup leaking into the message text or into an argument value.
-const LEAK = /<tool_call>|<function\s*=|<parameter|<invoke\b|```(?:bash|json)/i;
+// Must stay a subset of FAKE_TOOL_CALL_PATTERN in yes-hooks-bridge/index.ts: if
+// the probe misses a shape the bridge catches, the reported shape counts stop
+// describing what the harness sees. `<tool_code>` was missing until 2026-07-30,
+// when a warmed Fable-Fusion run at 24,280 prompt tokens produced
+//     <tool_code>{'name': 'read_file', 'arguments': {...}}</tool_code>
+//     <tool_code><tool_code_name>read_file</tool_code_name>...
+// three times in sixteen runs. Those are leaks, and every one of them was
+// filed as a plain `no-call`.
+const LEAK = /<tool_call>|<tool_code\b|<function\s*=|<parameter|<invoke\b|```(?:bash|json)/i;
 // The two shapes that pass for a normal turn while doing nothing.
 const DENIAL = /(?:do(?:n['’]?t| not)|cannot|can['’]?t|no)\s+(?:have\s+)?(?:direct(?:ly)?\s+|live\s+)?access/i;
 // Kept in step with FABRICATED_COMPLETION in yes-hooks-bridge/index.ts — if the

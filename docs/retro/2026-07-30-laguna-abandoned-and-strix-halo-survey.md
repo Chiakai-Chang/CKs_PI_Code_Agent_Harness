@@ -10,7 +10,15 @@
 
 ## 一、Laguna 這一輪實測到什麼
 
-硬體：Ryzen AI Max+ 395 / Radeon 8060S（gfx1151），裝置回報 110,456 MiB、閒置 110,302 MiB free。
+> **這份文件裡的所有數字都來自單一台開發機**，不是這個 repo 的預設值，也不保證在別的機器上成立。
+> 硬體類別（AMD Strix Halo 級的 APU，統一記憶體，裝置回報約 110 GiB 可用）之所以寫出來，
+> 是因為離開它那些數字就沒有意義，不是因為它是建議配備。
+>
+> **模型啟動腳本與 `pi-config/models.json`、`pi-config/settings.json` 都是機器本機檔**
+> （後兩者在 `.gitignore` 裡，只有 `.example` 進版控）。這個 repo **不預設任何模型**，
+> 也不應該被改成預設任何模型 —— 換模型是每台機器自己的事。
+> 下面提到啟動腳本時一律指「本機的模型目錄」，路徑刻意不寫。
+
 檔案：`Laguna-S-2.1-Uncensored-APEX-I-Balanced.gguf`，85,229,205,664 bytes = **79.4 GiB**
 （HF 頁面寫 85.2 GB 是十進位，換算時差 6 GB，足以誤判裝不裝得下）。
 
@@ -374,7 +382,7 @@ lemonade gfx1151 build、`--jinja` 用 Qwythos 自帶 template（**不要**套 f
 
 ## 七、Qwythos-27B-v1 MTP Q8_0 實測（2026-07-30 當天完成）
 
-`C:\models\Qwythos-27B_rocm7.bat`，lemonade gfx1151 build，`-c 262144`，f16 KV，
+本機啟動腳本（在模型目錄，不在版控內），lemonade gfx1151 build，`-c 262144`，f16 KV，
 `-t 6 -tb 6`，MTP 開，`--cache-ram 0 --ctx-checkpoints 0`。
 
 ### 驗收
@@ -459,6 +467,83 @@ fixture 15,308 → prompt 16,434，兩邊都是 **+1,125 tokens** ——
 
 一個尚未成為結論的觀察：rep-pen 1.05 在輕負載下輸出明顯更長
 （12 次平均 274 tokens vs 1.0 的 218，差約 26%）。它想得更久。要當結論需要專門的對照。
+
+---
+
+## 八、Qwythos vs Fable：逐位元組相同的 fixture，顯著
+
+### 這是怎麼做出來的
+
+一個意外的便利：Qwen3.5 與 Qwen3.6 同族 tokenizer，同一組釘死來源產出的 fixture
+**sha256 完全相同**（`048e990c36d4` 與 `f41338e59ce8`）。所以兩個模型吃的是同一個檔案，
+不是「差不多大小的兩個檔案」—— 這正是 2026-07-29 做不到、因而全盤作廢的那件事。
+
+Fable 側的條件：與本機啟動腳本相同的旗標、`--chat-template-file` 指向
+qwen3.6-froggeric-v21.3（`/props` 第一行已確認）、**先灌 10 個短請求暖機**
+（暖機狀態是交接檔記載的最大未解釋變異，不註明就不可比）、
+`rep-pen 1.0`（Fable 的 MTP 硬性要求）、`--max-tokens 4096`（與 Qwythos 那批相同）。
+
+```
+15,308 tok  sha 048e990c36d4   Qwythos 24/24   Fable 0/8    Fisher p = 9.5e-08
+23,077 tok  sha f41338e59ce8   Qwythos  8/8    Fable 0/8    Fisher p = 1.6e-04
+合併                            Qwythos 32/32   Fable 0/16   Fisher p = 4.4e-13
+```
+
+15,308 是 harness 真實每輪負載。**Qwythos 32/32，Fable 0/16。**
+這是兩天來第一個顯著的結果，也是第一次「單一變數、同一引擎、同一檔案」的模型比較。
+
+Fable 今天 32 次全失敗的形狀：
+
+```
+markup-leak  10   <tool_code>{'name':'read_file'...}</tool_code>、<tool_code_name>…
+truncated     5   撞 4096 上限仍在生成
+timeout       7   900 秒（另一批用 32768 上限時）
+no-call       8   含 capability-denial 與 fabricated-completion
+```
+
+模型發明了 `read_file`、`ReadFile`、`<tool_code_name>`、`<tool_code_parameters>` ——
+Pi 只有 bash/edit/find/grep/ls/read/write，而 `<tool_code>` 也不是 froggeric v21.3 教的格式。
+
+順帶量到一個未預期的差異：**Fable 需要數千個輸出 token，Qwythos 只要幾百個。**
+Qwythos 的乾淨回合輸出 163–413 tokens；Fable 有 5 次撞到 4096 還沒講完、1 次到 2,627。
+這也解釋了為什麼 `--max-tokens` 的取值對 Fable 影響巨大、對 Qwythos 完全不影響。
+
+### 舊的 Fable 基線整條作廢
+
+交接檔裡那條階梯（`671→12/12、14,095→12/12、16,880→8/8、20,100→8/8、23,083→6/8、26,052→6/8`）
+**不能再當參照點**，有兩個獨立的理由：
+
+1. **它是用會把逾時丟出分母的儀器量的。** 今天 16 次裡有 7 次逾時；照舊規則那 7 次會消失，
+   0/16 會被記成看起來體面的數字。
+2. **光是計數方式解釋不了差距。** 舊基線在 14,095 是 12/12，今天同尺寸同條件 0/8。
+   最可能的變數是舊基線用 `max_tokens 32768`，讓漫長漫遊最終仍然產出呼叫；
+   但無論原因為何，那條階梯已經不可信。
+
+連帶影響：交接檔第 69 行「約 9% 的回合會拒絕或捏造」**是低估**，
+而「這個比率在 671 到 26,052 tokens 之間量不出差別」建立在被污染的分母上。
+昨天那次撤回（規模階梯沒有懸崖）**本身仍然正確**——那些配置比較確實無效——
+但現在連基線都要用修好的儀器重跑，才能回答「規模到底有沒有懸崖」。
+
+**這是同一個教訓的第三次現身：儀器把失敗變成缺席，而缺席看起來就像成功。**
+第一次是 fixture 大小、第二次是逾時記成 error，第三次是前兩者的後果回頭污染了參照點。
+
+### 機制問題：兩次都答不出來，停手
+
+假設是「harness 注入的規則與 user 請求競爭注意力」，來自 26k 那次唯一的失敗
+（`Read RULE 8 + RULE 10 — need verification first:`）。設計是同尺寸、同時間窗、ABAB 交錯，
+唯一變數是填充物形狀（`--sources rules` vs `--sources neutral`）。
+
+```
+23,077 tok   rules 0/8   neutral 0/8   p = 1.0
+15,308 tok   rules 0/8   neutral 0/8   p = 1.0
+```
+
+**兩次都是兩邊同時觸底**，正是清單 §4 那條規則要擋的情況。這個對照沒有回答任何事。
+
+停手的理由寫下來，免得下次又試第三遍：**兩個模型都沒有可用的工作區間。**
+Fable 在 15k–23k 全在地板上，Qwythos 到 41k 全在天花板。要研究這個機制，
+需要先造出一個**能穩定產生部分失敗**的設定（例如刻意削弱的模型、或把工具描述改差），
+否則再多樣本也只會得到 p = 1.0。
 
 ---
 
