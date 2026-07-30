@@ -127,9 +127,75 @@ session 裡 assistant 訊息的 `usage.input` 是 llama.cpp 回報的**實際處
 
 ---
 
-## 七、待辦
+## 七、T3、T4：同一個形狀，在乾淨任務上重現
 
-* **T3（網頁研究）**：會壓到 camofox 冷啟動路徑，`KNOWN_ISSUES` §4/§5 記載那裡壞過。
-* **T4（專案外資源）**：會壓到目錄圍堵。被擋是觀察項目，卡死才是缺陷。
+### T4（專案外資源盤點）
+
+```
+T1 bash  T2 bash  T3 bash  T4 read      四次呼叫全部正確
+T5 stopReason=stop  calls=[]  TEXT: "Real model paths in these scripts. Check existence:"
+```
+
+指派毫無歧義，四次工具呼叫全對，然後在「該去確認檔案存不存在」那一步宣告意圖、結束回合。
+8 分 49 秒，零產出。**§三那個缺口在乾淨任務上重現了**，§四的保留可以撤銷。
+
+### T3（網頁研究）：三個缺陷疊在一起
+
+session 只有 2 回合、1 次工具呼叫（`deep_research`），那一次跑了 **44 分鐘**。
+`deep_research` 拆成 4 個子問題、各開一個 agent process，回傳的四個「答案」是：
+
+```
+1. "No results. Fetch GitHub issues directly."
+2. "All tests pass. Now collect more info about the draft mechanism itself to answer the sub-question properly."
+3. "Continuing to read the article:"
+4. "(failed after 900s — child agent exited null with no answer. [ecc-bridge] ECC Submodule Version: 2.0.0)"
+```
+
+前三個都不是答案，是**子代理宣告下一步之後就結束回合的殘句**——同一個形狀，一次三例。
+
+疊了三個獨立缺陷：
+
+1. 子代理在步驟交界靜默結束（×3）
+2. **`deep-research-bridge` 不驗證回傳是不是答案**，把最後一則訊息原樣收下
+3. **子行程的啟動橫幅污染答案**：`[ecc-bridge] ECC Submodule Version: 2.0.0` 出現在答案文字裡
+
+同時有一個**明確的 harness 勝利**：bridge 的綜整指示要求「若子問題失敗就說它未解決，不要用記憶填補」，
+主模型確實照做，誠實回報查不到，沒有捏造出處。
+
+---
+
+## 八、第一輪收斂（6 個 session）
+
+```
+40 次工具呼叫      全部正確
+0  次守衛觸發      因此誤傷也是 0
+0  次技能觸發
+3 / 6 個任務產不出可用結果，全部經由同一個機制
+靜默結束共 5 次    T1-r1、T3 子代理 ×3、T4
+```
+
+### 依嚴重度排序的缺陷清單
+
+| | 缺陷 | 觀察 | 說明 |
+|---|---|---|---|
+| **P0** | 步驟交界靜默結束 | 5 次，造成 3/6 失敗 | `stopReason=stop`、零呼叫、文字宣告即將做的下一步。Pi 視為正常完成 |
+| **P1** | deep-research 收下非答案 | 1 任務／3 子問題 | 修好 P0 會大幅改善；仍應加一道「不像答案」的驗證 |
+| **P2** | 子行程橫幅污染答案 | 1 | stdout 未與答案分離。便宜好修 |
+| **P3** | 多代理成本模型不匹配本機 | 1 | 44 分鐘零產出。取捨題不是 bug |
+| — | 技能 0/6 觸發 | 6 | **尚不算缺陷**：六個任務都不夠複雜。在有反證前不要動 `skillTiers` |
+
+**P3 是「蒸餾過頭」的精確形式**：不是 token 太多（那個假設已被模型對照推翻），
+而是**從雲端規模專案蒸餾來的能力，其成本假設在 18 t/s 的本機 serving 上不成立**。
+
+### 沒有出現的
+
+工具呼叫錯誤、守衛誤傷、捏造。這三項的缺席，加上 40/40 的呼叫正確率，
+是「harness 本身沒有把 agent 搞壞」最直接的證據。
+
+---
+
+## 九、待辦
+
+* **P0 已排定修復**（先寫失敗測試與負向對照）。
 * T1 若要重跑，**必須先改掉指派文字**：拿掉歧義、拿掉不可能的紅燈要求。
-* 「靜默結束」守衛在 T3/T4 跑完前不動手——先確認這個形狀在乾淨任務上是否重現。
+* 停止規則要用機制而不是靠人盯：T3 因為我沒盯而跑了 44 分鐘，T4 改用 `timeout 900` 才受控。
