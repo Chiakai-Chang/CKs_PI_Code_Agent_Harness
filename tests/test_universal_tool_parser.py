@@ -281,6 +281,109 @@ class TestNestedArgumentTags(unittest.TestCase):
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required for native TypeScript type stripping")
+class TestLagunaNativeToolCallFormat(unittest.TestCase):
+    """The tool-call format Laguna-S-2.1's built-in chat template teaches.
+
+    Third time this class of defect has bitten, and each time the symptom was
+    identical: the model emits the format its OWN template taught it, the parser
+    has no branch for it and returns null, so there is no strike, no correction
+    and no signal — the session just stalls. First it was ```json arrays, then
+    Qwen's `<tool_call><function=NAME>`; this is the same hole for a third
+    template.
+
+    From the GGUF's `tokenizer.chat_template`:
+
+        '<tool_call>' + name
+          '<arg_key>' ~ k ~ '</arg_key>'
+          '<arg_value>' ~ (v | tojson if v is not string else v) ~ '</arg_value>'
+        '</tool_call>'
+
+    The tool name is bare text immediately after the wrapper, with no
+    `<function=>` around it, which is exactly what the Qwen branch keys on.
+    Note the template emits string values RAW and everything else as JSON.
+    """
+
+    def test_single_call_with_one_argument(self):
+        sample = "<tool_call>read<arg_key>path</arg_key><arg_value>D:/repo/README.md</arg_value></tool_call>"
+        (got,) = run_parser([sample])
+        self.assertIsNotNone(got, "Laguna's own tool-call format must be recognised")
+        self.assertEqual(got["name"], "read")
+        self.assertEqual(got["args"], {"path": "D:/repo/README.md"})
+
+    def test_multiple_arguments_keep_their_keys(self):
+        sample = (
+            "<tool_call>write<arg_key>path</arg_key><arg_value>a.txt</arg_value>"
+            "<arg_key>content</arg_key><arg_value>hello</arg_value></tool_call>"
+        )
+        (got,) = run_parser([sample])
+        self.assertEqual(got["name"], "write")
+        self.assertEqual(got["args"], {"path": "a.txt", "content": "hello"})
+
+    def test_newlines_around_the_name_and_values(self):
+        sample = (
+            "<tool_call>\n  bash\n<arg_key>command</arg_key>\n"
+            "<arg_value>\ngit status --short\n</arg_value>\n</tool_call>"
+        )
+        (got,) = run_parser([sample])
+        self.assertEqual(got["name"], "bash")
+        self.assertEqual(got["args"], {"command": "git status --short"})
+
+    def test_json_encoded_non_string_value_is_decoded(self):
+        # The template runs `tojson` on anything that is not a string, so a
+        # numeric argument arrives as `5`, not as the string "5". Leaving it a
+        # string would put a type error into the correction message the model
+        # is then asked to act on.
+        sample = "<tool_call>read<arg_key>path</arg_key><arg_value>a.txt</arg_value><arg_key>offset</arg_key><arg_value>5</arg_value></tool_call>"
+        (got,) = run_parser([sample])
+        self.assertEqual(got["args"]["offset"], 5)
+
+    def test_quoted_json_string_value_is_unwrapped(self):
+        sample = '<tool_call>read<arg_key>path</arg_key><arg_value>"a.txt"</arg_value></tool_call>'
+        (got,) = run_parser([sample])
+        self.assertEqual(got["args"], {"path": "a.txt"})
+
+    def test_two_calls_in_one_turn_are_counted(self):
+        # Guard 5 (repeat-call) and the strike accounting both read `count`;
+        # reporting 1 for a two-call leak under-counts a runaway.
+        sample = (
+            "<tool_call>read<arg_key>path</arg_key><arg_value>a.txt</arg_value></tool_call>"
+            "<tool_call>read<arg_key>path</arg_key><arg_value>b.txt</arg_value></tool_call>"
+        )
+        (got,) = run_parser([sample])
+        self.assertEqual(got["count"], 2)
+
+    def test_tool_name_is_canonicalised(self):
+        sample = "<tool_call>read_file<arg_key>path</arg_key><arg_value>a.txt</arg_value></tool_call>"
+        (got,) = run_parser([sample])
+        self.assertEqual(got["name"], "read")
+        self.assertFalse(got["unknownTool"])
+
+    def test_prose_around_the_call_does_not_break_it(self):
+        sample = (
+            "I'll read the file now.\n\n"
+            "<tool_call>read<arg_key>path</arg_key><arg_value>a.txt</arg_value></tool_call>\n\n"
+            "Then I'll summarise it."
+        )
+        (got,) = run_parser([sample])
+        self.assertEqual(got["name"], "read")
+        self.assertEqual(got["args"], {"path": "a.txt"})
+
+    def test_qwen_format_still_wins_when_both_shapes_are_present(self):
+        # A mixed sample must not become ambiguous: `<function=>` is a stronger
+        # signal than bare leading text, so the Qwen branch must keep it.
+        sample = "<tool_call><function=read><parameter=path>a.txt</parameter></function></tool_call>"
+        (got,) = run_parser([sample])
+        self.assertEqual(got["name"], "read")
+        self.assertEqual(got["args"], {"path": "a.txt"})
+
+    def test_wrapper_without_arg_tags_is_not_invented_into_a_call(self):
+        # `<tool_call>` around prose is not a call. Returning one would make the
+        # guard correct the model for something it did not do.
+        (got,) = run_parser(["<tool_call>I am not going to call anything</tool_call>"])
+        self.assertIsNone(got)
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required for native TypeScript type stripping")
 class TestAutoExecuteReadOnly(unittest.TestCase):
     """Parsing the intent correctly is not enough — the transformer still only
     asked the model to re-issue the call itself, and a model that could do that
@@ -625,6 +728,38 @@ process.stdout.write(JSON.stringify(sent));
     def test_claiming_work_never_done_is_corrected(self):
         sent = self._run([{"text": "File `scripts/verify-bridges.py` read. Stopping as instructed.", "hadTool": False}])
         self.assertTrue(sent, "claiming a read with no tool call in the session must be corrected")
+
+    def test_unquoted_completion_claim_is_corrected(self):
+        """Captured live 2026-07-30 (Qwythos-27B, 41,129-token prompt, zero tool
+        calls): the whole answer was
+
+            File read. Stopping as instructed.
+
+        No filename, no "I have" — and both detectors required one or the other,
+        so the turn scored as a plain `no-call` and the guard stayed silent. The
+        model claimed the work; that is fabrication regardless of whether it
+        bothered to name the file."""
+        for text in [
+            "File read. Stopping as instructed.",
+            "Files read.",
+            "Contents read. Nothing else to do.",
+            "Directory read, stopping here.",
+        ]:
+            sent = self._run([{"text": text, "hadTool": False}])
+            self.assertTrue(sent, "an unquoted completion claim must be corrected: %r" % text)
+
+    def test_prose_about_reading_is_not_a_claim(self):
+        """The widened pattern must not fire on discussion of reads. Guard 6
+        correcting a truthful turn is worse than missing a false one — it teaches
+        the model to distrust a correct answer."""
+        for text in [
+            "The file read failed because of permissions.",
+            "File read errors are logged to stderr.",
+            "A file read can block on a slow disk.",
+            "If the file read returns nothing, retry with an offset.",
+        ]:
+            sent = self._run([{"text": text, "hadTool": False}])
+            self.assertEqual(sent, [], "must not treat prose about reads as a claim: %r" % text)
 
     def test_claim_after_a_real_tool_call_is_left_alone(self):
         """Once the model has actually used a tool, 'I have read X' is very

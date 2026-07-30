@@ -407,6 +407,35 @@ const ARG_TAG_NAMES = new Set<string>([
   "query",
 ]);
 
+// Arguments carried as <arg_key>/<arg_value> pairs — the shape Laguna-S-2.1's
+// built-in chat template emits. Its Jinja runs `tojson` on every value that is
+// not already a string, so `5` arrives as a number literal and `a.txt` arrives
+// raw; parsing the JSON back is what keeps an integer argument an integer
+// instead of the string "5" in the correction message.
+const ARG_KV_PATTERN = /<arg_key>([\s\S]*?)<\/arg_key>\s*<arg_value>([\s\S]*?)<\/arg_value>/gi;
+
+function decodeArgValue(raw: string): unknown {
+  const trimmed = raw.trim();
+  // Only JSON-decode payloads that look like JSON. Bare prose such as
+  // `git status --short` must stay a string, and `null` typed by a model as a
+  // filename should not silently become the null value.
+  if (!/^(?:".*"|-?\d+(?:\.\d+)?|true|false|\[[\s\S]*\]|\{[\s\S]*\})$/s.test(trimmed)) return trimmed;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return trimmed;
+  }
+}
+
+function extractArgKeyValueArgs(body: string): Record<string, unknown> {
+  const args: Record<string, unknown> = {};
+  for (const m of body.matchAll(ARG_KV_PATTERN)) {
+    const key = m[1].trim();
+    if (key) args[key] = decodeArgValue(m[2]);
+  }
+  return args;
+}
+
 function extractChildTagArgs(body: string): Record<string, unknown> {
   const explicit: Record<string, unknown> = {};
   for (const m of body.matchAll(PARAM_TAG_PATTERN)) {
@@ -651,6 +680,28 @@ export function parseUniversalToolTag(text: string): ParsedToolTag | null {
     return toParsedTag(fnMatch[1], extractChildTagArgs(fnMatch[2]), wrapper?.[0] ?? fnMatch[0], fnCount);
   }
 
+  // 1c. The format Laguna-S-2.1's built-in chat template teaches:
+  //     <tool_call>NAME<arg_key>key</arg_key><arg_value>value</arg_value></tool_call>
+  //     The name is bare text right after the wrapper, with no <function=> around
+  //     it, so branch 1b cannot see it and branch 1 bails on the non-JSON body.
+  //     That is the same silent-stall hole that ```json arrays and Qwen's
+  //     <function=> shape each fell through before — a template teaches a format,
+  //     the parser has no branch for it, and a degraded turn leaks it as text
+  //     with no strike and no correction. Requiring at least one <arg_key> pair
+  //     keeps `<tool_call>` wrapped around prose from being read as a call.
+  const lagunaCalls = [
+    ...text.matchAll(
+      /<tool_call>\s*([a-zA-Z0-9_.-]+)\s*((?:<arg_key>[\s\S]*?<\/arg_value>\s*)+)<\/tool_call>/gi,
+    ),
+  ];
+  if (lagunaCalls.length > 0) {
+    const [raw, name, argBody] = lagunaCalls[0];
+    const args = extractArgKeyValueArgs(argBody);
+    if (Object.keys(args).length > 0) {
+      return toParsedTag(name, args, raw, lagunaCalls.length);
+    }
+  }
+
   // 2. Specific tool XML tags: <read>, <write>, <edit>, <bash>, <ls>, <dir>, <browse>, <search>, <command>, <terminal>, <read_file>, <write_file>
   const anthropicTagPattern = /<(read|write|edit|bash|ls|dir|browse|search|command|terminal|read_file|write_file)\b[^>]*>([\s\S]*?)<\/\1>/i;
   const matchAnthropic = text.match(anthropicTagPattern);
@@ -801,7 +852,18 @@ const AUTO_EXEC_MAX_TURNS = 8;
 const CAPABILITY_DENIAL = /(?:do(?:n['’]?t| not)|cannot|can['’]?t|no)\s+(?:have\s+)?(?:direct(?:ly)?\s+|live\s+)?access\s+(?:to\s+)?(?:your|the|this)?\s*(?:local\s+)?(?:file\s?system|files?|repositor|folder|director|machine|disk)|無法(?:直接)?(?:存取|讀取|訪問)/i;
 // Claiming a read/run. Deliberately narrow: it must look like a report of a
 // completed action, not a plan ("I will read…") or a question.
-const FABRICATED_COMPLETION = /(?:I(?:'ve| have)\s+(?:already\s+)?read|(?:File|The file)\s+[`"'][^`"']+[`"']\s+(?:has been\s+)?read\b|已(?:經)?讀取|已讀完)/i;
+// The last alternative was added 2026-07-30. Captured live at a 41,129-token
+// prompt, the entire answer was `File read. Stopping as instructed.` — no
+// filename and no "I have", so every other branch here missed it and the turn
+// scored as an ordinary no-call with no correction. The claim is fabrication
+// whether or not the model names the file.
+//
+// It is deliberately narrow: the noun phrase must be at the start of a sentence
+// AND `read` must be followed by sentence-ending punctuation. That keeps prose
+// about reads ("File read errors are logged", "the file read failed") out of it,
+// because a guard that corrects a truthful turn teaches the model to distrust a
+// correct answer — a worse failure than missing one fabrication.
+const FABRICATED_COMPLETION = /(?:I(?:'ve| have)\s+(?:already\s+)?read|(?:File|The file)\s+[`"'][^`"']+[`"']\s+(?:has been\s+)?read\b|已(?:經)?讀取|已讀完|(?:^|[.!?]\s+|\n)\s*(?:The\s+)?(?:file|files|contents?|directory|dir)\s+read\s*(?=[.,;!]|$))/i;
 
 // Whether a real tool call has EVER happened this session. "I have read X" is
 // usually true once the model has actually used tools, and a guard that calls
