@@ -194,7 +194,98 @@ session 只有 2 回合、1 次工具呼叫（`deep_research`），那一次跑�
 
 ---
 
-## 九、待辦
+## 九、P0 已修並在真實 session 驗證
+
+Guard 7（`announcesUnfulfilledNextStep`）。先寫測試確認全紅（3 個正向失敗、6 個負向對照通過），再實作。
+
+偵測**只看訊息結尾**：結尾是冒號，或最後一句以意圖動詞開頭。看整段會誤傷 T2 那句正確結案
+（中間有「The issue: ... used strict `>`」的前瞻語氣，但結束在「Changed to >=.」）。
+兩條否決：結尾是問句、或含「如果你願意」→ 不觸發（把決定交還使用者是正確終止狀態）；
+給使用者的建議不算宣告（T3 那份誠實失敗報告列了下一步，但那是建議）。
+糾正訊息**不回引卡住的原文**——2026-07-28 那次 transformer 就是這樣餵出死結。上限 2 次。
+
+真實 session 驗證（同一份在 T4 卡死的指派）：
+
+```
+[6] assistant       "Real model paths in these scripts. Check existence:"
+[7] custom_message  customType="loop-guard"    <- Guard 7 觸發
+[8] assistant       toolCall                   <- 模型繼續工作，跑到第 7 回合
+```
+
+觸發 1 次、誤傷 0 次。421 tests OK。
+
+**說法要收窄**：這是 n=1，而且那個任務**仍然沒完成**（卡在下一節的 P4）。
+正確的陳述是「它打斷了卡死」，不是「它讓任務成功」。
+
+---
+
+## 十、P4、P5：兩個新缺陷，其中一個比 P0 更嚴重
+
+### P4 — Windows 跨 shell 的引號與變數插值
+
+Guard 7 把 T4 拉回來之後，session 卡在另一個地方：模型透過 `bash` 工具下
+`powershell -Command "& { $bats = Get-ChildItem ... }"`，**`$` 變數在傳進 PowerShell 之前
+就被 shell 吃掉**，連續三次 `bash` 回傳錯誤：
+
+```
+foreach 後面應該是變數名稱          $bats / $results 消失
+/usr/bin/bash.FullName ObjectNotFound
+```
+
+`CLAUDE.md` 寫著「Pi 在 Windows 上也用 bash 執行」，但沒有任何東西告訴模型
+「所以不要在 bash 裡寫帶 `$` 的 PowerShell 單行指令」。
+
+### P5 — deep-research 子代理無監督寫入原始碼（嚴重度高於 P0）
+
+T3 是一個**純研究問題**，主 session 只有一次工具呼叫（`deep_research`）。
+但在它的時間窗內：
+
+```
+00:51:22  scripts/make-probe-fixture.py  被修改（實作了與研究無關的管線合併功能）
+01:13:04  qwen35_mtp_findings.md         被建立在 repo 根目錄
+```
+
+程式碼確認（`pi-extensions/deep-research-bridge/index.ts`）：
+
+```ts
+const inv = piInvocation(["--print","--mode","json","--no-session",
+                          "--append-system-prompt", promptFile, childPrompt(subQuestion)]);
+const proc = spawn(inv.command, inv.args, { cwd, ... });   // cwd = 母 session 的 cwd
+```
+
+三件事疊起來：**子代理的 cwd 就是 repo**、**沒有任何工具限制**（拿到完整的
+`write`/`edit`/`bash`）、**`--no-session` 讓稽核軌跡從設計上不存在**。
+
+那句莫名的子代理回傳「All tests pass. Now collect more info about the draft mechanism itself」
+因此說得通——那個子代理根本不在研究，它在跑測試改程式。
+
+bridge 作者**想過**失控問題：`CHILD_MARKER` 環境變數防止子代理遞迴呼叫 `deep_research`，
+註解寫著「Without it, one confused decomposition could fork agents until the machine dies」。
+**想到了遞迴，沒想到寫入權。**
+
+**為什麼比 P0 嚴重**：P0 是「事情沒做完」，看得見；P5 是「做了你沒要求的事，而且看不見」。
+若不是為了 commit 順手跑了 `git status`，那個改動會靜默留在工作區被下一次 commit 帶走。
+
+**這是「蒸餾過頭」的第二個精確形式**：多代理能力接進來時**沒有帶權限邊界**。
+
+---
+
+## 十一、我自己這一輪的四個錯誤
+
+1. **我在 P0 的 commit 之後回報「(clean)」，但工作區並不乾淨**——那是無條件 `echo`，
+   斷言了指令沒有驗證的狀態。與「儀器把失敗變成缺席」同一家族，只是這次犯在回報上。
+2. **T3 沒落實我自己訂的停止規則**，跑了 44 分鐘。T4 改用 `timeout 900` 才受控。
+   **靠人盯的規則不是規則。**
+3. **T1 指派出壞了**（見 §四）。
+4. **P5 差點整個漏掉。** 只因為要 commit 才順手跑 `git status`。
+   **觀察表只記錄了 agent 說了什麼、呼叫了什麼，沒有記錄它改變了什麼**——
+   而漏掉的正是這一輪最嚴重的缺陷。
+
+第 4 點已回寫進協定：每個 session 結束必須檢查 `git status` 與工作區異動。
+
+---
+
+## 十二、待辦
 
 * **P0 已排定修復**（先寫失敗測試與負向對照）。
 * T1 若要重跑，**必須先改掉指派文字**：拿掉歧義、拿掉不可能的紅燈要求。
