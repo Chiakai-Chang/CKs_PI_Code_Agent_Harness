@@ -147,3 +147,28 @@ lemonade 91d2fc3        + GRM Q6_K，23,280 tok，新啟動 server  ->  1/12
   目前彼此不一致：settings 指 Q4_K_M，models.json 只宣告 Q6_K）。
 * llama-server 的 `--alias` 決定 Pi 要用哪個名字；alias 對不上時 Pi 照樣送請求，
   server 回的是它實際載入的模型——**狀態列的模型名不能當證據**。
+
+## 7. 2026-07-30 追加的四條（Laguna 那一輪買到的）
+
+完整脈絡見 [2026-07-30 復盤](2026-07-30-laguna-abandoned-and-strix-halo-survey.md)。
+
+1. **fixture 用 `scripts/make-probe-fixture.py` 產生，不要手工拼。**
+   它從釘死的 40 字元 commit 產生、寫 sha256 manifest。而且要記住：**fixture 由 bytes 釘死，
+   token 數是「(fixture, 模型) 配對」的性質** —— 不同 tokenizer 下「15,287 tokens」不是同一個檔案。
+   跨模型比較要比 sha256。
+
+2. **每個模型跑兩組取樣：卡片指定的，以及共同基準。** 調查過的六份 model card
+   沒有兩份取樣相同（temp 0.6/0.9/1.0、top_k 20/60、repeat 1.0/1.05、甚至 presence 1.0）。
+   只用共同取樣會把每個模型推出它被調校的區間，那本身就是製造「沒有差別」的方式；
+   只用卡片取樣則把取樣差異混進模型差異。**兩組都報。**
+
+3. **量測前把所有 server 端狀態機制關掉。**
+   `--cache-ram 0`（prompt cache 預設 8192 MiB）、`--ctx-checkpoints 0`、
+   `--checkpoint-every-n-tokens -1`。同一份 fixture、同一台 server，
+   跑了幾十個請求之後從 4/12 掉到 0/24；`cache_prompt:false` 關不掉 server 層那一份。
+   這比「暖機」更可能是 0/12 ↔ 6/8 的真正變數（**尚未驗證**）。
+
+4. **失控回合要有上限。** `probe-tool-calls.mjs` 的 `--max-tokens`。
+   EOG 有問題或思考失控的模型，每個沒呼叫工具的回合都會跑到上限；
+   22 t/s 下 32768 tokens 是 25 分鐘一次，一批量不完。
+   逾時與撞上限都算 **fail**，不是 error —— 記成 error 會讓最容易失敗的案例系統性地離開分母。
