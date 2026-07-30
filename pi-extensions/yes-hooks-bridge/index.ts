@@ -88,6 +88,42 @@ function bashGuard(event: ToolCallEvent, ctx: ExtensionContext) {
   }
 }
 
+// Guard 8: a PowerShell one-liner whose variables bash will eat first.
+//
+// Pi runs commands through bash even on Windows. Observed 2026-07-30, three
+// turns in a row, right after another guard had un-stalled the session:
+//
+//     powershell -Command "& { $bats = Get-ChildItem ...; foreach ($b in $bats) ... }"
+//
+// bash expands $bats and $b to nothing before PowerShell is started, and
+// PowerShell answers "foreach 後面應該是變數名稱". The model cannot see why —
+// the command it wrote is valid PowerShell — so it rewrites it and fails again.
+// The task never finished.
+//
+// Only double quotes are affected: bash does not interpolate inside single
+// quotes, and `\$` survives intact. Both stay allowed, because they are the
+// correct way to write this and a guard that blocks the correct form is worse
+// than the bug. Checking at tool_call costs nothing per turn, unlike a prompt
+// rule, and lets the message name the fix rather than leaving the model to guess.
+const POWERSHELL_DOUBLE_QUOTED_VAR =
+  /\b(?:powershell(?:\.exe)?|pwsh(?:\.exe)?)\b[^\n]*?-(?:Command|c)\b[^\n]*?"[^"]*(?<!\\)\$/i;
+
+function crossShellQuotingGuard(event: ToolCallEvent, ctx: ExtensionContext) {
+  const cmd = (event.input as { command?: unknown })?.command;
+  if (typeof cmd !== "string" || !cmd) return;
+  if (!POWERSHELL_DOUBLE_QUOTED_VAR.test(cmd)) return;
+  ctx.ui.notify("🚨 Blocked a PowerShell command whose $variables bash would expand first", "error");
+  return {
+    block: true,
+    reason:
+      "這個指令會先經過 bash，雙引號裡的 $variable 會在 PowerShell 收到之前就被展開成空字串"
+      + "（實測症狀：PowerShell 回報 `foreach 後面應該是變數名稱`）。改用下列任一種："
+      + "\n  1. 單引號：powershell -Command '...$x...'"
+      + "\n  2. 把腳本寫成 .ps1 檔再執行"
+      + "\n  3. 直接用 bash 原生指令（ls / find / grep）完成同一件事",
+  };
+}
+
 // Guard 2: keep write/edit inside the session cwd (the project Pi was launched in).
 // Mirrors Pi's own resolveToCwd: relative paths resolve under cwd; absolute paths
 // stay absolute. A target that escapes cwd (sibling project, this harness, home) is
@@ -1197,7 +1233,13 @@ export default function (pi: ExtensionAPI) {
       ctx.ui.notify(`🔁 Blocked identical '${event.toolName}' call repeated ${REPEAT_CALL_LIMIT}×`, "warning");
       return repeat;
     }
-    if (event.toolName === "bash") return bashGuard(event, ctx);
+    if (event.toolName === "bash") {
+      // Cross-shell quoting first: the destructive-pattern script has nothing to
+      // say about it, and a command that cannot work should not be run at all.
+      const xshell = crossShellQuotingGuard(event, ctx);
+      if (xshell) return xshell;
+      return bashGuard(event, ctx);
+    }
     if (event.toolName === "write" || event.toolName === "edit") return containmentGuard(event, ctx);
   });
 

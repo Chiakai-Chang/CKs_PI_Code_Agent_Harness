@@ -1112,6 +1112,66 @@ process.stdout.write(JSON.stringify(out));
         self.assertEqual(results, [False, False, False, False])
 
 
+class TestCrossShellQuotingGuard(TestRunawayArgumentGuard):
+    """P4 from the 2026-07-30 validation: PowerShell one-liners issued through
+    the bash tool, whose variables bash eats before PowerShell ever sees them.
+
+    Pi executes commands via bash even on Windows. Nothing connected that fact
+    to its consequence, so after Guard 7 broke T4's stall the session burned
+    three turns on
+
+        powershell -Command "& { $bats = Get-ChildItem ...; }"
+
+    and got back `foreach 後面應該是變數名稱` — bash had already expanded
+    `$bats` to nothing. The task never finished.
+
+    Blocking at tool_call costs no per-turn tokens, unlike a prompt rule, and it
+    can name the fix instead of leaving the model to guess.
+
+    Reuses TestRunawayArgumentGuard's driver, which returns one boolean per case.
+    """
+
+    def _blocked(self, commands):
+        return TestRunawayArgumentGuard._run(
+            self, [{"tool": "bash", "input": {"command": c}} for c in commands]
+        )
+
+    def test_blocks_the_observed_shape(self):
+        got = self._blocked([
+            'powershell -Command "& { $bats = Get-ChildItem C:/models/*.bat -Recurse; }"',
+            'powershell -Command "Get-ChildItem C:/models | ForEach-Object { $_.FullName }"',
+            'pwsh -Command "$x = 1; Write-Output $x"',
+        ])
+        self.assertTrue(all(got), "unescaped $ inside double quotes must be blocked: %r" % (got,))
+
+    def test_single_quotes_are_correct_usage_and_allowed(self):
+        """Negative control: bash does not interpolate inside single quotes, so
+        this is the RIGHT way to write it. Blocking it would teach the model to
+        avoid the correct form."""
+        got = self._blocked([
+            "powershell -Command 'Get-ChildItem $env:TEMP'",
+            "pwsh -Command '$x = 1; Write-Output $x'",
+        ])
+        self.assertFalse(any(got), "single-quoted PowerShell is correct usage: %r" % (got,))
+
+    def test_powershell_without_variables_is_allowed(self):
+        got = self._blocked([
+            'powershell -Command "Get-ChildItem C:/models"',
+            "powershell -File ./script.ps1",
+        ])
+        self.assertFalse(any(got), "no variable, no problem: %r" % (got,))
+
+    def test_ordinary_bash_is_untouched(self):
+        """Widest negative control: $ in bash is normal and must never block."""
+        got = self._blocked([
+            'echo "$HOME"',
+            'for f in *.py; do echo "$f"; done',
+            'python -c "print(1)"',
+            'grep -n "pattern" file.txt',
+        ])
+        self.assertFalse(any(got), "normal bash must never be blocked: %r" % (got,))
+
+
 class TestGuardWiring(unittest.TestCase):
     """Source-level contract: the strike path must use the widened detector and
     the transformer must have its own runaway cap."""
