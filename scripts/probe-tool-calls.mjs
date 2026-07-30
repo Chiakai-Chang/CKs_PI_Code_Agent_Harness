@@ -21,12 +21,19 @@
 //   node scripts/probe-tool-calls.mjs --system <file> [--repeats 6]
 //        [--url http://127.0.0.1:8080] [--model grm-2.6-plus] [--temp 0.6]
 //        [--target scripts/verify-bridges.py] [--tools 13] [--json]
+//        [--max-tokens 32768] [--no-cache-prompt]
+//
+// Every run lands in exactly one bucket. `timeout` and `truncated` are
+// failures, not lost data: a turn that never answered and a turn that never
+// stopped are both turns that did not call the tool.
 //
 // The target file must NOT appear in the system prompt: asking for something the
 // model already has makes "I already have it" a correct answer with no tool
 // call, which reads as a failure and is not one.
 
 import { readFileSync } from "node:fs";
+import http from "node:http";
+import https from "node:https";
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(`--${name}`);
@@ -62,6 +69,14 @@ const repPen = Number(arg("rep-pen", "1.0"));
 // six-run batch. --no-cache-prompt forces a full reprocess per request, which
 // costs ~90s each here but removes cross-request state as an explanation.
 const noCachePrompt = has("no-cache-prompt");
+// Kept at the original 32768 so existing baselines stay comparable, but made a
+// flag because a model whose end-of-generation tokens are broken will run to
+// this limit on EVERY turn that does not produce a tool call. Laguna-S-2.1's
+// GGUF ships that defect ("special_eos_id is not in special_eog_ids"), which at
+// ~22 t/s costs 25 minutes per failed run — long enough that a batch cannot be
+// finished at all. Lower it to bound the failure, and read the resulting
+// `truncated` shape as "never stopped", not as "declined".
+const maxTokens = Number(arg("max-tokens", "32768"));
 const target = arg("target", "scripts/verify-bridges.py");
 const toolCount = Number(arg("tools", "13"));
 const asJson = has("json");
@@ -92,7 +107,61 @@ const tools = ALL_TOOLS.slice(0, Math.max(1, Math.min(toolCount, ALL_TOOLS.lengt
 const LEAK = /<tool_call>|<function\s*=|<parameter|<invoke\b|```(?:bash|json)/i;
 // The two shapes that pass for a normal turn while doing nothing.
 const DENIAL = /(?:do(?:n['’]?t| not)|cannot|can['’]?t|no)\s+(?:have\s+)?(?:direct(?:ly)?\s+|live\s+)?access/i;
-const FABRICATION = /(?:I(?:'ve| have)\s+(?:already\s+)?read|(?:File|The file)\s+[`"'][^`"']+[`"']\s+(?:has been\s+)?read\b|已(?:經)?讀取)/i;
+// Kept in step with FABRICATED_COMPLETION in yes-hooks-bridge/index.ts — if the
+// probe and the guard disagree about what counts as a fabricated completion, the
+// probe's shape counts stop describing what the harness will actually catch. The
+// bare-claim branch comes from a live capture at a 41,129-token prompt whose
+// whole answer was `File read. Stopping as instructed.`
+const FABRICATION = /(?:I(?:'ve| have)\s+(?:already\s+)?read|(?:File|The file)\s+[`"'][^`"']+[`"']\s+(?:has been\s+)?read\b|已(?:經)?讀取|(?:^|[.!?]\s+|\n)\s*(?:The\s+)?(?:file|files|contents?|directory|dir)\s+read\s*(?=[.,;!]|$))/i;
+
+// A turn that spends minutes generating prose is a FAILED turn, not a broken
+// measurement. Recording it as an `error` drops it out of the clean/total ratio
+// entirely, so the runs most likely to be failures are the ones that silently
+// disappear and the reported rate is biased clean. probe-retry-recovery.mjs was
+// fixed for this on 2026-07-29; this script was not, and on 2026-07-29 a
+// 15,280-token batch against Laguna-S-2.1 hit it on the first request.
+const TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT_MS ?? 240000);
+
+// Why node:http and not fetch. llama.cpp answers a NON-STREAMING request only
+// when generation has finished, so the socket is silent for the whole run and
+// the response headers arrive last. undici enforces its own ~300s
+// `headersTimeout`, which `AbortSignal.timeout` does not override and Node
+// exposes no way to raise. Measured 2026-07-30 at a 41,129-token prompt (~249s
+// of prefill alone): runs 1, 3 and 5 died as `fetch failed` while the server
+// completed them anyway, and runs 2, 4 and 6 then hit the warm KV prefix and
+// returned in ~70s. Reported as 2/6 clean, the batch was really 3 usable runs —
+// a silent 50% data loss that also inverted the timings. node:http's
+// `setTimeout` is an idle-socket deadline, which for this traffic pattern is
+// exactly the whole-request deadline we want, and PROBE_TIMEOUT_MS becomes the
+// only limit in play.
+const postJson = (endpoint, bodyObj) =>
+  new Promise((resolve, reject) => {
+    const u = new URL(endpoint);
+    const mod = u.protocol === "https:" ? https : http;
+    const payload = Buffer.from(JSON.stringify(bodyObj));
+    const req = mod.request(
+      {
+        hostname: u.hostname,
+        port: u.port || (u.protocol === "https:" ? 443 : 80),
+        path: u.pathname + u.search,
+        method: "POST",
+        headers: { "content-type": "application/json", "content-length": payload.length },
+      },
+      (res) => {
+        const chunks = [];
+        res.on("data", (c) => chunks.push(c));
+        res.on("end", () => resolve({ status: res.statusCode, text: Buffer.concat(chunks).toString("utf8") }));
+        res.on("error", reject);
+      },
+    );
+    req.setTimeout(TIMEOUT_MS, () => {
+      const err = new Error(`no answer within ${TIMEOUT_MS}ms`);
+      err.name = "TimeoutError";
+      req.destroy(err);
+    });
+    req.on("error", reject);
+    req.end(payload);
+  });
 
 const system = readFileSync(systemFile, "utf-8");
 const results = [];
@@ -101,33 +170,44 @@ for (let i = 1; i <= repeats; i++) {
   const started = Date.now();
   let json, status = 0;
   try {
-    const r = await fetch(`${url}/v1/chat/completions`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: `Read the file ${target}, then stop.` },
-        ],
-        tools,
-        temperature: temp,
-        top_p: topP,
-        top_k: topK,
-        min_p: minP,
-        repeat_penalty: repPen,
-        ...(noCachePrompt ? { cache_prompt: false } : {}),
-        max_tokens: 32768,
-      }),
+    const r = await postJson(`${url}/v1/chat/completions`, {
+      model,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: `Read the file ${target}, then stop.` },
+      ],
+      tools,
+      temperature: temp,
+      top_p: topP,
+      top_k: topK,
+      min_p: minP,
+      repeat_penalty: repPen,
+      ...(noCachePrompt ? { cache_prompt: false } : {}),
+      max_tokens: maxTokens,
     });
     status = r.status;
     // llama-server answers /props while still loading but 503s here. Treating
     // that as "no tool call" invalidated a whole batch once.
     if (status !== 200) throw new Error(`HTTP ${status}`);
-    json = await r.json();
+    json = JSON.parse(r.text);
   } catch (e) {
-    results.push({ run: i, error: String(e.message || e) });
-    if (!asJson) console.log(`run ${i}: REQUEST FAILED ${e.message || e}`);
+    const secs = ((Date.now() - started) / 1000).toFixed(1);
+    // A timeout is a result; anything else (connection refused, 503 while the
+    // model is still loading, malformed JSON) is a broken instrument and stays
+    // an error so it cannot be mistaken for a model failure.
+    const timedOut = e?.name === "TimeoutError" || /timeout|aborted/i.test(String(e?.message ?? ""));
+    if (timedOut) {
+      results.push({
+        run: i, clean: false, shape: "timeout",
+        finish: null, calls: 0, name: null, argsLen: 0,
+        promptTokens: null, outputTokens: null, seconds: Number(secs),
+        head: `(no answer within ${TIMEOUT_MS}ms)`,
+      });
+      if (!asJson) console.log(`run ${i}: DIRTY shape=timeout after ${secs}s (limit ${TIMEOUT_MS}ms)`);
+    } else {
+      results.push({ run: i, error: String(e.message || e) });
+      if (!asJson) console.log(`run ${i}: REQUEST FAILED ${e.message || e}`);
+    }
     continue;
   }
 
@@ -144,6 +224,11 @@ for (let i = 1; i <= repeats; i++) {
     : DENIAL.test(content) ? "capability-denial"
     : FABRICATION.test(content) ? "fabricated-completion"
     : calls.length > 0 ? "wrong-call"
+    // Ran out of max_tokens without ever calling anything. Folding this into
+    // no-call hides the difference between "declined to act" and "generated
+    // until it was cut off", which are different problems with different fixes
+    // (Laguna-S-2.1 interleaves unbounded native thinking, so it can do this).
+    : choice.finish_reason === "length" ? "truncated"
     : "no-call";
 
   results.push({
