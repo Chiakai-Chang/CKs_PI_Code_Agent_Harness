@@ -343,3 +343,29 @@ systemPrompt         14,055 -> 12,377 tokens
 **實務上的意義**：驗收 agent 的產出時，**完成度不足以判斷成敗，必須獨立重做一次**。
 記錄這件事的人自己也連錯兩次才做對——容易錯的任務上，
 一份自信的錯誤摘要比一次看得見的卡死更危險。
+
+## 工具呼叫因輸出撞上限而被丟棄（2026-07-31，守衛已加但未經田野驗證）
+
+**現象**：一個回合發出正確的工具呼叫，Pi 卻回報
+
+```
+Tool call "bash" was not executed: the response hit the output token limit,
+so its arguments may be truncated. Re-issue the tool call with complete arguments.
+```
+
+session 可能就此結束。實測捕捉：`output 16,384`（剛好等於 `maxTokens`）、
+`stopReason=length`、呼叫本身只有一行、思考只有 1,086 字元——**失控的是呼叫前後的輸出**。
+
+`yes-hooks-bridge` 的 Guard 4（runaway argument）看不到它：那個檢查的是**參數值**。
+
+**處理**：新增 Guard 9，偵測「`stopReason=length` + 訊息含 toolCall + toolResult 是
+Pi 的拒絕訊息」，要求模型重發**簡短**的同一個呼叫。
+**這個守衛的單元測試通過，但尚未在真實 session 裡被觀察到觸發**（該形狀是間歇性的，
+三次嘗試未能重現）。它的負向對照確保不會誤傷：撞上限但在寫長答案、或指令本身失敗，都不觸發。
+
+**實務上更有效的緩解是調低 `maxTokens`。** 本機 `pi-config/models.json` 已從 16,384
+（模型卡片建議值，針對雲端速度）降到 8,192——在 13.6 t/s 上，前者的一次失控回合要燒
+約 20 分鐘，後者約 10 分鐘。實測正常回合輸出 163–413 tokens，最大合理輸出 4,261。
+
+除錯時可用 `PI_HARNESS_DUMP_TURN_END=<file>` 倒出 `turn_end` 事件的真實結構
+（未設定時完全不動作）。
