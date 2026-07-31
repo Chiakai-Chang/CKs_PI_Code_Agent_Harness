@@ -859,6 +859,13 @@ class TestUnfulfilledIntentGuard(TestFabricatedWorkGuard):
         sent = self._run([{"text": "Check existence:", "hadTool": True}])
         self.assertEqual(sent, [], "a turn that actually called a tool is not stalled")
 
+    def test_a_genuine_tool_error_is_not_a_discarded_call(self):
+        """Negative control. Pi emits an ERROR toolResult both when it refuses a
+        truncated call and when the command itself failed. Only the first is
+        this guard's business."""
+        sent = self._run([{"stop": "toolUse", "call": "bash", "results": True}])
+        self.assertEqual(sent, [], "a command that simply failed is not a discarded call")
+
     def test_nudging_is_bounded(self):
         """A model that keeps announcing must not be nudged forever — that is a
         loop with extra steps."""
@@ -867,6 +874,117 @@ class TestUnfulfilledIntentGuard(TestFabricatedWorkGuard):
         sent = self._run(turns)
         self.assertGreater(len(sent), 0)
         self.assertLessEqual(len(sent), 3, "the nudge must be capped, not unbounded")
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required for native TypeScript type stripping")
+class TestDiscardedToolCallGuard(unittest.TestCase):
+    """P9, 2026-07-31: a correct tool call thrown away because the turn kept
+    generating past the output cap.
+
+    Captured live on "run the test suite and tell me how many passed":
+
+        usage: input 15,156  output 16,384 (exactly maxTokens)  stopReason=length
+        THINK len 1086
+        CALL  bash {"command":"python -m unittest discover -s tests"}
+        RESULT Tool call "bash" was not executed: the response hit the output
+               token limit, so its arguments may be truncated.
+        total assistant turns: 1
+
+    The call was short and correct. The model emitted it and then kept talking
+    until the cap, so Pi refused it and the session ended after one turn.
+
+    Guard 4 cannot see this — it inspects argument VALUES, and these arguments
+    were fine. The runaway is everything around the call.
+    """
+
+    DRIVER = r"""
+import { readFileSync } from "node:fs";
+import mod from %(mod)s;
+const store = {};
+const sent = [];
+mod({
+  on: (e, f) => { (store[e] ??= []).push(f); },
+  sendMessage: (m) => { sent.push(m.content); },
+  sendUserMessage() {}, registerTool() {},
+});
+const ctx = { cwd: %(cwd)s, ui: { notify() {} } };
+const turns = JSON.parse(readFileSync(process.argv[2], "utf-8"));
+for (const t of turns) {
+  const content = [];
+  if (t.think) content.push({ type: "thinking", thinking: t.think });
+  if (t.call) content.push({ type: "toolCall", name: t.call, arguments: {} });
+  if (t.text) content.push({ type: "text", text: t.text });
+  for (const fn of store["turn_end"] ?? []) {
+    await fn({
+      message: { role: "assistant", content, stopReason: t.stop },
+      // A DISCARDED call still produces a toolResult — an error one. The first
+      // version of this driver modelled it as no result at all, which is the
+      // assumption that made the guard pass under test and do nothing in a real
+      // session: loopGuard returns early whenever toolResults is non-empty.
+      toolResults: t.discarded
+        ? [{ toolName: "bash", isError: true, content: 'Tool call "bash" was not executed: the response hit the output token limit, so its arguments may be truncated. Re-issue the tool call with complete arguments.' }]
+        : (t.results ? [{ toolName: "bash", content: "ok" }] : []),
+    }, ctx);
+  }
+}
+process.stdout.write(JSON.stringify(sent));
+"""
+
+    def _run(self, turns):
+        driver = os.path.join(ROOT, "tests", ".tmp_discard_driver.mjs")
+        payload = os.path.join(ROOT, "tests", ".tmp_discard_input.json")
+        with open(driver, "w", encoding="utf-8") as f:
+            f.write(self.DRIVER % {
+                "mod": json.dumps("file:///" + IDX.replace("\\", "/")),
+                "cwd": json.dumps(ROOT.replace("\\", "/")),
+            })
+        with open(payload, "w", encoding="utf-8") as f:
+            json.dump(turns, f)
+        try:
+            p = subprocess.run(["node", driver, payload], capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", cwd=ROOT, timeout=120)
+            if p.returncode != 0:
+                raise AssertionError("node driver failed:\n%s\n%s" % (p.stdout, p.stderr))
+            return json.loads(p.stdout)
+        finally:
+            for x in (driver, payload):
+                if os.path.exists(x):
+                    os.remove(x)
+
+    def test_the_observed_shape_is_nudged(self):
+        sent = self._run([{"stop": "length", "think": "x" * 1086, "call": "bash", "discarded": True}])
+        self.assertTrue(sent, "a tool call discarded at the output cap must be corrected")
+        self.assertRegex(" ".join(sent), r"(?i)簡短|shorter|concise|不要|stop",
+                         "the correction must ask for a SHORT re-issue, not just repeat the error")
+
+    def test_a_long_answer_with_no_tool_call_is_left_alone(self):
+        """Negative control, and the important one: hitting the cap while
+        writing a long answer is not a discarded call. Telling that turn to
+        're-issue a shorter tool call' is nonsense."""
+        sent = self._run([{"stop": "length", "text": "a very long answer " * 200}])
+        self.assertEqual(sent, [], "a long prose answer must not be treated as a discarded call")
+
+    def test_a_call_that_actually_ran_is_left_alone(self):
+        """stopReason=length can coincide with a call that Pi did execute."""
+        sent = self._run([{"stop": "length", "call": "bash", "results": True}])
+        self.assertEqual(sent, [], "the call produced a result — nothing was discarded")
+
+    def test_a_normal_finished_turn_is_left_alone(self):
+        sent = self._run([{"stop": "stop", "text": "Done. 448 tests passed.", "results": False}])
+        self.assertEqual(sent, [], "an ordinary completed turn must not be nudged")
+
+    def test_a_genuine_tool_error_is_not_a_discarded_call(self):
+        """Negative control. Pi emits an ERROR toolResult both when it refuses a
+        truncated call and when the command itself failed. Only the first is
+        this guard's business."""
+        sent = self._run([{"stop": "toolUse", "call": "bash", "results": True}])
+        self.assertEqual(sent, [], "a command that simply failed is not a discarded call")
+
+    def test_nudging_is_bounded(self):
+        turns = [{"stop": "length", "call": "bash", "discarded": True} for _ in range(6)]
+        sent = self._run(turns)
+        self.assertGreater(len(sent), 0)
+        self.assertLessEqual(len(sent), 3, "a model that keeps overrunning must not be nudged forever")
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required for native TypeScript type stripping")
@@ -1112,6 +1230,58 @@ process.stdout.write(JSON.stringify(out));
         self.assertEqual(results, [False, False, False, False])
 
 
+class TestRepeatCallCircuitBreaker(TestRunawayArgumentGuard):
+    """P8, 2026-07-31: the repeat-call guard is a speed bump, not a brake.
+
+    Captured live on the task "Reply with exactly: OK": 76 assistant turns, 130
+    identical `web_search{"query":"OK"}` calls, ~70 minutes of wall time. The
+    guard fired 18 times and said the right thing every time; nothing ever
+    stopped the session, because on hitting the limit it resets its counter so
+    the model gets a fresh budget.
+
+    That reset is deliberate and stays — blocking every subsequent call forever
+    trades one loop for another. What was missing is a cumulative count that
+    SURVIVES the reset, so a model that keeps looping eventually hits a brake
+    instead of an infinite series of speed bumps.
+    """
+
+    def _blocked(self, calls):
+        return TestRunawayArgumentGuard._run(self, calls)
+
+    def _same(self, n):
+        return [{"tool": "web_search", "input": {"query": "OK"}} for _ in range(n)]
+
+    def test_the_existing_speed_bump_still_works(self):
+        """Negative control for the fix: the first offence must still be a
+        single block with a fresh budget after it, not an immediate hand-back."""
+        got = self._blocked(self._same(4))
+        self.assertEqual(got[:3], [False, False, False], "first three identical calls are allowed")
+        self.assertTrue(got[3], "the fourth identical call is blocked")
+
+    def test_a_persistent_loop_is_eventually_stopped_for_good(self):
+        """The observed loop ran 130 calls. After enough offences the guard must
+        stop resetting and refuse every identical call, so the session cannot
+        keep buying fresh budgets."""
+        got = self._blocked(self._same(40))
+        tail = got[-8:]
+        self.assertTrue(all(tail), f"a persistent loop must end up blocked every time, got {tail}")
+
+    def test_changing_the_arguments_clears_the_breaker(self):
+        """A model that takes the advice — 'change the arguments' — must not stay
+        punished for the earlier loop."""
+        calls = self._same(20)
+        calls.append({"tool": "web_search", "input": {"query": "something else"}})
+        calls.append({"tool": "web_search", "input": {"query": "something else"}})
+        got = self._blocked(calls)
+        self.assertFalse(got[-1], "a different call must be allowed after the loop is abandoned")
+
+    def test_a_normal_repeated_read_is_untouched(self):
+        """Widest negative control: re-reading a file a couple of times during
+        real work is normal and must never trip anything."""
+        got = self._blocked([{"tool": "read", "input": {"path": "README.md"}} for _ in range(3)])
+        self.assertFalse(any(got), f"three reads are not a loop: {got}")
+
+
 class TestCrossShellQuotingGuard(TestRunawayArgumentGuard):
     """P4 from the 2026-07-30 validation: PowerShell one-liners issued through
     the bash tool, whose variables bash eats before PowerShell ever sees them.
@@ -1254,10 +1424,32 @@ class TestCorrectionsActuallyFire(unittest.TestCase):
             "Offenders: %s" % offenders,
         )
 
-    def test_transformer_and_retry_use_followUp(self):
+    def test_only_a_deliberate_stop_may_use_nextTurn(self):
+        """Was a blanket ban on the string. That was right while every
+        sendMessage here existed to auto-advance, and wrong once one of them
+        existed to STOP: the repeat-call breaker (P8, 2026-07-31) hands control
+        back after a loop survived three corrections, and re-triggering a loop
+        is fuel. `nextTurn` waiting for the human is exactly the brake.
+
+        So the rule is not "never nextTurn", it is "nextTurn only where stopping
+        is the intent" — everything meant to advance still has to use followUp,
+        which is the defect this class was written for.
+        """
         with open(IDX, encoding="utf-8") as f:
             c = f.read()
-        self.assertNotIn('deliverAs: "nextTurn"', c)
+        # Split on top-level function boundaries and attribute each occurrence.
+        chunks = re.split(r"\nfunction ", c)
+        for chunk in chunks:
+            if 'deliverAs: "nextTurn"' not in chunk:
+                continue
+            name = chunk.split("(")[0].strip()
+            self.assertEqual(
+                name, "repeatCallGuard",
+                f'deliverAs "nextTurn" found in `{name}` — it does not auto-advance, '
+                "so anything meant to correct-and-continue must use followUp",
+            )
+        self.assertIn('{ deliverAs: "followUp", triggerTurn: true }', c,
+                      "the auto-advancing corrections must still exist")
         self.assertGreaterEqual(c.count('deliverAs: "followUp"'), 4)
 
 

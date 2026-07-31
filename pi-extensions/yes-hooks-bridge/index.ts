@@ -285,10 +285,21 @@ function runawayArgumentGuard(event: ToolCallEvent, ctx: ExtensionContext) {
 // Consecutive only: any different call resets the count, so edit/test/edit/test
 // cycles — identical `bash` calls separated by real work — are untouched.
 const REPEAT_CALL_LIMIT = 4;
+// How many times the speed bump above may fire for the SAME call before it
+// becomes a brake. Captured live 2026-07-31 on the task "Reply with exactly:
+// OK": 76 turns, 130 identical `web_search{"query":"OK"}` calls, ~70 minutes.
+// The guard fired 18 times and said the right thing every time — and the
+// session never stopped, because hitting the limit resets the counter and hands
+// the model a fresh budget. That reset is deliberate and stays; blocking every
+// subsequent call forever trades one loop for another. What was missing is a
+// count that SURVIVES the reset.
+const REPEAT_OFFENCE_LIMIT = 3;
 let lastCallSignature = "";
 let repeatedCallCount = 0;
+let repeatOffences = 0;
+let repeatBreakerTripped = false;
 
-function repeatCallGuard(event: ToolCallEvent) {
+function repeatCallGuard(event: ToolCallEvent, ctx: ExtensionContext, pi: ExtensionAPI) {
   let signature: string;
   try {
     signature = `${event.toolName}:${JSON.stringify(event.input ?? {})}`;
@@ -296,16 +307,61 @@ function repeatCallGuard(event: ToolCallEvent) {
     return; // unserializable input — can't fingerprint, fail open
   }
   if (signature !== lastCallSignature) {
+    // A different call means the model took the advice. Clear everything,
+    // including the breaker: it exists to stop one loop, not to punish a model
+    // that moved on.
     lastCallSignature = signature;
     repeatedCallCount = 1;
+    repeatOffences = 0;
+    repeatBreakerTripped = false;
     return;
   }
   repeatedCallCount += 1;
+
+  if (repeatBreakerTripped) {
+    return {
+      block: true,
+      reason:
+        `Repeat-call guard: this identical \`${event.toolName}\` call has now been refused ` +
+        `${REPEAT_OFFENCE_LIMIT} separate times and is blocked for good. Stop calling it. ` +
+        `Say in plain text what you were trying to find out and what is blocking you.`,
+    };
+  }
+
   if (repeatedCallCount < REPEAT_CALL_LIMIT) return;
+
+  repeatOffences += 1;
   // Reset so the model gets a fresh budget after being told; blocking every
   // subsequent call would trade one loop for another.
   repeatedCallCount = 0;
-  lastCallSignature = "";
+
+  if (repeatOffences >= REPEAT_OFFENCE_LIMIT) {
+    repeatBreakerTripped = true;
+    ctx.ui.notify(
+      `🛑 Repeat-call breaker: '${event.toolName}' looped ${REPEAT_OFFENCE_LIMIT}× despite corrections — handing back to you.`,
+      "error",
+    );
+    pi.sendMessage(
+      {
+        customType: "loop-guard",
+        content:
+          `[SYSTEM] 你對 \`${event.toolName}\` 發出了完全相同的呼叫、被糾正 ${REPEAT_OFFENCE_LIMIT} 次仍在重複。` +
+          `這一輪到此為止，控制權交還使用者。請用純文字說明你想查什麼、卡在哪裡。`,
+        display: true,
+      },
+      // "nextTurn", NOT "followUp"+triggerTurn: re-triggering a loop is fuel.
+      // This queues for the next human prompt, which is exactly the stop that
+      // was missing — the observed loop ran 70 minutes with nothing to end it.
+      { deliverAs: "nextTurn" },
+    );
+    return {
+      block: true,
+      reason:
+        `Repeat-call guard: ${REPEAT_OFFENCE_LIMIT} rounds of the identical \`${event.toolName}\` call. ` +
+        `Stopping and handing back to the user. Do not call it again.`,
+    };
+  }
+
   return {
     block: true,
     reason:
@@ -974,6 +1030,40 @@ function announcesUnfulfilledNextStep(text: string): boolean {
   return NEXT_STEP_OPENER.test(last);
 }
 
+// Guard 9 — a correct tool call thrown away because the turn overran the cap.
+//
+// Captured live 2026-07-31: usage output 16,384 (exactly maxTokens),
+// stopReason=length, a 1,086-char think block and a short, valid
+// `bash {"command":"python -m unittest discover -s tests"}`. Pi refused it —
+// "the response hit the output token limit, so its arguments may be truncated"
+// — and the session ended after ONE turn.
+//
+// Guard 4 cannot see it: that one inspects argument VALUES, and these were
+// fine. The runaway is everything around the call.
+// Pi still emits a toolResult when it refuses a truncated call — an error one
+// carrying this phrase. Modelling it as "no result at all" is what made the
+// first version of this guard pass its tests and do nothing in a real session:
+// loopGuard returns early whenever toolResults is non-empty, so the check has
+// to happen BEFORE that return, and has to tell a refused call apart from a
+// command that simply failed.
+const DISCARDED_CALL_RESULT = /output token limit|was not executed/i;
+
+function toolResultsShowADiscardedCall(results: unknown): boolean {
+  if (!Array.isArray(results)) return false;
+  return results.some((r) => {
+    const rec = r as { isError?: unknown; content?: unknown };
+    if (!rec?.isError) return false;
+    const c = rec.content;
+    const text = typeof c === "string"
+      ? c
+      : Array.isArray(c) ? c.map((b) => (b as { text?: string })?.text ?? "").join(" ") : "";
+    return DISCARDED_CALL_RESULT.test(text);
+  });
+}
+
+let consecutiveDiscardedCalls = 0;
+const MAX_DISCARDED_CALL_NUDGES = 2;
+
 let consecutiveIntentNudges = 0;
 // Two nudges, then stop. A model that keeps announcing instead of acting is a
 // loop with extra steps, and nudging it forever is the deadlock this guard
@@ -982,8 +1072,69 @@ const MAX_INTENT_NUDGES = 2;
 
 function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: ExtensionContext, pi: ExtensionAPI) {
   const hadRealToolCall = Array.isArray(event.toolResults) && event.toolResults.length > 0;
+  const msg = (event as { message?: { stopReason?: unknown; content?: unknown } }).message;
+  const overran = msg && (msg as { stopReason?: unknown }).stopReason === "length";
+  const emittedACall =
+    Array.isArray((msg as { content?: unknown })?.content) &&
+    ((msg as { content: Array<{ type?: string }> }).content).some((b) => b?.type === "toolCall");
+
+  // Env-gated shape dump. Guard 9 was written twice against an ASSUMED event
+  // shape and did nothing in a real session both times, while its unit tests
+  // passed — the fixtures encoded the assumption. Off unless the variable names
+  // a file.
+  if (process.env.PI_HARNESS_DUMP_TURN_END) {
+    try {
+      const m = (event as { message?: Record<string, unknown> }).message ?? {};
+      writeFileSync(
+        process.env.PI_HARNESS_DUMP_TURN_END,
+        JSON.stringify({
+          messageKeys: Object.keys(m),
+          stopReason: (m as { stopReason?: unknown }).stopReason,
+          contentTypes: Array.isArray((m as { content?: unknown }).content)
+            ? ((m as { content: Array<{ type?: string }> }).content).map((b) => b?.type)
+            : typeof (m as { content?: unknown }).content,
+          toolResults: (event as { toolResults?: unknown }).toolResults,
+          computed: {
+            overran,
+            emittedACall,
+            discardedResult: toolResultsShowADiscardedCall((event as { toolResults?: unknown }).toolResults),
+            consecutiveDiscardedCalls,
+            MAX_DISCARDED_CALL_NUDGES,
+          },
+        }, null, 2) + "\n",
+        { flag: "a" },
+      );
+    } catch {}
+  }
+
+  // Guard 9 runs FIRST: a discarded call arrives WITH a (failed) toolResult, so
+  // every branch below — including the early return just under this — would
+  // treat the turn as a normal tool-using turn and do nothing.
+  if (overran && emittedACall && toolResultsShowADiscardedCall(event.toolResults)) {
+    if (consecutiveDiscardedCalls < MAX_DISCARDED_CALL_NUDGES) {
+      consecutiveDiscardedCalls += 1;
+      ctx.ui.notify(
+        `🚨 A tool call was discarded: the turn hit the output limit (nudge ${consecutiveDiscardedCalls}/${MAX_DISCARDED_CALL_NUDGES}).`,
+        "error",
+      );
+      pi.sendMessage(
+        {
+          customType: "loop-guard",
+          content:
+            "[SYSTEM] 你這一輪發出了工具呼叫，但整個回覆撞到輸出上限，所以 Pi 沒有執行它。" +
+            "問題不在呼叫本身，而在它前後的長篇輸出。\n" +
+            "請立刻重新發出**同一個**呼叫，並且這次不要附帶任何說明或思考，簡短到只剩呼叫本身。",
+          display: true,
+        },
+        { deliverAs: "followUp", triggerTurn: true },
+      );
+    }
+    return;
+  }
+
   if (hadRealToolCall) {
     sawAnyRealToolCall = true;
+    consecutiveDiscardedCalls = 0;
     consecutiveFakeToolStrikes = 0;
     consecutiveTransformStrikes = 0;
     consecutiveServedTurns = 0;
@@ -993,6 +1144,7 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
 
   const cfg = loopGuardConfig();
   if (!cfg.enableSelfHealingLoopGuard && !cfg.enableUniversalTagTransformer) return;
+
 
   const text = extractMessageText(event.message);
 
@@ -1261,7 +1413,7 @@ export default function (pi: ExtensionAPI) {
   pi.on("tool_call", async (event, ctx) => {
     const runaway = runawayArgumentGuard(event, ctx);
     if (runaway) return runaway;
-    const repeat = repeatCallGuard(event);
+    const repeat = repeatCallGuard(event, ctx, pi);
     if (repeat) {
       ctx.ui.notify(`🔁 Blocked identical '${event.toolName}' call repeated ${REPEAT_CALL_LIMIT}×`, "warning");
       return repeat;
