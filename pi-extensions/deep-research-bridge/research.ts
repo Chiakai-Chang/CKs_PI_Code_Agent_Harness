@@ -145,3 +145,33 @@ export function summarizeChildStderr(stderr: string, max = 300): string {
   const joined = lines.join(" | ");
   return joined.length <= max ? joined : joined.slice(0, max) + "…";
 }
+
+/**
+ * Append a chunk to a stream buffer without letting it grow without bound.
+ *
+ * 2026-07-31: the bridge did `out += d.toString()` on a child's stdout. A child
+ * that never stopped emitting pushed that string past V8's maximum length and
+ * threw `RangeError: Invalid string length` inside the stream handler, killing
+ * the PARENT process 39 minutes into a research call. The session log ends after
+ * one turn.
+ *
+ * `keep` is not a detail. The two streams are trimmed from opposite ends because
+ * the useful part sits at opposite ends: parseChildOutput wants the LAST
+ * assistant message, and summarizeChildStderr wants the FIRST error, since
+ * banners come last and causes come first.
+ */
+export function appendBounded(
+  buffer: string,
+  chunk: string,
+  max: number,
+  keep: "head" | "tail",
+): string {
+  const combined = buffer + chunk;
+  if (combined.length <= max) return combined;
+  return keep === "tail" ? combined.slice(combined.length - max) : combined.slice(0, max);
+}
+
+/** Enough for a long JSON event stream, far below the length that crashed V8. */
+export const MAX_CHILD_STDOUT = 8 * 1024 * 1024;
+/** Diagnostics only; summarizeChildStderr trims further. */
+export const MAX_CHILD_STDERR = 256 * 1024;

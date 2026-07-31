@@ -103,6 +103,54 @@ class TestChildOutputParsing(unittest.TestCase):
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestChildOutputIsBounded(unittest.TestCase):
+    """P7, 2026-07-31: a runaway child killed the PARENT.
+
+        proc.stdout.on("data", (d) => out += d.toString());
+        RangeError: Invalid string length
+
+    The bridge accumulated a child's stdout into one unbounded string. A child
+    that never stopped emitting eventually exceeded V8's maximum string length
+    and threw inside the stream handler, taking the whole Pi process down 39
+    minutes into a research call — not the child, the parent. The session log
+    ends after a single turn.
+
+    The two streams are trimmed from opposite ends, and that asymmetry is the
+    point: parseChildOutput wants the LAST assistant message, while
+    summarizeChildStderr wants the FIRST error, because banners come last and
+    causes come first.
+    """
+
+    def test_stdout_keeps_the_tail(self):
+        out = run_js(
+            'process.stdout.write(JSON.stringify({t: m.appendBounded("AAAA", "BBBBCC", 6, "tail")}));')
+        self.assertEqual(out["t"][-2:], "CC", "the final assistant message lives at the end")
+        self.assertLessEqual(len(out["t"]), 6)
+
+    def test_stderr_keeps_the_head(self):
+        out = run_js(
+            'process.stdout.write(JSON.stringify({t: m.appendBounded("ERR!", "xxxxxx", 6, "head")}));')
+        self.assertTrue(out["t"].startswith("ERR!"), "the cause is the first thing printed")
+        self.assertLessEqual(len(out["t"]), 6)
+
+    def test_under_the_cap_nothing_is_lost(self):
+        out = run_js('process.stdout.write(JSON.stringify({t: m.appendBounded("ab", "cd", 100, "tail")}));')
+        self.assertEqual(out["t"], "abcd")
+
+    def test_a_single_oversized_chunk_is_still_bounded(self):
+        """The crash came from one enormous accumulation, so a single chunk
+        larger than the cap must not slip through."""
+        out = run_js('process.stdout.write(JSON.stringify({t: m.appendBounded("", "y".repeat(5000), 100, "tail")}));')
+        self.assertLessEqual(len(out["t"]), 100)
+
+    def test_the_bridge_uses_it_on_both_streams(self):
+        idx = read("pi-extensions/deep-research-bridge/index.ts")
+        self.assertNotIn('out += d.toString()', idx, "unbounded stdout accumulation is what crashed the parent")
+        self.assertNotIn('err += d.toString()', idx, "stderr is unbounded too")
+        self.assertIn("appendBounded", idx)
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
 class TestChildFailureDiagnostic(unittest.TestCase):
     """P2 from the 2026-07-30 validation: when a child fails, the parent is told
     nothing useful about why.

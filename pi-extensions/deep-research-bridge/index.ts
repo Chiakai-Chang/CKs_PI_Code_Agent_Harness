@@ -35,6 +35,9 @@ import {
   clampFinding,
   parseChildOutput,
   summarizeChildStderr,
+  appendBounded,
+  MAX_CHILD_STDOUT,
+  MAX_CHILD_STDERR,
   validateSubQuestions,
   type SubResult,
 } from "./research.js";
@@ -115,8 +118,8 @@ function runChild(
 
     let out = "";
     let err = "";
-    proc.stdout.on("data", (d: Buffer) => (out += d.toString()));
-    proc.stderr.on("data", (d: Buffer) => (err += d.toString()));
+    proc.stdout.on("data", (d: Buffer) => (out = appendBounded(out, d.toString(), MAX_CHILD_STDOUT, "tail")));
+    proc.stderr.on("data", (d: Buffer) => (err = appendBounded(err, d.toString(), MAX_CHILD_STDERR, "head")));
 
     const finish = (ok: boolean, fallback: string) => {
       if (dir) { try { rmSync(dir, { recursive: true, force: true }); } catch {} }
