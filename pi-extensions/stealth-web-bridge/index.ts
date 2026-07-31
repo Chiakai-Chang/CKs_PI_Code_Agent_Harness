@@ -306,7 +306,7 @@ export default function (pi: ExtensionAPI) {
     name: "web_search",
     label: "Web Search",
     description:
-      "Search the live web via a stealth browser (Camoufox) and return result titles, snippets, and URLs. Use for a lookup whose results you want in this conversation: news, docs, library/API usage, other people's approaches. Not for anything already on this machine, and not for a question needing several separate lookups — that is deep_research. Routes through DuckDuckGo so bot walls (Cloudflare, Google /sorry) do not block it.",
+      "Search the live web via a stealth browser (Camoufox) and return result titles, snippets, and URLs. Use for a lookup whose results you want in this conversation: news, docs, library/API usage, other people's approaches. Not for anything already on this machine. Routes through DuckDuckGo so bot walls (Cloudflare, Google /sorry) do not block it.",
     promptSnippet:
       "web_search(query): search the live web through a stealth browser; use for any current/external info instead of claiming you cannot go online.",
     promptGuidelines: [
@@ -314,12 +314,10 @@ export default function (pi: ExtensionAPI) {
       // information", which is unconditional and swallows every other route to
       // the web. Observed twice: the model web_searched for a LOCAL skill file
       // whose path it had just been handed, and it web_searched instead of
-      // calling deep_research when explicitly told to call deep_research. Two
       // bridges each injecting confident guidance, with nothing checking the
       // combination. Scope it, and name the case that belongs elsewhere.
       "You CAN access the internet: call web_search for a lookup you want the results of in THIS conversation. Never say you cannot browse.",
       "Do not web_search for something already on this machine — a local file, a skill, a repo path. Read it.",
-      "For a question needing several separate things looked up, prefer deep_research: it researches each sub-question in its own agent process, so the pages never enter this context. web_search here puts every page you open into it.",
       "web_search returns only titles/snippets — that is NOT enough to analyze or answer accurately. After searching, call web_open on the 1-3 most relevant result URLs to read the full articles.",
       "web_open goes through the same stealth browser, so it reads pages that block plain fetch (Cloudflare, JS-rendered, soft paywalls). Prefer it over giving up on a source.",
       "web_search and web_open return a reading view: navigation, URLs and [eN] element refs are stripped. If you need to click or type, pass raw: true or call web_snapshot for the full tree.",

@@ -34,6 +34,7 @@ import {
   childSystemPrompt,
   clampFinding,
   parseChildOutput,
+  deepResearchEnabled,
   summarizeChildStderr,
   appendBounded,
   MAX_CHILD_STDOUT,
@@ -45,6 +46,7 @@ import {
 // Generous: one child does several web fetches on a slow local model. The cap
 // exists to stop a hung child holding the parent forever, not to rush research.
 const CHILD_TIMEOUT_MS = 15 * 60 * 1000;
+
 
 function toolError(text: string) {
   return { content: [{ type: "text" as const, text }], isError: true };
@@ -136,6 +138,8 @@ function runChild(
 }
 
 export default function (pi: ExtensionAPI) {
+  if (!deepResearchEnabled()) return;
+
   pi.registerTool({
     name: "deep_research",
     label: "Deep Research",
@@ -152,6 +156,11 @@ export default function (pi: ExtensionAPI) {
       "Use deep_research when a question needs several distinct things looked up and you do not want the raw pages in this context.",
       "Decompose first: pass sub-questions that are separately answerable, not restatements of each other.",
       "For a single lookup, call web_search/web_open directly — deep_research costs one agent run per sub-question.",
+      // Lives here, not in stealth-web-bridge, because this tool is off by
+      // default: guidance for a gated tool has to sit behind the same gate.
+      // With the flag off, the prompt was still telling the model to "prefer
+      // deep_research" for a tool that was no longer registered.
+      "For a question needing several separate lookups, deep_research keeps the pages out of this context; web_search puts every page you open into it.",
     ],
     parameters: Type.Object({
       question: Type.String({ description: "The overall research question, in one sentence" }),

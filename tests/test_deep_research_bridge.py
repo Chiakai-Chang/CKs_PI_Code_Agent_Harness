@@ -103,6 +103,108 @@ class TestChildOutputParsing(unittest.TestCase):
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestDeepResearchIsOptIn(unittest.TestCase):
+    """Off by default, because the model picks it when it should not.
+
+    Measured 2026-07-31 on one question: `deep_research` spent 44 minutes across
+    four children and returned nothing usable, while plain web_search + web_open
+    answered the same question in 8 minutes with named sources. The capability is
+    real — it is the only thing keeping a 42,999-char page out of the parent
+    context — but letting the model choose it costs 5x for a worse answer.
+
+    Five of the seven defects found in the 2026-07-30/31 validation round came
+    from this one bridge. Three are fixed; P1 (a stalled child's last message
+    filed as a finding) and P3 (the cost model) are not.
+
+    So: keep the code and the tests, take away the model's ability to reach for
+    it. Flipping `enableDeepResearch` to true in pi-config/harness-config.json
+    brings it back.
+    """
+
+    def _enabled_for(self, cfg_obj):
+        """Run the real gate against a temp pi-config, so the DEFAULT is proven
+        by execution rather than by reading the source."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            os.makedirs(os.path.join(tmp, "pi-config"))
+            with open(os.path.join(tmp, "pi-config", "harness-config.json"), "w", encoding="utf-8") as f:
+                json.dump(cfg_obj, f)
+            root = tmp.replace("\\", "/")
+            return run_js('process.stdout.write(JSON.stringify({on: m.deepResearchEnabled(%s)}));'
+                          % json.dumps(root))["on"]
+
+    def test_shipped_config_has_the_flag_off(self):
+        cfg = json.loads(read("pi-config/harness-config.json"))
+        self.assertIn("enableDeepResearch", cfg, "the flag must ship, not be an undocumented default")
+        self.assertFalse(cfg["enableDeepResearch"], "default is off; see this class's docstring for why")
+
+    def test_nothing_is_registered_when_the_flag_is_off(self):
+        """The bridge must return BEFORE registering anything — not register a
+        tool that refuses. A registered tool costs its description and
+        guidelines in every turn whether or not it is ever called."""
+        c = read("pi-extensions/deep-research-bridge/index.ts")
+        gate = c.index("if (!deepResearchEnabled()) return;")
+        first_register = c.index("pi.registerTool(")
+        self.assertLess(gate, first_register, "the gate must precede every registration")
+
+    def test_flag_true_enables_and_missing_key_disables(self):
+        self.assertTrue(self._enabled_for({"enableDeepResearch": True}))
+        self.assertFalse(self._enabled_for({"enableDeepResearch": False}))
+        self.assertFalse(self._enabled_for({}), "an absent key must mean OFF")
+        self.assertFalse(self._enabled_for({"enableDeepResearch": "yes"}),
+                         "only a real boolean true opts in")
+
+    def test_no_other_bridge_advertises_the_tool(self):
+        """Guidance for a gated tool must live behind the same gate.
+
+        Caught by dumping the real prompt with the flag off: `deep_research` was
+        gone from the tool section, but stealth-web-bridge still told the model
+        "For a question needing several separate things looked up, prefer
+        deep_research". That is the mirror of a failure this repo already paid
+        for — a guard once told the model `web_search` was not available while it
+        was, and the model's own reasoning recorded the contradiction. Pointing
+        it at a tool that does NOT exist is the same defect with the sign
+        flipped.
+        """
+        import glob
+        for idx in glob.glob(os.path.join(ROOT, "pi-extensions", "*", "index.ts")):
+            name = os.path.basename(os.path.dirname(idx))
+            if name == "deep-research-bridge":
+                continue
+            with open(idx, encoding="utf-8") as f:
+                src = f.read()
+            if name == "yes-hooks-bridge":
+                # Knowing the NAME is required, not advertising. HARNESS_TOOLS
+                # exists so the parser never tells the model a real tool does not
+                # exist — observed live, the model's own reasoning recorded the
+                # contradiction and it burned all three strikes. If the flag is
+                # flipped on, the guard must still recognise the tool.
+                self.assertIn("HARNESS_TOOLS", src)
+                continue
+            self.assertNotIn(
+                "deep_research", src,
+                f"{name} advertises deep_research, which is off by default — "
+                "move that guidance into deep-research-bridge, behind the same gate",
+            )
+
+    def test_the_flag_is_read_the_way_every_other_bridge_reads_config(self):
+        """taste-bridge once resolved the harness root as join(__dirname,
+        '../..'), which lands on ~/.pi with no pi-config/, so its flag silently
+        did nothing for every turn. Same mistake here would silently re-enable
+        this."""
+        c = read("pi-extensions/deep-research-bridge/research.ts")
+        self.assertIn('pkg["pi-harness"]?.root', c)
+        self.assertIn("harness-config.json", c)
+
+    def test_default_is_off_when_the_key_is_missing(self):
+        """An absent key must mean off. `!== false` (taste-bridge's idiom) would
+        mean ON here, which is the opposite of what was decided."""
+        c = read("pi-extensions/deep-research-bridge/research.ts")
+        self.assertRegex(c, r"enableDeepResearch\s*===\s*true",
+                         "must opt IN explicitly, not default to on when the key is absent")
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
 class TestChildOutputIsBounded(unittest.TestCase):
     """P7, 2026-07-31: a runaway child killed the PARENT.
 
@@ -329,9 +431,18 @@ class TestCrossBridgeGuidanceIsCoherent(unittest.TestCase):
         self.assertNotIn("call web_search for any task needing current or external information", c)
         self.assertIn("results of in THIS conversation", c)
 
-    def test_web_search_defers_to_deep_research_for_multi_part_questions(self):
-        c = read("pi-extensions/stealth-web-bridge/index.ts")
-        self.assertIn("prefer deep_research", c)
+    def test_the_deferral_guidance_lives_with_the_tool_it_advertises(self):
+        """This used to assert stealth-web told the model to prefer
+        deep_research. That was right while deep_research was always on; once it
+        became opt-in (default off, 2026-07-31) the same line started pointing
+        the model at a tool that was no longer registered — verified by dumping
+        the real prompt. The guidance moved into deep-research-bridge so it is
+        gated with the tool. The incident it protects against is unchanged: the
+        model web_searched instead of calling deep_research when told to."""
+        dr = read("pi-extensions/deep-research-bridge/index.ts")
+        self.assertIn("keeps the pages out of this context", dr)
+        sw = read("pi-extensions/stealth-web-bridge/index.ts")
+        self.assertNotIn("deep_research", sw)
 
     def test_web_search_says_not_to_search_for_local_files(self):
         c = read("pi-extensions/stealth-web-bridge/index.ts")

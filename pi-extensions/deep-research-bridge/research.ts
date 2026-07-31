@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
 /**
  * Pure helpers for deep-research fan-out. Kept out of index.ts so a test can
  * execute them: index.ts imports `typebox`, which bare node cannot resolve.
@@ -175,3 +179,43 @@ export function appendBounded(
 export const MAX_CHILD_STDOUT = 8 * 1024 * 1024;
 /** Diagnostics only; summarizeChildStderr trims further. */
 export const MAX_CHILD_STDERR = 256 * 1024;
+
+/**
+ * Resolve the harness root the way every other bridge does.
+ *
+ * NOT join(__dirname, "../.."): restore.py copies bridges to
+ * ~/.pi/agent/extensions/<name>/, so that lands on ~/.pi, which has no
+ * pi-config/. taste-bridge shipped exactly that bug and its flag silently did
+ * nothing for every turn. restore.py patches the real root into package.json.
+ */
+export function harnessRoot(): string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  try {
+    const pkg = JSON.parse(readFileSync(join(here, "package.json"), "utf-8"));
+    if (pkg["pi-harness"]?.root) return pkg["pi-harness"].root;
+  } catch {}
+  return join(here, "../..");
+}
+
+/**
+ * Opt IN, not opt out — `=== true`, not `!== false`.
+ *
+ * Measured 2026-07-31 on one question: deep_research spent 44 minutes over four
+ * children and returned nothing usable, while plain web_search + web_open
+ * answered it in 8 minutes with named sources. The capability is real (it is the
+ * only thing keeping a 42,999-char page out of the parent context) but letting
+ * the model choose it cost 5x for a worse answer, and five of the seven defects
+ * found in the 2026-07-30/31 validation round came from this one bridge.
+ *
+ * Registering nothing — rather than registering a tool that refuses — is
+ * deliberate: a registered tool costs its description and guidelines in EVERY
+ * turn whether or not it is ever called.
+ */
+export function deepResearchEnabled(cfgRoot?: string): boolean {
+  try {
+    const cfgPath = join(cfgRoot ?? harnessRoot(), "pi-config", "harness-config.json");
+    return JSON.parse(readFileSync(cfgPath, "utf8")).enableDeepResearch === true;
+  } catch {
+    return false;
+  }
+}

@@ -15,6 +15,8 @@
   "planningBridgeMaxChars": 600,
   "enableUniversalTagTransformer": true,
   "enableSelfHealingLoopGuard": true,
+  "_enableDeepResearch": "Off by default. Measured 2026-07-31: on one question deep_research spent 44 minutes across four child agents and returned nothing usable, while plain web_search + web_open answered it in 8 minutes with named sources. Five of the seven defects found in that validation round came from this bridge. The code and its 33 tests stay; set this to true to bring the tool and /deep-research back.",
+  "enableDeepResearch": false,
   "eccSkillModules": [
     "workflow-quality",
     "agentic-patterns",
