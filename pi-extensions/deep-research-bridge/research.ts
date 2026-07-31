@@ -121,3 +121,27 @@ export function parseChildOutput(stdout: string): string {
   // child's own tool-use narration, which the parent must not inherit.
   return texts.length > 0 ? texts[texts.length - 1].trim() : "";
 }
+
+/**
+ * Turn a failed child's stderr into something that says WHY it failed.
+ *
+ * Was `err.slice(-300)`. A child's stderr ends with whatever the bridges
+ * printed on their way up, so on 2026-07-30 three of four failed sub-questions
+ * reported nothing but `[ecc-bridge] ECC Submodule Version: 2.0.0` — the tail is
+ * exactly the wrong end to keep, because banners come last and causes come
+ * first.
+ *
+ * Bridge banners are the one shape we can drop with confidence: they are
+ * `[name] ...` lines emitted at startup by extensions in this repo. Anything
+ * else is kept, oldest first, so the first real error survives later noise.
+ */
+export function summarizeChildStderr(stderr: string, max = 300): string {
+  const lines = String(stderr ?? "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .filter((l) => !/^\[[a-z0-9][a-z0-9-]*\]/i.test(l));
+  if (lines.length === 0) return "(no error output — the child produced nothing on stderr)";
+  const joined = lines.join(" | ");
+  return joined.length <= max ? joined : joined.slice(0, max) + "…";
+}

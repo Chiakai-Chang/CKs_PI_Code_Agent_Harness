@@ -103,6 +103,53 @@ class TestChildOutputParsing(unittest.TestCase):
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestChildFailureDiagnostic(unittest.TestCase):
+    """P2 from the 2026-07-30 validation: when a child fails, the parent is told
+    nothing useful about why.
+
+    The failure text was built as `err.slice(-300)` — the LAST 300 characters of
+    the child's stderr. A child's stderr ends with whatever a bridge printed on
+    the way up, so the digest carried:
+
+        (failed after 900s — child agent exited null with no answer.
+         [ecc-bridge] ECC Submodule Version: 2.0.0)
+
+    Three of four sub-questions failed in that run and not one of them said why.
+    Taking the tail is exactly backwards: banners come last, causes come first.
+    """
+
+    def test_bridge_banners_are_not_the_diagnostic(self):
+        stderr = ("[ecc-bridge] ECC Submodule Version: 2.0.0\n"
+                  "[stealth-web] backend ready\n")
+        out = run_js('process.stdout.write(JSON.stringify({t: m.summarizeChildStderr(%s)}));'
+                     % json.dumps(stderr))
+        self.assertNotIn("ECC Submodule Version", out["t"],
+                         "a startup banner is not a reason for failure")
+
+    def test_a_real_error_survives_even_when_banners_follow_it(self):
+        stderr = ("Error: connect ECONNREFUSED 127.0.0.1:8080\n"
+                  "[ecc-bridge] ECC Submodule Version: 2.0.0\n")
+        out = run_js('process.stdout.write(JSON.stringify({t: m.summarizeChildStderr(%s)}));'
+                     % json.dumps(stderr))
+        self.assertIn("ECONNREFUSED", out["t"], "the cause must not be crowded out by later noise")
+
+    def test_empty_stderr_says_so_rather_than_nothing(self):
+        out = run_js('process.stdout.write(JSON.stringify({t: m.summarizeChildStderr("")}));')
+        self.assertTrue(out["t"], "an empty diagnostic is worse than 'no stderr'")
+
+    def test_only_banners_reports_that_there_was_no_error_output(self):
+        stderr = "[ecc-bridge] ECC Submodule Version: 2.0.0\n"
+        out = run_js('process.stdout.write(JSON.stringify({t: m.summarizeChildStderr(%s)}));'
+                     % json.dumps(stderr))
+        self.assertTrue(out["t"])
+        self.assertNotIn("[ecc-bridge]", out["t"])
+
+    def test_output_is_bounded(self):
+        out = run_js('process.stdout.write(JSON.stringify({t: m.summarizeChildStderr("E: " + "x".repeat(5000))}));')
+        self.assertLessEqual(len(out["t"]), 400, "the parent must not inherit a wall of stderr")
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
 class TestDigest(unittest.TestCase):
     def test_reports_failures_instead_of_hiding_them(self):
         out = run_js("""

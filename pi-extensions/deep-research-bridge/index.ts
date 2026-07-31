@@ -34,6 +34,7 @@ import {
   childSystemPrompt,
   clampFinding,
   parseChildOutput,
+  summarizeChildStderr,
   validateSubQuestions,
   type SubResult,
 } from "./research.js";
@@ -126,7 +127,7 @@ function runChild(
 
     proc.on("error", (e) => finish(false, `could not start a child agent: ${e.message}`));
     proc.on("exit", (code) =>
-      finish(code === 0, `child agent exited ${code} with no answer. ${err.slice(-300)}`.trim()),
+      finish(code === 0, `child agent exited ${code} with no answer. ${summarizeChildStderr(err)}`.trim()),
     );
   });
 }
