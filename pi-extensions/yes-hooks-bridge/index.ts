@@ -19,6 +19,11 @@
  *      resolve under cwd (allowed); absolute or `../` paths that leave cwd are
  *      blocked. Fails open if cwd/path can't be resolved.
  *
+ *   2b. Vendored-submodule guard — blocks `write`/`edit` into `external/*`.
+ *      Containment allows it (submodules sit inside the project root) and that
+ *      is exactly wrong here: asked to load a skill, the model once wrote its
+ *      own invented content over a genuine upstream SKILL.md.
+ *
  *   3. Loop guard — on `turn_end`, catches a turn that made no real tool call
  *      but whose text is shaped like one (`<invoke>`, `<read-files>`, `<bash>
  *      <command>`, …). These never execute; a weak model can echo the shape
@@ -26,6 +31,34 @@
  *      `<read-files>`/`<modified-files>` tags) and then loop on its own echo.
  *      After 3 consecutive strikes, queues a corrective message for the next
  *      turn — AGENTS.md §4's "3-Strike Cap", enforced as code.
+ *
+ *   4. Runaway-argument guard — blocks a REAL tool call whose argument value
+ *      carries tool-call syntax or is absurdly long. Observed: a genuine
+ *      `web_search` whose `query` grew to 145,638 chars of looping XML until the
+ *      output cap. Invisible to guard 3 (there IS a call) and to the markup
+ *      scan (it never inspects argument values).
+ *
+ *   5. Repeat-call guard — blocks an identical call repeated past a limit.
+ *      Captured live: the same `read` 26 times while context grew to 51,915.
+ *
+ *   6. Fabricated-work guard — a turn that ends normally, calls nothing, and
+ *      either denies having filesystem access (with `read` in the tool list) or
+ *      claims work it never did. Carries no markup, so guard 3 cannot see it.
+ *
+ *   7. Unfulfilled-intent guard — a turn that ANNOUNCES its next step and then
+ *      ends ("Check existence:", "Write failing test first."). The semantic
+ *      opposite of guard 6, which matches claims of COMPLETED work. Found in the
+ *      2026-07-30 real-session validation: five occurrences across six sessions,
+ *      three of them inside deep-research children, and three of six tasks
+ *      produced nothing because of it.
+ *
+ *   8. Cross-shell quoting guard — blocks `powershell -Command "…$var…"` issued
+ *      through the bash tool, where bash expands the variables before PowerShell
+ *      ever starts. Same validation round: three turns lost to a command that
+ *      was valid PowerShell and could never work.
+ *
+ * Guards 4-8 all share one property: every existing guard was blind to them.
+ * That is the test for whether a new guard is worth its weight here.
  */
 import type { ExtensionAPI, ToolCallEvent, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { readFileSync, existsSync, readdirSync, statSync, writeFileSync } from "node:fs";
