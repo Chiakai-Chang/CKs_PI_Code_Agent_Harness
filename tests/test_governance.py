@@ -142,6 +142,11 @@ class TestDocumentedChecksRunInCI(unittest.TestCase):
         # measure against; there is nothing for CI to check. It writes only the
         # gitignored local override, so it cannot affect a clean checkout.
         documented.discard("scripts/calibrate-context.py")
+        # make-probe-fixture builds measurement inputs; it is not a check and has
+        # nothing to assert. Sizing by --tokens needs a model server to tokenize
+        # against, and its own unit tests (which inject the git reader and the
+        # tokenizer) are what CI actually runs.
+        documented.discard("scripts/make-probe-fixture.py")
         missing = [c for c in sorted(documented) if c not in self.ci]
         self.assertEqual(missing, [], "documented checks absent from CI: %s" % missing)
 

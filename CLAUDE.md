@@ -13,6 +13,7 @@
 * Verify bridge health (entry points exist, manifest vs package.json cross-check): `python scripts/verify-bridges.py`
 * Validate pi-config files (schema, anti-patterns, secret detection): `python scripts/validate-config.py`
 * Audit the combined injected prompt across bridges (absolutist scope claims, shared trigger vocabulary, total budget): `python scripts/check-prompt-conflicts.py`
+* Build a pinned, reproducible fixture for the probe scripts (sizes against whichever model is being served; records sha256 so a rebuild proves the sources have not moved): `python scripts/make-probe-fixture.py --out <dir> --sources rules|neutral --tokens N [--url http://127.0.0.1:8080]`
 * Measure whether mechanisms actually fire, without naming them (slow — runs the local model; NOT in CI): `python scripts/measure-triggers.py [--only ID] [--repeats N]`
 * Measure whether the local model still emits native tool calls under load (slow — runs the local model; NOT in CI): `node scripts/probe-tool-calls.mjs --system <pinned file> --tools 13 --repeats 6`. The system prompt must be a **pinned** file (`git show HEAD:…`), never a live repo doc — editing the doc changes the measurement.
 * Measure whether a retry recovers after the model fabricates a completed action (slow — runs the local model; NOT in CI; no results yet as of 2026-07-29): `node scripts/probe-retry-recovery.mjs <pinned file> [n]`

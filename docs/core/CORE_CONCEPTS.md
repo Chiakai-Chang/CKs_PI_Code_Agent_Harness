@@ -82,8 +82,10 @@
 *   **設計理念**：本專案引入了 [C.A.S.E. 框架](https://github.com/Chiakai-Chang/Local-Agent-Workspace/tree/main/C.A.S.E._Framework)（Context, Action, State, Environment）治理思維。
 *   **整合目標**：在 `pi-extensions` 內部的橋接擴充中，將 C.A.S.E. 思想作為環境與狀態的對齊依據，確保 AI 在執行時其 Action (工具調用)、Context (上下文傳遞) 與 State (計畫狀態) 能在該 Environment 中被清晰追蹤與校準，避免行為脫軌。
 
-## 11. 5 層貫通 Harness OS 架構與 13 大蒸餾核心技能
-**「將 13 大開源靈魂蒸餾為 C.A.S.E. 規格化技能，並以 9 大 Extension Bridge 熔鑄為 5 層閉環操作系統。」**
+## 11. 5 層貫通 Harness OS 架構與蒸餾核心技能
+**「將開源專案的核心邏輯蒸餾為 C.A.S.E. 規格化技能，並以 Extension Bridge 熔鑄為 5 層閉環操作系統。」**
+
+> 數量會隨開發變動，因此不寫死在標題裡。以 2026-07-31 實跑為準：`pi-extensions/` 11 個 bridge、`pi-skills/core/` 16 個蒸餾技能、`python -m unittest discover -s tests` 448 個測試。
 
 > 📖 **完整整合機制與共存矩陣**：本 Harness 與原生 Pi 引擎之職責劃分、4 階段 Runtime 生命週期干預，以及 Skills / Extensions / 第三方 Harness 之隔離共存機制，請詳見獨立文件：[HARNESS_INTEGRATION_GUIDE.md](HARNESS_INTEGRATION_GUIDE.md)。
 
@@ -96,7 +98,7 @@
     *   **Layer 1 (Socratic Framing)**：`grilling-protocol` (一問一答需求釐清門控)、`contrarian-review` & `adversary-review` (逆向鋼鐵人反方與極限對立審查)。
     *   **Layer 2 (Context Engine)**：`harness-config.json` `promptProfile` (auto/slim/full 模型感知減重，釋放 80%+ 上下文)、`minimal-prompt-guide` (~80-200 Token 注意力專注)、`compact-continuation-bridge` (壓縮後自動接續對話)、`taste-bridge` (條件式 SystemPrompt 疊加)、`hello-reflect` (規則與經驗自演進寫入 `.agents/AGENTS.md`)。
     *   **Layer 3 (Execution, Research & Repair OS)**：`deep-research-guide` (多代理深度網頁研究與具名引用報告生成)、`browser-automation-guide` + `camofox-stealth` + `stealth-web-bridge` (AX-Tree 定位/隱身網頁搜尋檢索)、`workflow-os-guide` (Pins/Gates/Steers & `HANDOFF.md` 斷點保存)、`subagent-orchestration-guide` (`cheap`/`balanced`/`max` 模型分層與血統隔離)、`tool-repair-guide` (9 大 Canonical 欄位自癒修復)、`ide-intelligence-guide` (LSP 語意診斷前檢 & 模型專屬 Edit 格式)。
-    *   **Layer 4 (Evidence Gate)**：`autonomous-experiment-guide` (MAD 統計顯著性驗證)、`harness-factory-guide` (Repo Fit 打分與 Darwin 基因演化)、`guardian-pipeline-guide` (檢測-解析-審查生命週期合約) 與 176 個 Python 自動化測試。
+    *   **Layer 4 (Evidence Gate)**：`autonomous-experiment-guide` (MAD 統計顯著性驗證)、`harness-factory-guide` (Repo Fit 打分與 Darwin 基因演化)、`guardian-pipeline-guide` (檢測-解析-審查生命週期合約) 與 `python -m unittest discover -s tests` 涵蓋的自動化測試。
 
 
 ---
@@ -123,7 +125,7 @@
 | **ide-intelligence-guide** | IDE 與 LSP 診斷 | **Layer 3 編輯格式適配** | 自動匹配 LLM 最強 Editing 格式並前置檢查 LSP 診斷。 |
 | **harness-factory-guide** | 專案基因打分與演化 | **Layer 4 基因工程** | Repo Fit 評分、Darwin 基因自演化與 MCP 靜態安全預檢。 |
 | **autonomous-experiment** | 統計顯著驗證 | **Layer 4 證據驗證** | 使用 MAD 評分與自動化實驗驗證代碼與提示詞效益。 |
-| **Test Suite (173 Tests)** | 自動化測試防衛網 | **Layer 4 證據門控** | 包含 `TestManagedSkillsConsistency`，確保 `restore.py` 與 `uninstall.py` 完全同步。 |
+| **Test Suite** | 自動化測試防衛網 | **Layer 4 證據門控** | 包含 `TestManagedSkillsConsistency`，確保 `restore.py` 與 `uninstall.py` 完全同步。 |
 
 ---
 **本文件由 CK's Pi Code Agent Harness 核心團隊維護，旨在保存本專案的技術資產與設計初心。**

@@ -28,9 +28,9 @@ cd CKs_PI_Code_Agent_Harness
 *   **Windows**：雙擊 `update.bat`
 *   **macOS / Linux**：執行 `bash update.sh`
 *   **進階（等同上述）**：`python scripts/setup.py --mode update`
-    — 內部自動執行 `git pull --recurse-submodules` → `restore --auto` （自動同步 5 大核心 Extension 至 `~/.pi/agent/extensions/`） → `pi update --all`。
+    — 內部自動執行 `git pull --recurse-submodules` → `restore --auto` （自動同步全部 11 個 Extension 至 `~/.pi/agent/extensions/`） → `pi update --all`。
 
-> 🛠️ **舊用戶修復指南（若遇到 `@file` 無法讀取、標籤/JSON 假工具呼叫卡死、死鎖停擺）**：
+> 🛠️ **舊用戶修復指南（若遇到 `@file` 無法讀取、標籤/JSON 假工具呼叫卡死、死鎖停擺、agent 宣告下一步就結束回合、PowerShell 指令在 Windows 上總是失敗）**：
 > 1. **執行一鍵更新**：執行上述 `update.bat` 或 `bash update.sh`，同步 Universal Parser 標籤轉譯器與 Self-Healing 擴充。
 > 2. **確認 `pi-config/harness-config.json` 減重配置**：若使用本地模型（如 `grm-2.6-plus` / llama.cpp），確保配置包含：
 >    ```json
@@ -43,9 +43,18 @@ cd CKs_PI_Code_Agent_Harness
 >      "planningBridgeMaxChars": 600,
 >      "enableUniversalTagTransformer": true,
 >      "enableSelfHealingLoopGuard": true,
+>      "enableDeepResearch": false,
 >      "eccSkillModules": ["workflow-quality", "agentic-patterns", "security", "optimization-workflows"]
 >    }
 >    ```
+> 3. **2026-07-31 新增的四道防護**（一鍵更新即生效，無需額外設定）：
+>    * **未兌現意圖守衛**：回合宣告「接下來要做 X」卻沒有任何工具呼叫就結束時，自動要求它真的去做。實測中這個形狀造成 6 個真實任務裡 3 個零產出，而既有守衛全部看不見它（它們找的是「宣稱**已完成**」，語意相反）。
+>    * **跨 shell 引號守衛**：Windows 上 Pi 透過 bash 執行指令，`powershell -Command "...$var..."` 的變數會先被 bash 吃掉。現在會擋下並指名替代寫法。
+>    * **子代理寫入邊界**：`deep_research` 的子代理曾在純研究任務中修改不相關的原始碼，且母 session 的 log 完全看不到。子代理現在不再持有 `bash`/`edit`/`write`。
+>    * **子代理輸出上限**：一個失控子代理的 stdout 曾撐爆 V8 字串上限，**殺死母 Pi 行程**。兩條串流現在都有上限。
+>
+> 4. **`deep_research` 自 2026-07-31 起預設關閉**（`enableDeepResearch: false`）。實測同一個問題：它耗時 44 分鐘、四個子代理、零可用產出；直接用 `web_search` + `web_open` 則 8 分鐘給出有具名出處的答案。程式碼與測試都保留，要用時把該旗標改成 `true` 再跑一次更新即可。**舊設定檔沒有這個鍵時視為關閉**，所以升級不會意外開啟它。
+>
 >    *`eccSkillModules` 控制 ECC 子模組要註冊哪些技能。Pi 會把**每一個**已註冊技能的 name / description / 絕對路徑寫進每一輪的 system prompt，ECC 全量 277 個技能實測為 110,240 字元（約 27,560 tokens）。改為依 ECC 上游 module 分類精選後，實測降為 65 個技能；整體技能區塊由 35,437 tokens 降至 14,202 tokens。需要完整領域包時設為 `"all"`，或自行列出 [`external/ecc/manifests/install-modules.json`](external/ecc/manifests/install-modules.json) 中的 module id。*
 
 > 啟動時若見到 `[Skill conflicts]` 警告：`external/*` 子模組技能（如 `agents-best-practices`、`darwin-skill`）不再於 `restore.py` 執行當下寫死進 `settings.json`。改由 `skill-namespace-guard` 這個 extension 在**每次** Pi 啟動時即時比對——內容跟全域已安裝的版本相同就跳過（不重複註冊），內容不同（你自己另外裝了同名但不同的東西）才會把 harness 這份隔離成 `harness-<name>` 兩份並存，不會動到你自己裝的版本。詳見 [docs/superpowers/specs/2026-07-21-skill-namespace-isolation-design.md](docs/superpowers/specs/2026-07-21-skill-namespace-isolation-design.md)。
@@ -58,11 +67,11 @@ cd CKs_PI_Code_Agent_Harness
 ### 健康度驗證 (Health Checks)
 *   **Bridge 驗證**：`python scripts/verify-bridges.py` — 檢查所有橋接程式的入口路徑存在性、manifest 與 package.json 註冊一致性（零依賴）。
 *   **設定檔驗證**：`python scripts/validate-config.py` — 檢查 `pi-config/settings.json` 格式完整性、反模式偵測（已提交之機器特定路徑、明文金鑰）。
-*   **提示衝突稽核**：`python scripts/check-prompt-conflicts.py` — 把 9 個 bridge 各自注入的指令**合起來看**：偵測「for any task」這類無條件宣稱（會吃掉其他工具的適用範圍）、列出被多個工具同時宣稱的觸發詞、統計每輪注入總量，並明確標出它**沒有**涵蓋的部分（直接改寫 `systemPrompt` 的 bridge）。
+*   **提示衝突稽核**：`python scripts/check-prompt-conflicts.py` — 把 11 個 bridge 各自注入的指令**合起來看**：偵測「for any task」這類無條件宣稱（會吃掉其他工具的適用範圍）、列出被多個工具同時宣稱的觸發詞、統計每輪注入總量，並明確標出它**沒有**涵蓋的部分（直接改寫 `systemPrompt` 的 bridge）。
 *   **觸發率量測**：`python scripts/measure-triggers.py` — 以**不點名工具/技能**的情境描述任務，量測該觸發的機制有沒有真的觸發，並含「不該觸發」的反向情境（避免把指引寫得越來越強勢）。每情境重複 N 次取比率（本機模型 temp 0.6，單次樣本不可判讀），session 寫入隔離暫存目錄、cwd 為中性空目錄，避免污染真實歷史。速度慢，**不進 CI**。
 
 ### 外部來源管理
-*   `external-manifest.json` 統一記錄全部外部來源（17 個 Git Submodule、參考克隆、蒸餾來源），取代過去 submodule / clone / 蒸餾混用無統一紀錄的狀態。每個來源標明整合方式（bridge / skill bridge / 僅參考）與更新策略。
+*   `external-manifest.json` 統一記錄全部外部來源（18 個 Git Submodule、參考克隆、蒸餾來源），取代過去 submodule / clone / 蒸餾混用無統一紀錄的狀態。每個來源標明整合方式（bridge / skill bridge / 僅參考）與更新策略。
 
 ### 4. 模式選擇 (Profiles)
 安裝時可依需求選擇以下配置模式：
@@ -152,7 +161,7 @@ cd CKs_PI_Code_Agent_Harness
 
 ---
 
-## 🎓 13 大蒸餾核心技能 (Distilled Core Skills in `pi-skills/core/`)
+## 🎓 蒸餾核心技能 (Distilled Core Skills in `pi-skills/core/`)
 
 本 Harness 將 13 個頂級開源 Agent 專案之精神與演算法精華，蒸餾為零外部依賴、完全遵循 C.A.S.E. 協定的特化技能（收錄於 [pi-skills/core/](file:///D:/MyProject/CKs_PI_Code_Agent_Harness/pi-skills/core/)）：
 
