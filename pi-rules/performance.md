@@ -62,6 +62,10 @@ If build fails:
 1.  **Prefix-Stabilization (KV-Cache 穩定化)**:
     - 始終將穩定的指令（System Prompt, Rules）放在 Prompt 最前端。
     - 動態元數據（日期、Session ID）必須放在穩定前綴之後，嚴禁插入前綴中間。
+    - **實測標價（gfx1151 本地模型，2026-08-03）**：前綴穩定時，12.6K 對話接一段 `<tool_result>` 只重算 531 token（7.1 秒）；**只在 system prompt 加一行時間戳，就要重算全部 12,674 token、耗時 225.8 秒**。且代價隨深度放大——同樣的重算量在 25K 深度要花 4K 深度的四倍時間。
+    - **Extension 實作規則**：`before_agent_start` 的回傳值中，易變內容一律走 `message`（接在 context 尾端），**絕不接進 `systemPrompt`**（前綴）。兩者送給 LLM 的資訊相同，位置決定快取存亡。
+    - **注入前先比對內容雜湊**：沒變就不要注入。`message` 是持久的，每輪無條件注入會在 transcript 累積副本。
+    - 已知違反者：`pi-extensions/planning-with-files-bridge/index.ts:202` 每輪把會變動的 `task_plan.md` 進度接進 `systemPrompt`。詳見 [docs/retro/2026-08-03-prefix-stabilization-has-a-price-tag.md](../docs/retro/2026-08-03-prefix-stabilization-has-a-price-tag.md)。
 2.  **U-Curve Placement (注意力 U 型分配)**:
     - 關鍵任務目標 (Goals) 與最終驗證標準 (Verification) 必須放置在 Context Window 的最開頭與最末尾。
     - 中間區域為「資訊陷阱」，僅限放置支持性數據或詳細日誌。
