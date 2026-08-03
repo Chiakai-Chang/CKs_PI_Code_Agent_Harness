@@ -190,6 +190,27 @@ turn_end              3（派工、PARK、續跑）
 - **session 替換（`/new`、`/fork`）的生命週期實測**：只有程式上的 dead 旗標與
   timer 清除，沒有真的起一個 session 派工再 `/new` 驗過。
 
+## 五之二、已知殘留（合併後複查所列，尚未處理）
+
+依風險排序。四項都不影響已驗證的主路徑，但都是真的。
+
+1. **`.pi/async-exec/` 沒有保留策略。** job JSON 與 `.out` 擷取檔（單檔上限 8 MiB）
+   會永久累積；`bg_status` 的輸出也隨之無限變長，最後會吃 context。要訂的是政策
+   （保留幾天／幾筆、`.out` 是否比 `.json` 早清），所以刻意不擅自決定。
+2. **`tailBytes` 是以 JS 字串長度切，不是位元組。** 常數叫 `ENVELOPE_TAIL_BYTES`，
+   實際切的是 UTF-16 code unit：中文輸出的實際位元組會超過宣告值，且可能從多位元組
+   字元或代理對中間切開而產生亂碼。修法便宜（改用 `Buffer` 並往後對齊到字元邊界），
+   命名也應一併對齊。
+3. **`bg_start` 先 spawn、後寫 job 檔。** 這中間崩潰會留下一個**沒有紀錄的 detached
+   進程**——`bg_cancel` 找不到它，`session_start` 對帳也看不到它。視窗很窄，但後果是
+   永久孤兒。修法是先寫一筆 `starting` 紀錄再 spawn。
+4. **PID 重用。** `isAlive` 用 `process.kill(pid, 0)`；長時間執行後作業系統可能把同一個
+   PID 配給別的行程，於是死掉的工作被誤判成「還活著」。job 檔已有 `startedAt`，可加上
+   行程啟動時間比對來收斂。
+
+另有三項屬於規格列出但 v1 未做（見上節）：per-job timeout 覆寫、`pi-telegram` 旁路
+通知、session 替換（`/new`、`/fork`）的生命週期實測。以及 e2e 因需要模型而不在 CI。
+
 ## 六、安全，說清楚
 
 `bg_start` 執行**任意 shell 指令、detached、無確認**，而且**活過 agent 被中止**。
