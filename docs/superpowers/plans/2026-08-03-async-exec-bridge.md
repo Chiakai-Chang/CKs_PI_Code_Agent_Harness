@@ -16,6 +16,12 @@
 - **Shell:** Git Bash. Forward slashes, UNIX utilities. Never PowerShell or CMD. (`pi-rules/AGENTS.md` §1)
 - **Commits:** `<type>: <description>`. Types: feat, fix, refactor, docs, test, chore, perf, ci. **Attribution is disabled globally — no Co-Authored-By trailer.** (`pi-rules/git-workflow.md`)
 - **Import extensions:** Inside this bridge, sibling imports use the explicit `.ts` extension (`import { x } from "./jobs.ts"`). Verified to work under both Pi's loader and `node --test`. Do **not** copy `deep-research-bridge`'s `./research.js` style — that does not resolve under `node --test`.
+- **Pi API shapes** (read from the installed `@earendil-works/pi-coding-agent/dist/core/extensions/types.d.ts`, not from memory):
+  - `pi.registerTool(tool)` takes **one object**: `{ name, label, description, promptSnippet?, promptGuidelines?, parameters: Type.Object({...}), async execute(toolCallId, params, signal, onUpdate, ctx) }`. There is no `(name, {handler})` two-argument form. `parameters` is a TypeBox schema and is **required** — without it the model has no way to pass arguments.
+  - `execute` returns `AgentToolResult`: `{ content: [{ type: "text", text }], details? }`. Not a bare string.
+  - `session_start` is `ExtensionHandler<SessionStartEvent>` with `R = undefined` — **its return value is discarded**. Only `before_agent_start` accepts `{ message }` (`BeforeAgentStartEventResult`).
+  - `ctx.getContextUsage()` returns `{ tokens: number | null, contextWindow, percent }`. There is no `usedTokens` or `used`.
+  - `ctx.ui.notify(message, type?: "info" | "warning" | "error")`.
 - **Prefix stability:** Never append volatile content to `systemPrompt`. Volatile content goes in the `message` return field or a tool result. (`pi-rules/performance.md`, Context Engineering Kernel §1)
 - **Never write outside the project directory.** (`pi-rules/AGENTS.md` 鐵律 §3)
 - **Test commands:**
@@ -61,6 +67,7 @@ Unit tests sit beside their module as `<name>.test.ts`.
 - Create: `pi-extensions/async-exec-bridge/index.ts`
 - Modify: `pi-extensions/bridge-manifest.json`
 - Modify: `scripts/restore.py` (three sites)
+- Modify: `.gitignore` (the run directory holds live job state, not source)
 - Test: `tests/test_async_exec_bridge.py`
 
 **Interfaces:**
@@ -105,6 +112,11 @@ class TestAsyncExecBridgeSkeleton(unittest.TestCase):
         m = json.loads(read("pi-extensions/bridge-manifest.json"))
         names = [b["name"] for b in m["bridges"]]
         self.assertIn("async-exec-bridge", names)
+
+    def test_run_directory_is_gitignored(self):
+        """Job records and captured output are live state, not source. Without
+        this every dispatch dirties `git status`."""
+        self.assertIn(".pi/", read(".gitignore"))
 
 
 class TestAsyncExecBridgeRestoreWiring(unittest.TestCase):
@@ -185,15 +197,21 @@ In `scripts/restore.py`, make three edits mirroring `compact-continuation-bridge
 
 3. Add `"async-exec-bridge"` to the bridge delete loop list (around line 1202).
 
+In `.gitignore`, add the run directory:
+
+```
+.pi/
+```
+
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `python -m unittest discover -s tests -v -k AsyncExecBridge`
-Expected: PASS, 4 tests.
+Expected: PASS, 5 tests.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add pi-extensions/async-exec-bridge pi-extensions/bridge-manifest.json scripts/restore.py tests/test_async_exec_bridge.py
+git add pi-extensions/async-exec-bridge pi-extensions/bridge-manifest.json scripts/restore.py tests/test_async_exec_bridge.py .gitignore
 git commit -m "feat(async-exec): add bridge skeleton and registration"
 ```
 
@@ -756,7 +774,7 @@ git commit -m "feat(async-exec): add bounded result envelope"
 **Interfaces:**
 - Consumes: `constants.ts` (`MAX_CONCURRENT_JOBS`), `jobs.ts` (`JobRecord`, `LocalModel`).
 - Produces:
-  - `interface PreflightInput { jobs: JobRecord[]; cmd: string; cwd: string; localModel: LocalModel; leaseHeld: boolean; gpuCommittedGiB: number; cleanBaselineGiB: number; }`
+  - `interface PreflightInput { jobs: JobRecord[]; cmd: string; cwd: string; localModel: LocalModel; leaseHeld: boolean; gpuCommittedGiB?: number; cleanBaselineGiB?: number; }` — the GPU figures are **optional**, because v1 has no probe. Absent means "not measured", and the exclusive gate refuses on that.
   - `type PreflightResult = { ok: true } | { ok: false; reason: string } | { ok: "duplicate"; id: string }`
   - `preflight(i: PreflightInput): PreflightResult` — pure
 
@@ -832,6 +850,19 @@ test("shared is never blocked by GPU residency — it uses the running server", 
     { ok: true },
   );
 });
+
+test("exclusive is refused when nothing measured the GPU at all", () => {
+  // v1 ships no probe. An unmeasured GPU must read as "cannot verify", never as
+  // "nothing resident" — the optimistic reading is exactly the one that puts two
+  // large models in the same carve.
+  const r = preflight(input({
+    localModel: "exclusive",
+    gpuCommittedGiB: undefined,
+    cleanBaselineGiB: undefined,
+  }));
+  assert.equal(r.ok, false);
+  assert.match((r as { reason: string }).reason, /not probed|no .*probe/i);
+});
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -854,9 +885,11 @@ export interface PreflightInput {
   localModel: LocalModel;
   leaseHeld: boolean;
   /** Committed adapter memory, not reported free memory: the reported figure
-   *  counts shared system memory and would wave a doomed job through. */
-  gpuCommittedGiB: number;
-  cleanBaselineGiB: number;
+   *  counts shared system memory and would wave a doomed job through.
+   *  Optional because v1 has no probe — undefined means "not measured", which
+   *  the exclusive gate treats as a refusal, not as an idle GPU. */
+  gpuCommittedGiB?: number;
+  cleanBaselineGiB?: number;
 }
 
 export type PreflightResult =
@@ -877,6 +910,14 @@ export function preflight(i: PreflightInput): PreflightResult {
     if (i.leaseHeld) {
       return { ok: false, reason: "the GPU lease is held by another job" };
     }
+    if (i.gpuCommittedGiB === undefined || i.cleanBaselineGiB === undefined) {
+      return {
+        ok: false,
+        reason:
+          "GPU residency is not probed, so it cannot be verified that a second local model would fit. " +
+          'Use localModel "shared" to reuse the running server, or use a cloud model.',
+      };
+    }
     if (i.gpuCommittedGiB > i.cleanBaselineGiB) {
       return {
         ok: false,
@@ -896,7 +937,7 @@ export function preflight(i: PreflightInput): PreflightResult {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `node --test pi-extensions/async-exec-bridge/preflight.test.ts`
-Expected: PASS, 8 tests.
+Expected: PASS, 9 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -1139,10 +1180,39 @@ Create `pi-extensions/async-exec-bridge/spawn.ts`:
 
 ```typescript
 import { spawn, spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { CAPTURE_MAX_BYTES } from "./constants.ts";
 
-const SHELL = process.env.SHELL_PATH || "C:/Program Files/Git/bin/bash.exe";
+/** Same resolution order as stealth-web-bridge's findShell(). spawn("bash")
+ *  relies on the *process* PATH, which on Windows often does not include Git's
+ *  bash — that is the "spawn sh ENOENT" that stopped that bridge from ever
+ *  cold-starting. Ask the harness first, then known locations, then PATH.
+ *  A machine-specific path must never be the only answer. */
+function findShell(): string {
+  if (process.env.PI_HARNESS_SHELL) return process.env.PI_HARNESS_SHELL;
+  try {
+    const cfg = JSON.parse(readFileSync(join(homedir(), ".pi", "agent", "settings.json"), "utf-8"));
+    if (cfg.shellPath && existsSync(cfg.shellPath)) return cfg.shellPath;
+  } catch {
+    // No harness settings; fall through.
+  }
+  for (const c of [
+    "C:\\Program Files\\Git\\bin\\bash.exe",
+    "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+    "C:\\Program Files (x86)\\Git\\bin\\bash.exe",
+  ]) {
+    try {
+      if (existsSync(c)) return c;
+    } catch {
+      // Unreadable candidate; try the next.
+    }
+  }
+  return "bash";
+}
+
+const SHELL = findShell();
 
 /** Start a job that outlives the caller. stdout and stderr both go to a file so
  *  nothing depends on this process staying around to drain a pipe. */
@@ -1160,7 +1230,11 @@ export function startDetached(
   // detached with stdio: "ignore".
   //
   // head -c caps the capture so a runaway job cannot fill the disk.
-  // PIPESTATUS[0] is the command's status, not head's.
+  // PIPESTATUS[0] is the command's status, not head's. Caveat: once head has
+  // taken its bytes it closes the pipe, so a job that keeps writing past
+  // CAPTURE_MAX_BYTES dies of SIGPIPE and PIPESTATUS[0] reads 141 rather than
+  // its own code. That is a real misreport, but only for jobs exceeding 8 MiB
+  // of output, and 141 is at least not silently 0.
   const wrapped =
     `{ ${cmd} ; } 2>&1 | head -c ${CAPTURE_MAX_BYTES} > ${JSON.stringify(outPath)} ; ` +
     `echo \${PIPESTATUS[0]} > ${JSON.stringify(rcPath)}`;
@@ -1241,6 +1315,11 @@ git commit -m "feat(async-exec): add detached spawn with process-tree kill"
 - Consumes: every module from Tasks 2-8.
 - Produces: tools `bg_start`, `bg_status`, `bg_cancel` registered on the Pi extension API.
 
+`index.ts` is covered by the Python contract tests, not `node --test`: it imports
+`@earendil-works/pi-coding-agent` and `typebox`, which resolve under Pi's loader
+but not under a bare `node --test` run. That is why every piece of logic worth
+unit-testing lives in the sibling modules and this file holds only wiring.
+
 - [ ] **Step 1: Write the failing test**
 
 Append to `tests/test_async_exec_bridge.py`:
@@ -1250,9 +1329,19 @@ class TestAsyncExecBridgeTools(unittest.TestCase):
     IDX = "pi-extensions/async-exec-bridge/index.ts"
 
     def test_registers_the_three_tools(self):
+        """Pi's registerTool takes one object with a `name` field. Asserting on a
+        `registerTool("bg_start"` call shape would pin an API that does not
+        exist."""
         c = read(self.IDX)
         for tool in ("bg_start", "bg_status", "bg_cancel"):
-            self.assertIn(f'pi.registerTool("{tool}"', c)
+            self.assertIn(f'name: "{tool}"', c)
+
+    def test_bg_start_declares_its_parameters(self):
+        """A tool without a TypeBox `parameters` schema cannot receive arguments,
+        so the model would have no way to say what to run."""
+        c = read(self.IDX)
+        self.assertIn("parameters: Type.Object(", c)
+        self.assertIn("cmd:", c)
 
     def test_dispatch_runs_preflight_before_spawning(self):
         c = read(self.IDX)
@@ -1262,6 +1351,16 @@ class TestAsyncExecBridgeTools(unittest.TestCase):
         """Waking can fail and be retried; state cannot."""
         c = read(self.IDX)
         self.assertLess(c.index("writeJob("), c.index("pi.sendMessage("))
+
+    def test_pending_results_are_injected_through_before_agent_start(self):
+        """session_start is typed ExtensionHandler<SessionStartEvent> with no
+        result type — anything returned from it is discarded. before_agent_start
+        is the only hook whose result carries a `message`."""
+        c = read(self.IDX)
+        self.assertIn('pi.on("before_agent_start"', c)
+        start = c.index('pi.on("session_start"')
+        body = c[start:c.index("pi.on(", start + 10)]
+        self.assertNotIn("return { message", body)
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -1275,9 +1374,10 @@ Replace the body of `pi-extensions/async-exec-bridge/index.ts`:
 
 ```typescript
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { Type } from "typebox";
 import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { JOB_TIMEOUT_MS } from "./constants.ts";
+import { ENVELOPE_TAIL_BYTES, JOB_TIMEOUT_MS } from "./constants.ts";
 import { buildEnvelope, tailBytes } from "./envelope.ts";
 import { readJobs, reconcile, writeJob, type JobRecord, type LocalModel } from "./jobs.ts";
 import { outFile } from "./paths.ts";
@@ -1348,42 +1448,65 @@ export default function (pi: ExtensionAPI) {
     timers.add(t);
   }
 
-  pi.registerTool("bg_start", {
+  const text = (s: string) => ({ content: [{ type: "text" as const, text: s }] });
+
+  pi.registerTool({
+    name: "bg_start",
+    label: "Background Start",
     description:
       "Start a long-running command in the background and return immediately. " +
       "You will be woken with the result when it finishes.",
-    handler: async (args: { cmd: string; label?: string; localModel?: LocalModel }, ctx: any) => {
+    promptSnippet:
+      "bg_start(cmd, label?, localModel?): run a long command in the background; you are woken when it finishes.",
+    promptGuidelines: [
+      "For a command that will take minutes (builds, full test suites, benchmarks), call bg_start instead of bash — bash blocks this turn until it returns.",
+      "After bg_start, decide PARK or CONTINUE in one line. PARK just means issuing no further tool calls this turn; there is no park tool to call.",
+      "Use bg_status to check on work you dispatched, and bg_cancel to stop it. A background job keeps running even if this turn is interrupted.",
+    ],
+    parameters: Type.Object({
+      cmd: Type.String({ description: "The shell command to run, e.g. 'npm test'" }),
+      label: Type.Optional(Type.String({ description: "Short human-readable name for this job" })),
+      localModel: Type.Optional(
+        Type.Union([Type.Literal("none"), Type.Literal("shared"), Type.Literal("exclusive")], {
+          description:
+            "Whether this job touches the local model server: none (default), shared (uses the running server), exclusive (needs to load its own model — refused in v1)",
+        }),
+      ),
+    }),
+    async execute(_id, params: any, _signal, _onUpdate, ctx: any) {
+      const args = params as { cmd: string; label?: string; localModel?: LocalModel };
       const cwd: string = ctx.cwd;
       const localModel: LocalModel = args.localModel ?? "none";
       // v1 has no live GPU probe, so the residency check cannot be honest.
       // Refuse outright rather than pretend to have checked — a wrong "yes"
       // here means two large models racing for memory.
       if (localModel === "exclusive") {
-        return (
+        return text(
           '[async-exec] refused: localModel "exclusive" is not supported yet — ' +
-          "v1 has no live GPU residency probe, so it cannot verify a second model would fit. " +
-          'Use "shared" to reuse the running server, or use a cloud model.'
+            "v1 has no live GPU residency probe, so it cannot verify a second model would fit. " +
+            'Use "shared" to reuse the running server, or use a cloud model.',
         );
       }
       const jobs = readJobs(cwd);
+      // No GPU figures are passed: v1 has no probe. preflight treats their
+      // absence as "cannot verify" and refuses exclusive on its own, so the
+      // early return above is a clearer duplicate of that gate, not its only
+      // enforcement.
       const gate = preflight({
         jobs,
         cmd: args.cmd,
         cwd,
         localModel,
         leaseHeld: readLease(cwd) !== null,
-        gpuCommittedGiB: CLEAN_BASELINE_GIB,
-        cleanBaselineGiB: CLEAN_BASELINE_GIB,
       });
-      if (gate.ok === false) return `[async-exec] refused: ${gate.reason}`;
-      if (gate.ok === "duplicate") return `[async-exec] already running as job ${gate.id}`;
+      if (gate.ok === false) return text(`[async-exec] refused: ${gate.reason}`);
+      if (gate.ok === "duplicate") return text(`[async-exec] already running as job ${gate.id}`);
 
       const id = randomBytes(2).toString("hex");
       const out = outFile(cwd, id);
       const rc = `${out}.rc`;
       const pid = startDetached(args.cmd, cwd, out, rc);
-      if (pid === null) return "[async-exec] refused: could not start the process";
-
+      if (pid === null) return text("[async-exec] refused: could not start the process");
 
       const job: JobRecord = {
         id, label: args.label ?? args.cmd, cmd: args.cmd, cwd, localModel,
@@ -1414,37 +1537,54 @@ export default function (pi: ExtensionAPI) {
 
       // Real depth, not a placeholder: the whole point of showing it is to let
       // the model weigh that continuing makes its own next prefill costlier.
+      // ContextUsage is { tokens: number | null, contextWindow, percent } —
+      // tokens is null right after compaction, before the next LLM response.
       const usage = ctx.getContextUsage?.();
-      return stateBlock({
-        dispatched: job,
-        running: readJobs(cwd).filter((j) => j.state === "running"),
-        // No GPU fields: v1 has no probe, so they are omitted rather than faked.
-        contextTokens: usage?.usedTokens ?? usage?.used ?? 0,
-        // Set PI_MODEL_SERVER_SLOTS in pi-config/harness-config.local.json env
-        // to match the llama-server -np value. Default 1 is the safe reading:
-        // it makes the block warn that a shared job blocks rather than slows.
-        serverSlots: Number(process.env.PI_MODEL_SERVER_SLOTS ?? "1"),
-      });
+      return text(
+        stateBlock({
+          dispatched: job,
+          running: readJobs(cwd).filter((j) => j.state === "running"),
+          // No GPU fields: v1 has no probe, so they are omitted rather than faked.
+          contextTokens: usage?.tokens ?? 0,
+          // Set PI_MODEL_SERVER_SLOTS in pi-config/harness-config.local.json env
+          // to match the llama-server -np value. Default 1 is the safe reading:
+          // it makes the block warn that a shared job blocks rather than slows.
+          serverSlots: Number(process.env.PI_MODEL_SERVER_SLOTS ?? "1"),
+        }),
+      );
     },
   });
 
-  pi.registerTool("bg_status", {
+  pi.registerTool({
+    name: "bg_status",
+    label: "Background Status",
     description: "List background jobs and their state.",
-    handler: async (_args: unknown, ctx: any) =>
-      readJobs(ctx.cwd)
-        .map((j) => `${j.id} · ${j.label} · ${j.state} · exit=${j.exitCode ?? "n/a"}`)
-        .join("\n") || "[async-exec] no jobs",
+    promptSnippet: "bg_status(): list background jobs dispatched with bg_start and their state.",
+    parameters: Type.Object({}),
+    async execute(_id, _params, _signal, _onUpdate, ctx: any) {
+      return text(
+        readJobs(ctx.cwd)
+          .map((j) => `${j.id} · ${j.label} · ${j.state} · exit=${j.exitCode ?? "n/a"}`)
+          .join("\n") || "[async-exec] no jobs",
+      );
+    },
   });
 
-  pi.registerTool("bg_cancel", {
+  pi.registerTool({
+    name: "bg_cancel",
+    label: "Background Cancel",
     description: "Cancel a running background job by id.",
-    handler: async (args: { id: string }, ctx: any) => {
-      const job = readJobs(ctx.cwd).find((j) => j.id === args.id);
-      if (!job || job.state !== "running") return `[async-exec] no running job ${args.id}`;
+    promptSnippet: "bg_cancel(id): stop a background job and its whole process tree.",
+    parameters: Type.Object({
+      id: Type.String({ description: "The job id returned by bg_start" }),
+    }),
+    async execute(_id, params: any, _signal, _onUpdate, ctx: any) {
+      const job = readJobs(ctx.cwd).find((j) => j.id === params.id);
+      if (!job || job.state !== "running") return text(`[async-exec] no running job ${params.id}`);
       if (job.pid !== null) killTree(job.pid);
       writeJob(ctx.cwd, { ...job, state: "cancelled", endedAt: Date.now(), acknowledged: true });
       release(ctx.cwd, job.id);
-      return `[async-exec] cancelled ${args.id}`;
+      return text(`[async-exec] cancelled ${params.id}`);
     },
   });
 
@@ -1454,13 +1594,27 @@ export default function (pi: ExtensionAPI) {
     timers.clear();
   });
 
+  // Reconcile only. This handler's result type is undefined — anything returned
+  // from session_start is discarded, so the pending envelope cannot be delivered
+  // from here. It goes out from before_agent_start below.
   pi.on("session_start", async (_event, ctx: any) => {
     const cwd: string = ctx.cwd;
     for (const j of reconcile(readJobs(cwd), isAlive)) writeJob(cwd, j);
+  });
+
+  // The only hook whose result carries a message (BeforeAgentStartEventResult).
+  // A job that finished while nothing was listening — a crash, a killed session,
+  // a wake that never landed — surfaces here on the next turn. Records are
+  // marked acknowledged only once the message is actually being returned, so a
+  // failure earlier in this handler leaves the notice on disk for next time.
+  pi.on("before_agent_start", async (_event, ctx: any) => {
+    if (dead) return;
+    const cwd: string = ctx.cwd;
     const pending = readJobs(cwd).filter((j) => j.state !== "running" && !j.acknowledged);
     if (pending.length === 0) return;
+    const content = buildEnvelope(pending, new Map());
     for (const j of pending) writeJob(cwd, { ...j, acknowledged: true });
-    return { message: { customType: "async-exec", content: buildEnvelope(pending, new Map()), display: true } };
+    return { message: { customType: "async-exec", content, display: true } };
   });
 }
 ```
