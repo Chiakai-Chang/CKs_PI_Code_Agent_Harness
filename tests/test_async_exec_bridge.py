@@ -99,6 +99,22 @@ class TestAsyncExecBridgeTools(unittest.TestCase):
         self.assertIn("finishedThisSession", body)
         self.assertIn("alreadyNotified", body)
 
+    def test_job_is_recorded_before_it_is_spawned(self):
+        """If pi dies between spawn() and the write, a record written afterwards
+        never exists — and the detached process is untrackable: bg_cancel cannot
+        see it and reconcile cannot report it. Written first, the worst case is
+        a null pid, recoverable from the job's own pid file."""
+        c = read(self.IDX)
+        body = c[c.index('name: "bg_start"'):]
+        self.assertLess(body.index("writeJob("), body.index("startDetached("))
+
+    def test_pruning_runs_after_reconcile(self):
+        """Retention must never delete a record before it has been reconciled
+        and, if it finished unseen, reported."""
+        c = read(self.IDX)
+        body = c[c.index('pi.on("session_start"'):]
+        self.assertLess(body.index("reconcile("), body.index("selectPrunable("))
+
     def test_reconcile_consults_the_recorded_exit_code(self):
         """A job can finish in the instant pi is killed: no handler runs, but
         the shell wrapper's .rc file is already on disk. Reporting that as

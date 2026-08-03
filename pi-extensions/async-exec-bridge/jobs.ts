@@ -1,5 +1,5 @@
-import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { jobFile, runDir } from "./paths.ts";
+import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { jobFile, outFile, pidFile, runDir } from "./paths.ts";
 
 export type JobState = "running" | "done" | "failed" | "timeout" | "cancelled" | "orphaned";
 export type LocalModel = "none" | "shared" | "exclusive";
@@ -49,6 +49,23 @@ export function readJobs(cwd: string): JobRecord[] {
     }
   }
   return out;
+}
+
+/** Delete a job's record and everything captured alongside it. Best effort:
+ *  a file already gone is the desired end state, not an error. */
+export function deleteJob(cwd: string, job: JobRecord): void {
+  for (const p of [
+    jobFile(cwd, job.id),
+    outFile(cwd, job.id),
+    `${outFile(cwd, job.id)}.rc`,
+    pidFile(cwd, job.id),
+  ]) {
+    try {
+      rmSync(p);
+    } catch {
+      // Already gone.
+    }
+  }
 }
 
 /** Pure. Returns only the records whose state changed.

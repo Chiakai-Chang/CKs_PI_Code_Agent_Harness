@@ -1,9 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readdirSync } from "node:fs";
+import { mkdtempSync, readdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { writeJob, readJobs, reconcile, type JobRecord } from "./jobs.ts";
+import { writeJob, readJobs, reconcile, deleteJob, type JobRecord } from "./jobs.ts";
 
 function sample(over: Partial<JobRecord> = {}): JobRecord {
   return {
@@ -41,6 +41,25 @@ test("write leaves no temp files behind", () => {
 
 test("readJobs on a missing directory returns empty, not a throw", () => {
   const cwd = mkdtempSync(join(tmpdir(), "aeb-"));
+  assert.deepEqual(readJobs(cwd), []);
+});
+
+test("deleteJob removes the record and its captured output together", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "aeb-"));
+  writeJob(cwd, sample());
+  const dir = `${cwd.replace(/\\/g, "/")}/.pi/async-exec`;
+  writeFileSync(`${dir}/job-a3f1.out`, "output");
+  writeFileSync(`${dir}/job-a3f1.out.rc`, "0");
+  writeFileSync(`${dir}/job-a3f1.pid`, "1234");
+  deleteJob(cwd, sample());
+  assert.deepEqual(readdirSync(dir), []);
+});
+
+test("deleteJob on already-missing files is not an error", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "aeb-"));
+  writeJob(cwd, sample());
+  deleteJob(cwd, sample());
+  deleteJob(cwd, sample());
   assert.deepEqual(readJobs(cwd), []);
 });
 

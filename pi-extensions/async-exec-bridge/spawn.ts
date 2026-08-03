@@ -40,6 +40,7 @@ export function startDetached(
   cwd: string,
   outPath: string,
   rcPath: string,
+  pidPath: string,
 ): number | null {
   // Everything goes through shell-level redirection, and stdio stays "ignore".
   // VERIFIED on Windows: a detached child does NOT reliably receive an
@@ -54,7 +55,23 @@ export function startDetached(
   // CAPTURE_MAX_BYTES dies of SIGPIPE and PIPESTATUS[0] reads 141 rather than
   // its own code. That is a real misreport, but only for jobs exceeding 8 MiB
   // of output, and 141 is at least not silently 0.
+  //
+  // Record the pid first: the parent can die between spawn() returning and the
+  // pid reaching the job file, and a detached process nothing has a pid for
+  // cannot be cancelled or reconciled — it just holds resources until the
+  // machine is rebooted. Having the job record its own pid closes that window
+  // from the inside.
+  //
+  // `$$` alone is WRONG on Windows. Under Git Bash (MSYS) it is the MSYS pid,
+  // a different namespace from the Windows pid that spawn() returns and that
+  // taskkill and process.kill understand — measured 1388 vs 17924 for the same
+  // process. MSYS exposes the mapping at /proc/<pid>/winpid; on a real POSIX
+  // box that path does not exist and `$$` is already correct.
+  const recordPid =
+    `{ if [ -r /proc/$$/winpid ] ; then cat /proc/$$/winpid ; else echo $$ ; fi ; } ` +
+    `> ${JSON.stringify(pidPath)}`;
   const wrapped =
+    `${recordPid} ; ` +
     `{ ${cmd} ; } 2>&1 | head -c ${CAPTURE_MAX_BYTES} > ${JSON.stringify(outPath)} ; ` +
     `echo \${PIPESTATUS[0]} > ${JSON.stringify(rcPath)}`;
   const child = spawn(SHELL, ["-lc", wrapped], {
@@ -73,6 +90,17 @@ export function startDetached(
 export function readExitCode(rcPath: string): number | null {
   try {
     const n = Number.parseInt(readFileSync(rcPath, "utf-8").trim(), 10);
+    return Number.isNaN(n) ? null : n;
+  } catch {
+    return null;
+  }
+}
+
+/** The pid the job recorded for itself, or null if it never got that far.
+ *  Used to recover a job whose pid never reached its job record. */
+export function readPid(pidPath: string): number | null {
+  try {
+    const n = Number.parseInt(readFileSync(pidPath, "utf-8").trim(), 10);
     return Number.isNaN(n) ? null : n;
   } catch {
     return null;

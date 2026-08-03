@@ -72,7 +72,7 @@ cd CKs_PI_Code_Agent_Harness
 ### 健康度驗證 (Health Checks)
 *   **Bridge 驗證**：`python scripts/verify-bridges.py` — 檢查所有橋接程式的入口路徑存在性、manifest 與 package.json 註冊一致性（零依賴）。
 *   **設定檔驗證**：`python scripts/validate-config.py` — 檢查 `pi-config/settings.json` 格式完整性、反模式偵測（已提交之機器特定路徑、明文金鑰）。
-*   **提示衝突稽核**：`python scripts/check-prompt-conflicts.py` — 把 11 個 bridge 各自注入的指令**合起來看**：偵測「for any task」這類無條件宣稱（會吃掉其他工具的適用範圍）、列出被多個工具同時宣稱的觸發詞、統計每輪注入總量，並明確標出它**沒有**涵蓋的部分（直接改寫 `systemPrompt` 的 bridge）。
+*   **提示衝突稽核**：`python scripts/check-prompt-conflicts.py` — 把 12 個 bridge 各自注入的指令**合起來看**：偵測「for any task」這類無條件宣稱（會吃掉其他工具的適用範圍）、列出被多個工具同時宣稱的觸發詞、統計每輪注入總量，並明確標出它**沒有**涵蓋的部分（直接改寫 `systemPrompt` 的 bridge）。
 *   **觸發率量測**：`python scripts/measure-triggers.py` — 以**不點名工具/技能**的情境描述任務，量測該觸發的機制有沒有真的觸發，並含「不該觸發」的反向情境（避免把指引寫得越來越強勢）。每情境重複 N 次取比率（本機模型 temp 0.6，單次樣本不可判讀），session 寫入隔離暫存目錄、cwd 為中性空目錄，避免污染真實歷史。速度慢，**不進 CI**。
 
 ### 外部來源管理
@@ -90,7 +90,7 @@ cd CKs_PI_Code_Agent_Harness
 
 ## 🛠️ 核心功能與 5 層 Harness OS 架構
 
-本專案將 **13 大開源蒸餾核心技能**、**11 大 Extension Bridges** 與 **17 個外部子模組** 無縫熔鑄為 5 層閉環操作系統 (Harness OS)，兼顧開發效率、網頁檢索能力與系統安全：
+本專案將 **13 大開源蒸餾核心技能**、**12 大 Extension Bridges** 與 **17 個外部子模組** 無縫熔鑄為 5 層閉環操作系統 (Harness OS)，兼顧開發效率、網頁檢索能力與系統安全：
 
 ```
 +-----------------------------------------------------------------------+
@@ -130,7 +130,7 @@ cd CKs_PI_Code_Agent_Harness
 |  Layer 4: Evidence Gate (證據驗證與基因進化層)                        |
 |  • autonomous-experiment-guide (MAD 統計顯著性驗證)                    |
 |  • harness-factory-guide (Repo Fit 打分、Darwin 演化 & mcp-scan)        |
-|  • 479 個自動化單元測試網 (2026-08-04 實跑，含一致性校驗)             |
+|  • 481 個自動化單元測試網 (2026-08-04 實跑，含一致性校驗)             |
 +-----------------------------------------------------------------------+
 ```
 
@@ -143,6 +143,7 @@ cd CKs_PI_Code_Agent_Harness
 
 *   **背景執行與自動續跑 (`bg_start` / `bg_status` / `bg_cancel` + `async-exec-bridge`)**：慢模型本身不是最痛的，**慢又同步**才是——工作交出去以後 agent 只能卡著等，人也被綁在螢幕前。`bg_start` 把長工作（build、整套測試、benchmark）以 detached 子行程送出後**立刻回傳**，agent 可以就地結束這一輪；工作完成時 bridge 主動喚醒它並帶回結果尾段，全部做完再以 `agent_settled` 通知你一次。實測（GRM-3.2-Sky-OPAL，Vulkan，`-np 1`）：派工到自動續跑 32 秒，其中工作本身佔 20 秒。狀態一律落檔在 `.pi/async-exec/`，所以 Pi 被砍掉也能在下次啟動時對帳補報。
     *   **安全須知**：`bg_start` 執行的是**任意 shell 指令、detached、不另外確認**，而且**中止 agent 不會中止它派出的背景工作**——這既是它的價值也是它的風險。要停就用 `bg_cancel`（連整棵進程樹一起殺）。目前沒有白名單與確認提示，若要接不受信任的提示來源請先自行加上。
+    *   **磁碟保留策略（保守預設）**：已回報且已完成的工作紀錄保留 **7 天**，且最多保留 **50 筆**，超出者由舊到新清除（連同輸出擷取檔一起）。**執行中、以及尚未回報過的完成結果永不清除**，不論多舊——那是崩潰復原唯一的依據。清理在 `session_start` 對帳**之後**才進行，所以不會刪掉還沒被讀到的結果。
     *   **`localModel` 參數**：`none`（預設，可重疊）／`shared`（共用同一個本地模型 server）／`exclusive`（v1 直接拒絕——沒有 GPU 探測就無法誠實判斷第二個模型塞不塞得下，寧可拒絕也不猜）。若你的 llama-server 以 `-np 2` 以上啟動，設環境變數 `PI_MODEL_SERVER_SLOTS` 對應該值；預設值 1 是保守讀法，會如實警告 `shared` 工作會**阻塞**而非只是拖慢。
 
 #### 2. 🛡️ 安全治理與工程紀律 (Security & Engineering Discipline)
@@ -166,7 +167,7 @@ cd CKs_PI_Code_Agent_Harness
 
 1. **零覆蓋保護 (Zero Overwrite)**：`restore.py` 與 `uninstall.py` 嚴格限定僅管理 `managed_skills` 清單，絕不任意刪除或覆蓋使用者自行安裝於全域的 `.pi/agent/skills/` 與 `extensions`。
 2. **動態碰撞隔離 (Namespace Guard)**：當使用者安裝之技能與本專案外部技能同名時，`skill-namespace-guard` 在每次 Pi 啟動時自動比對，若內容不同則平滑重命名為 `harness-<name>` 獨立並存。
-3. **零擴充雙重註冊碰撞 (Config Hygiene)**：本 Harness 內部 11 大 Extension Bridges（如 `yes-hooks-bridge`、`stealth-web-bridge` 等）由 `restore.py` 實體複製至擴充目錄並由 Pi 自動載入，**絕不**重複寫入 `settings.json` 的 `extensions` 陣列中，防止 `registerTool()` 工具同名衝突崩潰。
+3. **零擴充雙重註冊碰撞 (Config Hygiene)**：本 Harness 內部 12 大 Extension Bridges（如 `yes-hooks-bridge`、`stealth-web-bridge` 等）由 `restore.py` 實體複製至擴充目錄並由 Pi 自動載入，**絕不**重複寫入 `settings.json` 的 `extensions` 陣列中，防止 `registerTool()` 工具同名衝突崩潰。
 
 ---
 

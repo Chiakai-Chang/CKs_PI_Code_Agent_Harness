@@ -15,15 +15,21 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { randomBytes } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { ENVELOPE_TAIL_BYTES, JOB_TIMEOUT_MS } from "./constants.ts";
-import { buildEnvelope, tailBytes } from "./envelope.ts";
-import { readJobs, reconcile, writeJob, type JobRecord, type LocalModel } from "./jobs.ts";
+import { readTail } from "./capture.ts";
+import {
+  ENVELOPE_TAIL_BYTES,
+  JOB_TIMEOUT_MS,
+  MAX_KEPT_JOBS,
+  RETENTION_MS,
+} from "./constants.ts";
+import { buildEnvelope } from "./envelope.ts";
+import { deleteJob, readJobs, reconcile, writeJob, type JobRecord, type LocalModel } from "./jobs.ts";
 import { settleNotification } from "./notify.ts";
-import { outFile } from "./paths.ts";
+import { outFile, pidFile } from "./paths.ts";
 import { preflight } from "./preflight.ts";
 import { readLease, release } from "./lease.ts";
-import { isAlive, killTree, readExitCode, startDetached } from "./spawn.ts";
+import { selectPrunable } from "./retention.ts";
+import { isAlive, killTree, readExitCode, readPid, startDetached } from "./spawn.ts";
 import { stateBlock } from "./state-block.ts";
 
 export default function (pi: ExtensionAPI) {
@@ -45,11 +51,10 @@ export default function (pi: ExtensionAPI) {
   function envelopeFor(jobs: JobRecord[]): string {
     const tails = new Map<string, string>();
     for (const j of jobs) {
-      try {
-        tails.set(j.id, tailBytes(readFileSync(j.outPath, "utf-8"), ENVELOPE_TAIL_BYTES));
-      } catch {
-        // No output captured.
-      }
+      // Seeks to the tail rather than reading the whole capture: the file can
+      // be 8 MiB and only 4 KiB of it is ever injected.
+      const tail = readTail(j.outPath, ENVELOPE_TAIL_BYTES);
+      if (tail) tails.set(j.id, tail);
     }
     return buildEnvelope(jobs, tails);
   }
@@ -154,14 +159,27 @@ export default function (pi: ExtensionAPI) {
       const id = randomBytes(2).toString("hex");
       const out = outFile(cwd, id);
       const rc = `${out}.rc`;
-      const pid = startDetached(args.cmd, cwd, out, rc);
-      if (pid === null) return text("[async-exec] refused: could not start the process");
+      const pidPath = pidFile(cwd, id);
 
+      // Record the job BEFORE spawning. If pi dies in the window between
+      // spawn() and the write, a record written afterwards never exists, and
+      // the detached process becomes untrackable — bg_cancel cannot see it and
+      // reconcile cannot report it. Written first, the worst case is a record
+      // with a null pid, which the next session resolves from the job's own
+      // pid file.
       const job: JobRecord = {
         id, label: args.label ?? args.cmd, cmd: args.cmd, cwd, localModel,
-        pid, state: "running", startedAt: Date.now(), endedAt: null,
+        pid: null, state: "running", startedAt: Date.now(), endedAt: null,
         exitCode: null, outPath: out, acknowledged: false,
       };
+      writeJob(cwd, job);
+
+      const pid = startDetached(args.cmd, cwd, out, rc, pidPath);
+      if (pid === null) {
+        writeJob(cwd, { ...job, state: "failed", endedAt: Date.now(), acknowledged: true });
+        return text("[async-exec] refused: could not start the process");
+      }
+      job.pid = pid;
       writeJob(cwd, job);
 
       const poll = setInterval(() => {
@@ -248,11 +266,23 @@ export default function (pi: ExtensionAPI) {
   // from here. It goes out from before_agent_start below.
   pi.on("session_start", async (_event, ctx: any) => {
     const cwd: string = ctx.cwd;
+    // A record with a null pid was written just before its spawn; the job wrote
+    // its own pid, so recover it from there rather than treating the job as
+    // something that never started.
+    const jobs = readJobs(cwd).map((j) =>
+      j.pid === null && j.state === "running" ? { ...j, pid: readPid(pidFile(cwd, j.id)) } : j,
+    );
     // A job can finish in the instant pi is being killed: no handler runs, but
     // the shell wrapper's .rc file is already on disk. Read it, so a success is
     // reported as a success rather than written off as orphaned.
-    for (const j of reconcile(readJobs(cwd), isAlive, (job) => readExitCode(`${job.outPath}.rc`))) {
+    for (const j of reconcile(jobs, isAlive, (job) => readExitCode(`${job.outPath}.rc`))) {
       writeJob(cwd, j);
+    }
+    // Prune last, so nothing is deleted before it has been reconciled and (if
+    // it finished unseen) reported. Running and unreported jobs are never
+    // eligible at any age.
+    for (const j of selectPrunable(readJobs(cwd), Date.now(), RETENTION_MS, MAX_KEPT_JOBS)) {
+      deleteJob(cwd, j);
     }
   });
 
