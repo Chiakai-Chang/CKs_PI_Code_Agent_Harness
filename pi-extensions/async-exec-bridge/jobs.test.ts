@@ -44,9 +44,11 @@ test("readJobs on a missing directory returns empty, not a throw", () => {
   assert.deepEqual(readJobs(cwd), []);
 });
 
+const noCode = () => null;
+
 test("reconcile marks running jobs with dead pids as orphaned", () => {
   const jobs = [sample({ id: "dead", pid: 999 }), sample({ id: "live", pid: 111 })];
-  const changed = reconcile(jobs, (pid) => pid === 111);
+  const changed = reconcile(jobs, (pid) => pid === 111, noCode);
   assert.equal(changed.length, 1);
   assert.equal(changed[0].id, "dead");
   assert.equal(changed[0].state, "orphaned");
@@ -54,5 +56,26 @@ test("reconcile marks running jobs with dead pids as orphaned", () => {
 
 test("reconcile leaves finished jobs alone", () => {
   const jobs = [sample({ id: "done", state: "done", pid: 999, exitCode: 0 })];
-  assert.deepEqual(reconcile(jobs, () => false), []);
+  assert.deepEqual(reconcile(jobs, () => false, noCode), []);
+});
+
+test("a job that finished while pi was being killed is reported by its exit code, not as orphaned", () => {
+  // The pid is gone and no handler ever ran, but the shell wrapper had already
+  // written the .rc file. Calling that "orphaned" throws away the one piece of
+  // evidence the crash left behind — and reports a success as a failure.
+  const changed = reconcile([sample({ id: "ok", pid: 999 })], () => false, () => 0);
+  assert.equal(changed[0].state, "done");
+  assert.equal(changed[0].exitCode, 0);
+});
+
+test("a job that had already failed when pi died keeps its real exit code", () => {
+  const changed = reconcile([sample({ id: "bad", pid: 999 })], () => false, () => 3);
+  assert.equal(changed[0].state, "failed");
+  assert.equal(changed[0].exitCode, 3);
+});
+
+test("no exit code still means orphaned — absence is not success", () => {
+  const changed = reconcile([sample({ id: "gone", pid: 999 })], () => false, () => null);
+  assert.equal(changed[0].state, "orphaned");
+  assert.equal(changed[0].exitCode, null);
 });

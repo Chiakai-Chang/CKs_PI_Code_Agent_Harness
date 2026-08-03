@@ -19,6 +19,7 @@ import { readFileSync } from "node:fs";
 import { ENVELOPE_TAIL_BYTES, JOB_TIMEOUT_MS } from "./constants.ts";
 import { buildEnvelope, tailBytes } from "./envelope.ts";
 import { readJobs, reconcile, writeJob, type JobRecord, type LocalModel } from "./jobs.ts";
+import { settleNotification } from "./notify.ts";
 import { outFile } from "./paths.ts";
 import { preflight } from "./preflight.ts";
 import { readLease, release } from "./lease.ts";
@@ -37,6 +38,9 @@ export default function (pi: ExtensionAPI) {
    *  counting the directory made an ordinary conversation report "2 background
    *  job(s) finished" and ping the user about work from a previous run. */
   const finishedThisSession = new Set<string>();
+  /** Ids already announced to the human. agent_settled fires at the end of every
+   *  turn, so without this one job means a ping after every reply. */
+  const alreadyNotified = new Set<string>();
 
   function envelopeFor(jobs: JobRecord[]): string {
     const tails = new Map<string, string>();
@@ -244,7 +248,12 @@ export default function (pi: ExtensionAPI) {
   // from here. It goes out from before_agent_start below.
   pi.on("session_start", async (_event, ctx: any) => {
     const cwd: string = ctx.cwd;
-    for (const j of reconcile(readJobs(cwd), isAlive)) writeJob(cwd, j);
+    // A job can finish in the instant pi is being killed: no handler runs, but
+    // the shell wrapper's .rc file is already on disk. Read it, so a success is
+    // reported as a success rather than written off as orphaned.
+    for (const j of reconcile(readJobs(cwd), isAlive, (job) => readExitCode(`${job.outPath}.rc`))) {
+      writeJob(cwd, j);
+    }
   });
 
   // The only hook whose result carries a message (BeforeAgentStartEventResult).
@@ -268,18 +277,12 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("agent_settled", async (_event, ctx: any) => {
-    // Only speak up if this session actually ran background work, and only
-    // once nothing is still running — otherwise every ordinary conversation
-    // would ping the user.
-    if (finishedThisSession.size === 0) return;
-    const jobs = readJobs(ctx.cwd);
-    if (jobs.some((j) => j.state === "running")) return;
-    const finished = jobs.filter((j) => finishedThisSession.has(j.id));
-    if (finished.length === 0) return;
-    const failed = finished.filter((j) => j.state !== "done").length;
+    const n = settleNotification(readJobs(ctx.cwd), finishedThisSession, alreadyNotified);
+    if (n === null) return;
+    for (const id of n.ids) alreadyNotified.add(id);
     ctx.ui?.notify?.(
-      `[async-exec] ${finished.length} background job(s) finished, ${failed} not clean. Nothing left running.`,
-      failed > 0 ? "warning" : "info",
+      `[async-exec] ${n.finished} background job(s) finished, ${n.failed} not clean. Nothing left running.`,
+      n.failed > 0 ? "warning" : "info",
     );
   });
 }

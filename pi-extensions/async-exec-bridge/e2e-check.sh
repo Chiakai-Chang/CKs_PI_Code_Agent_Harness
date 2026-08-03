@@ -21,7 +21,23 @@ set -u
 HOLD="${E2E_HOLD_SECONDS:-180}"
 LOGDIR="$(mktemp -d)"
 LOG="$LOGDIR/e2e.rpc"
-BRIDGE="pi-extensions/async-exec-bridge/index.ts"
+
+# Runs against the INSTALLED copy, with no -e flag. Two reasons, the second
+# found by this script failing:
+#   1. Pi runs ~/.pi/agent/extensions/<bridge>/, not the repo working tree, so
+#      testing the repo file proves nothing about what a user actually loads.
+#   2. Passing -e <repo path> while the installed copy is auto-discovered
+#      registers bg_start twice, and Pi then refuses to start AT ALL:
+#        Failed to load extension ...: Tool "bg_start" conflicts with ...
+#      That is not hypothetical - it is what happens to every user who has run
+#      the installer, and this check reported PASS right up until the bridge was
+#      installed for the first time.
+INSTALLED="$HOME/.pi/agent/extensions/async-exec-bridge/index.ts"
+if [ ! -f "$INSTALLED" ]; then
+  echo "FAIL: the bridge is not installed at $INSTALLED"
+  echo "      run: python scripts/setup.py --mode restore"
+  exit 1
+fi
 
 PROMPT='Call the bg_start tool with cmd "sleep 20; echo DONE" and label "e2e". After it returns, stop: issue no further tool calls and end your turn.'
 
@@ -39,7 +55,7 @@ started=$(date +%s)
     fi
     sleep 0.5
   done
-} | timeout $((HOLD + 60)) pi --mode rpc --no-session -e "$BRIDGE" >> "$LOG" 2>&1 &
+} | timeout $((HOLD + 60)) pi --mode rpc --no-session >> "$LOG" 2>&1 &
 pipeline=$!
 
 # Record when the envelope actually reached the agent. That instant, minus the

@@ -86,16 +86,27 @@ class TestAsyncExecBridgeTools(unittest.TestCase):
         c = read(self.IDX)
         self.assertIn("ctx.ui?.notify?.(", c)
 
-    def test_settle_notification_counts_only_this_session(self):
-        """Job records outlive the session that wrote them. Counting the run
-        directory made a live run report '2 background job(s) finished' — one of
-        them from a previous run — which is exactly the ordinary conversation
-        the spec says must not be interrupted."""
+    def test_settle_notification_is_decided_by_the_pure_module(self):
+        """Which jobs to announce is real logic with three learned conditions
+        (this session only, nothing still running, never twice). It lives in
+        notify.ts where node --test can exercise it; index.ts only wires it.
+        The behaviour itself is covered by notify.test.ts, not by matching
+        strings here."""
         c = read(self.IDX)
-        self.assertIn("finishedThisSession", c)
+        self.assertIn('from "./notify.ts"', c)
         body = c[c.index('pi.on("agent_settled"'):]
-        self.assertIn("finishedThisSession.size === 0", body)
-        self.assertIn("finishedThisSession.has(j.id)", body)
+        self.assertIn("settleNotification(", body)
+        self.assertIn("finishedThisSession", body)
+        self.assertIn("alreadyNotified", body)
+
+    def test_reconcile_consults_the_recorded_exit_code(self):
+        """A job can finish in the instant pi is killed: no handler runs, but
+        the shell wrapper's .rc file is already on disk. Reporting that as
+        'orphaned' discards the only evidence the crash left, and turns a clean
+        success into a failure."""
+        c = read(self.IDX)
+        body = c[c.index('pi.on("session_start"'):]
+        self.assertIn("readExitCode(", body)
 
     def test_pending_results_are_injected_through_before_agent_start(self):
         """session_start is typed ExtensionHandler<SessionStartEvent> with no

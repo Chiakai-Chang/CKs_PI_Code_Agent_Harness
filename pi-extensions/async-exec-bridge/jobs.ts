@@ -51,13 +51,29 @@ export function readJobs(cwd: string): JobRecord[] {
   return out;
 }
 
-/** Pure. Returns only the records whose state changed. */
-export function reconcile(jobs: JobRecord[], isAlive: (pid: number) => boolean): JobRecord[] {
+/** Pure. Returns only the records whose state changed.
+ *
+ *  `readCode` supplies the exit code the shell wrapper recorded, or null when
+ *  the job never got that far. It matters because a job can finish in the
+ *  instant pi is being killed: no handler runs, but the .rc file is already on
+ *  disk. Marking that "orphaned" would discard the only evidence the crash left
+ *  behind, and would report a clean success as a failure. A null code still
+ *  means orphaned — absence of a code is not success. */
+export function reconcile(
+  jobs: JobRecord[],
+  isAlive: (pid: number) => boolean,
+  readCode: (job: JobRecord) => number | null,
+): JobRecord[] {
   const changed: JobRecord[] = [];
   for (const j of jobs) {
     if (j.state !== "running") continue;
     if (j.pid !== null && isAlive(j.pid)) continue;
-    changed.push({ ...j, state: "orphaned", endedAt: Date.now() });
+    const code = readCode(j);
+    changed.push(
+      code === null
+        ? { ...j, state: "orphaned", endedAt: Date.now() }
+        : { ...j, state: code === 0 ? "done" : "failed", exitCode: code, endedAt: Date.now() },
+    );
   }
   return changed;
 }

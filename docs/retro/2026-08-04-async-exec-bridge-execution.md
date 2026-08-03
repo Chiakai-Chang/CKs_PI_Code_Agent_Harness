@@ -99,6 +99,27 @@ repo 早就有 `TestManagedSkillsConsistency` 在鎖 skills 名單——**唯獨
 一次鎖住四份名單（`restore.py` 兩份、`uninstall.py` 一份、`bridge-manifest.json`
 一份），並實測讓它失敗過一次以確認它抓得到。
 
+### 4. 合併後的自我複查又抓到三個（同一個形狀）
+
+已合併、已推送之後再讀一次程式碼，又找到三個——**全部落在 e2e 沒有走過的路徑上**：
+
+* **`agent_settled` 會無限重複通知。** `finishedThisSession` 從不清空，所以背景工作
+  完成之後，**該 session 之後每一次回合結束都會再通知一次同一件事**。e2e 沒抓到，
+  因為它在續跑那一輪之後就結束了——**只 settle 過一次**。這跟前面修掉的「算進上一次
+  執行」是同一條規則被違反兩次，只是層級不同。
+* **崩潰時剛好完成的工作被誤報為 `orphaned`。** `reconcile` 只看 pid 死了就標
+  orphaned，沒有去讀 shell wrapper 已經寫好的 `.rc`。那是崩潰唯一留下的證據，
+  而且會把一次乾淨成功報成失敗。
+* **e2e 腳本對「已安裝的使用者」是壞的。** 它用 `-e <repo 路徑>` 啟動，而安裝版會被
+  Pi 依目錄自動探索，於是 `bg_start` 註冊兩次，**Pi 直接拒絕啟動**：
+  `Tool "bg_start" conflicts with ...`。先前會 PASS 純粹因為當時還沒安裝過。
+  這正是 `TestExtensionsNotDoubleRegistered` 記錄過的老坑，只是換個入口重演。
+  已改為**不帶 `-e`、直接測安裝版**——那才是使用者真正載入的東西。
+
+前兩個修法都不是在 wiring 裡加 if：`settleNotification()` 移進 `notify.ts`（7 個測試）、
+`reconcile()` 改為注入 `readCode`（8 個測試）。原本用字串比對 wiring 的 Python 測試
+因此失效——這剛好說明了那種測試的脆弱：**它測的是寫法，不是行為**。
+
 ### 學到的
 
 **「跑一次」抓到的三個缺陷，沒有一個是審查形狀能抓到的**，因為三個都需要
@@ -135,12 +156,16 @@ Error: Failed to load extension "...\aeb\index.ts": Failed to load extension: AE
 （`/props` 回報 `total_slots: 1`，因此 bridge 預設 `PI_MODEL_SERVER_SLOTS=1` 是對的讀法）。
 
 ```
-派工到自動續跑        32 秒（其中工作本身 20 秒）
+派工到自動續跑        52 秒（其中工作本身 20 秒）
 turn_end              3（派工、PARK、續跑）
-工作結果              exit=0，22.1 秒，尾段 "DONE"
-續跑後模型的最後一句  "Nothing outstanding."
-通知                  "1 background job(s) finished, 0 not clean."
+工作結果              exit=0，22.2 秒，尾段 "DONE"
+續跑後模型的最後一句  "Nothing further to do."
+通知                  "1 background job(s) finished, 0 not clean."（**恰好一次**）
 ```
+
+（此為修完上述三個缺陷後、**對安裝版**重跑的數字。修正前對 repo 檔案跑出的是 32 秒；
+兩者不可直接比較，因為受測對象與模型當下負載都不同。牆鐘數字只作為日後**相對**回歸
+基準，不是硬指標。）
 
 事件鏈與規格一致：`bg_start` 回傳狀態區塊（含**真實** context 深度 ~16K，
 不是佔位的 0）→ 模型 PARK、該輪結束 → 工作完成 → 信封以 `followUp` +
