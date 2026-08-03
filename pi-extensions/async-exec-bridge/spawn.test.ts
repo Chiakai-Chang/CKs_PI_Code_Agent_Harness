@@ -3,7 +3,15 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { isAlive, killTree, readExitCode, readPid, startDetached } from "./spawn.ts";
+import {
+  isAlive,
+  isSameProcess,
+  killTree,
+  processStartedAt,
+  readExitCode,
+  readPid,
+  startDetached,
+} from "./spawn.ts";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -33,6 +41,46 @@ test("the job records a pid that is alive and killable, so a crashed parent can 
 
 test("readPid on a missing file is null, not a guess", () => {
   assert.equal(readPid("/definitely/not/here.pid"), null);
+});
+
+test("processStartedAt reports roughly when a process actually started", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "aeb-")).replace(/\\/g, "/");
+  const before = Date.now();
+  const pid = startDetached("sleep 20", dir, `${dir}/o.txt`, `${dir}/o.rc`, `${dir}/o.pid`) as number;
+  await sleep(1500);
+  const started = processStartedAt(pid);
+  assert.notEqual(started, null, "a live process must have a start time");
+  assert.ok(
+    Math.abs((started as number) - before) < 30_000,
+    `start time ${new Date(started as number).toISOString()} should be near ${new Date(before).toISOString()}`,
+  );
+  killTree(pid);
+});
+
+test("processStartedAt is null for a pid that cannot exist", () => {
+  assert.equal(processStartedAt(0x7ffffff0), null);
+});
+
+test("a pid recycled onto a different process is not treated as the job", async () => {
+  // A pid is not an identity: the OS reuses them. Without this, a long-dead job
+  // whose number got handed to something else reads as "still running" - and
+  // bg_cancel would kill that innocent process.
+  const dir = mkdtempSync(join(tmpdir(), "aeb-")).replace(/\\/g, "/");
+  const pid = startDetached("sleep 20", dir, `${dir}/o.txt`, `${dir}/o.rc`, `${dir}/o.pid`) as number;
+  await sleep(1500);
+  assert.equal(isSameProcess(pid, Date.now()), true, "a job dispatched now owns this process");
+  assert.equal(
+    isSameProcess(pid, Date.now() - 60 * 60 * 1000),
+    false,
+    "a job dispatched an hour ago cannot own a process that started seconds ago",
+  );
+  killTree(pid);
+});
+
+test("an unknowable start time does not invent a verdict", () => {
+  // Nothing can be proven about a pid that is already gone, so the answer must
+  // not be a confident "yes, that is still your job".
+  assert.equal(isSameProcess(0x7ffffff0, Date.now()), false);
 });
 
 test("a detached job keeps running after the caller returns", async () => {

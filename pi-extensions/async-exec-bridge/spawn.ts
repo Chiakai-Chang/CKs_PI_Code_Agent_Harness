@@ -2,7 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { CAPTURE_MAX_BYTES } from "./constants.ts";
+import { CAPTURE_MAX_BYTES, PID_IDENTITY_SLACK_MS } from "./constants.ts";
 
 /** Same resolution order as stealth-web-bridge's findShell(). spawn("bash")
  *  relies on the *process* PATH, which on Windows often does not include Git's
@@ -105,6 +105,63 @@ export function readPid(pidPath: string): number | null {
   } catch {
     return null;
   }
+}
+
+/** Wall-clock start time of a process in epoch ms, or null when it cannot be
+ *  determined — because the process is gone, or because this platform will not
+ *  say. Callers must not read null as either "alive" or "dead".
+ *
+ *  Windows has no /proc, and `wmic` is absent on current builds (checked on
+ *  Windows 11 26200), so this goes through PowerShell. Get-Process is used
+ *  rather than Get-CimInstance because its CreationDate comes back as a
+ *  localized string, while `.StartTime.ToUniversalTime().ToString('o')` is
+ *  ISO-8601 that Date.parse handles. Roughly 0.34s per call, which is why this
+ *  is only ever used on infrequent paths — reconcile and cancel — and never in
+ *  the polling loop. */
+export function processStartedAt(pid: number): number | null {
+  try {
+    const r =
+      process.platform === "win32"
+        ? spawnSync(
+            "powershell",
+            [
+              "-NoProfile",
+              "-NonInteractive",
+              "-Command",
+              `(Get-Process -Id ${pid}).StartTime.ToUniversalTime().ToString('o')`,
+            ],
+            { encoding: "utf-8", windowsHide: true, timeout: 10_000 },
+          )
+        : spawnSync("ps", ["-o", "lstart=", "-p", String(pid)], {
+            encoding: "utf-8",
+            timeout: 10_000,
+          });
+    const parsed = Date.parse((r.stdout ?? "").trim());
+    return Number.isNaN(parsed) ? null : parsed;
+  } catch {
+    return null;
+  }
+}
+
+/** Whether `pid` is still the process this job started.
+ *
+ *  A pid on its own is not an identity: once a job exits the operating system
+ *  is free to hand its number to anything else. Believing the number alone
+ *  means a long-finished job reads as "still running" forever, holding a
+ *  concurrency slot — and, far worse, that bg_cancel calls killTree on a
+ *  stranger.
+ *
+ *  When the start time cannot be read at all, this falls back to mere
+ *  existence: refusing to believe a live process we simply cannot probe would
+ *  declare a genuinely running job dead, which is the more damaging mistake. */
+export function isSameProcess(
+  pid: number,
+  jobStartedAt: number,
+  slackMs: number = PID_IDENTITY_SLACK_MS,
+): boolean {
+  const started = processStartedAt(pid);
+  if (started === null) return isAlive(pid);
+  return started <= jobStartedAt + slackMs;
 }
 
 export function isAlive(pid: number): boolean {

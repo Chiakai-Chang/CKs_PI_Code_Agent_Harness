@@ -115,6 +115,23 @@ class TestAsyncExecBridgeTools(unittest.TestCase):
         body = c[c.index('pi.on("session_start"'):]
         self.assertLess(body.index("reconcile("), body.index("selectPrunable("))
 
+    def test_cancel_verifies_process_identity_before_killing(self):
+        """A pid is not an identity. Killing on the number alone means killTree
+        can take down an unrelated process, and its whole tree, that merely
+        inherited a finished job's pid."""
+        c = read(self.IDX)
+        body = c[c.index('name: "bg_cancel"'):]
+        self.assertLess(body.index("isSameProcess("), body.index("killTree("))
+
+    def test_poll_trusts_the_recorded_exit_code_over_the_pid(self):
+        """The polling loop uses the cheap existence check by design — a
+        process-identity probe costs ~0.34s and cannot run every two seconds —
+        so the wrapper's own .rc must be checked first, or a recycled pid keeps
+        a finished job 'running' until the timeout."""
+        c = read(self.IDX)
+        body = c[c.index("const poll = setInterval("):]
+        self.assertLess(body.index("readExitCode("), body.index("isAlive("))
+
     def test_reconcile_consults_the_recorded_exit_code(self):
         """A job can finish in the instant pi is killed: no handler runs, but
         the shell wrapper's .rc file is already on disk. Reporting that as

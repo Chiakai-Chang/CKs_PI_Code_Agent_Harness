@@ -15,3 +15,9 @@ export const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 /** Ceiling on kept records regardless of age, so a busy week cannot grow the
  *  run directory (and bg_status's output) without bound. */
 export const MAX_KEPT_JOBS = 50;
+/** How long after dispatch a process may have started and still be believed to
+ *  be this job. A pid is not an identity — the OS reuses them — so a process
+ *  that began well after the job was sent is somebody else's. The job's own
+ *  process starts milliseconds after dispatch; a minute is slack for a loaded
+ *  machine, not a real window. */
+export const PID_IDENTITY_SLACK_MS = 60 * 1000;

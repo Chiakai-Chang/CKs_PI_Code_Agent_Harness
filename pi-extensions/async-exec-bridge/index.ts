@@ -29,7 +29,14 @@ import { outFile, pidFile } from "./paths.ts";
 import { preflight } from "./preflight.ts";
 import { readLease, release } from "./lease.ts";
 import { selectPrunable } from "./retention.ts";
-import { isAlive, killTree, readExitCode, readPid, startDetached } from "./spawn.ts";
+import {
+  isAlive,
+  isSameProcess,
+  killTree,
+  readExitCode,
+  readPid,
+  startDetached,
+} from "./spawn.ts";
 import { stateBlock } from "./state-block.ts";
 
 export default function (pi: ExtensionAPI) {
@@ -184,21 +191,28 @@ export default function (pi: ExtensionAPI) {
 
       const poll = setInterval(() => {
         if (dead) return;
+        const stop = (state: JobRecord["state"], code: number | null) => {
+          clearInterval(poll);
+          timers.delete(poll);
+          finish(cwd, ctx, job, state, code);
+        };
+        // The wrapper writing .rc is the job's own statement that it is done,
+        // and it is checked FIRST. Asking the pid instead would let a recycled
+        // number keep a finished job "running" until the timeout, since this
+        // loop deliberately uses the cheap existence check — a process-identity
+        // probe costs ~0.34s and cannot run every two seconds.
+        const code = readExitCode(rc);
+        if (code !== null) return stop(code === 0 ? "done" : "failed", code);
         if (isAlive(pid)) {
           if (Date.now() - job.startedAt > JOB_TIMEOUT_MS) {
             killTree(pid);
-            clearInterval(poll);
-            timers.delete(poll);
-            finish(cwd, ctx, job, "timeout", null);
+            stop("timeout", null);
           }
           return;
         }
-        clearInterval(poll);
-        timers.delete(poll);
-        // The pid is gone; the shell wrapper's .rc file is the only witness to
-        // how it went. A missing code means it never finished cleanly.
-        const code = readExitCode(rc);
-        finish(cwd, ctx, job, code === 0 ? "done" : "failed", code);
+        // The pid is gone and no exit code was ever recorded: the job did not
+        // finish cleanly. Absence of a code is not success.
+        return stop("failed", null);
       }, 2000);
       timers.add(poll);
 
@@ -248,10 +262,29 @@ export default function (pi: ExtensionAPI) {
     async execute(_id, params: any, _signal, _onUpdate, ctx: any) {
       const job = readJobs(ctx.cwd).find((j) => j.id === params.id);
       if (!job || job.state !== "running") return text(`[async-exec] no running job ${params.id}`);
-      if (job.pid !== null) killTree(job.pid);
-      writeJob(ctx.cwd, { ...job, state: "cancelled", endedAt: Date.now(), acknowledged: true });
+      // Never kill on the strength of a pid alone. If the job is already gone,
+      // its number may have been handed to an unrelated process, and killTree
+      // would take down that stranger and its whole tree.
+      if (job.pid !== null && isSameProcess(job.pid, job.startedAt)) {
+        killTree(job.pid);
+        writeJob(ctx.cwd, { ...job, state: "cancelled", endedAt: Date.now(), acknowledged: true });
+        release(ctx.cwd, job.id);
+        return text(`[async-exec] cancelled ${params.id}`);
+      }
+      const code = readExitCode(`${job.outPath}.rc`);
+      const settled: JobRecord = {
+        ...job,
+        state: code === null ? "orphaned" : code === 0 ? "done" : "failed",
+        exitCode: code,
+        endedAt: Date.now(),
+        acknowledged: true,
+      };
+      writeJob(ctx.cwd, settled);
       release(ctx.cwd, job.id);
-      return text(`[async-exec] cancelled ${params.id}`);
+      return text(
+        `[async-exec] job ${params.id} was no longer running (recorded as ${settled.state}); ` +
+          "nothing was killed — its pid may since have been reused by an unrelated process.",
+      );
     },
   });
 
@@ -275,7 +308,15 @@ export default function (pi: ExtensionAPI) {
     // A job can finish in the instant pi is being killed: no handler runs, but
     // the shell wrapper's .rc file is already on disk. Read it, so a success is
     // reported as a success rather than written off as orphaned.
-    for (const j of reconcile(jobs, isAlive, (job) => readExitCode(`${job.outPath}.rc`))) {
+    // isSameProcess, not isAlive: a finished job's pid can already belong to
+    // something else, and believing the number alone leaves the record
+    // "running" forever, holding a concurrency slot against a process that is
+    // not ours. This path runs once per session, so its cost is affordable.
+    for (const j of reconcile(
+      jobs,
+      (job) => job.pid !== null && isSameProcess(job.pid, job.startedAt),
+      (job) => readExitCode(`${job.outPath}.rc`),
+    )) {
       writeJob(cwd, j);
     }
     // Prune last, so nothing is deleted before it has been reconciled and (if

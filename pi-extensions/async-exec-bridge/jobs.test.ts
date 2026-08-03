@@ -67,7 +67,7 @@ const noCode = () => null;
 
 test("reconcile marks running jobs with dead pids as orphaned", () => {
   const jobs = [sample({ id: "dead", pid: 999 }), sample({ id: "live", pid: 111 })];
-  const changed = reconcile(jobs, (pid) => pid === 111, noCode);
+  const changed = reconcile(jobs, (j) => j.pid === 111, noCode);
   assert.equal(changed.length, 1);
   assert.equal(changed[0].id, "dead");
   assert.equal(changed[0].state, "orphaned");
@@ -91,6 +91,15 @@ test("a job that had already failed when pi died keeps its real exit code", () =
   const changed = reconcile([sample({ id: "bad", pid: 999 })], () => false, () => 3);
   assert.equal(changed[0].state, "failed");
   assert.equal(changed[0].exitCode, 3);
+});
+
+test("a job whose pid now belongs to someone else is orphaned, not still running", () => {
+  // The predicate is given the whole job precisely so it can tell the job's own
+  // process from a stranger that inherited its number. A live-but-foreign pid
+  // must not keep the job "running" forever, holding a concurrency slot.
+  const changed = reconcile([sample({ id: "recycled", pid: 999 })], () => false, () => null);
+  assert.equal(changed.length, 1);
+  assert.equal(changed[0].state, "orphaned");
 });
 
 test("no exit code still means orphaned — absence is not success", () => {

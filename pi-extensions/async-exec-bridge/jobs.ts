@@ -70,6 +70,11 @@ export function deleteJob(cwd: string, job: JobRecord): void {
 
 /** Pure. Returns only the records whose state changed.
  *
+ *  `stillRunning` takes the whole job, not a bare pid, because a pid is not an
+ *  identity — the OS reuses them, and answering "is this job alive" needs the
+ *  job's dispatch time to tell its own process from a stranger wearing its
+ *  number.
+ *
  *  `readCode` supplies the exit code the shell wrapper recorded, or null when
  *  the job never got that far. It matters because a job can finish in the
  *  instant pi is being killed: no handler runs, but the .rc file is already on
@@ -78,13 +83,13 @@ export function deleteJob(cwd: string, job: JobRecord): void {
  *  means orphaned — absence of a code is not success. */
 export function reconcile(
   jobs: JobRecord[],
-  isAlive: (pid: number) => boolean,
+  stillRunning: (job: JobRecord) => boolean,
   readCode: (job: JobRecord) => number | null,
 ): JobRecord[] {
   const changed: JobRecord[] = [];
   for (const j of jobs) {
     if (j.state !== "running") continue;
-    if (j.pid !== null && isAlive(j.pid)) continue;
+    if (j.pid !== null && stillRunning(j)) continue;
     const code = readCode(j);
     changed.push(
       code === null
