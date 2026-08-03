@@ -1033,9 +1033,18 @@ git commit -m "feat(async-exec): add deliberation state block"
 
 ---
 
-### Task 8: Verify detached spawn survives on Windows
+### Task 8: Detached spawn, exit-code capture and process-tree kill
 
-This is the one platform assumption the spec deliberately left unverified. Do it before wiring `bg_start`, because a failure here changes the design.
+> **Already validated on the reference box (2026-08-03).** A detached child does
+> survive its parent exiting: the parent called `process.exit(0)` immediately and
+> the child still completed six seconds later and wrote its status file. The
+> failing case correctly reported exit 3 rather than 0.
+>
+> That run also found a real bug, which is why the code below differs from the
+> obvious version: `stdio: ["ignore", fd, fd]` produced an **empty output file
+> every time** on Windows. A detached child does not reliably inherit a file
+> descriptor. Shell-level redirection with `stdio: "ignore"` works, and matches
+> Node's documented recommendation. Do not "simplify" it back.
 
 **Files:**
 - Create: `pi-extensions/async-exec-bridge/spawn.ts`
@@ -1113,7 +1122,7 @@ Create `pi-extensions/async-exec-bridge/spawn.ts`:
 
 ```typescript
 import { spawn, spawnSync } from "node:child_process";
-import { openSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { CAPTURE_MAX_BYTES } from "./constants.ts";
 
 const SHELL = process.env.SHELL_PATH || "C:/Program Files/Git/bin/bash.exe";
@@ -1126,17 +1135,22 @@ export function startDetached(
   outPath: string,
   rcPath: string,
 ): number | null {
-  const fd = openSync(outPath, "a");
-  // A detached child's exit status is unrecoverable by polling its pid - the
-  // process is simply gone. Have the shell record it, and cap the captured
-  // output so a runaway job cannot fill the disk.
+  // Everything goes through shell-level redirection, and stdio stays "ignore".
+  // VERIFIED on Windows: a detached child does NOT reliably receive an
+  // inherited file descriptor - stdio: ["ignore", fd, fd] produced an empty
+  // output file every time, while the shell redirect below captures both
+  // streams. This also matches Node's documented recommendation of pairing
+  // detached with stdio: "ignore".
+  //
+  // head -c caps the capture so a runaway job cannot fill the disk.
+  // PIPESTATUS[0] is the command's status, not head's.
   const wrapped =
-    `{ ${cmd} ; } 2>&1 | head -c ${CAPTURE_MAX_BYTES} ; ` +
+    `{ ${cmd} ; } 2>&1 | head -c ${CAPTURE_MAX_BYTES} > ${JSON.stringify(outPath)} ; ` +
     `echo \${PIPESTATUS[0]} > ${JSON.stringify(rcPath)}`;
   const child = spawn(SHELL, ["-lc", wrapped], {
     cwd,
     detached: true,
-    stdio: ["ignore", fd, fd],
+    stdio: "ignore",
     windowsHide: true,
   });
   if (child.pid === undefined) return null;
