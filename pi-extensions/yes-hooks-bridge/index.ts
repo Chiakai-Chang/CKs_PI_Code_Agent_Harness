@@ -448,6 +448,7 @@ const HARNESS_TOOLS = new Set([
   "web_search", "web_open", "web_snapshot", "web_click", "web_type",
   "web_press", "web_scroll", "web_screenshot", "web_evaluate",
   "deep_research",
+  "bg_start", "bg_status", "bg_cancel",
 ]);
 
 function isKnownTool(name: string): boolean {

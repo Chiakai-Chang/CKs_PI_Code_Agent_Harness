@@ -1309,7 +1309,17 @@ git commit -m "feat(async-exec): add detached spawn with process-tree kill"
 
 **Files:**
 - Modify: `pi-extensions/async-exec-bridge/index.ts`
+- Modify: `pi-extensions/yes-hooks-bridge/index.ts` — add `bg_start`, `bg_status`, `bg_cancel` to `HARNESS_TOOLS`
 - Test: `tests/test_async_exec_bridge.py`
+
+Two repo-wide invariants bite here, both enforced by existing tests:
+
+- `HARNESS_TOOLS` in `yes-hooks-bridge` is a hand-maintained mirror of every tool
+  the bridges register. Registering a tool without listing it there puts the
+  guard back to telling the model that a real tool does not exist.
+- `test_taste_bridge` requires any `index.ts` containing the string `pi-config`
+  to resolve the harness root from `package.json`. This bridge does not read
+  `pi-config`, so it must not name it — not even in a comment.
 
 **Interfaces:**
 - Consumes: every module from Tasks 2-8.
@@ -1348,9 +1358,12 @@ class TestAsyncExecBridgeTools(unittest.TestCase):
         self.assertLess(c.index("preflight("), c.index("startDetached("))
 
     def test_result_is_written_before_the_wake_attempt(self):
-        """Waking can fail and be retried; state cannot."""
+        """Waking can fail and be retried; state cannot. Anchored inside wake()
+        because the file header quotes pi.sendMessage in prose, which a
+        whole-file index would match first."""
         c = read(self.IDX)
-        self.assertLess(c.index("writeJob("), c.index("pi.sendMessage("))
+        body = c[c.index("function wake("):]
+        self.assertLess(body.index("writeJob("), body.index("pi.sendMessage("))
 
     def test_pending_results_are_injected_through_before_agent_start(self):
         """session_start is typed ExtensionHandler<SessionStartEvent> with no
@@ -1546,9 +1559,12 @@ export default function (pi: ExtensionAPI) {
           running: readJobs(cwd).filter((j) => j.state === "running"),
           // No GPU fields: v1 has no probe, so they are omitted rather than faked.
           contextTokens: usage?.tokens ?? 0,
-          // Set PI_MODEL_SERVER_SLOTS in pi-config/harness-config.local.json env
-          // to match the llama-server -np value. Default 1 is the safe reading:
-          // it makes the block warn that a shared job blocks rather than slows.
+          // Set PI_MODEL_SERVER_SLOTS in the environment to match the
+          // llama-server -np value. Default 1 is the safe reading: it makes the
+          // block warn that a shared job blocks rather than merely slows.
+          // Do not cite pi-config here: this bridge does not read it, and
+          // test_taste_bridge asserts that any index.ts mentioning pi-config
+          // also resolves the harness root from package.json.
           serverSlots: Number(process.env.PI_MODEL_SERVER_SLOTS ?? "1"),
         }),
       );
