@@ -964,6 +964,12 @@ test("with a single server slot a shared job is described as blocking, not slowi
   assert.doesNotMatch(s, /slows your own decode/i);
 });
 
+test("with no GPU probe the block says so rather than printing a made-up number", () => {
+  const s = stateBlock({ ...input(), gpuCommittedGiB: undefined, carveGiB: undefined });
+  assert.match(s, /not probed/);
+  assert.doesNotMatch(s, /headroom/);
+});
+
 test("with several slots a shared job only slows the agent", () => {
   const s = stateBlock(input({ dispatched: job({ localModel: "shared" }), serverSlots: 4 }));
   assert.match(s, /slow/i);
@@ -985,8 +991,11 @@ import type { JobRecord } from "./jobs.ts";
 export interface StateInput {
   dispatched: JobRecord;
   running: JobRecord[];
-  gpuCommittedGiB: number;
-  carveGiB: number;
+  /** Omit when there is no live probe. Printing a placeholder would tell the
+   *  model it has 93 GiB of headroom while a resident model is using 85 - and
+   *  feeding the deliberation fabricated facts is worse than feeding it none. */
+  gpuCommittedGiB?: number;
+  carveGiB?: number;
   contextTokens: number;
   /** llama-server slot count. At 1, a "shared" job serialises at the server:
    *  the agent's own decode stops rather than merely slowing. */
@@ -995,14 +1004,22 @@ export interface StateInput {
 
 export function stateBlock(i: StateInput): string {
   const d = i.dispatched;
-  const headroom = (i.carveGiB - i.gpuCommittedGiB).toFixed(1);
   const depthK = `${Math.round(i.contextTokens / 1000)}K`;
 
   const lines = [
     `[bg] dispatched job ${d.id} · "${d.label}" · localModel=${d.localModel}`,
-    `[bg] running: ${i.running.length}    GPU committed: ${i.gpuCommittedGiB.toFixed(1)} GiB / ${i.carveGiB} GiB carve (headroom ${headroom} GiB)`,
-    `[bg] your context depth: ~${depthK} — prefill and decode both get slower as this grows`,
   ];
+  if (i.gpuCommittedGiB !== undefined && i.carveGiB !== undefined) {
+    const headroom = (i.carveGiB - i.gpuCommittedGiB).toFixed(1);
+    lines.push(
+      `[bg] running: ${i.running.length}    GPU committed: ${i.gpuCommittedGiB.toFixed(1)} GiB / ${i.carveGiB} GiB carve (headroom ${headroom} GiB)`,
+    );
+  } else {
+    lines.push(`[bg] running: ${i.running.length}    GPU state: not probed in v1`);
+  }
+  lines.push(
+    `[bg] your context depth: ~${depthK} — prefill and decode both get slower as this grows`,
+  );
 
   if (d.localModel === "shared") {
     lines.push(
@@ -1022,7 +1039,7 @@ export function stateBlock(i: StateInput): string {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `node --test pi-extensions/async-exec-bridge/state-block.test.ts`
-Expected: PASS, 4 tests.
+Expected: PASS, 5 tests.
 
 - [ ] **Step 5: Commit**
 
@@ -1401,9 +1418,11 @@ export default function (pi: ExtensionAPI) {
       return stateBlock({
         dispatched: job,
         running: readJobs(cwd).filter((j) => j.state === "running"),
-        gpuCommittedGiB: CLEAN_BASELINE_GIB,
-        carveGiB: 96,
+        // No GPU fields: v1 has no probe, so they are omitted rather than faked.
         contextTokens: usage?.usedTokens ?? usage?.used ?? 0,
+        // Set PI_MODEL_SERVER_SLOTS in pi-config/harness-config.local.json env
+        // to match the llama-server -np value. Default 1 is the safe reading:
+        // it makes the block warn that a shared job blocks rather than slows.
         serverSlots: Number(process.env.PI_MODEL_SERVER_SLOTS ?? "1"),
       });
     },
