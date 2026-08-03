@@ -67,6 +67,12 @@
       "entry": "pi-extensions/deep-research-bridge/index.ts",
       "version": "1.0.0",
       "description": "Sequential subagent fan-out for deep research (context isolation)"
+    },
+    {
+      "name": "async-exec-bridge",
+      "entry": "pi-extensions/async-exec-bridge/index.ts",
+      "version": "1.0.0",
+      "description": "Background execution with automatic resumption"
     }
   ]
 }

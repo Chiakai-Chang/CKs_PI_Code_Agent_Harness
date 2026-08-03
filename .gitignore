@@ -10,6 +10,8 @@ pi-config/skill-conflict-report.json
 pi-config/skill-catalog.json
 .superpowers/
 .understand-anything/
+# async-exec-bridge job records and captured output: live state, not source
+.pi/
 research/
 node_modules/
 *.db
