@@ -1,5 +1,12 @@
 # async-exec-bridge Implementation Plan
 
+> **狀態：2026-08-04 全部 11 個任務已完成並合併。** 執行過程中發現本計畫是照著一個
+> 不存在的 Pi API 寫的（`registerTool` 形狀、工具回傳型別、`session_start` 的回傳值
+> 被丟棄、`getContextUsage()` 欄位名），已就地修正；另有三個缺陷是實跑才發現的，
+> 包含這份計畫裡那支「永遠不會失敗」的 e2e 腳本。完整記錄見
+> [docs/retro/2026-08-04-async-exec-bridge-execution.md](../../retro/2026-08-04-async-exec-bridge-execution.md)。
+> 本檔保留為歷史紀錄，程式碼區塊已同步為實際落地的版本。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Let the agent dispatch long-running work, stop cleanly, and resume by itself when that work finishes — so a slow model never also means a human stuck watching it.

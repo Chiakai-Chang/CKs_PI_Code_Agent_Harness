@@ -28,7 +28,7 @@ cd CKs_PI_Code_Agent_Harness
 *   **Windows**：雙擊 `update.bat`
 *   **macOS / Linux**：執行 `bash update.sh`
 *   **進階（等同上述）**：`python scripts/setup.py --mode update`
-    — 內部自動執行 `git pull --recurse-submodules` → `restore --auto` （自動同步全部 11 個 Extension 至 `~/.pi/agent/extensions/`） → `pi update --all`。
+    — 內部自動執行 `git pull --recurse-submodules` → `restore --auto` （自動同步全部 12 個 Extension 至 `~/.pi/agent/extensions/`） → `pi update --all`。
 
 > 🛠️ **舊用戶修復指南（若遇到 `@file` 無法讀取、標籤/JSON 假工具呼叫卡死、死鎖停擺、agent 宣告下一步就結束回合、PowerShell 指令在 Windows 上總是失敗）**：
 > 1. **執行一鍵更新**：執行上述 `update.bat` 或 `bash update.sh`，同步 Universal Parser 標籤轉譯器與 Self-Healing 擴充。
@@ -53,7 +53,12 @@ cd CKs_PI_Code_Agent_Harness
 >    * **子代理寫入邊界**：`deep_research` 的子代理曾在純研究任務中修改不相關的原始碼，且母 session 的 log 完全看不到。子代理現在不再持有 `bash`/`edit`/`write`。
 >    * **子代理輸出上限**：一個失控子代理的 stdout 曾撐爆 V8 字串上限，**殺死母 Pi 行程**。兩條串流現在都有上限。
 >
-> 4. **`deep_research` 自 2026-07-31 起預設關閉**（`enableDeepResearch: false`）。實測同一個問題：它耗時 44 分鐘、四個子代理、零可用產出；直接用 `web_search` + `web_open` 則 8 分鐘給出有具名出處的答案。程式碼與測試都保留，要用時把該旗標改成 `true` 再跑一次更新即可。**舊設定檔沒有這個鍵時視為關閉**，所以升級不會意外開啟它。
+> 4. **2026-08-04 新增 `async-exec-bridge`（一鍵更新即生效）**：新增 `bg_start` / `bg_status` / `bg_cancel` 三個工具，讓 agent 把長工作丟到背景、就地結束該輪，完成時自動被喚醒續跑（詳見上方功能說明與其中的安全須知）。**舊用戶請注意兩件事**：
+>    * 更新後 `~/.pi/agent/extensions/` 會多一個 `async-exec-bridge/` 目錄——Pi 是**依目錄自動探索**的，`settings.json` 不會、也不該多出一筆（重複註冊曾造成工具名稱衝突而讓 Pi 完全無法啟動）。
+>    * 專案目錄下會出現 `.pi/async-exec/`（工作記錄與輸出擷取），已加入 `.gitignore`。它是崩潰後對帳的唯一依據，請勿在工作進行中刪除。
+>    * 同一次更新也修好了一個既有缺陷：`uninstall.py` 的受管 bridge 名單停在 5 個、而 `restore.py` 已管到 11 個，導致解除安裝會在 `~/.pi/agent/extensions/` **留下 7 個 bridge 繼續被載入**。名單現已補齊為 12 個並由測試鎖住，曾解除安裝過的使用者若發現殘留目錄，可手動刪除或重跑一次 `python scripts/uninstall.py`。
+>
+> 5. **`deep_research` 自 2026-07-31 起預設關閉**（`enableDeepResearch: false`）。實測同一個問題：它耗時 44 分鐘、四個子代理、零可用產出；直接用 `web_search` + `web_open` 則 8 分鐘給出有具名出處的答案。程式碼與測試都保留，要用時把該旗標改成 `true` 再跑一次更新即可。**舊設定檔沒有這個鍵時視為關閉**，所以升級不會意外開啟它。
 >
 >    *`eccSkillModules` 控制 ECC 子模組要註冊哪些技能。Pi 會把**每一個**已註冊技能的 name / description / 絕對路徑寫進每一輪的 system prompt，ECC 全量 277 個技能實測為 110,240 字元（約 27,560 tokens）。改為依 ECC 上游 module 分類精選後，實測降為 65 個技能；整體技能區塊由 35,437 tokens 降至 14,202 tokens。需要完整領域包時設為 `"all"`，或自行列出 [`external/ecc/manifests/install-modules.json`](external/ecc/manifests/install-modules.json) 中的 module id。*
 
@@ -125,7 +130,7 @@ cd CKs_PI_Code_Agent_Harness
 |  Layer 4: Evidence Gate (證據驗證與基因進化層)                        |
 |  • autonomous-experiment-guide (MAD 統計顯著性驗證)                    |
 |  • harness-factory-guide (Repo Fit 打分、Darwin 演化 & mcp-scan)        |
-|  • 302 個自動化單元測試網 (含 TestManagedSkillsConsistency 一致性校驗) |
+|  • 478 個自動化單元測試網 (2026-08-04 實跑，含一致性校驗)             |
 +-----------------------------------------------------------------------+
 ```
 
@@ -135,6 +140,10 @@ cd CKs_PI_Code_Agent_Harness
 *   **深度網頁研究 (`deep_research` 工具 + `deep-research-guide`)**：不再只是散文指引——`deep-research-bridge` 註冊真正的 `deep_research` 工具，把每個子問題 spawn 成獨立的 `pi --print` 子行程（Pi 官方 subagent 做法）。子行程用自己的 context 讀網頁，只回傳精簡發現。**序列執行、上限 5 個子問題**，因為本機 llama.cpp 以 `-np 1` 啟動時並行請求會序列化（實測：兩個並行請求分別於 7.3s / 14.3s 完成），並行不會更快、只會讓牆鐘時間乘以 N。價值在 **context 隔離**：實測一次研究回傳父層僅 1,408 字元，而父層直接 `web_search` 單次就是 14,613 字元。
 *   **隱身網頁瀏覽與搜尋 (`camofox-stealth` + `stealth-web-bridge`)**：內建 Camoufox 反偵測瀏覽器，提供 `web_search` 與 `web_open` 工具，可穿透 Cloudflare 與複雜 JS 牆，支援分頁與登入態管理。實測 126 次搜尋僅 1 次被擋。回傳採**閱讀檢視**：依 AX-tree 語意角色剝除導覽子樹、`/url:` 管線與 `[eN]` 參照（實測文章頁 8,253→1,936 字元、連結密集首頁 34,012→18,954 且 48 個標題連結全保留），並統一套用 Pi 自身的 2000 行 / 50KB 工具輸出預算、超出部分落檔並在結果中告知路徑。需要點擊/輸入時以 `raw: true` 或 `web_snapshot` 取回完整樹。
 *   **AX-Tree 語意定位 (`browser-automation-guide`)**：蒸餾自 `pi-browser-harness`，優先使用 Accessibility Tree (AX-Tree) 語意節點進行頁面元素定位與變更驗證，大幅提升網頁資料抓取與操作精準度。
+
+*   **背景執行與自動續跑 (`bg_start` / `bg_status` / `bg_cancel` + `async-exec-bridge`)**：慢模型本身不是最痛的，**慢又同步**才是——工作交出去以後 agent 只能卡著等，人也被綁在螢幕前。`bg_start` 把長工作（build、整套測試、benchmark）以 detached 子行程送出後**立刻回傳**，agent 可以就地結束這一輪；工作完成時 bridge 主動喚醒它並帶回結果尾段，全部做完再以 `agent_settled` 通知你一次。實測（GRM-3.2-Sky-OPAL，Vulkan，`-np 1`）：派工到自動續跑 32 秒，其中工作本身佔 20 秒。狀態一律落檔在 `.pi/async-exec/`，所以 Pi 被砍掉也能在下次啟動時對帳補報。
+    *   **安全須知**：`bg_start` 執行的是**任意 shell 指令、detached、不另外確認**，而且**中止 agent 不會中止它派出的背景工作**——這既是它的價值也是它的風險。要停就用 `bg_cancel`（連整棵進程樹一起殺）。目前沒有白名單與確認提示，若要接不受信任的提示來源請先自行加上。
+    *   **`localModel` 參數**：`none`（預設，可重疊）／`shared`（共用同一個本地模型 server）／`exclusive`（v1 直接拒絕——沒有 GPU 探測就無法誠實判斷第二個模型塞不塞得下，寧可拒絕也不猜）。若你的 llama-server 以 `-np 2` 以上啟動，設環境變數 `PI_MODEL_SERVER_SLOTS` 對應該值；預設值 1 是保守讀法，會如實警告 `shared` 工作會**阻塞**而非只是拖慢。
 
 #### 2. 🛡️ 安全治理與工程紀律 (Security & Engineering Discipline)
 *   **毀滅指令硬封鎖與循環防禦 (`yes-hooks-bridge` / `pre-bash-guard`)**：在模型執行 Bash 前以腳本硬性攔截高風險指令 (`rm -rf /`、`git push --force` 等)；內建 `loopGuard` 轉義標籤並於 Strike 3 自動啟動人類控制權斷路器（`deliverAs: "followUp"`），防止 Agent 陷入無限重複死循環。

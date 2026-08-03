@@ -415,6 +415,55 @@ class TestManagedSkillsConsistency(unittest.TestCase):
         self.assertEqual(sorted(items), sorted(uninstall.MANAGED_SKILLS))
 
 
+class TestManagedBridgesConsistency(unittest.TestCase):
+    """restore.py 有兩份 bridge 名單（settings 過濾用、安裝前清除用），
+    uninstall.py 有第三份，bridge-manifest.json 是第四份。四者必須一致。
+
+    這條規則不是理論：uninstall.py 的名單停在 5 個、restore.py 已管到 11 個，
+    因此解除安裝會在 `~/.pi/agent/extensions/` 留下 7 個 bridge——而 Pi 是
+    **依目錄自動探索**的，所以那些「已解除安裝」的 bridge 仍然每次啟動都載入。
+    名單漂移在這裡是靜默的功能缺陷，不是整潔問題。"""
+
+    def _restore_lists(self):
+        import re
+        c = read_file("scripts/restore.py")
+        found = re.findall(r'internal_bridge_names = \[(.*?)\]', c, re.S)
+        found += re.findall(r'for bridge in \[(.*?)\]:', c, re.S)
+        self.assertEqual(len(found), 2, "restore.py 中未找到兩份 bridge 名單")
+        return [
+            sorted(x.strip().strip('"').strip("'") for x in block.split(",") if x.strip())
+            for block in found
+        ]
+
+    def test_docs_state_the_real_bridge_count(self):
+        """README 的更新指引承諾「自動同步全部 N 個 Extension」。那個 N 是使用者
+        用來確認自己更新完整的數字，寫錯就是騙人。這裡釘住它，因為隔壁的
+        MANAGED_BRIDGES 名單正是在沒有守衛的情況下悄悄漂移了七個。"""
+        import json
+        import re
+        n = len(json.loads(read_file("pi-extensions/bridge-manifest.json"))["bridges"])
+        readme = read_file("README.md")
+        self.assertIn("自動同步全部 %d 個 Extension" % n, readme)
+        core = read_file("docs/core/CORE_CONCEPTS.md")
+        self.assertIsNotNone(
+            re.search(r"`pi-extensions/` %d 個 bridge" % n, core),
+            "CORE_CONCEPTS.md 的 bridge 數量與 manifest 不符",
+        )
+
+    def test_restore_uninstall_and_manifest_all_agree(self):
+        import json
+        import uninstall
+        a, b = self._restore_lists()
+        manifest = sorted(
+            x["name"] for x in json.loads(read_file("pi-extensions/bridge-manifest.json"))["bridges"]
+        )
+        self.assertEqual(a, b, "restore.py 的兩份 bridge 名單互相不一致")
+        self.assertEqual(a, sorted(uninstall.MANAGED_BRIDGES),
+                         "uninstall.py 的 MANAGED_BRIDGES 與 restore.py 不一致")
+        self.assertEqual(a, manifest,
+                         "bridge-manifest.json 與 restore.py 管理的 bridge 不一致")
+
+
 
 class TestExtensionsNotDoubleRegistered(unittest.TestCase):
     """Regression test for a same-evening self-correction: settings.json's

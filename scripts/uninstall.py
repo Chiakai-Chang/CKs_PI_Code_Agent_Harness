@@ -29,8 +29,16 @@ AGENT_DIR = os.path.join(os.path.expanduser("~"), ".pi", "agent")
 # the harness manages and leaves the user's own skills/extensions alone.
 MANAGED_SKILLS = ["hello-reflect", "planning-with-files", "camofox",
                   "camofox-stealth", "cua-commander", "nothing-design", "adversary-review", "contrarian-review", "browser-automation-guide", "deep-research-guide", "autonomous-experiment-guide", "tool-repair-guide", "guardian-pipeline-guide", "subagent-orchestration-guide", "workflow-os-guide", "grilling-protocol", "harness-factory-guide", "ide-intelligence-guide", "minimal-prompt-guide", "bridges"]
+# Kept in lockstep with restore.py by TestManagedBridgesConsistency. This list
+# had drifted to five entries while restore.py managed eleven, so uninstall left
+# seven harness-installed bridges behind in ~/.pi/agent/extensions/ — where Pi
+# auto-discovers every directory, so "uninstalled" bridges kept loading.
 MANAGED_BRIDGES = ["ecc-hooks-bridge", "planning-with-files-bridge",
-                   "case-bridge", "taste-bridge", "mece-autopilot-bridge"]
+                   "case-bridge", "taste-bridge", "mece-autopilot-bridge",
+                   "stealth-web-bridge", "yes-hooks-bridge",
+                   "skill-namespace-guard", "compact-continuation-bridge",
+                   "skill-catalog-bridge", "deep-research-bridge",
+                   "async-exec-bridge"]
 
 # Note: the stealth-recon backend stores logged-in browser profiles and cookies
 # under ~/.camofox/ (session secrets). The default uninstall leaves it in place;
