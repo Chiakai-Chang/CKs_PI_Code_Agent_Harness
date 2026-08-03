@@ -1,0 +1,63 @@
+import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { jobFile, runDir } from "./paths.ts";
+
+export type JobState = "running" | "done" | "failed" | "timeout" | "cancelled" | "orphaned";
+export type LocalModel = "none" | "shared" | "exclusive";
+
+export interface JobRecord {
+  id: string;
+  label: string;
+  cmd: string;
+  cwd: string;
+  localModel: LocalModel;
+  pid: number | null;
+  state: JobState;
+  startedAt: number;
+  endedAt: number | null;
+  exitCode: number | null;
+  outPath: string;
+  /** True once its envelope has been delivered to the agent. Survives crashes
+   *  so a completed-but-unreported job is not silently lost. */
+  acknowledged: boolean;
+}
+
+/** Write via temp + rename so a crash mid-write cannot leave a partial record. */
+export function writeJob(cwd: string, job: JobRecord): void {
+  const dir = runDir(cwd);
+  mkdirSync(dir, { recursive: true });
+  const target = jobFile(cwd, job.id);
+  const tmp = `${target}.tmp`;
+  writeFileSync(tmp, JSON.stringify(job, null, 2), "utf-8");
+  renameSync(tmp, target);
+}
+
+export function readJobs(cwd: string): JobRecord[] {
+  const dir = runDir(cwd);
+  let names: string[];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return [];
+  }
+  const out: JobRecord[] = [];
+  for (const n of names) {
+    if (!n.startsWith("job-") || !n.endsWith(".json")) continue;
+    try {
+      out.push(JSON.parse(readFileSync(`${dir}/${n}`, "utf-8")) as JobRecord);
+    } catch {
+      // A partial or corrupt record is skipped rather than crashing startup.
+    }
+  }
+  return out;
+}
+
+/** Pure. Returns only the records whose state changed. */
+export function reconcile(jobs: JobRecord[], isAlive: (pid: number) => boolean): JobRecord[] {
+  const changed: JobRecord[] = [];
+  for (const j of jobs) {
+    if (j.state !== "running") continue;
+    if (j.pid !== null && isAlive(j.pid)) continue;
+    changed.push({ ...j, state: "orphaned", endedAt: Date.now() });
+  }
+  return changed;
+}
