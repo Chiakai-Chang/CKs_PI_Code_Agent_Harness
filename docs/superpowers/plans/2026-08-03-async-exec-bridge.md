@@ -1044,7 +1044,8 @@ This is the one platform assumption the spec deliberately left unverified. Do it
 **Interfaces:**
 - Consumes: nothing.
 - Produces:
-  - `startDetached(cmd: string, cwd: string, outPath: string): number | null` — returns the pid, or null if spawn failed
+  - `startDetached(cmd: string, cwd: string, outPath: string, rcPath: string): number | null` — returns the pid, or null if spawn failed
+  - `readExitCode(rcPath: string): number | null` — null means the job never finished; **never treat null as success**
   - `isAlive(pid: number): boolean`
   - `killTree(pid: number): void`
 
@@ -1058,18 +1059,34 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { isAlive, killTree, startDetached } from "./spawn.ts";
+import { isAlive, killTree, readExitCode, startDetached } from "./spawn.ts";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 test("a detached job keeps running after the caller returns", async () => {
   const dir = mkdtempSync(join(tmpdir(), "aeb-")).replace(/\\/g, "/");
   const out = `${dir}/out.txt`;
-  const pid = startDetached("sleep 2; echo FINISHED", dir, out);
+  const pid = startDetached("sleep 2; echo FINISHED", dir, out, `${out}.rc`);
   assert.notEqual(pid, null);
   assert.equal(isAlive(pid as number), true);
   await sleep(3500);
   assert.match(readFileSync(out, "utf-8"), /FINISHED/);
+});
+
+test("a failing job reports its real exit code, not success", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "aeb-")).replace(/\\/g, "/");
+  const out = `${dir}/out.txt`;
+  startDetached("exit 3", dir, out, `${out}.rc`);
+  await sleep(2000);
+  assert.equal(readExitCode(`${out}.rc`), 3);
+});
+
+test("an unfinished job has no exit code, and null must not read as success", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "aeb-")).replace(/\\/g, "/");
+  const out = `${dir}/out.txt`;
+  const pid = startDetached("sleep 30", dir, out, `${out}.rc`) as number;
+  assert.equal(readExitCode(`${out}.rc`), null);
+  killTree(pid);
 });
 
 test("isAlive reports false for a pid that cannot exist", () => {
@@ -1078,7 +1095,7 @@ test("isAlive reports false for a pid that cannot exist", () => {
 
 test("killTree stops a running job", async () => {
   const dir = mkdtempSync(join(tmpdir(), "aeb-")).replace(/\\/g, "/");
-  const pid = startDetached("sleep 30", dir, `${dir}/out.txt`) as number;
+  const pid = startDetached("sleep 30", dir, `${dir}/out.txt`, `${dir}/out.txt.rc`) as number;
   killTree(pid);
   await sleep(1500);
   assert.equal(isAlive(pid), false);
@@ -1096,15 +1113,27 @@ Create `pi-extensions/async-exec-bridge/spawn.ts`:
 
 ```typescript
 import { spawn, spawnSync } from "node:child_process";
-import { openSync } from "node:fs";
+import { openSync, readFileSync } from "node:fs";
+import { CAPTURE_MAX_BYTES } from "./constants.ts";
 
 const SHELL = process.env.SHELL_PATH || "C:/Program Files/Git/bin/bash.exe";
 
 /** Start a job that outlives the caller. stdout and stderr both go to a file so
  *  nothing depends on this process staying around to drain a pipe. */
-export function startDetached(cmd: string, cwd: string, outPath: string): number | null {
+export function startDetached(
+  cmd: string,
+  cwd: string,
+  outPath: string,
+  rcPath: string,
+): number | null {
   const fd = openSync(outPath, "a");
-  const child = spawn(SHELL, ["-lc", cmd], {
+  // A detached child's exit status is unrecoverable by polling its pid - the
+  // process is simply gone. Have the shell record it, and cap the captured
+  // output so a runaway job cannot fill the disk.
+  const wrapped =
+    `{ ${cmd} ; } 2>&1 | head -c ${CAPTURE_MAX_BYTES} ; ` +
+    `echo \${PIPESTATUS[0]} > ${JSON.stringify(rcPath)}`;
+  const child = spawn(SHELL, ["-lc", wrapped], {
     cwd,
     detached: true,
     stdio: ["ignore", fd, fd],
@@ -1113,6 +1142,17 @@ export function startDetached(cmd: string, cwd: string, outPath: string): number
   if (child.pid === undefined) return null;
   child.unref();
   return child.pid;
+}
+
+/** Exit code recorded by the shell wrapper, or null if the job never got that
+ *  far (killed, machine lost power). null must NOT be treated as success. */
+export function readExitCode(rcPath: string): number | null {
+  try {
+    const n = Number.parseInt(readFileSync(rcPath, "utf-8").trim(), 10);
+    return Number.isNaN(n) ? null : n;
+  } catch {
+    return null;
+  }
 }
 
 export function isAlive(pid: number): boolean {
@@ -1147,7 +1187,7 @@ export function killTree(pid: number): void {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `node --test pi-extensions/async-exec-bridge/spawn.test.ts`
-Expected: PASS, 3 tests.
+Expected: PASS, 5 tests.
 
 If the first test fails because the child dies with its parent, stop and report: the spec's fallback is to have the watcher poll job files from `before_agent_start` instead of relying on a detached child plus in-process timer.
 
@@ -1212,7 +1252,7 @@ import { readJobs, reconcile, writeJob, type JobRecord, type LocalModel } from "
 import { outFile } from "./paths.ts";
 import { preflight } from "./preflight.ts";
 import { readLease, release } from "./lease.ts";
-import { isAlive, killTree, startDetached } from "./spawn.ts";
+import { isAlive, killTree, readExitCode, startDetached } from "./spawn.ts";
 import { stateBlock } from "./state-block.ts";
 
 export default function (pi: ExtensionAPI) {
@@ -1309,7 +1349,8 @@ export default function (pi: ExtensionAPI) {
 
       const id = randomBytes(2).toString("hex");
       const out = outFile(cwd, id);
-      const pid = startDetached(args.cmd, cwd, out);
+      const rc = `${out}.rc`;
+      const pid = startDetached(args.cmd, cwd, out, rc);
       if (pid === null) return "[async-exec] refused: could not start the process";
 
 
@@ -1333,17 +1374,23 @@ export default function (pi: ExtensionAPI) {
         }
         clearInterval(poll);
         timers.delete(poll);
-        finish(cwd, ctx, job, "done", 0);
+        // The pid is gone; the shell wrapper's .rc file is the only witness to
+        // how it went. A missing code means it never finished cleanly.
+        const code = readExitCode(rc);
+        finish(cwd, ctx, job, code === 0 ? "done" : "failed", code);
       }, 2000);
       timers.add(poll);
 
+      // Real depth, not a placeholder: the whole point of showing it is to let
+      // the model weigh that continuing makes its own next prefill costlier.
+      const usage = ctx.getContextUsage?.();
       return stateBlock({
         dispatched: job,
         running: readJobs(cwd).filter((j) => j.state === "running"),
         gpuCommittedGiB: CLEAN_BASELINE_GIB,
         carveGiB: 96,
-        contextTokens: 0,
-        serverSlots: 1,
+        contextTokens: usage?.usedTokens ?? usage?.used ?? 0,
+        serverSlots: Number(process.env.PI_MODEL_SERVER_SLOTS ?? "1"),
       });
     },
   });
@@ -1497,16 +1544,26 @@ timeout 300 bash -c 'sleep 260 | pi --mode rpc --no-session \
   -e "pi-extensions/async-exec-bridge/index.ts" \
   "Use bg_start to run: sleep 20; echo DONE. Then PARK."' > "$LOG.rpc" 2>&1
 
-echo "--- events ---"
-grep -oE '"type":"(agent_start|turn_start|turn_end|agent_end|agent_settled)"' "$LOG.rpc" | sort | uniq -c
-echo "--- did the agent wake after the job finished? ---"
-grep -c "async-exec" "$LOG.rpc"
+turns=$(grep -oc '"type":"turn_end"' "$LOG.rpc" || echo 0)
+woke=$(grep -c "async-exec" "$LOG.rpc" || echo 0)
+echo "turn_end=$turns  async-exec messages=$woke"
+
+# A check that only prints is a check that never fails.
+if [ "$turns" -lt 2 ]; then
+  echo "FAIL: expected at least 2 turn_end (dispatch turn + resumed turn), got $turns"
+  exit 1
+fi
+if [ "$woke" -lt 1 ]; then
+  echo "FAIL: no async-exec envelope reached the agent"
+  exit 1
+fi
+echo "PASS"
 ```
 
 - [ ] **Step 2: Run it**
 
 Run: `bash pi-extensions/async-exec-bridge/e2e-check.sh`
-Expected: at least two `turn_end` events — one for the dispatch turn, one for the resumed turn — and at least one `async-exec` message.
+Expected: `PASS` and exit code 0. The script fails loudly rather than printing numbers for a human to interpret.
 
 - [ ] **Step 3: Record the wall-clock baseline**
 
@@ -1520,6 +1577,32 @@ git commit -m "test(async-exec): add end-to-end dispatch-to-resume check"
 ```
 
 ---
+
+## Security surface, stated plainly
+
+`bg_start` runs an arbitrary shell command **detached**, which is the point of
+the feature and also its risk: the job outlives the agent being stopped, and it
+is not covered by whatever guards apply to the ordinary `bash` tool. Interrupting
+the agent does **not** interrupt its background work.
+
+v1 mitigations, all already in the plan:
+
+- `bg_cancel` is the explicit stop path, and it kills the whole process tree.
+- `session_start` reconcile surfaces anything left running from a previous run,
+  so nothing keeps going unnoticed.
+- Every dispatch is recorded on disk with its command, so what was started is
+  always auditable.
+
+Not mitigated in v1: there is no allowlist and no confirmation prompt. If this
+bridge is ever enabled for an untrusted prompt source, add one first.
+
+## Known dead code in v1
+
+`lease.ts` is fully implemented and tested, but v1 refuses `localModel:
+"exclusive"`, so no lease is ever acquired and `beat()` /
+`HEARTBEAT_INTERVAL_MS` are never called. This is deliberate — the module is
+the finished half of a v2 feature whose other half is the GPU probe. Do not
+delete it, and do not wire a heartbeat timer that has nothing to refresh.
 
 ## Deferred to v2 (do not build now)
 
