@@ -86,6 +86,17 @@ class TestAsyncExecBridgeTools(unittest.TestCase):
         c = read(self.IDX)
         self.assertIn("ctx.ui?.notify?.(", c)
 
+    def test_settle_notification_counts_only_this_session(self):
+        """Job records outlive the session that wrote them. Counting the run
+        directory made a live run report '2 background job(s) finished' — one of
+        them from a previous run — which is exactly the ordinary conversation
+        the spec says must not be interrupted."""
+        c = read(self.IDX)
+        self.assertIn("finishedThisSession", c)
+        body = c[c.index('pi.on("agent_settled"'):]
+        self.assertIn("finishedThisSession.size === 0", body)
+        self.assertIn("finishedThisSession.has(j.id)", body)
+
     def test_pending_results_are_injected_through_before_agent_start(self):
         """session_start is typed ExtensionHandler<SessionStartEvent> with no
         result type — anything returned from it is discarded. before_agent_start

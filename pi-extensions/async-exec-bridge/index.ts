@@ -32,6 +32,11 @@ export default function (pi: ExtensionAPI) {
    *  along in the next envelope instead of each triggering a competing turn. */
   let coalescing: JobRecord[] = [];
   let wakePending = false;
+  /** Jobs this session saw finish. The settle notification counts these rather
+   *  than what is on disk: job records outlive the session that made them, so
+   *  counting the directory made an ordinary conversation report "2 background
+   *  job(s) finished" and ping the user about work from a previous run. */
+  const finishedThisSession = new Set<string>();
 
   function envelopeFor(jobs: JobRecord[]): string {
     const tails = new Map<string, string>();
@@ -75,6 +80,7 @@ export default function (pi: ExtensionAPI) {
     const done: JobRecord = { ...job, state, exitCode, endedAt: Date.now() };
     writeJob(cwd, done);
     release(cwd, job.id);
+    finishedThisSession.add(done.id);
     if (dead) return;
     coalescing.push(done);
     if (wakePending) return;
@@ -252,18 +258,24 @@ export default function (pi: ExtensionAPI) {
     const pending = readJobs(cwd).filter((j) => j.state !== "running" && !j.acknowledged);
     if (pending.length === 0) return;
     const content = buildEnvelope(pending, new Map());
-    for (const j of pending) writeJob(cwd, { ...j, acknowledged: true });
+    // Surfacing a result to this session counts as this session seeing it
+    // finish, so a crash-recovered job still earns its settle notification.
+    for (const j of pending) {
+      writeJob(cwd, { ...j, acknowledged: true });
+      finishedThisSession.add(j.id);
+    }
     return { message: { customType: "async-exec", content, display: true } };
   });
 
   pi.on("agent_settled", async (_event, ctx: any) => {
-    const jobs = readJobs(ctx.cwd);
     // Only speak up if this session actually ran background work, and only
     // once nothing is still running — otherwise every ordinary conversation
     // would ping the user.
-    const finished = jobs.filter((j) => j.state !== "running");
-    if (finished.length === 0) return;
+    if (finishedThisSession.size === 0) return;
+    const jobs = readJobs(ctx.cwd);
     if (jobs.some((j) => j.state === "running")) return;
+    const finished = jobs.filter((j) => finishedThisSession.has(j.id));
+    if (finished.length === 0) return;
     const failed = finished.filter((j) => j.state !== "done").length;
     ctx.ui?.notify?.(
       `[async-exec] ${finished.length} background job(s) finished, ${failed} not clean. Nothing left running.`,
