@@ -255,4 +255,19 @@ export default function (pi: ExtensionAPI) {
     for (const j of pending) writeJob(cwd, { ...j, acknowledged: true });
     return { message: { customType: "async-exec", content, display: true } };
   });
+
+  pi.on("agent_settled", async (_event, ctx: any) => {
+    const jobs = readJobs(ctx.cwd);
+    // Only speak up if this session actually ran background work, and only
+    // once nothing is still running — otherwise every ordinary conversation
+    // would ping the user.
+    const finished = jobs.filter((j) => j.state !== "running");
+    if (finished.length === 0) return;
+    if (jobs.some((j) => j.state === "running")) return;
+    const failed = finished.filter((j) => j.state !== "done").length;
+    ctx.ui?.notify?.(
+      `[async-exec] ${finished.length} background job(s) finished, ${failed} not clean. Nothing left running.`,
+      failed > 0 ? "warning" : "info",
+    );
+  });
 }

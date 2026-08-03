@@ -75,6 +75,17 @@ class TestAsyncExecBridgeTools(unittest.TestCase):
         body = c[c.index("function wake("):]
         self.assertLess(body.index("writeJob("), body.index("pi.sendMessage("))
 
+    def test_notifies_on_agent_settled(self):
+        """agent_settled is the only signal that Pi will not continue on its
+        own. No other bridge in this repo uses it."""
+        c = read(self.IDX)
+        self.assertIn('pi.on("agent_settled"', c)
+
+    def test_notification_is_best_effort(self):
+        """A failed notification must never affect job state."""
+        c = read(self.IDX)
+        self.assertIn("ctx.ui?.notify?.(", c)
+
     def test_pending_results_are_injected_through_before_agent_start(self):
         """session_start is typed ExtensionHandler<SessionStartEvent> with no
         result type — anything returned from it is discarded. before_agent_start
