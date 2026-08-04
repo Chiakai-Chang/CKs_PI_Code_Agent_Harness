@@ -12,7 +12,7 @@ import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 import { join, dirname } from "node:path";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 
-import { AdvisoryQueue, advisoryResult } from "./advisory.ts";
+import { AdvisoryQueue, advisoryResult, hookAdvisoriesEnabled } from "./advisory.ts";
 import { hasAnyPlan, isGitCommit } from "./plan.ts";
 
 // Dynamic path resolution
@@ -118,7 +118,9 @@ export default function (pi: ExtensionAPI) {
   // `block`, and `turn_end` declares no result type at all — so a finding is
   // queued where it is produced and handed over at the next event that can carry
   // it. See advisory.ts for the type references this is built on.
-  const advisories = new AdvisoryQueue();
+  // `enableHookAdvisories: false` in pi-config/harness-config.json switches every
+  // producer off at once, without editing source and reinstalling.
+  const advisories = new AdvisoryQueue({ enabled: hookAdvisoriesEnabled(HARNESS_ROOT) });
 
   pi.on("session_start", async (_event, ctx) => {
     const profile = getProfile();

@@ -12,6 +12,8 @@
   "enableCaseBridge": true,
   "caseBridgeMaxChars": 600,
   "enablePlanningBridge": true,
+  "_enableHookAdvisories": "ECC hook findings (quality-gate, format/typecheck, plan reminder) are appended to tool results so the model can read them. Set false if they pull a weak local model off course.",
+  "enableHookAdvisories": true,
   "planningBridgeMaxChars": 600,
   "enableUniversalTagTransformer": true,
   "enableSelfHealingLoopGuard": true,

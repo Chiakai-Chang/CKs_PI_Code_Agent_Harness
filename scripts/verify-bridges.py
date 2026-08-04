@@ -20,8 +20,43 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
+
+
+_LOCAL_IMPORT_RE = re.compile(r"""(?:from|import)\s*\(?\s*["'](\.\.?/[^"']+)["']""")
+
+
+def missing_local_imports(entry_path) -> list:
+    """Relative modules an entry file imports that are not on disk beside it.
+
+    A bridge whose entry point exists is not a bridge that loads: six of the
+    twelve import sibling modules, and Pi fails the extension at session start if
+    one of them did not come along. Nothing checked for that.
+
+    Both specifier styles in this repo are accepted. `./x.ts` names the file
+    directly; `./x.js` is used by deep-research-bridge and stealth-web-bridge for
+    files that are `.ts` on disk, so either extension satisfies it.
+    """
+    entry = Path(entry_path)
+    try:
+        body = entry.read_text(encoding="utf-8")
+    except OSError:
+        # The entry-exists check owns that failure; reporting it twice buries it.
+        return []
+
+    missing = []
+    for spec in _LOCAL_IMPORT_RE.findall(body):
+        target = (entry.parent / spec).resolve()
+        candidates = [target]
+        if target.suffix == ".js":
+            candidates.append(target.with_suffix(".ts"))
+        elif target.suffix == ".ts":
+            candidates.append(target.with_suffix(".js"))
+        if not any(c.is_file() for c in candidates):
+            missing.append(spec)
+    return missing
 
 
 def find_repo_root(start: str | None) -> Path:
@@ -99,6 +134,11 @@ def verify_bridges(root: Path) -> int:
             pkg = entry_path.parent / "package.json"
             if not pkg.is_file():
                 print(f"WARN: bridge '{name}' directory lacks package.json: {pkg}")
+            gone = missing_local_imports(entry_path)
+            if gone:
+                print(f"FAIL: bridge '{name}' entry imports modules that are not "
+                      f"beside it: {', '.join(gone)}")
+                errors += 1
 
     # --- Cross-check against package.json registrations ---
     # package.json#pi.extensions is the harness shipping registry;

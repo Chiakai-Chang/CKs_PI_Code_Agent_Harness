@@ -23,6 +23,9 @@
  * The queue is per extension instance, which is per session.
  */
 
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
 /** How often a given key is allowed to reach the model. */
 export type AdvisoryPolicy = "once" | "always" | { cooldown: number };
 
@@ -42,17 +45,50 @@ export const DEFAULT_DRAIN_BUDGET = 1200;
 
 const TRUNCATION_MARK = " …[truncated]";
 
+/**
+ * Whether hook findings are allowed to reach the model at all.
+ *
+ * They enter the model's context, and this harness is tuned for a weak local
+ * model — a 42,999-char tool result was observed derailing that exact model, which
+ * is why stealth-web-bridge and deep-research-bridge truncate. The drain budget is
+ * far below that, but if the model does get pulled off course the operator needs a
+ * switch that does not require editing source and reinstalling.
+ *
+ * Fails open, like `planningBridgeEnabled()` in planning-with-files-bridge: an
+ * unreadable config must not silently remove a guard.
+ */
+export function hookAdvisoriesEnabled(harnessRoot: string): boolean {
+  try {
+    const cfgPath = join(harnessRoot, "pi-config", "harness-config.json");
+    if (!existsSync(cfgPath)) return true;
+    const cfg = JSON.parse(readFileSync(cfgPath, "utf8"));
+    return cfg["enableHookAdvisories"] !== false;
+  } catch {
+    return true;
+  }
+}
+
 export class AdvisoryQueue {
   private pending: PendingAdvisory[] = [];
   private drainCount = 0;
   private firedOnce = new Set<string>();
   private lastPushedAt = new Map<string, number>();
+  private readonly enabled: boolean;
+
+  /**
+   * One decision covers all eight producers. Gating each call site instead would
+   * be eight chances to miss one.
+   */
+  constructor(options?: { enabled?: boolean }) {
+    this.enabled = options?.enabled !== false;
+  }
 
   /**
    * Offer an advisory. Returns whether the policy let it through, so callers can
    * skip the work of building a message that would have been dropped.
    */
   push(key: string, text: string, policy: AdvisoryPolicy = "always"): boolean {
+    if (!this.enabled) return false;
     const body = (text ?? "").trim();
     if (!body) return false;
 

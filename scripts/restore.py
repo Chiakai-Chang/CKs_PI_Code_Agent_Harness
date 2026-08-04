@@ -413,15 +413,30 @@ def merge_into_catalog(path, entries):
     The catalog is written before local skills are copied, so the demoted local
     ones are folded in afterwards rather than reordering the restore flow. An
     existing entry wins: the external tiering already resolved that name.
+
+    Returns the names that are not in the file afterwards. A demoted skill is not
+    natively registered, so the catalogue is the only way the model can reach it:
+    18 of them once failed to arrive and the restore still reported success. This
+    verifies the write, not the policy — which skills get demoted stays in
+    `tier_local_skills`, the one place that decides it.
     """
     try:
         with open(path, encoding="utf-8") as f:
             existing = json.load(f).get("skills", [])
     except Exception:
         existing = []
-    by_name = {e["name"]: e for e in reversed(entries) if isinstance(e, dict) and "name" in e}
+    wanted = {e["name"]: e for e in reversed(entries) if isinstance(e, dict) and "name" in e}
+    by_name = dict(wanted)
     by_name.update({e["name"]: e for e in existing if isinstance(e, dict) and "name" in e})
-    write_catalog(path, [by_name[n] for n in sorted(by_name)])
+
+    try:
+        write_catalog(path, [by_name[n] for n in sorted(by_name)])
+        with open(path, encoding="utf-8") as f:
+            landed = {e.get("name") for e in json.load(f).get("skills", []) if isinstance(e, dict)}
+    except Exception:
+        landed = set()
+
+    return [n for n in sorted(wanted) if n not in landed]
 
 
 def manifest_path_of(repo_root):
@@ -1184,9 +1199,13 @@ def main():
         log("Optional skills skipped (or not standard profile).")
 
     if local_tail:
-        merge_into_catalog(os.path.join(REPO_ROOT, "pi-config", "skill-catalog.json"), local_tail)
+        lost = merge_into_catalog(
+            os.path.join(REPO_ROOT, "pi-config", "skill-catalog.json"), local_tail)
         log("  - %d local skill(s) moved to the on-demand catalog (not in skillTiers.core)"
             % len(local_tail))
+        if lost:
+            log("  ⚠️  %d of them are NOT in the catalog after the write, so nothing can "
+                "reach them: %s" % (len(lost), ", ".join(lost)))
 
     # Rules
     log("Restoring rules...")

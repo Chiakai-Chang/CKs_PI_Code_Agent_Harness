@@ -33,6 +33,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -177,6 +178,67 @@ class TestAdvisoryQueueLifecycle(unittest.TestCase):
         """)
         self.assertEqual(out["pending"], 0)
         self.assertIsNone(out["block"])
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestAdvisoryKillSwitch(unittest.TestCase):
+    """Advisories now enter the model's context, and this harness is tuned for a
+    weak local model. A 42,999-char tool result was observed derailing that exact
+    model (docs/retro/2026-07-28-web-capability-and-prompt-conflicts.md), which is
+    why two other bridges truncate. The drain budget is far below that, but if the
+    model does get pulled off course the operator needs to switch this off without
+    editing source and reinstalling.
+
+    Fails open, matching `planningBridgeEnabled()` in planning-with-files-bridge:
+    an unreadable config must not silently disable a guard.
+    """
+
+    def _with_config(self, body):
+        base = tempfile.mkdtemp(prefix="advisory-cfg-")
+        self.addCleanup(lambda: shutil.rmtree(base, ignore_errors=True))
+        if body is not None:
+            os.makedirs(os.path.join(base, "pi-config"))
+            with open(os.path.join(base, "pi-config", "harness-config.json"), "w",
+                      encoding="utf-8") as f:
+                f.write(body)
+        out = run_js('process.stdout.write(JSON.stringify({ v: m.hookAdvisoriesEnabled(%s) }));'
+                     % json.dumps(base.replace("\\", "/")))
+        return out["v"]
+
+    def test_off_when_the_operator_turns_it_off(self):
+        self.assertFalse(self._with_config('{"enableHookAdvisories": false}'))
+
+    def test_on_when_explicitly_enabled(self):
+        self.assertTrue(self._with_config('{"enableHookAdvisories": true}'))
+
+    def test_on_when_the_key_is_absent(self):
+        self.assertTrue(self._with_config('{"promptProfile": "auto"}'))
+
+    def test_on_when_there_is_no_config_at_all(self):
+        self.assertTrue(self._with_config(None))
+
+    def test_on_when_the_config_is_malformed(self):
+        """A broken config must not quietly remove a guard."""
+        self.assertTrue(self._with_config("{ not json at all"))
+
+    def test_a_disabled_queue_accepts_nothing_and_hands_over_nothing(self):
+        """One decision covers all eight producers; gating each call site would
+        be eight chances to miss one."""
+        out = run_js("""
+        const q = new m.AdvisoryQueue({ enabled: false });
+        const pushed = q.push("plan", "advice", "always");
+        process.stdout.write(JSON.stringify({ pushed, block: q.drain(), pending: q.pendingCount }));
+        """)
+        self.assertFalse(out["pushed"])
+        self.assertIsNone(out["block"])
+        self.assertEqual(out["pending"], 0)
+
+    def test_a_queue_with_no_options_is_enabled(self):
+        out = run_js("""
+        const q = new m.AdvisoryQueue();
+        process.stdout.write(JSON.stringify({ pushed: q.push("k", "v") }));
+        """)
+        self.assertTrue(out["pushed"])
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")

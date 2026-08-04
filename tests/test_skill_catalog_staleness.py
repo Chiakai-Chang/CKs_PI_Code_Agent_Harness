@@ -25,6 +25,8 @@ real file only when the real file exists.
 """
 
 import importlib.util
+import shutil
+import tempfile
 import json
 import os
 import unittest
@@ -95,6 +97,50 @@ class TestExpectedLocalTail(unittest.TestCase):
         _kept, tail = restore.tier_local_skills(
             os.path.join(ROOT, "pi-skills", "core"), set(core))
         self.assertNotIn("bridges", [t["name"] for t in tail])
+
+
+class TestMergeVerifiesItsOwnWrite(unittest.TestCase):
+    """The staleness check below only runs where a catalogue already exists.
+
+    That is correct for a gitignored artefact, but it leaves the moment the
+    artefact is produced unguarded: `restore.py` demoted 18 local skills into the
+    catalogue and none of them arrived, and the run reported success. A write that
+    does not check itself is how a generated file drifts from the rule that
+    generates it in the first place.
+
+    `merge_into_catalog` reports what it failed to persist. This is a write
+    verification, not a second copy of the policy — which skills get demoted stays
+    in `tier_local_skills`, the one place that decides it.
+    """
+
+    def setUp(self):
+        self.base = tempfile.mkdtemp(prefix="catalog-write-")
+        self.addCleanup(lambda: shutil.rmtree(self.base, ignore_errors=True))
+        self.path = os.path.join(self.base, "skill-catalog.json")
+
+    def test_reports_nothing_when_every_entry_landed(self):
+        entries = [{"name": "hello-reflect", "path": "pi-skills/core/hello-reflect/SKILL.md"}]
+        self.assertEqual(restore.merge_into_catalog(self.path, entries), [])
+        written = json.load(open(self.path, encoding="utf-8"))["skills"]
+        self.assertIn("hello-reflect", [s["name"] for s in written])
+
+    def test_an_entry_already_present_counts_as_landed(self):
+        with open(self.path, "w", encoding="utf-8") as f:
+            json.dump({"version": 1, "skills": [
+                {"name": "planning-with-files", "path": "external/pwf/SKILL.md"}]}, f)
+        entries = [{"name": "planning-with-files", "path": "pi-skills/core/pwf/SKILL.md"}]
+        self.assertEqual(restore.merge_into_catalog(self.path, entries), [])
+
+    def test_reports_the_entries_when_the_write_could_not_happen(self):
+        """A directory where the catalogue should be is the shape this hits on a
+        broken install; the run must say so rather than report success."""
+        blocked = os.path.join(self.base, "as-a-dir.json")
+        os.makedirs(blocked)
+        entries = [{"name": "hello-reflect", "path": "p/SKILL.md"}]
+        self.assertEqual(restore.merge_into_catalog(blocked, entries), ["hello-reflect"])
+
+    def test_merging_nothing_is_not_a_failure(self):
+        self.assertEqual(restore.merge_into_catalog(self.path, []), [])
 
 
 class TestTheRealCatalogWhenItExists(unittest.TestCase):

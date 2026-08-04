@@ -41,6 +41,90 @@ class TestEvidenceBasedCompletionPrinciple(unittest.TestCase):
         self.assertIn("實測有證據", c)
 
 
+class TestGoverningDocsStayInSync(unittest.TestCase):
+    """CLAUDE.md and pi-rules/AGENTS.md §9 are two renderings of one rule set,
+    for two different agents. Nothing kept their contents level: the pair had
+    already drifted (AGENTS.md carried the anti-fabrication floor, CLAUDE.md did
+    not) and it took a human reading both to notice.
+
+    The class above guards that the principle exists in each. This one guards the
+    individual rules, which is where drift actually happens.
+
+    Adding a rule to one doc means adding it to the other AND to this list. That
+    is the point — the list is the thing that goes red.
+    """
+
+    # (what it is, marker in CLAUDE.md, marker in AGENTS.md)
+    PAIRED_RULES = [
+        ("cold-path testing", "Test the real entry path, cold", "冷測"),
+        ("numbers come from a run", "come from a run at write-time", "先跑再寫"),
+        ("restore before testing", "Pi runs installed copies", "Pi 跑的是安裝副本"),
+        ("session log proves delivery", "~/.pi/agent/sessions", "~/.pi/agent/sessions"),
+        ("contracts from the installed package", "installed package", "已安裝的套件"),
+    ]
+
+    def test_every_paired_rule_appears_in_both_governing_docs(self):
+        claude = read("CLAUDE.md")
+        agents = read("pi-rules/AGENTS.md")
+        missing = []
+        for name, claude_marker, agents_marker in self.PAIRED_RULES:
+            if claude_marker not in claude:
+                missing.append("CLAUDE.md is missing %r (%s)" % (claude_marker, name))
+            if agents_marker not in agents:
+                missing.append("AGENTS.md is missing %r (%s)" % (agents_marker, name))
+        self.assertEqual(missing, [])
+
+
+class TestForkCopyIsNotCitedAsTheContract(unittest.TestCase):
+    """`reference/oh-my-pi/` is a gitignored copy of the oh-my-pi fork, frozen
+    around 0.73. What runs is npm-global `@earendil-works/pi-coding-agent`.
+
+    Reading a type from the fork produced a confident wrong conclusion in one
+    session: its `BeforeAgentStartEventResult` has no `systemPrompt`, which made
+    correct bridge code look like a defect. Nothing but prose stood in the way of
+    the next session doing the same.
+
+    Mentioning the fork is fine — warning about it requires naming it. Citing it
+    where an API contract is decided, without naming the package that actually
+    ships that contract, is not.
+    """
+
+    # Where contract decisions get made. docs/retro and the oh-my-pi-learnings
+    # notes are narrative about the fork itself, not decisions taken from it.
+    SCOPES = [
+        ("pi-extensions", (".ts",)),
+        ("scripts", (".py",)),
+        ("pi-rules", (".md",)),
+        ("docs/superpowers/specs", (".md",)),
+        ("docs/superpowers/plans", (".md",)),
+    ]
+    ROOT_FILES = ["CLAUDE.md"]
+
+    def _files(self):
+        for rel, exts in self.SCOPES:
+            base = os.path.join(ROOT, *rel.split("/"))
+            for dirpath, dirnames, filenames in os.walk(base):
+                dirnames[:] = [d for d in dirnames if d != "node_modules"]
+                for fn in filenames:
+                    if fn.endswith(exts):
+                        full = os.path.join(dirpath, fn)
+                        yield os.path.relpath(full, ROOT).replace("\\", "/")
+        for rel in self.ROOT_FILES:
+            yield rel
+
+    def test_the_fork_is_never_cited_without_the_package_that_actually_ships(self):
+        offenders = []
+        for rel in self._files():
+            body = read(rel)
+            if "reference/oh-my-pi" in body and "earendil-works" not in body:
+                offenders.append(rel)
+        self.assertEqual(
+            offenders, [],
+            "these cite the frozen fork copy as if it were the contract; name "
+            "@earendil-works/pi-coding-agent, which is what runs",
+        )
+
+
 class TestMethodologyFirstPrinciple(unittest.TestCase):
     """Methodology-first routing (process skill before domain skill) is the
     other half of the repo's soul — it stops the many bundled methodology
