@@ -396,3 +396,36 @@ st_file_attributes: 0x410     # DIRECTORY | REPARSE_POINT
 `docs/superpowers/specs/2026-07-21-skill-namespace-isolation-design.md` 寫明
 「不掃描 `~/.agents/skills/`（YAGNI）」，但由於 `~/.pi/agent/skills/` 底下都是指過去的
 junction，namespace guard 一直都在讀那邊的內容。該決策的前提與現況不符，值得複查。
+
+## ECC hook 整合層形同虛設（2026-08-04 查出，修復進行中）
+
+**現象**：`README`、`CORE_CONCEPTS`、`HARNESS_INTEGRATION_GUIDE` 都把 GateGuard、
+quality-gate 寫成運作中的功能。實測十五個被消費的 ECC hook 裡，**只有
+`block-no-verify` 真的在運作**——它掃原始文字，所以形狀無關。
+
+三個各自獨立的根因（皆有實測）：
+
+1. **欄位名**。Pi 的 `write`／`edit` 工具送 `path`（已安裝 `dist/core/tools/write.d.ts:5`、
+   `edit.d.ts:11`），ECC hook 一律讀 `tool_input.file_path`。同一個檔案只差欄位名：
+   `path` 進去毫無輸出，`file_path` 進去立刻吐 `[Hook] WARNING: console.log found in ...`。
+2. **bash 少一層外殼**。bridge 對 bash 傳 `JSON.stringify(event.input)`＝`{"command":...}`，
+   而 `gateguard-fact-force.js:1145` 讀的是 `data.tool_name` 與 `data.tool_input`。
+   包好外殼後同一條 `rm -rf build` 立刻回 `permissionDecision: "deny"`。
+   **GateGuard 從來沒有評估過任何一條 bash 指令。**
+3. **輸出通道**。`gateguard-fact-force` 與 `suggest-compact` 用 stdout 的
+   `hookSpecificOutput` JSON（`suggest-compact.js` 的註解自己寫明 stderr 不會到模型），
+   bridge 只讀 stderr 與 `exitCode === 2`。gateguard 回的是 `exitCode: 0`。
+
+**連帶災情**：`config-protection` 是會 `exit(2)` 擋下設定弱化的守衛，它也讀 `file_path`
+——從來沒擋過任何東西。`post-edit-accumulator` 同樣讀不到路徑，於是
+`stop-format-typecheck` 永遠拿到空的 accumulator 而早退。
+
+**修好之後會有行為改變，先講清楚**：`config-protection` 會開始真的擋下設定弱化的編輯；
+GateGuard 會開始對破壞性 bash 指令要求先列出影響，因此它另立
+`enableEccGateGuard` 旗標且**預設 false**——一個從未在本機跑過的守衛不該直接推上線。
+
+計畫見 `docs/superpowers/plans/2026-08-04-ecc-hook-translation.md`。
+
+**另一件獨立的事**：`pi-skills/core/hello-reflect/scripts/reflect_core.py:89` 找頂層
+`entry["role"]` 且要求 content 是字串，Pi 的紀錄是 `entry["message"]["role"]` 加 block list。
+實測對真實 session 檔 `extract_user_messages -> 0 messages`。**它一則訊息都沒讀過。**
