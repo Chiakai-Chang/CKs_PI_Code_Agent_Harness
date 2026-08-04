@@ -130,7 +130,7 @@ cd CKs_PI_Code_Agent_Harness
 |  Layer 4: Evidence Gate (證據驗證與基因進化層)                        |
 |  • autonomous-experiment-guide (MAD 統計顯著性驗證)                    |
 |  • harness-factory-guide (Repo Fit 打分、Darwin 演化 & mcp-scan)        |
-|  • 486 個自動化單元測試網 (2026-08-04 實跑，含一致性校驗)             |
+|  • 490 個自動化單元測試網 (2026-08-04 實跑，含一致性校驗)             |
 +-----------------------------------------------------------------------+
 ```
 

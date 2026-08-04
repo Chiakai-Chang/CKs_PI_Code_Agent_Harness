@@ -52,6 +52,35 @@ jobs:
         run: |
           shellcheck scripts/restore.sh
 
+      - name: shellcheck the live check scripts
+        run: |
+          shellcheck --severity=warning \
+            pi-extensions/async-exec-bridge/live-preflight.sh \
+            pi-extensions/async-exec-bridge/e2e-check.sh \
+            pi-extensions/async-exec-bridge/lifecycle-check.sh
+
+      # These need pi, an installed bridge and a model server, none of which a
+      # hosted runner has, so here they SKIP. That is not a free pass: the skip
+      # path itself is exercised by tests/test_live_checks.py above, which runs
+      # both scripts against a closed port and asserts they say why they
+      # skipped and that ASYNC_EXEC_REQUIRE_LIVE=1 makes skipping impossible.
+      # On a self-hosted runner with a model, set ASYNC_EXEC_REQUIRE_LIVE=1 and
+      # these become the real end-to-end gate.
+      - name: Live checks (skip without a model server)
+        run: |
+          for check in e2e-check lifecycle-check; do
+            out="$(bash pi-extensions/async-exec-bridge/$check.sh)" || {
+              echo "$out"
+              echo "::error::$check failed"
+              exit 1
+            }
+            echo "$out"
+            case "$out" in
+              SKIP:*) echo "::notice::$check skipped — ${out#SKIP: }" ;;
+              *) echo "::notice::$check ran live and passed" ;;
+            esac
+          done
+
       - name: Validate JSON files
         run: |
           python -c "

@@ -320,7 +320,26 @@ completed successfully (exit=0, output: SURVIVED)`）。
 
 ---
 
-剩下的只有一項：e2e 與 lifecycle 兩支檢查都需要本機模型 server，**不在 CI**。
+## 五之四、把兩支 live 檢查放進 CI，而不讓它變成殭屍檢查
+
+e2e 與 lifecycle 都需要 pi、已安裝的 bridge、以及可連線的模型 server。GitHub 託管的
+runner **三樣都沒有**，所以放進 CI 就是「永遠跳過」——而永遠跳過的檢查等於不存在，
+正是本 repo 明文禁止的殭屍配置。
+
+因此讓這次 CI 增修用**三種方式**賺回它的位置：
+
+1. **每次 push 都真的 shellcheck 這三支腳本**（`--severity=warning`）。這與模型無關，
+   是實打實的檢查。
+2. **跳過這件事本身被測試**：`tests/test_live_checks.py` 會**實際執行**兩支腳本、把
+   `ASYNC_EXEC_API_BASE` 指到關閉的 port，斷言它們 exit 0、印出 `SKIP:` 並**說出缺
+   哪一個前提**。這 4 個測試在 CI 裡是真的跑的。
+3. **`ASYNC_EXEC_REQUIRE_LIVE=1` 讓跳過變成失敗**。開發者在本機忘了起 server 時不會
+   看到假的成功；自架 runner 只要設這個變數，這兩支就升級成真正的端到端門檻。
+
+CI 步驟並以 `::notice::` 明說這次是 skip 還是 live 跑過——**靜默的綠色和真正的綠色
+不該長得一樣**。
+
+剩下的只有一項：兩支檢查在**託管** CI 上仍然只會 skip（需要自架 runner 才會真跑）。
 
 ## 六、安全，說清楚
 

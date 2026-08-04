@@ -32,12 +32,12 @@ LOG="$LOGDIR/e2e.rpc"
 #      That is not hypothetical - it is what happens to every user who has run
 #      the installer, and this check reported PASS right up until the bridge was
 #      installed for the first time.
-INSTALLED="$HOME/.pi/agent/extensions/async-exec-bridge/index.ts"
-if [ ! -f "$INSTALLED" ]; then
-  echo "FAIL: the bridge is not installed at $INSTALLED"
-  echo "      run: python scripts/setup.py --mode restore"
-  exit 1
-fi
+# Skips (exit 0) when pi, the installed bridge or a model server is missing, so
+# CI can carry this check and still run it wherever a model exists. Set
+# ASYNC_EXEC_REQUIRE_LIVE=1 to turn every skip into a failure.
+# shellcheck source=pi-extensions/async-exec-bridge/live-preflight.sh
+. "$(dirname "$0")/live-preflight.sh"
+live_preflight
 
 PROMPT='Call the bg_start tool with cmd "sleep 20; echo DONE" and label "e2e". After it returns, stop: issue no further tool calls and end your turn.'
 
