@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -111,6 +111,27 @@ test("an unfinished job has no exit code, and null must not read as success", as
 
 test("isAlive reports false for a pid that cannot exist", () => {
   assert.equal(isAlive(0x7ffffff0), false);
+});
+
+test("killTree stops the DESCENDANT doing the work, not just the shell", async () => {
+  // The earlier test only proves the pid we hold is gone. The process that
+  // actually holds resources is the command's own — the scar this guards
+  // against is a benchmark that kept 82.52 GiB of VRAM after its parent had
+  // reported completion. Proven by outcome: if the descendant survived, it
+  // would write the marker after its sleep elapsed.
+  const dir = mkdtempSync(join(tmpdir(), "aeb-")).replace(/\\/g, "/");
+  const marker = `${dir}/survived.txt`;
+  const pid = startDetached(
+    `sleep 3; echo LEAKED > ${JSON.stringify(marker)}`,
+    dir,
+    `${dir}/out.txt`,
+    `${dir}/out.rc`,
+    `${dir}/out.pid`,
+  ) as number;
+  await sleep(1000);
+  killTree(pid);
+  await sleep(5000); // well past the descendant's own sleep
+  assert.equal(existsSync(marker), false, "the descendant kept running after killTree");
 });
 
 test("killTree stops a running job", async () => {

@@ -15,10 +15,12 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { randomBytes } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { readTail } from "./capture.ts";
 import {
   ENVELOPE_TAIL_BYTES,
-  JOB_TIMEOUT_MS,
   MAX_KEPT_JOBS,
   RETENTION_MS,
 } from "./constants.ts";
@@ -29,6 +31,8 @@ import { outFile, pidFile } from "./paths.ts";
 import { preflight } from "./preflight.ts";
 import { readLease, release } from "./lease.ts";
 import { selectPrunable } from "./retention.ts";
+import { readTelegramConfig, sendTelegram, telegramTarget } from "./telegram.ts";
+import { resolveTimeout } from "./timeout.ts";
 import {
   isAlive,
   isSameProcess,
@@ -38,6 +42,34 @@ import {
   startDetached,
 } from "./spawn.ts";
 import { stateBlock } from "./state-block.ts";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+
+/** restore.py patches the real repo root into package.json. Resolving as
+ *  join(HERE, "../..") instead lands on ~/.pi, which has no pi-config — the
+ *  flag would then read as absent on every installed copy. */
+function harnessRoot(): string {
+  try {
+    const pkg = JSON.parse(readFileSync(join(HERE, "package.json"), "utf-8"));
+    if (pkg["pi-harness"]?.root) return pkg["pi-harness"].root;
+  } catch {
+    // Fall through to the relative guess.
+  }
+  return join(HERE, "../..");
+}
+
+/** Opt-in, default OFF. This sends a message over the network to a third-party
+ *  service; enabling it just because pi-telegram happens to be configured would
+ *  move the user's job labels off their machine without them asking. */
+function telegramNotifyEnabled(): boolean {
+  try {
+    const cfgPath = join(harnessRoot(), "pi-config", "harness-config.json");
+    if (!existsSync(cfgPath)) return false;
+    return JSON.parse(readFileSync(cfgPath, "utf8")).asyncExecTelegramNotify === true;
+  } catch {
+    return false;
+  }
+}
 
 export default function (pi: ExtensionAPI) {
   let dead = false;
@@ -109,6 +141,48 @@ export default function (pi: ExtensionAPI) {
     timers.add(t);
   }
 
+  /** Poll a running job until it settles.
+   *
+   *  Extracted so a REPLACEMENT session can adopt a job it did not start. /new,
+   *  /resume, /fork and /clone all fire session_shutdown, which clears every
+   *  timer this session owned — correctly, since they would fire into a dead
+   *  session. But reconcile alone only settles jobs whose process is already
+   *  gone; a job still running at the moment of the switch was left with no
+   *  watcher at all, so its completion went unnoticed, no envelope was ever
+   *  sent, and the record sat at "running" holding a concurrency slot until
+   *  some later startup happened to catch it. Measured by lifecycle-check.sh,
+   *  which failed with exactly that: state=running after the switch. */
+  function watch(cwd: string, ctx: any, job: JobRecord, timeoutMs: number) {
+    const pid = job.pid;
+    if (pid === null) return;
+    const poll = setInterval(() => {
+      if (dead) return;
+      const stop = (state: JobRecord["state"], code: number | null) => {
+        clearInterval(poll);
+        timers.delete(poll);
+        finish(cwd, ctx, job, state, code);
+      };
+      // The wrapper writing .rc is the job's own statement that it is done,
+      // and it is checked FIRST. Asking the pid instead would let a recycled
+      // number keep a finished job "running" until the timeout, since this
+      // loop deliberately uses the cheap existence check — a process-identity
+      // probe costs ~0.34s and cannot run every two seconds.
+      const code = readExitCode(`${job.outPath}.rc`);
+      if (code !== null) return stop(code === 0 ? "done" : "failed", code);
+      if (isAlive(pid)) {
+        if (Date.now() - job.startedAt > timeoutMs) {
+          killTree(pid);
+          stop("timeout", null);
+        }
+        return;
+      }
+      // The pid is gone and no exit code was ever recorded: the job did not
+      // finish cleanly. Absence of a code is not success.
+      return stop("failed", null);
+    }, 2000);
+    timers.add(poll);
+  }
+
   const text = (s: string) => ({ content: [{ type: "text" as const, text: s }] });
 
   pi.registerTool({
@@ -133,11 +207,24 @@ export default function (pi: ExtensionAPI) {
             "Whether this job touches the local model server: none (default), shared (uses the running server), exclusive (needs to load its own model — refused in v1)",
         }),
       ),
+      timeoutMs: Type.Optional(
+        Type.Number({
+          description:
+            "Kill this job if it runs longer than this many milliseconds. Default 30 minutes; clamped to between 10 seconds and 24 hours.",
+        }),
+      ),
     }),
     async execute(_id, params: any, _signal, _onUpdate, ctx: any) {
-      const args = params as { cmd: string; label?: string; localModel?: LocalModel };
+      const args = params as {
+        cmd: string;
+        label?: string;
+        localModel?: LocalModel;
+        timeoutMs?: number;
+      };
       const cwd: string = ctx.cwd;
       const localModel: LocalModel = args.localModel ?? "none";
+      // Clamped, not trusted: the value comes from the model.
+      const timeoutMs = resolveTimeout(args.timeoutMs);
       // v1 has no live GPU probe, so the residency check cannot be honest.
       // Refuse outright rather than pretend to have checked — a wrong "yes"
       // here means two large models racing for memory.
@@ -177,7 +264,7 @@ export default function (pi: ExtensionAPI) {
       const job: JobRecord = {
         id, label: args.label ?? args.cmd, cmd: args.cmd, cwd, localModel,
         pid: null, state: "running", startedAt: Date.now(), endedAt: null,
-        exitCode: null, outPath: out, acknowledged: false,
+        exitCode: null, outPath: out, timeoutMs, acknowledged: false,
       };
       writeJob(cwd, job);
 
@@ -189,32 +276,7 @@ export default function (pi: ExtensionAPI) {
       job.pid = pid;
       writeJob(cwd, job);
 
-      const poll = setInterval(() => {
-        if (dead) return;
-        const stop = (state: JobRecord["state"], code: number | null) => {
-          clearInterval(poll);
-          timers.delete(poll);
-          finish(cwd, ctx, job, state, code);
-        };
-        // The wrapper writing .rc is the job's own statement that it is done,
-        // and it is checked FIRST. Asking the pid instead would let a recycled
-        // number keep a finished job "running" until the timeout, since this
-        // loop deliberately uses the cheap existence check — a process-identity
-        // probe costs ~0.34s and cannot run every two seconds.
-        const code = readExitCode(rc);
-        if (code !== null) return stop(code === 0 ? "done" : "failed", code);
-        if (isAlive(pid)) {
-          if (Date.now() - job.startedAt > JOB_TIMEOUT_MS) {
-            killTree(pid);
-            stop("timeout", null);
-          }
-          return;
-        }
-        // The pid is gone and no exit code was ever recorded: the job did not
-        // finish cleanly. Absence of a code is not success.
-        return stop("failed", null);
-      }, 2000);
-      timers.add(poll);
+      watch(cwd, ctx, job, timeoutMs);
 
       // Real depth, not a placeholder: the whole point of showing it is to let
       // the model weigh that continuing makes its own next prefill costlier.
@@ -299,6 +361,14 @@ export default function (pi: ExtensionAPI) {
   // from here. It goes out from before_agent_start below.
   pi.on("session_start", async (_event, ctx: any) => {
     const cwd: string = ctx.cwd;
+    // The extension instance outlives the session: session_shutdown set `dead`
+    // and this is the replacement. Leaving it set would make every watcher
+    // below a no-op and silently swallow finish() for the rest of the process.
+    // Any batch half-assembled for the old session is dropped — those jobs are
+    // still unacknowledged on disk and get reported by before_agent_start.
+    dead = false;
+    coalescing = [];
+    wakePending = false;
     // A record with a null pid was written just before its spawn; the job wrote
     // its own pid, so recover it from there rather than treating the job as
     // something that never started.
@@ -318,6 +388,15 @@ export default function (pi: ExtensionAPI) {
       (job) => readExitCode(`${job.outPath}.rc`),
     )) {
       writeJob(cwd, j);
+    }
+    // Adopt anything still running. A session replacement (/new, /resume,
+    // /fork, /clone) cleared the previous session's timers, so without this the
+    // job finishes with nobody watching: no envelope, and a record stuck at
+    // "running" forever.
+    for (const j of readJobs(cwd)) {
+      if (j.state === "running" && j.pid !== null) {
+        watch(cwd, ctx, j, resolveTimeout(j.timeoutMs));
+      }
     }
     // Prune last, so nothing is deleted before it has been reconciled and (if
     // it finished unseen) reported. Running and unreported jobs are never
@@ -351,9 +430,12 @@ export default function (pi: ExtensionAPI) {
     const n = settleNotification(readJobs(ctx.cwd), finishedThisSession, alreadyNotified);
     if (n === null) return;
     for (const id of n.ids) alreadyNotified.add(id);
-    ctx.ui?.notify?.(
-      `[async-exec] ${n.finished} background job(s) finished, ${n.failed} not clean. Nothing left running.`,
-      n.failed > 0 ? "warning" : "info",
-    );
+    const line = `[async-exec] ${n.finished} background job(s) finished, ${n.failed} not clean. Nothing left running.`;
+    ctx.ui?.notify?.(line, n.failed > 0 ? "warning" : "info");
+    // Sideband, best effort, opt-in: useful when the terminal is not being
+    // watched, and irrelevant to whether the work is recorded. Not awaited —
+    // job state must never wait on a third-party service.
+    const target = telegramTarget(telegramNotifyEnabled(), readTelegramConfig());
+    if (target !== null) sendTelegram(target, line);
   });
 }

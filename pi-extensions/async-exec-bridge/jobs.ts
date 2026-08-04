@@ -16,6 +16,10 @@ export interface JobRecord {
   endedAt: number | null;
   exitCode: number | null;
   outPath: string;
+  /** Effective timeout for this job, already clamped. Persisted because a
+   *  session replacement hands the job to a new watcher that was not there when
+   *  it was dispatched; absent (older records) means the default. */
+  timeoutMs?: number;
   /** True once its envelope has been delivered to the agent. Survives crashes
    *  so a completed-but-unreported job is not silently lost. */
   acknowledged: boolean;

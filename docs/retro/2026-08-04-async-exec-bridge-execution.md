@@ -265,9 +265,62 @@ turn_end              3（派工、PARK、續跑）
 無法判定啟動時間時（探測失敗、平台不給）退回「存在即視為同一個」：把一個**真的還在跑**
 的工作誤判成死掉，比多留一筆紀錄更糟。
 
-剩下的都是規格列出、v1 明確不做的範圍項（見上節）：per-job timeout 覆寫、
-`pi-telegram` 旁路通知、session 替換（`/new`、`/fork`）的生命週期實測。
-以及 e2e 因需要模型而不在 CI。
+## 五之三、規格列出的三項也補完了，而其中一項揭露了真缺陷
+
+### 逐工作逾時覆寫
+
+`bg_start` 收 `timeoutMs`，夾在 10 秒至 24 小時之間。夾範圍不是保守，是必要：值由模型
+給，而 **`NaN` 會讓每一個邊界比較都為 false**，一路穿過檢查後讓
+`Date.now() - startedAt > timeout` 永遠不成立——**一個永遠不會逾時的逾時**，正是這個
+機制存在的理由被反過來廢掉。實測：`sleep 120` 配 `timeoutMs: 15000`，紀錄收在
+`state=timeout`、`timeoutMs=15000`。
+
+### Telegram 旁路通知（預設關閉）
+
+`pi-telegram` **沒有可供其他 extension 呼叫的介面**——它自包含，直接拿 `botToken` 打
+Telegram HTTP API。所以只能自己讀 `~/.pi/agent/telegram.json`（`botToken` +
+`allowedUserId`；私聊時 user id 即 chat id）。兩個刻意的設計：
+
+* **預設關閉**，要在 `harness-config.json` 明確設 `asyncExecTelegramNotify: true`。
+  這是**對外網路傳送**；因為偵測到別的套件有設定檔就自動把使用者的工作標籤送出去，
+  是不該預設發生的事。
+* 耦合到別人的私有檔案格式本來就脆弱（上游改格式即失效），所以缺欄位、型別不對、
+  傳送失敗，**一律靜默視為「未連線」**，而且 `fetch` 不被 await——工作狀態永遠不等
+  第三方服務。
+
+### session 替換的生命週期實測 —— 這一項抓到真缺陷
+
+寫 `lifecycle-check.sh` 用 rpc 的 `{"type":"new_session"}` 腳本化整段流程：派工 → 換
+session → 讓工作在**替換後的 session** 裡完成 → 再走一輪讓注入有地方落地。
+
+**第一次跑就失敗**：`job state=running`。
+
+原因是設計上的漏洞，不是實作 bug：`session_shutdown` 會清掉該 session 的所有 timer
+（正確——否則它們會打進一個已死的 session），而 `session_start` 的對帳**只處理行程
+已經消失的工作**。**在切換當下還在跑的工作，於是沒有任何人在看它**：完成了不會發信封、
+紀錄永遠停在 `running`、併發名額一直被佔著，直到某次啟動剛好撞見。
+
+修法是把輪詢抽成 `watch()`，讓**替換後的 session 認領**所有仍在執行的工作。連帶一個
+同樣致命的細節：extension 實例活得比 session 久，`dead` 旗標若不在 `session_start`
+重設，認領來的 watcher 全部會是空轉，`finish()` 也會被整個行程剩餘時間裡吞掉。
+
+修完重跑：`session_replaced=1`、`crash_markers=0`、`job state=done exit=0`，而且替換後
+的 session 確實被喚醒並讀到結果（模型最後一句：`Background job 7496 "lifecycle"
+completed successfully (exit=0, output: SURVIVED)`）。
+
+**這正是「規格說要測」的價值**：這個缺陷單元測試永遠看不到——它需要一個真的 session
+被替換掉。
+
+### 順帶：`killTree` 的舊測試證得不夠
+
+原本的測試只證明**我們手上那個 pid** 死了，沒證明真正在做事的**子孫行程**死了。而會
+佔住資源的正是後者（舊傷：一個背景基準測試在父任務回報完成後仍握著 82.52 GiB 顯存）。
+新增的測試改用結果證明：工作是 `sleep 3; echo LEAKED > marker`，`killTree` 之後等超過
+它自己的 sleep，marker **必須不存在**。
+
+---
+
+剩下的只有一項：e2e 與 lifecycle 兩支檢查都需要本機模型 server，**不在 CI**。
 
 ## 六、安全，說清楚
 

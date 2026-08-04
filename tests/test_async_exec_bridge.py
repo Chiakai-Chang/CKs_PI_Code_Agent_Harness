@@ -115,6 +115,29 @@ class TestAsyncExecBridgeTools(unittest.TestCase):
         body = c[c.index('pi.on("session_start"'):]
         self.assertLess(body.index("reconcile("), body.index("selectPrunable("))
 
+    def test_per_job_timeout_is_clamped_not_trusted(self):
+        """The value comes from the model. An unguarded NaN passes every bound
+        check and then makes the elapsed-time comparison false forever — a job
+        that can never time out, which is what the timeout exists to prevent."""
+        c = read(self.IDX)
+        self.assertIn("resolveTimeout(args.timeoutMs)", c)
+        self.assertIn("timeoutMs: Type.Optional(", c)
+
+    def test_telegram_sideband_is_opt_in(self):
+        """It posts to a third-party service. Enabling it merely because
+        pi-telegram is configured would send job labels off the machine without
+        the user ever asking."""
+        c = read(self.IDX)
+        self.assertIn("asyncExecTelegramNotify === true", c)
+        self.assertIn("telegramTarget(telegramNotifyEnabled()", c)
+
+    def test_telegram_failure_cannot_touch_job_state(self):
+        """A courtesy on the side must never be awaited by, or able to break,
+        the path that records what happened."""
+        c = read("pi-extensions/async-exec-bridge/telegram.ts")
+        self.assertIn("void fetch(", c)
+        self.assertIn(".catch(", c)
+
     def test_cancel_verifies_process_identity_before_killing(self):
         """A pid is not an identity. Killing on the number alone means killTree
         can take down an unrelated process, and its whole tree, that merely

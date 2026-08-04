@@ -130,7 +130,7 @@ cd CKs_PI_Code_Agent_Harness
 |  Layer 4: Evidence Gate (證據驗證與基因進化層)                        |
 |  • autonomous-experiment-guide (MAD 統計顯著性驗證)                    |
 |  • harness-factory-guide (Repo Fit 打分、Darwin 演化 & mcp-scan)        |
-|  • 483 個自動化單元測試網 (2026-08-04 實跑，含一致性校驗)             |
+|  • 486 個自動化單元測試網 (2026-08-04 實跑，含一致性校驗)             |
 +-----------------------------------------------------------------------+
 ```
 
@@ -143,6 +143,8 @@ cd CKs_PI_Code_Agent_Harness
 
 *   **背景執行與自動續跑 (`bg_start` / `bg_status` / `bg_cancel` + `async-exec-bridge`)**：慢模型本身不是最痛的，**慢又同步**才是——工作交出去以後 agent 只能卡著等，人也被綁在螢幕前。`bg_start` 把長工作（build、整套測試、benchmark）以 detached 子行程送出後**立刻回傳**，agent 可以就地結束這一輪；工作完成時 bridge 主動喚醒它並帶回結果尾段，全部做完再以 `agent_settled` 通知你一次。實測（GRM-3.2-Sky-OPAL，Vulkan，`-np 1`）：派工到自動續跑 32 秒，其中工作本身佔 20 秒。狀態一律落檔在 `.pi/async-exec/`，所以 Pi 被砍掉也能在下次啟動時對帳補報。
     *   **安全須知**：`bg_start` 執行的是**任意 shell 指令、detached、不另外確認**，而且**中止 agent 不會中止它派出的背景工作**——這既是它的價值也是它的風險。要停就用 `bg_cancel`（連整棵進程樹一起殺）。目前沒有白名單與確認提示，若要接不受信任的提示來源請先自行加上。
+    *   **逐工作逾時**：`bg_start` 可傳 `timeoutMs` 覆寫預設的 30 分鐘,值由機制**夾在 10 秒至 24 小時之間**（模型給的值不被信任;`NaN` 這類輸入會退回預設,否則會變成「永遠不會逾時」）。逾時會殺掉整棵進程樹並標記為 `timeout`。
+    *   **Telegram 旁路通知（選用,預設關閉）**：在 `pi-config/harness-config.json` 設 `"asyncExecTelegramNotify": true` 後,全部工作做完時除了終端機通知,也會透過**你已設定好的 `pi-telegram`**（讀 `~/.pi/agent/telegram.json` 的 `botToken` 與 `allowedUserId`）發一則訊息。**預設關閉是刻意的**——這是對外網路傳送,不該因為偵測到設定檔就自動開啟。未安裝／未連線／傳送失敗一律靜默略過,**絕不影響工作狀態**。
     *   **磁碟保留策略（保守預設）**：已回報且已完成的工作紀錄保留 **7 天**，且最多保留 **50 筆**，超出者由舊到新清除（連同輸出擷取檔一起）。**執行中、以及尚未回報過的完成結果永不清除**，不論多舊——那是崩潰復原唯一的依據。清理在 `session_start` 對帳**之後**才進行，所以不會刪掉還沒被讀到的結果。
     *   **`localModel` 參數**：`none`（預設，可重疊）／`shared`（共用同一個本地模型 server）／`exclusive`（v1 直接拒絕——沒有 GPU 探測就無法誠實判斷第二個模型塞不塞得下，寧可拒絕也不猜）。若你的 llama-server 以 `-np 2` 以上啟動，設環境變數 `PI_MODEL_SERVER_SLOTS` 對應該值；預設值 1 是保守讀法，會如實警告 `shared` 工作會**阻塞**而非只是拖慢。
 

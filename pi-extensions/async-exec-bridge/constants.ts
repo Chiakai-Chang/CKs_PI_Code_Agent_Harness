@@ -1,4 +1,10 @@
 export const JOB_TIMEOUT_MS = 30 * 60 * 1000;
+/** Floor and ceiling for a per-job timeout override. The model chooses the
+ *  value, so it needs bounds: a one-second timeout kills the job before most
+ *  commands have started, and a one-year timeout is indistinguishable from
+ *  having no timeout at all. */
+export const MIN_JOB_TIMEOUT_MS = 10 * 1000;
+export const MAX_JOB_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 export const MAX_CONCURRENT_JOBS = 3;
 /** Bytes of tail injected into context. NOT the capture cap — 8 MiB of output
  *  in the prompt would cost minutes of prefill on a local model. */
