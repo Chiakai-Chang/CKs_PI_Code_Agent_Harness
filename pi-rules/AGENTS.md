@@ -75,6 +75,9 @@ When implementing frontend designs and components:
 *   **把證據亮出來**：回報完成時，貼出**實際跑的指令**與**實際輸出**。沒跑就老實說沒跑，不要暗示你沒做的驗證。
 *   **數字與宣稱一律先跑再寫**：報告或 **commit 訊息**裡的任何具體數字（「N tests pass」「涵蓋 X 檔」「快 3 倍」）或成功宣稱，必須來自**下筆當下的實際執行**，不是預估或記憶。要寫數字就先跑、用真值；無法當場驗證就別寫具體數字。（教訓：commit 寫「125 tests」是預估，實跑 127。）
 *   **不捏造不存在的東西**（§9 的絕對底線）：沒跑過的測試、沒去過的場域、沒訪談過的對象、沒發生的事件、沒實算的財務——**一律不得虛構成「已完成／已測得」**。示意、模擬、假設可以做，但必須**明白標示為假設／示意**，且不得填入看似真實的具體數字、場館名、受訪者或日期。編造資料比留空更嚴重，尤其面向投資人／司法／對外報告時。（教訓：曾產出整份「場域測試報告」列三家場館與 95% 準確率、「758% ROI」，全是憑空捏造。）
+*   **Pi 跑的是安裝副本，不是 repo 檔案**：改完 `pi-extensions/` 或 `pi-skills/` 底下任何東西，測試前先跑 `python scripts/setup.py --mode restore`，否則你量的是上一版。
+*   **單元測試綠了不等於送達**：bridge 注入給模型的東西，要到 `~/.pi/agent/sessions/**.jsonl` 的 session log 裡找到那段文字才算數。（教訓：11 個測試全綠，而 handler 回傳的是裸陣列而非 `{ content: [...] }`，Pi 靜默丟棄；只有 log 顯示 tool result 根本沒變。）
+*   **API 契約查已安裝的套件**：`@earendil-works/pi-coding-agent/dist/core/extensions/types.d.ts`。`reference/oh-my-pi/` 是 gitignored 的 0.73 世代 fork 副本，不是在跑的東西。能送到模型的只有兩條路：`tool_result` 回 `{ content: [...] }`、`before_agent_start` 回 `{ systemPrompt }`；`notify` 只畫終端、`details` 是給 log/UI 的、`turn_end` 沒有回傳型別。
 *   **改完程式一定跑 `python -m unittest discover -s tests`**；動到 extension／skill 就實際觸發那條路徑看輸出。CI 紅燈抓到真 bug 是它在做正事，修 bug，別當噪音。
 
 ## 10. 能力善用（Capability-First，方法論優先 — 讓已裝的方法論與工具真的被觸發）

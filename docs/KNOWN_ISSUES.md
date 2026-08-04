@@ -369,3 +369,30 @@ Pi 的拒絕訊息」，要求模型重發**簡短**的同一個呼叫。
 
 除錯時可用 `PI_HARNESS_DUMP_TURN_END=<file>` 倒出 `turn_end` 事件的真實結構
 （未設定時完全不動作）。
+
+## `~/.pi/agent/skills/` 底下全是 junction，其中多數目標端是空的（2026-08-04，未解，非本 harness 所有）
+
+**現象**：`ls ~/.pi/agent/skills/` 列出十幾個項目，但其中多數載入不了任何 skill。
+
+用 `find -type f` 或 `os.walk()` 去數會得到「0 檔案」，看起來像空目錄。它們不是——
+它們是 **Windows junction**，指向 `~/.agents/skills/`：
+
+```
+st_reparse_tag: 0xa0000003    # IO_REPARSE_TAG_MOUNT_POINT
+st_file_attributes: 0x410     # DIRECTORY | REPARSE_POINT
+```
+
+`find` 與 `os.walk()` 預設不跟隨 junction，`os.path.islink()` 對 junction 也回傳
+**False**（只認 IO_REPARSE_TAG_SYMLINK）。要判定請用
+`os.lstat(p).st_file_attributes & 0x400`，或在 Git Bash 跑 `ls -la` 看有沒有 `->`。
+
+**為什麼不修**：這些 junction 由**別的工具**建立，指向 `~/.agents/skills/`，那個目錄
+不歸本 harness 管。有內容的（`agents-best-practices`、`darwin-skill`）透過 junction
+正常運作；空的（`brandkit`、`design-*` 等）是那個工具那邊的問題。本 harness 只負責
+`managed_skills` 清單內的項目——`restore.py` 的 `delete_path` 修好 junction 處理後，
+`planning-with-files` 這個一直刪不掉的項目已正常移除。
+
+**連帶影響**：`~/.agents/skills/` 因此實際上是**第三個 skill 來源**。
+`docs/superpowers/specs/2026-07-21-skill-namespace-isolation-design.md` 寫明
+「不掃描 `~/.agents/skills/`（YAGNI）」，但由於 `~/.pi/agent/skills/` 底下都是指過去的
+junction，namespace guard 一直都在讀那邊的內容。該決策的前提與現況不符，值得複查。
