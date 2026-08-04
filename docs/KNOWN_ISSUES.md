@@ -397,7 +397,7 @@ st_file_attributes: 0x410     # DIRECTORY | REPARSE_POINT
 「不掃描 `~/.agents/skills/`（YAGNI）」，但由於 `~/.pi/agent/skills/` 底下都是指過去的
 junction，namespace guard 一直都在讀那邊的內容。該決策的前提與現況不符，值得複查。
 
-## ECC hook 整合層形同虛設（2026-08-04 查出，修復進行中）
+## ECC hook 整合層形同虛設（2026-08-04 查出，2026-08-05 已修）
 
 **現象**：`README`、`CORE_CONCEPTS`、`HARNESS_INTEGRATION_GUIDE` 都把 GateGuard、
 quality-gate 寫成運作中的功能。實測十五個被消費的 ECC hook 裡，**只有
@@ -424,8 +424,26 @@ quality-gate 寫成運作中的功能。實測十五個被消費的 ECC hook 裡
 GateGuard 會開始對破壞性 bash 指令要求先列出影響，因此它另立
 `enableEccGateGuard` 旗標且**預設 false**——一個從未在本機跑過的守衛不該直接推上線。
 
-計畫見 `docs/superpowers/plans/2026-08-04-ecc-hook-translation.md`。
+**已修**（`pi-extensions/ecc-hooks-bridge/ecc-payload.ts`）。實測為證，兩個生產端各有
+session log：`write` 的 tool result 出現
+`ECC console check: [Hook] WARNING: console.log found in .../noisy.ts`；
+`bash` 的 tool result 出現 `ECC GateGuard: [Fact-Forcing Gate] Before the first Bash
+command this session...`。修前的同一組操作是「每個 tool result 各 1 block、什麼都沒有」。
+
+**GateGuard 的擋阻預設關閉**（`enableEccGateGuard: false`）。實測它會擋掉每個 session 的
+第一條 bash 指令，不論內容——`ls -la`、`echo hi` 都擋，理由是
+「Before the first Bash command this session, present these facts」。在本 harness 針對的
+弱本機模型上，第一回合就硬擋是很大的行為改變，該由操作者明示開啟。關閉時發現仍以建議
+形式送達模型。ECC 上游另有逃生口：`ECC_GATEGUARD=off` 或把
+`pre:bash:gateguard-fact-force` 加進 `ECC_DISABLED_HOOKS`。
+
+**`config-protection` 現在真的會擋**設定弱化的編輯——它一直有 `exit(2)` 的能力，只是從沒
+收到過路徑。
+
+計畫與設計見 `docs/superpowers/plans/2026-08-04-ecc-hook-translation.md`
+與 `docs/superpowers/specs/2026-08-04-ecc-hook-translation-design.md`。
 
 **另一件獨立的事**：`pi-skills/core/hello-reflect/scripts/reflect_core.py:89` 找頂層
 `entry["role"]` 且要求 content 是字串，Pi 的紀錄是 `entry["message"]["role"]` 加 block list。
 實測對真實 session 檔 `extract_user_messages -> 0 messages`。**它一則訊息都沒讀過。**
+已修：兩種格式都支援，並加了一條對真實 session 檔的測試（沒有本機紀錄時 skip）。

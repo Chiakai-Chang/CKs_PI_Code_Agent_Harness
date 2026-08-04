@@ -14,6 +14,8 @@
   "enablePlanningBridge": true,
   "_enableHookAdvisories": "ECC hook findings (quality-gate, format/typecheck, plan reminder) are appended to tool results so the model can read them. Set false if they pull a weak local model off course.",
   "enableHookAdvisories": true,
+  "_enableEccGateGuard": "ECC GateGuard is a fact-forcing gate, not a destructive-command filter: measured, it denies the FIRST bash command of every session whatever it is. It has never evaluated a command on this harness (the payload never reached it), so blocking is opt-in. When false the finding still reaches the model as advice.",
+  "enableEccGateGuard": false,
   "planningBridgeMaxChars": 600,
   "enableUniversalTagTransformer": true,
   "enableSelfHealingLoopGuard": true,

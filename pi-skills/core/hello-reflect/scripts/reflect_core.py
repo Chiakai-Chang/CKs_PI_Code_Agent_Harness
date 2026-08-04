@@ -77,8 +77,39 @@ def detect_patterns(text: str) -> Tuple[Optional[str], str, float, str, int]:
 
     return (None, "", 0.0, "correction", 90)
 
+def _message_text(content) -> str:
+    """Flatten a message body to the words the user typed.
+
+    Pi stores content as a list of blocks; only `text` blocks are things the user
+    said. A `toolResult` block is command output that happens to sit in the same
+    message, and treating it as user speech turns every command into a learning.
+    """
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "text":
+                text = block.get("text")
+                if isinstance(text, str):
+                    parts.append(text)
+        return "\n".join(parts)
+    return ""
+
+
 def extract_user_messages(session_file: Path) -> List[str]:
-    """Extract user messages from Pi session file (jsonl)."""
+    """Extract user messages from a session file (jsonl).
+
+    Two formats are read. Pi nests the message and uses content blocks:
+
+        {"type":"message","message":{"role":"user","content":[{"type":"text","text":"…"}]}}
+
+    Claude Code puts `role` at the top level with string content. This function
+    only understood the second one, so measured against a real Pi session on
+    2026-08-04 it returned 0 messages — every message, every session, since the
+    skill was distilled. The Claude Code shape stays supported because the skill
+    came from claude-reflect and may be pointed at one of those transcripts.
+    """
     if not session_file.exists(): return []
     messages = []
     try:
@@ -86,10 +117,14 @@ def extract_user_messages(session_file: Path) -> List[str]:
             for line in f:
                 try:
                     entry = json.loads(line)
-                    if entry.get("role") == "user":
-                        content = entry.get("content", "")
-                        if isinstance(content, str) and content.strip():
-                            messages.append(content)
-                except: continue
+                except Exception:
+                    continue
+                nested = entry.get("message")
+                holder = nested if isinstance(nested, dict) else entry
+                if holder.get("role") != "user":
+                    continue
+                text = _message_text(holder.get("content", "")).strip()
+                if text:
+                    messages.append(text)
     except: pass
     return messages

@@ -210,3 +210,51 @@ shutil.rmtree(path, onexc=remove_readonly)   # CPython 拒絕 rmtree 一個 link
 **這一輪的教訓**：修完之後再用互斥角色審一次，抓到的東西和修的時候不一樣。第 4 項尤其——它不是任何技術角色提的，是「誰承擔後果」那一軸上、一個不會說話的利害關係人提的。
 
 ---
+
+---
+
+## 十、第三輪：驗證那六個生產端，發現整條整合層是空的
+
+使用者要求驗證第四節裡「只證明了機制、沒有觀察到端到端」的六個 advisory 生產端。驗證的結果不是「六個裡有幾個能跑」，而是**六個都不能跑，而且原因全在 advisory 管線的上游**。
+
+同一個主題又下沉一層。前面兩輪講的是「回報了不等於收到了」；這一輪是**連回報都沒發生**——bridge 把 Pi 的事件翻譯給 ECC hook 時，用錯欄位名、少一層外殼、讀錯輸出通道，十五個 hook 裡只有 `block-no-verify` 真的在運作，而它能運作只是因為它掃原始文字，形狀對它無所謂。
+
+三個根因與實測見 `docs/KNOWN_ISSUES.md` 與 `../superpowers/specs/2026-08-04-ecc-hook-translation-design.md`，此處只記方法上的收穫。
+
+### 收穫一：測試層級要對準「誰接受這個形狀」
+
+`test_ecc_payload.py` 的 16 個測試全綠時，什麼都還沒證明——它們證明的是「我們產出了自己期待的形狀」，而**自己期待的形狀正是原本錯的那個東西**。
+
+真正有判別力的是 `test_ecc_hook_contract.py`：把轉譯結果餵給真實的上游腳本，並且**同時保留負向對照**——同一個檔案改用 Pi 的裸 `path`，斷言它**沒有**輸出。負向對照是那份測試裡最有價值的一行，因為它證明這組測試抓得到原本的缺陷。
+
+### 收穫二：測試的呼叫方式必須和產品程式一致
+
+第一版整合測試直接 spawn `gateguard-fact-force.js`，得到空輸出，我差點記成「它不會 deny」。實際上它的核心邏輯是 `exported for run-with-flags.js`，**直接執行檔案什麼都不會發生**——而 bridge 是透過 `run-with-flags.js` 呼叫的。
+
+> 測試若用自己的方式呼叫，量到的就是自己的方式，不是產品的方式。
+
+### 收穫三：三個假設，兩個被量測否決
+
+沒有建議送達時，我依序假設：狀態污染（加了 `GATEGUARD_STATE_DIR` 隔離，沒解決）、`tool_name` 大小寫（實測兩種都 deny，否決）、5000ms spawn timeout（實測 gateguard 冷啟 94–101 ms，否決）。
+
+三次都錯，最後靠打樁一次拿到答案。**推論便宜但常錯，打樁貴但一次到位**——在已經連錯兩次之後，就該直接付那個代價。
+
+### 收穫四：修好一個從沒跑過的守衛，等於上線一個新守衛
+
+GateGuard 不是破壞性指令過濾器，是 fact-forcing gate。實測它會擋掉**每個 session 的第一條 bash 指令**，`ls -la`、`echo hi` 都擋。把翻譯修好就等於在弱本機模型上，於第一回合啟用硬擋。
+
+所以 `enableEccGateGuard` 預設 **false**，且**失敗時關閉**（與 advisory 開關的 fail-open 相反）：讀不到設定不該打開一個會擋掉第一條指令的閘門。關閉時發現仍以建議送達，資訊不損失。
+
+`config-protection` 是同一類：它一直有 `exit(2)` 的能力，只是從沒收到過路徑。它擋的是設定弱化，語意上預設開啟合理，但同樣要在文件講明「這條以前沒作用，現在會作用了」。
+
+### 驗證證據
+
+| 生產端 | 修前 | 修後（live session log） |
+|---|---|---|
+| console-warn | tool result 1 block，無 | 2 blocks，第二塊 `ECC console check: [Hook] WARNING: console.log found in .../noisy.ts` |
+| gateguard | tool result 1 block，無 | 2 blocks，第二塊 `ECC GateGuard: [Fact-Forcing Gate] Before the first Bash command this session...` |
+
+其餘四個共用同一條轉譯與送達路徑，觸發條件各自不同：`quality-gate` 另需
+`ECC_QUALITY_GATE_STRICT=true`（ECC 的預設是 false，不代替使用者決定嚴格度）；
+`stop-format-typecheck` 需要 accumulator 先有內容，那是本次修好的連鎖效果；
+`suggest-compact` 需要累積到工具呼叫門檻；`hello-reflect` 需要對話中出現修正語句。

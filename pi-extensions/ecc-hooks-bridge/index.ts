@@ -13,6 +13,7 @@ import { join, dirname } from "node:path";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 
 import { AdvisoryQueue, advisoryResult, hookAdvisoriesEnabled } from "./advisory.ts";
+import { toHookInput, parseHookOutput, gateGuardBlocksEnabled } from "./ecc-payload.ts";
 import { hasAnyPlan, isGitCommit } from "./plan.ts";
 
 // Dynamic path resolution
@@ -121,6 +122,8 @@ export default function (pi: ExtensionAPI) {
   // `enableHookAdvisories: false` in pi-config/harness-config.json switches every
   // producer off at once, without editing source and reinstalling.
   const advisories = new AdvisoryQueue({ enabled: hookAdvisoriesEnabled(HARNESS_ROOT) });
+  // Off unless the operator says otherwise — see gateGuardBlocksEnabled.
+  const gateGuardBlocks = gateGuardBlocksEnabled(HARNESS_ROOT);
 
   pi.on("session_start", async (_event, ctx) => {
     const profile = getProfile();
@@ -146,7 +149,9 @@ export default function (pi: ExtensionAPI) {
   // ========== PreToolUse: Bash ==========
   pi.on("tool_call", async (event, ctx) => {
     if (!isToolCallEventType("bash", event)) return;
-    const input = JSON.stringify(event.input);
+    // Was `JSON.stringify(event.input)` — no tool_name, no tool_input wrapper.
+    // gateguard-fact-force.js:1145 reads both, so it evaluated nothing, ever.
+    const input = JSON.stringify(toHookInput("bash", event.input));
 
     // block-no-verify: prevent git push --no-verify
     try {
@@ -156,8 +161,11 @@ export default function (pi: ExtensionAPI) {
         input,
         { profiles: "minimal,standard,strict", timeout: 3000 }
       );
+      const decision = parseHookOutput(r);
       if (r.stderr) ctx.ui.notify(r.stderr.trim().split("\n").slice(0, 2).join(" "), "warning");
-      if (r.exitCode === 2) return { block: true, reason: "Blocked by ECC block-no-verify" };
+      if (decision.block) {
+        return { block: true, reason: decision.reason ?? "Blocked by ECC block-no-verify" };
+      }
     } catch {}
 
     // Planning awareness: a commit with no plan behind it.
@@ -183,18 +191,21 @@ export default function (pi: ExtensionAPI) {
         input,
         { profiles: "standard,strict", timeout: 5000 }
       );
-      if (r.stderr) {
-        const lines = r.stderr.trim().split("\n").slice(0, 3);
-        if (lines.length) {
-          ctx.ui.notify(lines.join(" "), "warning");
-          // Below the blocking threshold the guard still has something to say,
-          // and the model is the one that has to act on it.
-          if (r.exitCode !== 2) {
-            advisories.push("gateguard", `ECC GateGuard: ${lines.join(" ")}`, { cooldown: 3 });
-          }
-        }
+      // GateGuard answers on stdout as hookSpecificOutput JSON with exitCode 0,
+      // so the old `exitCode === 2` check could never see it. It is also a
+      // fact-forcing gate rather than a destructive-command filter: measured, it
+      // denies the FIRST bash command of every session whatever it is — `ls -la`
+      // and `echo hi` included. Turning that on is the operator's call, so
+      // blocking is opt-in and otherwise the finding is handed over as advice.
+      const decision = parseHookOutput(r);
+      if (decision.block) {
+        const head = (decision.reason ?? "").split("\n").filter(Boolean)[0] ?? "";
+        ctx.ui.notify(`🚦 ECC GateGuard: ${head}`, "warning");
+        if (gateGuardBlocks) return { block: true, reason: decision.reason };
+        advisories.push("gateguard", `ECC GateGuard: ${decision.reason}`, { cooldown: 3 });
+      } else if (decision.advisory) {
+        advisories.push("gateguard", `ECC GateGuard: ${decision.advisory}`, { cooldown: 3 });
       }
-      if (r.exitCode === 2) return { block: true, reason: "ECC GateGuard: investigate first" };
     } catch {}
   });
 
@@ -202,7 +213,8 @@ export default function (pi: ExtensionAPI) {
   pi.on("tool_call", async (event, ctx) => {
     const name = event.toolName;
     if (!["edit", "write"].includes(name)) return;
-    const input = JSON.stringify({ tool_name: name, tool_input: event.input });
+    // Pi sends `path`; every ECC hook reads `tool_input.file_path`.
+    const input = JSON.stringify(toHookInput(name, event.input));
 
     // doc-file-warning
     try {
@@ -222,12 +234,14 @@ export default function (pi: ExtensionAPI) {
         input,
         { profiles: "standard,strict", timeout: 5000 }
       );
-      if (r.stderr?.includes("compact")) {
-        const text = r.stderr.trim().split("\n").slice(0, 2).join(" ");
-        ctx.ui.notify(text, "info");
-        // Only the model can decide a good moment to compact, and only it knows
-        // what is still unfinished. Telling the terminal instead was pointless.
-        advisories.push("suggest-compact", text, { cooldown: 10 });
+      // suggest-compact.js states it in a comment: non-blocking stderr reaches
+      // the debug log, not the model, so it answers with additionalContext on
+      // stdout. The old `stderr.includes("compact")` read the wrong channel — and
+      // would not have matched "[StrategicCompact]" even if it had been there.
+      const decision = parseHookOutput(r);
+      if (decision.advisory) {
+        ctx.ui.notify(decision.advisory.split("\n")[0], "info");
+        advisories.push("suggest-compact", decision.advisory, { cooldown: 10 });
       }
     } catch {}
 
@@ -239,8 +253,11 @@ export default function (pi: ExtensionAPI) {
         input,
         { profiles: "standard,strict", timeout: 5000 }
       );
+      // This one has always been able to block — it uses exit(2) — but it reads
+      // `tool_input.file_path`, so it never received a path and never fired.
+      const decision = parseHookOutput(r);
       if (r.stderr) ctx.ui.notify(r.stderr.trim().split("\n").slice(0, 2).join(" "), "warning");
-      if (r.exitCode === 2) return { block: true, reason: "ECC: config protection" };
+      if (decision.block) return { block: true, reason: decision.reason ?? "ECC: config protection" };
     } catch {}
   });
 
@@ -250,11 +267,7 @@ export default function (pi: ExtensionAPI) {
     const output = Array.isArray(event.content)
       ? event.content.map(c => typeof c === "object" && "text" in c ? c.text : "").join("")
       : String(event.content ?? "");
-    const input = JSON.stringify({
-      tool_name: "bash",
-      tool_input: event.input,
-      tool_output: { output },
-    });
+    const input = JSON.stringify(toHookInput("bash", event.input, { output }));
 
     // Post-bash: PR created / build complete / command log (async)
     try {
@@ -274,11 +287,12 @@ export default function (pi: ExtensionAPI) {
   pi.on("tool_result", async (event, ctx) => {
     const name = event.toolName;
     if (!["edit", "write"].includes(name)) return;
-    const input = JSON.stringify({
-      tool_name: name,
-      tool_input: event.input,
-      tool_output: event.content ?? "",
-    });
+    // `file_path` again: quality-gate, console-warn, design-quality-check and
+    // post-edit-accumulator all read it, and none of them ever received one.
+    const editOutput = Array.isArray(event.content)
+      ? event.content.map(c => typeof c === "object" && c && "text" in c ? String((c as { text: string }).text) : "").join("")
+      : String(event.content ?? "");
+    const input = JSON.stringify(toHookInput(name, event.input, { output: editOutput }));
 
     // quality-gate (async)
     try {
