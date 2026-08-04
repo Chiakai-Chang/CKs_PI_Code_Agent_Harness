@@ -41,7 +41,7 @@ live_preflight
 
 PROMPT='Call the bg_start tool with cmd "sleep 20; echo DONE" and label "e2e". After it returns, stop: issue no further tool calls and end your turn.'
 
-> "$LOG"
+: > "$LOG"   # truncate; the colon is the no-op command shellcheck wants
 started=$(date +%s)
 
 # Hold stdin for HOLD seconds, but stop as soon as the resumed turn has landed:

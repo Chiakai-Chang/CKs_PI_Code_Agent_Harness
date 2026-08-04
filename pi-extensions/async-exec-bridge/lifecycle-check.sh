@@ -34,7 +34,7 @@ AFTER='In one short sentence, state whether any background job result was report
 
 json() { printf '%s' "$1" | python -c 'import json,sys; print(json.dumps(sys.stdin.read()))'; }
 
-> "$LOG"
+: > "$LOG"   # truncate; the colon is the no-op command shellcheck wants
 started=$(date +%s)
 {
   printf '{"id":"l-1","type":"prompt","message":%s}\n' "$(json "$DISPATCH")"
