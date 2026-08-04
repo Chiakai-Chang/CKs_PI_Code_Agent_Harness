@@ -157,7 +157,7 @@ shutil.rmtree(path, onexc=remove_readonly)   # CPython 拒絕 rmtree 一個 link
 
 第三種處理方式最好：**能消掉重複就消掉，消不掉才加守衛。**
 
-還有一組沒動但要知道：`CLAUDE.md` 與 `pi-rules/AGENTS.md` §9 是同一套 Evidence 規則的兩份鏡像，且**已經有內容分岔**（AGENTS.md 有「不捏造不存在的東西」那條，CLAUDE.md 沒有）。這次兩邊都補了，但這對鏡像本身沒有守衛。
+還有第四組：`CLAUDE.md` 與 `pi-rules/AGENTS.md` §9 是同一套 Evidence 規則的兩份鏡像，且**已經有內容分岔**（AGENTS.md 有「不捏造不存在的東西」那條，CLAUDE.md 沒有）。`test_governance.py` 原本只守「原則在不在」，不守條目內容——分岔正是發生在條目層。已補條目級 parity（見第九節）。
 
 ---
 
@@ -173,7 +173,7 @@ shutil.rmtree(path, onexc=remove_readonly)   # CPython 拒絕 rmtree 一個 link
 
 * `~/.pi/agent/skills/` 剩 15 個 junction 指向 `~/.agents/skills/`，不歸本 harness 管，正確地留著。其中 `brandkit`、`design-*` 等**目標端本身是空的**——那是建立它們的那個工具的問題。`agents-best-practices`（25 檔）與 `darwin-skill`（36 檔）是有內容的，透過 junction 正常運作。
 * 因此 `~/.agents/skills/` 實際上是**第三個 skill 來源**。`docs/superpowers/specs/2026-07-21-skill-namespace-isolation-design.md` 明文寫「不掃描 `~/.agents/skills/`（YAGNI）」，但由於 `~/.pi/agent/skills/` 底下都是指過去的 junction，namespace guard 其實一直都在讀那邊的內容。決策的前提與現況不符，值得複查。
-* 上述六個未經田野驗證的 advisory 生產端。
+* 上述六個未經田野驗證的 advisory 生產端。觸發條件由 ECC submodule 上游決定，本機模型每輪數分鐘——**機制已共用且實測過，未驗的是觸發條件**。誠實記錄優於花數小時做低訊息量的驗證。
 
 ---
 
@@ -186,3 +186,27 @@ shutil.rmtree(path, onexc=remove_readonly)   # CPython 拒絕 rmtree 一個 link
 * **API 契約查已安裝的套件**，不查 `reference/oh-my-pi/`；並附上「只有兩條路到得了模型」的完整清單。
 
 不寫進規則的（放記憶與本文即可）：Windows junction 的量測陷阱太窄，不值得佔用每輪注入的 prompt 預算。
+
+---
+
+## 九、第二輪：對自己這次的成品做 MECE 復盤
+
+修完之後，以兩軸互斥的角色對本次成品再審一遍：**職能軸**（架構、品保、安全邊界、效能成本、發布組態、量測、DX 文件）與**利害關係人軸**（本機操作者、全新 clone、被注入的模型、未來維護者、上游專案、鄰居工具）。九個議題進，五個出。
+
+三個關掉的，理由比做掉更重要：
+
+* **notify 與 advisory 並存不是重複**——受眾不同。人看終端一行中文，模型拿可執行的英文指示。刪任一邊都讓某一方失去資訊。
+* **advisory.ts 不跨 bridge 共用**——bridge 安裝成各自獨立目錄，共用模組會在安裝時斷掉。重複加守衛比錯誤的抽象穩。
+* **hook stderr 進 context 不是新增的注入面**——那些 stderr 本來就被 `runWithFlags` 讀進來了，只是以前丟給終端。風險本來就在，現在只是有人在讀。已加 `[ecc-hooks] advisory (not command output):` 前綴標註來源並用測試釘住。
+
+五個做掉的，每一個都對應這次真實踩過的坑：
+
+1. **凍結 fork 不再只靠散文擋**。`reference/oh-my-pi` 可以被提及（要警告它就得指名它），但不得在「做契約決定的地方」被引用而不同時指名 `@earendil-works`。範圍限 bridge 原始碼、scripts、規則文件、specs/plans——retro 與 oh-my-pi-learnings 是關於那個 fork 的敘事，不在內。
+2. **兩份規則鏡像補上條目級 parity**。原本只守原則存在，而分岔發生在條目層。
+3. **`verify-bridges.py` 解析 entry 的相對 import**。十二個 bridge 有六個帶同層模組；entry 存在不等於 extension 載得起來。兩種寫法都收（含 `./x.js` 指向 `x.ts`）。
+4. **`enableHookAdvisories` 一鍵關閉全部八個生產端**。這條是「被注入的模型」這個沒人問過的利害關係人提出來的：advisory 現在進入弱模型的 context，而 repo 內有硬證據 42,999 字元的 tool result 曾讓這個模型當場失控。上限遠低於該值，但操作者不該為了止血而改程式碼重裝。失敗時開啟（fail open）。兩個位置都實測：關→1 block 無建議，開→2 blocks 有建議。
+5. **`merge_into_catalog` 驗證自己的寫入**。陳舊檢查只在 catalog 已存在時跑，等於「產生它的那一刻」無人看守——而 18 個 skill 沒寫進去的正是那一刻。
+
+**這一輪的教訓**：修完之後再用互斥角色審一次，抓到的東西和修的時候不一樣。第 4 項尤其——它不是任何技術角色提的，是「誰承擔後果」那一軸上、一個不會說話的利害關係人提的。
+
+---
