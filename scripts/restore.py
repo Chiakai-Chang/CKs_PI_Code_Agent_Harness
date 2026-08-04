@@ -128,62 +128,59 @@ def clear_dir(path):
     if not os.path.lexists(path):
         return
     
-    # If the path itself is a link/junction, just remove it
-    if os.path.islink(path) or not os.path.isdir(path):
-        try: os.remove(path)
-        except: pass
+    # A link is replaced, never walked. `os.path.islink` is False for a Windows
+    # junction, so this used to os.listdir straight through one and delete the
+    # contents of whatever it pointed at.
+    if os.path.islink(path) or is_reparse_point(path) or not os.path.isdir(path):
+        delete_path(path)
         os.makedirs(path, exist_ok=True)
         return
 
-    def remove_readonly(func, p, excinfo):
-        try:
-            os.chmod(p, stat.S_IWRITE)
-            func(p)
-        except:
-            pass
-
+    # Each entry goes through delete_path rather than a second copy of the same
+    # logic. The copy that used to live here carried the junction bug too, and a
+    # duplicated primitive is a primitive that only gets fixed once.
     for item in os.listdir(path):
-        item_path = os.path.join(path, item)
         try:
-            if os.path.islink(item_path):
-                try:
-                    os.remove(item_path)
-                except OSError:
-                    try:
-                        os.chmod(item_path, stat.S_IWRITE)
-                        os.remove(item_path)
-                    except:
-                        pass
-            elif os.path.isdir(item_path):
-                # On Windows, junctions are isdir=True but rmtree fails
-                try:
-                    if sys.version_info >= (3, 12):
-                        shutil.rmtree(item_path, onexc=remove_readonly)
-                    else:
-                        shutil.rmtree(item_path, onerror=remove_readonly)
-                except OSError:
-                    # Fallback for junctions
-                    try: os.remove(item_path)
-                    except: os.rmdir(item_path)
-            else:
-                try:
-                    os.remove(item_path)
-                except OSError:
-                    try:
-                        os.chmod(item_path, stat.S_IWRITE)
-                        os.remove(item_path)
-                    except:
-                        pass
+            delete_path(os.path.join(path, item))
         except Exception as e:
             log(f"Warning: Failed to clear {item}: {e}")
+
+def is_reparse_point(path):
+    """Whether path is a Windows junction or symlink — an entry whose contents
+    live somewhere else.
+
+    `os.path.islink()` is not enough: it reports True only for
+    IO_REPARSE_TAG_SYMLINK, while a junction (IO_REPARSE_TAG_MOUNT_POINT,
+    0xa0000003) reads as a plain directory. Found live in
+    `~/.pi/agent/skills/`, where every entry is a junction into
+    `~/.agents/skills/`.
+    """
+    try:
+        st = os.lstat(path)
+    except OSError:
+        return False
+    attrs = getattr(st, "st_file_attributes", 0)
+    return bool(attrs & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0))
+
 
 def delete_path(path):
     """
     Safely delete a file, directory, symlink or junction.
+
+    Junctions used to survive this function in silence, so a managed skill that
+    happened to be one was never replaced. They took the rmtree branch, CPython
+    refuses to rmtree a link, and because `onexc` was supplied it routed that
+    refusal to a handler that swallowed everything and returned — the
+    `except OSError` fallback written for junctions never ran, and nothing
+    surfaced. Measured 2026-08-04 on `~/.pi/agent/skills/`, where every entry is
+    a junction into `~/.agents/skills/`.
+
+    A link is removed as a link. Following one would delete whatever it points
+    at, which for those entries is another tool's content.
     """
     if not os.path.lexists(path):
         return
-    
+
     def remove_readonly(func, p, excinfo):
         try:
             os.chmod(p, stat.S_IWRITE)
@@ -192,7 +189,20 @@ def delete_path(path):
             pass
 
     try:
-        if os.path.islink(path) or not os.path.isdir(path):
+        if os.path.islink(path) or is_reparse_point(path):
+            # Unlink only. os.rmdir removes a directory reparse point without
+            # touching the target; os.remove handles the file-shaped ones.
+            try:
+                if os.path.isdir(path):
+                    os.rmdir(path)
+                else:
+                    os.remove(path)
+            except OSError:
+                try:
+                    os.rmdir(path)
+                except OSError:
+                    os.remove(path)
+        elif not os.path.isdir(path):
             try:
                 os.remove(path)
             except OSError:
@@ -202,15 +212,10 @@ def delete_path(path):
                 except:
                     pass
         else:
-            try:
-                if sys.version_info >= (3, 12):
-                    shutil.rmtree(path, onexc=remove_readonly)
-                else:
-                    shutil.rmtree(path, onerror=remove_readonly)
-            except OSError:
-                # Fallback for junctions
-                try: os.remove(path)
-                except: os.rmdir(path)
+            if sys.version_info >= (3, 12):
+                shutil.rmtree(path, onexc=remove_readonly)
+            else:
+                shutil.rmtree(path, onerror=remove_readonly)
     except Exception as e:
         log(f"Warning: Failed to delete {path}: {e}")
 
