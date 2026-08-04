@@ -26,7 +26,7 @@ To prevent context bloat and prompt pollution, agents MUST NOT load all skills g
 ```
 
 ### A. Pinned Skills
-Explicitly load heavy specialized skills ONLY when triggered by specific workflows or commands (e.g. `/plan` -> `brainstorming`, `/build` -> `tdd-guide`).
+Explicitly load heavy specialized skills ONLY when the workflow reaches the point that needs them (e.g. starting new work -> `brainstorming`, beginning implementation -> `test-driven-development`). Name the skill; this harness installs no `/plan` or `/build` command to trigger one.
 
 ### B. Gated Execution
 Enforce strict execution gates across phase boundaries:

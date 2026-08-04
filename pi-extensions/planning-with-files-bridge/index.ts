@@ -38,7 +38,10 @@ function hasPlanningDir(cwd: string): boolean {
   return fileExists(cwd, ".planning");
 }
 
-function resolvePlanDir(cwd: string): string {
+// Exported so tests/test_plan_detection_parity.py can run this against the copy
+// in ecc-hooks-bridge. The two bridges answer "is there a plan?" for the same
+// project; when they disagree, one of them is nagging about a plan that exists.
+export function resolvePlanDir(cwd: string): string {
   // 1. task_plan.md in cwd (legacy root mode)
   if (hasActivePlan(cwd)) return cwd;
 
@@ -71,6 +74,29 @@ function resolvePlanDir(cwd: string): string {
   }
 
   return cwd;
+}
+
+export const PROGRESS_REMINDER =
+  "[planning-with-files] Update progress.md with what you just did. " +
+  "If a phase is now complete, update task_plan.md status.";
+
+/** Edits between progress.md reminders. */
+const REMIND_EVERY = 5;
+
+/**
+ * Whether this edit is the one that carries the reminder.
+ *
+ * Appending it to every write and edit costs context on each one and trains the
+ * model to skip the line, which is how the previous delivery failed in the other
+ * direction — always present, never read.
+ */
+export function shouldRemindProgress(editCount: number, every: number = REMIND_EVERY): boolean {
+  return editCount > 0 && editCount % every === 0;
+}
+
+/** Whether a plan exists anywhere this project keeps one. */
+export function hasAnyPlan(cwd: string): boolean {
+  return fileExists(resolvePlanDir(cwd), "task_plan.md");
 }
 
 function injectPlanContext(cwd: string, maxChars = MAX_INJECT_CHARS, isSlim = false): string | null {
@@ -230,16 +256,25 @@ export default function (pi: ExtensionAPI) {
   });
 
   // After Write/Edit: remind to update progress.md
+  //
+  // This used to return `{ details: { planningReminder } }`. AgentToolResult
+  // documents `details` as "for logs or UI rendering" and `content` as
+  // "returned to the model" (pi-agent-core dist/types.d.ts:310), so the reminder
+  // was written to the session record and read by nobody. `content` replaces the
+  // tool result, hence appending rather than returning the reminder alone.
+  let editsSinceReminder = 0;
   pi.on("tool_result", async (event, ctx) => {
-    if (!hasActivePlan(ctx.cwd)) return;
+    if (!hasAnyPlan(ctx.cwd)) return;
     const tool = event.toolName;
     if (tool !== "write" && tool !== "edit") return;
 
-    // This is purely advisory via stderr-equivalent (notify)
-    const msg = "[planning-with-files] Update progress.md with what you just did. If a phase is now complete, update task_plan.md status.";
-    // Non-intrusive: just log for model awareness via system prompt pattern
+    editsSinceReminder++;
+    if (!shouldRemindProgress(editsSinceReminder)) return;
+    editsSinceReminder = 0;
+
+    const existing = Array.isArray(event.content) ? [...event.content] : [];
     return {
-      details: { planningReminder: msg },
+      content: [...existing, { type: "text" as const, text: PROGRESS_REMINDER }],
     };
   });
 

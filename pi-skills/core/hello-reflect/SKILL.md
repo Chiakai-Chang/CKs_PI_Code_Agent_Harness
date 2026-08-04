@@ -3,7 +3,10 @@ name: hello-reflect
 description: 自動化反思系統。在 Session 結束時自動掃描對話紀錄，擷取使用者的修正建議與偏好，並協助將其轉化為持久的專案規範（如 CLAUDE.md、.agents/AGENTS.md）。
 ---
 
-# /hello-reflect
+# hello-reflect
+
+> 本 skill 由 `pi-config/skill-catalog.json` 按需載入，沒有對應的斜線指令。
+> 依名稱引用即可，勿嘗試執行 `/hello-reflect`。
 
 > **蒸餾來源**：本功能的核心邏輯移植自 [BayramAnnakov/claude-reflect](https://github.com/BayramAnnakov/claude-reflect)。
 

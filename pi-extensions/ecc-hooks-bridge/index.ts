@@ -12,6 +12,9 @@ import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 import { join, dirname } from "node:path";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 
+import { AdvisoryQueue, advisoryResult } from "./advisory.ts";
+import { hasAnyPlan, isGitCommit } from "./plan.ts";
+
 // Dynamic path resolution
 // Read from our own package.json which restore.py will patch
 const pkgPath = require.resolve("./package.json");
@@ -19,6 +22,28 @@ const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
 const HARNESS_ROOT = pkg["pi-harness"]?.root || join(dirname(pkgPath), "../..");
 const PROJECT_ROOT = HARNESS_ROOT;
 const ECC_ROOT = join(PROJECT_ROOT, "external/ecc");
+
+/**
+ * What the model is told when a commit has no plan behind it.
+ *
+ * The previous wording ended with "建議使用 /plan". There is no `/plan` command:
+ * `~/.pi/agent/commands/` does not exist, this bridge registers no commands, and
+ * the only `plan.md` command files in the tree sit inside submodules that are
+ * never installed. Naming the skill instead of a command keeps the advice
+ * reachable however skills happen to be registered.
+ */
+const PLAN_ADVISORY =
+  "You are committing with no task_plan.md in this project. If this is multi-step " +
+  "work, use the planning-with-files skill to record the plan before continuing. " +
+  "If it is a one-off change, say so and carry on — this is a prompt to decide, not a block.";
+
+/**
+ * Where the session is, which is not necessarily where Pi was launched.
+ * Hook scripts ran in `process.cwd()` and so audited whatever directory the
+ * binary happened to start in. Every other bridge uses `ctx.cwd`; session_start
+ * records it here because runHookScript has no context to ask.
+ */
+let sessionCwd = process.cwd();
 
 function getProfile(): "minimal" | "standard" | "strict" {
   const env = process.env.ECC_HOOK_PROFILE?.trim().toLowerCase();
@@ -53,7 +78,7 @@ async function runHookScript(
     }
 
     const proc = spawn("node", [fullPath, ...args], {
-      cwd: process.cwd(),
+      cwd: sessionCwd,
       timeout,
       env: { ...process.env, CLAUDE_PLUGIN_ROOT: ECC_ROOT },
     });
@@ -88,8 +113,18 @@ async function runWithFlags(
 }
 
 export default function (pi: ExtensionAPI) {
+  // Findings that belong to the model rather than to the terminal. `notify`
+  // paints the TUI and stops there, `ToolCallEventResult` has no channel but
+  // `block`, and `turn_end` declares no result type at all — so a finding is
+  // queued where it is produced and handed over at the next event that can carry
+  // it. See advisory.ts for the type references this is built on.
+  const advisories = new AdvisoryQueue();
+
   pi.on("session_start", async (_event, ctx) => {
     const profile = getProfile();
+    sessionCwd = ctx.cwd;
+    // The queue outlives a session; the session's findings must not.
+    advisories.reset();
     ctx.ui.setStatus("ecc", `ECC bridge (profile: ${profile})`);
 
     // Health Probe
@@ -123,11 +158,18 @@ export default function (pi: ExtensionAPI) {
       if (r.exitCode === 2) return { block: true, reason: "Blocked by ECC block-no-verify" };
     } catch {}
 
-    // Planning awareness: check for task_plan.md
+    // Planning awareness: a commit with no plan behind it.
+    //
+    // Three things were wrong with the old version of this. It looked only in the
+    // repo root while planning-with-files-bridge also honours `.planning/`, so a
+    // plan kept there drew the nag anyway. It matched `includes("git commit")`,
+    // which fired on any command that merely said the words. And it pointed at
+    // `/plan`, which is not a command this harness installs.
     try {
-      const planFile = join(process.cwd(), "task_plan.md");
-      if (!existsSync(planFile) && event.input.command.includes("git commit")) {
-        ctx.ui.notify(`💡 偵測到提交操作，但尚未建立 task_plan.md。建議使用 /plan 以強化任務追蹤。`, "info");
+      if (!hasAnyPlan(ctx.cwd) && isGitCommit(event.input.command)) {
+        if (advisories.push("plan-missing", PLAN_ADVISORY, "once")) {
+          ctx.ui.notify(`💡 偵測到提交操作，但尚未建立 task_plan.md。`, "info");
+        }
       }
     } catch {}
 
@@ -141,7 +183,14 @@ export default function (pi: ExtensionAPI) {
       );
       if (r.stderr) {
         const lines = r.stderr.trim().split("\n").slice(0, 3);
-        if (lines.length) ctx.ui.notify(lines.join(" "), "warning");
+        if (lines.length) {
+          ctx.ui.notify(lines.join(" "), "warning");
+          // Below the blocking threshold the guard still has something to say,
+          // and the model is the one that has to act on it.
+          if (r.exitCode !== 2) {
+            advisories.push("gateguard", `ECC GateGuard: ${lines.join(" ")}`, { cooldown: 3 });
+          }
+        }
       }
       if (r.exitCode === 2) return { block: true, reason: "ECC GateGuard: investigate first" };
     } catch {}
@@ -172,7 +221,11 @@ export default function (pi: ExtensionAPI) {
         { profiles: "standard,strict", timeout: 5000 }
       );
       if (r.stderr?.includes("compact")) {
-        ctx.ui.notify(r.stderr.trim().split("\n").slice(0, 2).join(" "), "info");
+        const text = r.stderr.trim().split("\n").slice(0, 2).join(" ");
+        ctx.ui.notify(text, "info");
+        // Only the model can decide a good moment to compact, and only it knows
+        // what is still unfinished. Telling the terminal instead was pointless.
+        advisories.push("suggest-compact", text, { cooldown: 10 });
       }
     } catch {}
 
@@ -210,6 +263,9 @@ export default function (pi: ExtensionAPI) {
         { profiles: "standard,strict", timeout: 30000 }
       );
     } catch {}
+
+    // Hand over whatever the pre-bash hooks queued for this command.
+    return advisoryResult(event.content, advisories.drain()) ?? undefined;
   });
 
   // ========== PostToolUse: Edit ==========
@@ -232,7 +288,13 @@ export default function (pi: ExtensionAPI) {
       );
       if (r.stderr) {
         const lines = r.stderr.trim().split("\n").slice(0, 4);
-        if (lines.length) ctx.ui.notify(lines.join(" "), "warning");
+        if (lines.length) {
+          ctx.ui.notify(lines.join(" "), "warning");
+          // The gate describes the edit that just happened. Sending it to the
+          // terminal meant the model kept building on an edit it had been told
+          // was bad — by a channel it cannot read.
+          advisories.push("quality-gate", `ECC quality-gate: ${lines.join(" ")}`, "always");
+        }
       }
     } catch {}
 
@@ -254,7 +316,11 @@ export default function (pi: ExtensionAPI) {
         input,
         { profiles: "standard,strict", timeout: 5000 }
       );
-      if (r.stderr) ctx.ui.notify(r.stderr.trim().split("\n").slice(0, 2).join(" "), "warning");
+      if (r.stderr) {
+        const text = r.stderr.trim().split("\n").slice(0, 2).join(" ");
+        ctx.ui.notify(text, "warning");
+        advisories.push("console-warn", `ECC console check: ${text}`, "always");
+      }
     } catch {}
 
     // post-edit-accumulator
@@ -266,6 +332,8 @@ export default function (pi: ExtensionAPI) {
         { profiles: "standard,strict", timeout: 5000 }
       );
     } catch {}
+
+    return advisoryResult(event.content, advisories.drain()) ?? undefined;
   });
 
   // ========== Stop (turn_end): batch format+typecheck / console audit ==========
@@ -289,7 +357,12 @@ export default function (pi: ExtensionAPI) {
       );
       if (r.stderr) {
         const lines = r.stderr.trim().split("\n").slice(0, 6);
-        if (lines.length) ctx.ui.notify(lines.join(" "), "warning");
+        if (lines.length) {
+          ctx.ui.notify(lines.join(" "), "warning");
+          // turn_end has no result type (types.d.ts:876), so this cannot be
+          // handed over here. It waits for the next tool result or turn start.
+          advisories.push("format-typecheck", `ECC format/typecheck: ${lines.join(" ")}`, "always");
+        }
       }
     } catch {}
 
@@ -363,12 +436,31 @@ export default function (pi: ExtensionAPI) {
           if (result.trim() && result.startsWith("[")) {
             const learnings = JSON.parse(result);
             if (learnings.length > 0) {
-              ctx.ui.notify(`📝 偵測到新學習點 (${learnings.length})。執行 /hello-reflect 以更新規範。`, "info");
+              // Was "執行 /hello-reflect": no such command, and the skill is
+              // reachable only by name. Naming the skill keeps the advice valid.
+              ctx.ui.notify(`📝 偵測到新學習點 (${learnings.length})。`, "info");
+              advisories.push(
+                "hello-reflect",
+                `${learnings.length} new learning(s) were detected in this session. ` +
+                  `Use the hello-reflect skill to fold them into the project rules.`,
+                "once",
+              );
             }
           }
         }
       }
     } catch {}
+  });
+
+  // ========== Backstop delivery ==========
+  //
+  // Findings produced at turn_end have no channel where they are made, and a
+  // session can end its turn without another tool call ever happening. This is
+  // the one event that always runs before the model thinks again.
+  pi.on("before_agent_start", (event) => {
+    const pending = advisories.drain();
+    if (!pending) return;
+    return { systemPrompt: (event.systemPrompt ?? "") + "\n\n" + pending };
   });
 
   // ========== PreCompact ==========
