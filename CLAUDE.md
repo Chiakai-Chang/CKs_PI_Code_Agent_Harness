@@ -35,6 +35,8 @@ Before planning any optimizations, refactoring, or modifications to this reposit
 * **Pi runs installed copies, not your repo files.** After editing anything under `pi-extensions/` or `pi-skills/`, run `python scripts/setup.py --mode restore` before testing, or you are measuring the previous version.
 * **A green unit test is not delivery.** For anything a bridge injects, prove the text reached the model by finding it in the session log under `~/.pi/agent/sessions/**.jsonl`. (Scar: 11 tests passed while the handler returned a bare content array instead of `{ content: [...] }` — Pi dropped it in silence, and only the log showed the tool result unchanged.)
 * **CI is a feature, not noise.** A red CI that catches a real defect is doing its job; fix the defect, do not dismiss the signal.
+* **A guard that never fired is unvalidated, not working.** Green tests prove the code does what you told it to; only a live run that actually meets the condition proves the condition happens. State before measuring what a run would have to *do* to trigger it, then check the runs against that. (Scar: two gates passed 11 tests, survived three deliberate breaks, installed clean — and fired 0 times, because the probe opens a page by its third search.)
+* **After a guard fires, diff the numbers it did not target.** A threshold defines the shape of the evasion. (Scar: the citation gate took URLs-in-files from 0 to 10 and fabricated ones from 0 to 4 in the same run, and a per-call size floor was answered by writing smaller.)
 
 ## 🔧 Harness-Injected Discipline (了解框架幫你做的事)
 This harness runs **bridge extensions** that inject behavioral discipline into every session — they are not your tasks to complete, and you should not restate or acknowledge them as goals:
