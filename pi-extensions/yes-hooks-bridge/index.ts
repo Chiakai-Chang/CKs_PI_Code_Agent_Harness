@@ -66,6 +66,7 @@ import { dirname, join, resolve, relative, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import { spawnSync } from "node:child_process";
+import { CycleDetector, SAME_QUERY_LIMIT } from "./loop-detect.ts";
 
 function harnessRoot(): string {
   const here = dirname(fileURLToPath(import.meta.url));
@@ -298,6 +299,9 @@ let lastCallSignature = "";
 let repeatedCallCount = 0;
 let repeatOffences = 0;
 let repeatBreakerTripped = false;
+
+// Cycling loops are per session, like every other counter here.
+const cycleDetector = new CycleDetector();
 
 function repeatCallGuard(event: ToolCallEvent, ctx: ExtensionContext, pi: ExtensionAPI) {
   let signature: string;
@@ -1379,6 +1383,14 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
 }
 
 export default function (pi: ExtensionAPI) {
+  // Pi calls this default export once per process and fires session_start once
+  // per session, so a tally that is never cleared carries the previous session's
+  // searches into the next one — and would refuse a query the new session has
+  // not yet made.
+  pi.on("session_start", async () => {
+    cycleDetector.reset();
+  });
+
   pi.on("before_agent_start", (event, _ctx) => {
     let rawPrompt = event.systemPrompt ?? "";
 
@@ -1418,6 +1430,15 @@ export default function (pi: ExtensionAPI) {
     if (repeat) {
       ctx.ui.notify(`🔁 Blocked identical '${event.toolName}' call repeated ${REPEAT_CALL_LIMIT}×`, "warning");
       return repeat;
+    }
+    // The guard above is consecutive-only by design, so a loop that cycles
+    // through queries resets it on every call. Measured: 598 web_searches, 43
+    // distinct queries repeated ~44 times each, 25 minutes, and it stayed silent
+    // throughout. See loop-detect.ts.
+    const cycling = cycleDetector.check(event.toolName, event.input);
+    if (cycling) {
+      ctx.ui.notify(`🔁 Blocked a lookup already issued ${SAME_QUERY_LIMIT}× — same query, same answer`, "warning");
+      return cycling;
     }
     if (event.toolName === "bash") {
       // Cross-shell quoting first: the destructive-pattern script has nothing to
