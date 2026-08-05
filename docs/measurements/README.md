@@ -91,3 +91,32 @@ news homepage         16.8%   →     5.3%   (42/112)
 
 **當初那 43.1% 完全不受影響**——文章的連結是內文連結，沒有 heading。索引/搜尋型
 頁面付 5.3%，換回可引用的位址。實測新聞首頁 34,012 → 20,804 字元、保留 43 條位址。
+
+
+## ⚠️ run1–run7 的分數不可比：live 評分與 session 檔不一致（2026-08-05 已修）
+
+一次量測回報 **3/5**，用同一支 `judge` 對同樣五份 session 重評卻是 **0/5**。
+
+原因：`run_once` 從 `pi --print --mode json` 的 **stdout 串流**收集資料，而那份串流
+比 session 檔少東西。少掉的正是寫進檔案的引用——於是 live 端只看到少數幾個
+「都開過」的網址就放行，放過了三次分別捏造 5、5、13 個引用的執行。
+
+已改為**從 session 檔評分**（`parse_session` / `newest_session`）。session JSONL 是
+那次執行的正式紀錄，改用它之後 live 分數與事後重評才會是同一個數字——
+**基線要有意義，這是前提**。
+
+因此 `trigger-baseline.jsonl` 裡 2026-08-05 之前的所有 `outcome` 分數都偏寬鬆，
+**不可與之後的數字直接比較**。保留不刪，因為它們正是這道修法存在的理由。
+
+### 修正後對同一批 session 的重評
+
+```
+run1  FAIL  only 0 verified source(s)
+run2  FAIL  only 0 verified source(s)
+run3  FAIL  5 cited page(s) were never opened
+run4  FAIL  5 cited page(s) were never opened
+run5  FAIL  13 cited page(s) were never opened
+```
+
+搜尋結果的網址已經修好了（0 → 278 條），死迴圈也沒再出現，**但模型拿到真網址之後
+仍然大量引用沒開過的頁面**。那是下一個要查的問題，不是這一輪能宣稱解決的。

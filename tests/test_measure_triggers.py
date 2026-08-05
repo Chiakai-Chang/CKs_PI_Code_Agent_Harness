@@ -235,6 +235,59 @@ class TestCitationsMustBeVisited(unittest.TestCase):
         self.assertTrue(ok)
 
 
+class TestScoringReadsTheSessionFile(unittest.TestCase):
+    """Score the run from its record, not from a stream that may be lossy.
+
+    A measurement reported 3/5 while re-scoring the same five sessions with the
+    same `judge` gave 0/5. The live path parsed the `--print --mode json` stdout;
+    the re-score parsed the session JSONL. They disagreed about what the runs had
+    produced — the live side saw fewer citations, all of them visited, and passed
+    runs that had cited five to thirteen pages they never opened.
+
+    The session file is the durable record of what happened. Parsing it makes the
+    live score and any later re-score the same number, which is the only way a
+    baseline means anything.
+
+    The fixture is a real session, trimmed — not one written to match the parser.
+    """
+
+    FIXTURE = os.path.join(ROOT, "tests", "fixtures", "session-research-run.jsonl")
+
+    def test_it_finds_the_tool_calls(self):
+        r = mt.parse_session(self.FIXTURE)
+        self.assertIn("web_open", r["tools"])
+        self.assertGreater(len(r["tools"]), 5)
+
+    def test_it_collects_pages_that_were_opened(self):
+        r = mt.parse_session(self.FIXTURE)
+        self.assertTrue(r["visited"], "web_open urls are how citations get verified")
+        self.assertTrue(all(v.startswith("http") for v in r["visited"]))
+
+    def test_it_collects_what_was_written(self):
+        """findings.md is half the deliverable; a scorer that cannot see it
+        marks the methodology down for putting findings in a file."""
+        r = mt.parse_session(self.FIXTURE)
+        self.assertTrue(r["artifacts"])
+
+    def test_the_answer_is_the_last_assistant_text(self):
+        r = mt.parse_session(self.FIXTURE)
+        self.assertIsInstance(r["answer"], str)
+
+    def test_a_missing_file_yields_empty_not_an_exception(self):
+        r = mt.parse_session(os.path.join(ROOT, "nope.jsonl"))
+        self.assertEqual(r["tools"], [])
+        self.assertEqual(r["visited"], [])
+
+    def test_a_corrupt_line_does_not_stop_the_parse(self):
+        import tempfile
+        path = os.path.join(tempfile.mkdtemp(), "s.jsonl")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("{not json\n")
+            f.write(open(self.FIXTURE, encoding="utf-8").read())
+        self.assertTrue(mt.parse_session(path)["tools"],
+                        "one bad line must not cost the whole run's record")
+
+
 class TestRepeatsAreIndependent(unittest.TestCase):
     """Each repeat must start in a directory the previous one never touched.
 

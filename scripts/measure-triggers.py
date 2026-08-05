@@ -128,6 +128,79 @@ def pi_executable():
 PI = None
 
 
+def parse_session(path):
+    """Read what a run did, from the record it left behind.
+
+    A measurement reported 3/5 while re-scoring the same five sessions with the
+    same `judge` gave 0/5. The live path parsed the `--print --mode json` stdout
+    and saw fewer citations than the session file held, so it passed runs that
+    had cited five to thirteen pages they never opened. The session JSONL is the
+    durable record; scoring from it makes the live number and any later re-score
+    the same number, which is the only way a baseline means anything.
+    """
+    tools, skills, answers, written, visited = [], [], [], [], []
+    try:
+        fh = open(path, encoding="utf-8", errors="replace")
+    except OSError:
+        return {"tools": [], "skills": [], "answer": "", "artifacts": "", "visited": []}
+    with fh:
+        for line in fh:
+            try:
+                entry = json.loads(line)
+            except ValueError:
+                continue
+            msg = entry.get("message") or {}
+            if msg.get("role") != "assistant":
+                continue
+            for c in msg.get("content") or []:
+                if not isinstance(c, dict):
+                    continue
+                if c.get("type") == "text" and c.get("text"):
+                    answers.append(c["text"])
+                if c.get("type") != "toolCall":
+                    continue
+                name = c.get("name")
+                tools.append(name)
+                args = c.get("arguments") or {}
+                path_arg = str(args.get("path") or "")
+                if path_arg.upper().endswith("SKILL.MD"):
+                    parts = path_arg.replace("\\", "/").split("/")
+                    if len(parts) > 1:
+                        skills.append(parts[-2])
+                if name == "web_open" and isinstance(args.get("url"), str) and args["url"]:
+                    visited.append(args["url"])
+                if name in ("write", "edit"):
+                    if isinstance(args.get("content"), str):
+                        written.append(args["content"])
+                    for e in args.get("edits") or []:
+                        if isinstance(e, dict) and isinstance(e.get("newText"), str):
+                            written.append(e["newText"])
+    return {
+        "tools": tools,
+        "skills": skills,
+        "answer": answers[-1] if answers else "",
+        "artifacts": "\n".join(written),
+        "visited": visited,
+    }
+
+
+def newest_session(session_dir):
+    """The file the run just wrote."""
+    newest, newest_mtime = None, -1.0
+    for dirpath, _dirs, files in os.walk(session_dir):
+        for fn in files:
+            if not fn.endswith(".jsonl"):
+                continue
+            full = os.path.join(dirpath, fn)
+            try:
+                mtime = os.path.getmtime(full)
+            except OSError:
+                continue
+            if mtime > newest_mtime:
+                newest, newest_mtime = full, mtime
+    return newest
+
+
 def run_once(scenario, cwd, session_dir, timeout):
     """Run one scenario; return (tools_called, skills_read, results_text, error)."""
     cmd = [PI, "--print", "--mode", "json", "--session-dir", session_dir, scenario["prompt"]]
@@ -183,6 +256,18 @@ def run_once(scenario, cwd, session_dir, timeout):
                 x.get("text", "") for x in (content or []) if isinstance(x, dict))
             results.append(text)
     err = "" if p.returncode == 0 else "exit %s: %s" % (p.returncode, p.stderr[-200:])
+    # Prefer the session file. The stdout stream and the session record disagreed
+    # about what a run produced: scoring from stdout passed three runs that had
+    # cited pages they never opened, while the same judge over the same sessions
+    # failed all five. The reading-view check still uses `results`, which is
+    # where tool output lives.
+    session = newest_session(session_dir)
+    if session:
+        rec = parse_session(session)
+        if rec["tools"]:
+            return (rec["tools"], rec["skills"], "\n".join(results), rec["answer"],
+                    rec["artifacts"], rec["visited"], err)
+
     # Only the last assistant text is the answer; the earlier ones are narration
     # between tool calls, and counting those as the deliverable would let a run
     # pass by mentioning a keyword on the way past.
