@@ -33,8 +33,33 @@ const PROSE = /-\s+(paragraph|text|heading|blockquote|listitem|code|article|main
 /** `- link "Some title" [e3]:` — the title is content, the URL underneath is not. */
 const LINK = /-\s+link\b/;
 
-/** `- /url: https://...` — pure plumbing for a reader. */
+/** `- /url: https://...` — plumbing, unless it belongs to a headline. */
 const URL_LINE = /^\s*-\s*\/url:/;
+
+/** `- heading "..."` — what makes a link a result rather than navigation. */
+const HEADING_LINE = /-\s*heading\b/;
+
+/**
+ * Does this `/url:` belong to a link whose block also carries a heading?
+ *
+ * The shape it looks for, as produced by the accessibility tree:
+ *
+ *   - link "Spain and France brace for ...":
+ *     - /url: /news/articles/ckg34128nvpo
+ *     - heading "Spain and France brace for ..." [level=2]
+ *
+ * Navigation has no heading under it (`- /url: "#main"`, `- /url: /`), so it
+ * still goes. The scan stops at the first line that dedents out of the block.
+ */
+function headsAResult(lines: string[], index: number, indent: number): boolean {
+  for (let j = index + 1; j < lines.length; j++) {
+    const next = lines[j];
+    if (next.trim() === "") continue;
+    if (indentOf(next) < indent) return false;
+    if (HEADING_LINE.test(next)) return true;
+  }
+  return false;
+}
 
 /** Interactive and decorative scaffolding: useful for clicking, noise for reading. */
 const CHROME =
@@ -86,7 +111,8 @@ export function extractReadable(snapshot: string, minChars = 200): ReadableResul
   // Indent of the boilerplate container currently being skipped, or null.
   let skipDeeperThan: number | null = null;
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     const indent = indentOf(line);
     if (skipDeeperThan !== null) {
       if (line.trim() !== "" && indent <= skipDeeperThan) skipDeeperThan = null;
@@ -96,7 +122,29 @@ export function extractReadable(snapshot: string, minChars = 200): ReadableResul
       skipDeeperThan = indent;
       continue;
     }
-    if (URL_LINE.test(line)) continue;
+    // A headline's address is the one piece of plumbing a reader has to keep.
+    //
+    // Dropping every `/url:` made research impossible to source: measured across
+    // five runs of a market-survey brief, 632 web_searches returned zero URLs,
+    // and the model answered by reconstructing addresses from link text — one
+    // run cited 14 pages having opened 8. The tool description meanwhile
+    // promised "result titles, snippets, and URLs" and told the model to open
+    // "the 1-3 most relevant result URLs" it had never been given.
+    //
+    // A `/url:` inside a link block that also carries a heading is a result
+    // link. One with no heading beneath it is navigation. Measured on the
+    // fixtures, keeping only the former costs nothing on the pages the original
+    // 43.1% was taken from, because articles have no heading-links:
+    //
+    //   wikipedia article  /url all 43.1%   headline-only 0.0%   (0 of 44)
+    //   docs site          /url all 11.4%   headline-only 0.0%   (0 of 158)
+    //   github issue       /url all 28.0%   headline-only 0.0%   (0 of 110)
+    //   news homepage      /url all 16.8%   headline-only 5.3%   (42 of 112)
+    if (URL_LINE.test(line)) {
+      if (!headsAResult(lines, i, indent)) continue;
+      kept.push(line.replace(REF, "").trimEnd());
+      continue;
+    }
     const isProse = PROSE.test(line);
     if (!isProse && CHROME.test(line)) continue;
     if (!isProse && !LINK.test(line)) continue;

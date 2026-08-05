@@ -318,9 +318,9 @@ export default function (pi: ExtensionAPI) {
       // combination. Scope it, and name the case that belongs elsewhere.
       "You CAN access the internet: call web_search for a lookup you want the results of in THIS conversation. Never say you cannot browse.",
       "Do not web_search for something already on this machine — a local file, a skill, a repo path. Read it.",
-      "web_search returns only titles/snippets — that is NOT enough to analyze or answer accurately. After searching, call web_open on the 1-3 most relevant result URLs to read the full articles.",
+      "web_search returns titles, snippets and each result's `/url:` — that is NOT enough to analyze or answer accurately. After searching, call web_open on the 1-3 most relevant result URLs to read the full articles.",
       "web_open goes through the same stealth browser, so it reads pages that block plain fetch (Cloudflare, JS-rendered, soft paywalls). Prefer it over giving up on a source.",
-      "web_search and web_open return a reading view: navigation, URLs and [eN] element refs are stripped. If you need to click or type, pass raw: true or call web_snapshot for the full tree.",
+      "web_search and web_open return a reading view: navigation and [eN] element refs are stripped, and each result keeps its `/url:` so you can open it and cite it. Cite only pages you actually opened — never reconstruct an address from link text. If you need to click or type, pass raw: true or call web_snapshot for the full tree.",
     ],
     parameters: Type.Object({
       query: Type.String({ description: "The search query, e.g. '矢板明夫 案件 最新'" }),

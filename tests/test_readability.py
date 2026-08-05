@@ -82,6 +82,9 @@ class TestArticlePage(unittest.TestCase):
                         "an article page should lose most of its chrome")
 
     def test_drops_url_plumbing_and_element_refs(self):
+        """An article's links are inline prose links; their addresses are the
+        43.1% of plumbing this filter exists to remove. Measured on this fixture:
+        keeping headline URLs costs 0.0% here, because an article has none."""
         self.assertNotIn("/url:", self.r["text"])
         self.assertIsNone(re.search(r"\[e\d+\]", self.r["text"]))
 
@@ -114,6 +117,49 @@ class TestLinkHeavyIndexPage(unittest.TestCase):
 
     def test_still_reduces_the_page(self):
         self.assertLess(self.r["readableChars"], self.r["originalChars"])
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestCitableAddressesSurvive(unittest.TestCase):
+    """A headline's address is the one thing a researcher has to keep.
+
+    Measured across five runs of a market-survey brief: 632 web_searches returned
+    zero URLs, and the model responded by reconstructing addresses from link text
+    — one run cited 14 pages having opened 8. The tool's own description promised
+    "result titles, snippets, and URLs" and then told the model to "call web_open
+    on the 1-3 most relevant result URLs" it had never been given.
+
+    A `/url:` inside a link block that also carries a heading is a result link. A
+    `/url:` with no heading under it is navigation. Measured on the fixtures:
+
+        wikipedia article   /url all 43.1%   headline-only 0.0%   (0 of 44)
+        docs site           /url all 11.4%   headline-only 0.0%   (0 of 158)
+        github issue        /url all 28.0%   headline-only 0.0%   (0 of 110)
+        news homepage       /url all 16.8%   headline-only 5.3%   (42 of 112)
+
+    The 43.1% that motivated dropping them is untouched: articles have no
+    heading-links. Index pages pay 5.3% and get their addresses back.
+    """
+
+    def setUp(self):
+        self.r = extract("ax-news-homepage.txt")
+
+    def test_headline_addresses_are_kept(self):
+        self.assertIn("/url:", self.r["text"],
+                      "an index page's result addresses are its payload")
+
+    def test_navigation_addresses_are_still_dropped(self):
+        """`- /url: "#bbc-main"` and `- /url: /` are plumbing with no headline."""
+        self.assertNotIn('/url: "#bbc-main"', self.r["text"])
+
+    def test_it_costs_a_bounded_amount(self):
+        """Cheap enough not to reopen the decision that dropped them."""
+        self.assertLess(self.r["readableChars"], self.r["originalChars"] * 0.70)
+
+    def test_an_article_pays_nothing(self):
+        """The case the original measurement was taken on must not regress."""
+        article = extract("ax-wikipedia-article.txt")
+        self.assertNotIn("/url:", article["text"])
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
@@ -209,13 +255,27 @@ class TestAcrossPageLayouts(unittest.TestCase):
             self.assertLess(ratio, 0.95, "%s barely reduced (%.0f%%)" % (name, ratio * 100))
             self.assertGreater(ratio, 0.05, "%s collapsed to almost nothing (%.0f%%)" % (name, ratio * 100))
 
-    def test_no_layout_leaks_refs_or_urls(self):
+    def test_no_layout_leaks_refs_or_navigation_urls(self):
+        """Element refs still go everywhere. Addresses go except where they are
+        the payload.
+
+        This used to assert no `/url:` survived anywhere, which is what made
+        research impossible to source: 632 web_searches across five runs returned
+        zero URLs and the model reconstructed addresses from link text. A `/url:`
+        under a heading is a result link and stays; one without is navigation and
+        still goes.
+        """
         for name, _ in self.LAYOUTS:
             if not os.path.exists(os.path.join(FIXTURES, name)):
                 continue
             r = extract(name)
-            self.assertNotIn("/url:", r["text"], name)
             self.assertIsNone(re.search(r"\[e\d+\]", r["text"]), name)
+            for line in r["text"].splitlines():
+                if "/url:" not in line:
+                    continue
+                self.assertNotRegex(
+                    line, r'/url:\s*"?[#/]"?\s*$',
+                    "%s kept a navigation address: %s" % (name, line.strip()))
 
     def test_content_survives_on_every_layout(self):
         for name, markers in self.LAYOUTS:
