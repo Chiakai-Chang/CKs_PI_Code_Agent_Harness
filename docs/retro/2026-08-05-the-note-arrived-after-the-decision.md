@@ -95,3 +95,37 @@ ContextEventResult { messages?: AgentMessage[] }
 
 **4. 改判準要能解釋，不能因為過不了就改。**
 本輪把 `research-task-routing` 加進 `expect_skill_read`，理由是它本來就是這個情境問的那類方法論 skill；情境的問題沒有改變（搜尋開始前有沒有載入方法論）。這個理由必須寫在程式碼旁邊，否則下一個人無法分辨它是修正還是搬球門。
+
+---
+
+## 七、結果（同日稍晚）
+
+```
+                              基線    第一版    第二版
+multi-step-methodology         0/3      0/3      3/3
+single-lookup-stays-cheap       —       3/3      3/3
+```
+
+**但指標動了不等於行為變了**，所以另跑一次真實 session 看它到底做什麼。動作順序：
+
+```
+ 1. read(~/.pi/agent/skills/research-task-routing/SKILL.md)
+ 2. read(<另一個 skill>)
+ 3. bash(find … planning-with-files)
+ 4. bash(find …)
+ 5. write(task_plan.md)
+ 6. write(findings.md)
+ 7. web_search(台灣 智慧門鈴 品牌 …)      ← 才開始搜尋
+… 共 22 次工具呼叫
+```
+
+寫出來的 `task_plan.md` 有三個交付物（競爭者盤點／定價分析／未飽和區段）與分階段
+checkbox，與分類器數出的 `deliverables: 3` 一致。
+
+對照第一版：**17 次呼叫全是搜尋與開網頁，零計畫。**
+
+一個仍待改善的小摩擦：步驟 3–4 顯示模型用 `find` 去**找** `planning-with-files` 在哪。
+腳本點了名字但沒給位置。不是缺陷，但下一版可以直接附路徑省掉兩次呼叫。
+
+`block + reason` 那條最重的路**沒有用上**。多層文字投遞就夠了——這也是先做輕手段
+再考慮重手段的理由：如果第一步就上 block，就永遠不會知道其實不需要它。

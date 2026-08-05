@@ -27,7 +27,7 @@
 
 ---
 
-### Task 1 · `shape.ts` — 請求形狀判斷 `PENDING`
+### Task 1 · `shape.ts` — 請求形狀判斷 `DONE`
 
 純函式 `classifyRequest(prompt) -> { multiStep: boolean, deliverables: number, reason: string }`。
 
@@ -47,13 +47,13 @@
 
 **驗收**:負向案例全過；`classifyRequest("")` 不丟例外。
 
-### Task 2 · `routine.ts` — 腳本產生 `PENDING`
+### Task 2 · `routine.ts` — 腳本產生 `DONE`
 
 `buildRoutine(shape) -> string`。點名 `planning-with-files` 與 `brainstorming`，保留「說明理由後繼續」的出口，字數上限沿用 `DEFAULT_DRAIN_BUDGET` 的量級。
 
 **驗收**:輸出含兩個 skill 名、含逃生口句、長度 < 700 chars。
 
-### Task 3 · bridge 接線 `PENDING`
+### Task 3 · bridge 接線 `DONE`
 
 `pi-extensions/task-shape-bridge/index.ts`
 
@@ -66,19 +66,19 @@
 
 **驗收**:`verify-bridges.py` 綠（含本 session 新增的同層模組檢查）；全套測試綠。
 
-### Task 4 · `enableTaskShapeRouter` 開關 `PENDING`
+### Task 4 · `enableTaskShapeRouter` 開關 `DONE`
 
 預設 **true**、fail-open。與 `enableEccGateGuard`（false、fail-closed）的差異寫進 `_` 說明鍵。
 
 **驗收**:通過 `test_no_zombie_harness_config_keys`；關閉時不投遞。
 
-### Task 5 · 註冊與安裝 `PENDING`
+### Task 5 · 註冊與安裝 `DONE`
 
 `bridge-manifest.json`、`package.json#pi.extensions`、`restore.py` 的 bridge 清單、`uninstall.py` 的 `MANAGED_BRIDGES`（有 `TestManagedBridgesConsistency` 鎖著，漏了會紅）。
 
 **驗收**:`verify-bridges.py` 報 13 bridges、0 failures。
 
-### Task 6 · Live 驗收 `PENDING`
+### Task 6 · Live 驗收 `DONE`
 
 ```bash
 python scripts/setup.py --mode restore
@@ -92,7 +92,7 @@ python scripts/measure-triggers.py --only multi-step-methodology,single-lookup-s
 
 **達不到 2/3 就不算 DONE**——退回 Task 1/2 調整形狀判斷或腳本措辭，最多 3 輪，之後 `ESCALATED`。
 
-### Task 7 · 知識資產 `PENDING`
+### Task 7 · 知識資產 `DONE`
 
 * `docs/retro/` 新增一篇:本輪的方法收穫（第四次「儀器回答了另一個問題」、外部數據對照、Routine 的小模型增益）
 * `docs/measurements/trigger-baseline.jsonl` 保留前後對照
@@ -103,3 +103,32 @@ python scripts/measure-triggers.py --only multi-step-methodology,single-lookup-s
 * **Task 1 的負向案例比正向重要**。誤判成多步 → 每個單一查詢都被塞一段腳本，那就從「沒觸發」變成「到處觸發」，比現況更糟。
 * **Task 6 是唯一真正的判準**。前五個 Task 全綠而 Task 6 停在 0/3 是完全可能的結果——那代表「投遞腳本」這個假設本身錯了，該回到設計而不是繼續調措辭。這種情況要誠實記錄，不要調參數硬湊到 2/3。
 * **基線只有 3 次執行**。本機模型 temperature 0.6，3 次的解析度很粗。0/3 → 2/3 的差異夠大所以可用，但若結果落在 1/3 就不能宣稱有效，要加跑 repeats。
+
+
+---
+
+## 結果（2026-08-05）
+
+```
+                              基線    第一版    第二版
+multi-step-methodology         0/3      0/3      3/3
+single-lookup-stays-cheap       —       3/3      3/3
+```
+
+**第一版 0/3，且原因已查明**：腳本確實送達（session log 為證，出現在第一次
+`web_search` 的 tool result），模型在 17 次工具呼叫裡完全無視。`ToolCallEventResult`
+是 `{block, reason}`，tool_call 階段無法加文字只能擋——所以「動作當下建議」其實是
+「動作之後建議」，模型已投入、資料已到手。
+
+**第二版 3/3**，兩處改動：
+
+1. **動作前也投遞**——`before_agent_start.systemPrompt`。這條路一直都在，是我在第一版
+   宣稱「Pi 只給 block 一條路」時沒有去數。模型注意力呈 U 形、重要指令應出現在多處。
+2. **`research-task-routing` 本地 skill**——description 涵蓋 market survey／競品分析／
+   可行性等語域，補上 submodule skill 描述裡沒有的詞。必須列入 `skillTiers.core`，
+   否則降級進 catalog 會丟掉 description。
+
+`block + reason`（Task 說明中的 T2）**未實作，也不需要**。最重的手段留著沒用上。
+
+Task 7 的知識資產見 `docs/retro/2026-08-05-the-note-arrived-after-the-decision.md`——
+那一篇記的是第一版為什麼失敗，比這一版為什麼成功更值得留。
