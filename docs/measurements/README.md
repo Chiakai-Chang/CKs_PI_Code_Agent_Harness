@@ -27,7 +27,19 @@ outcome 問「三個交付項有沒有涵蓋、有沒有至少兩個不重複來
 `findings.md`——那正是 `planning-with-files` 規定 findings 該去的地方。只讀聊天回覆的
 判準，恰好懲罰了正在被推動的那個行為。交付物是「答案 + 產出的檔案」。
 
-## 目前的殘餘缺口（未解，如實記錄）
+## ⚠️ run1–run4 的數字有污染，不可直接比較
+
+`work_dir` 原本建在重複迴圈**外**，五次共用。run1 寫了 `task_plan.md`，
+run2–5 一開始就看到它，而 `task-shape-bridge` 卡在 `hasAnyPlan(cwd)`——
+**對後四次完全沒作用**。
+
+所以 run4 的 `1/5` 量的是「run1 有 bridge ＋ run2–5 只有 skill」。
+污染的痕跡就在資料裡：其中一次寫的是 `findings_01` 而不是 `findings.md`。
+
+2026-08-05 起每次重複用乾淨目錄，並有 AST 守衛擋住它被移回迴圈外
+（`TestRepeatsAreIndependent`）。**修正後的第一筆數字才是第一次真的在量 bridge。**
+
+## 舊的殘餘缺口（保留原文，作為當時判讀的記錄）
 
 `multi-step-methodology` 產出判準 **1/3**。三次中兩次失敗，且都是 0 個來源。
 

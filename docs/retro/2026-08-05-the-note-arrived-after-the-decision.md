@@ -129,3 +129,58 @@ checkbox，與分類器數出的 `deliverables: 3` 一致。
 
 `block + reason` 那條最重的路**沒有用上**。多層文字投遞就夠了——這也是先做輕手段
 再考慮重手段的理由：如果第一步就上 block，就永遠不會知道其實不需要它。
+
+---
+
+## 八、第三輪：讀現場，而不是讀摘要
+
+產出判準上線後，`multi-step-methodology` 停在 1/3、再測 1/5。我連續兩輪根據**失敗註記那一行**推測原因，直到使用者問「找到根因了嗎」——沒有。
+
+`--keep-sessions` 這個參數一直都在。用它跑一次，五份 session 攤開來：
+
+```
+run1 routine=T skills=research-task-routing,pl files=plan,findings     src=0   search=12
+run2 routine=T skills=research-task-routing,pl files=plan,findings     src=0   search=15
+run3 routine=F skills=research-task-routing    files=plan,findings     src=12  search=10  ← 唯一通過
+run4 routine=F skills=research-task-routing    files=plan,findings_01  src=0   search=20
+run5 routine=F skills=research-task-routing,br files=none              src=0   search=0
+```
+
+三個根因，一次全部現形。
+
+### 根因一：量測污染了自己
+
+`work_dir` 建在迴圈**外**，五次重複共用。run1 寫了 `task_plan.md`，run2–5 一開始就看到它——而 `task-shape-bridge` 卡在 `if (hasAnyPlan(ctx.cwd)) return;`，**對四次執行完全沒作用**。
+
+那個 1/5 量的是「run1 有 bridge ＋ run2–5 只有 skill」。
+
+而且腳本自己的 DESIGN NOTES 寫著「**NEUTRAL CWD** — 空的暫存目錄，讓模型看不到既有計畫」。**它違反了自己寫下的設計，而我讀了那段設計說明好幾次。**
+
+**污染的證據就在資料裡**：run4 寫的是 `findings_01` 而不是 `findings.md`——那是在避開一個已存在的檔案。我第一次讀那張表時直接看過去了。
+
+> 異常值不是雜訊，是還沒被解釋的訊號。`findings_01` 只差一個底線和兩個數字，而它指著整個量測的地基。
+
+順帶的推論同樣重要：bridge 對四次執行是失效的，**所以真正在觸發的是 skill 的 description，不是 bridge**。下一次量測才會第一次真的在量 bridge。
+
+### 根因二：指令寫了、沒被照做——那就改成格式
+
+四次執行搜尋 10–20 次、開頁 3–8 次、寫了 `findings.md`，**零個 URL**。
+
+而 `research-task-routing` 裡本來就寫著「Cite where each finding came from... Name the page for each claim as you go」。
+
+改法不是把那句話講得更大聲，是換成**帶 Source 欄的表格**，並要求開著網頁的當下就填。
+
+> 空格子看得見，漏掉的句子看不見。
+
+### 根因三：harness 知道的事，不要叫模型猜
+
+run5 問了四個很到位的範圍問題然後停下等回答。**互動時那是對的做法**；`pi --print` 沒人能回答，於是整輪零產出。
+
+模型無法可靠判斷自己在哪個模式。`ExtensionContext.hasUI` 可以（"whether dialog-capable UI is available"）。所以由 harness 說，不是讓模型猜——互動時的措辭一字不改，修法不能把好行為一起刪掉。
+
+### 這一輪的方法收穫
+
+1. **讀現場，不要讀摘要。** 我連兩輪根據一行註記推測，而 `--keep-sessions` 一直都在。省下的那幾分鐘，換來兩輪錯誤方向。
+2. **量測本身要有隔離的守衛。** 重複實驗共用狀態，量到的是第一次加上四次別的東西。已加 AST 守衛：誰把 `work_dir` 移回迴圈外就紅。
+3. **指令無效時，不要加大音量，要改變形狀。** 表格欄位比句子有效，因為空白處是可見的。
+4. **不要讓模型回答 harness 已經知道的問題。**
