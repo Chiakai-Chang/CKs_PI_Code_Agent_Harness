@@ -161,6 +161,126 @@ class TestArtifactGate(unittest.TestCase):
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestCitationGate(unittest.TestCase):
+    """Pages read, report written, and no way to tell where any of it came from.
+
+    Measured 2026-08-05, three runs of the market-survey scenario with both other
+    gates installed:
+
+        run1   8 searches   11 pages opened   report.md 3788 chars   0 URLs
+        run2   6 searches    6 pages opened   report.md 4295 chars   0 URLs
+        run3   9 searches    9 pages opened   findings.md 3482 chars 0 URLs
+
+    Depth was fine. Artifacts were fine. Every file was substantial and none of
+    them cited anything. What URLs did appear turned up only in the chat reply,
+    and one of those was invented (a shopee.tw search endpoint assembled from a
+    pattern).
+
+    All three runs read `research-task-routing`, whose findings table carries a
+    mandatory `Source` column, and two also read `planning-with-files`. The skill
+    loaded, was read, and the instruction inside it was skipped three times out
+    of three. Changing the shape of the instruction — from a sentence to a table
+    column with a blank cell — had already been tried; this is that same
+    instruction losing again.
+
+    A file with no sources is the polished version of the failure this whole
+    round is about: it survives the session and still cannot be checked.
+    """
+
+    def test_a_substantial_report_that_cites_nothing_is_refused(self):
+        out = run_js("""
+        const g = new m.ResearchDepthGuard();
+        g.check("web_open", { url: "https://a.example/one" });
+        g.check("web_open", { url: "https://b.example/two" });
+        const r = g.check("write", { path: "report.md", content: "x".repeat(3800) });
+        process.stdout.write(JSON.stringify({ blocked: !!r, reason: r ? r.reason : "" }));
+        """)
+        self.assertTrue(out["blocked"])
+
+    def test_the_reason_hands_back_the_addresses_it_read(self):
+        """Naming the pages is the point. `research-task-routing` already asks for
+        a Source column in words and was ignored three times out of three."""
+        out = run_js("""
+        const g = new m.ResearchDepthGuard();
+        g.check("web_open", { url: "https://a.example/one" });
+        g.check("web_open", { url: "https://b.example/two" });
+        const r = g.check("write", { path: "report.md", content: "x".repeat(3800) });
+        process.stdout.write(JSON.stringify({ reason: r ? r.reason : "" }));
+        """)
+        self.assertIn("https://a.example/one", out["reason"])
+        self.assertIn("https://b.example/two", out["reason"])
+
+    def test_a_report_that_cites_its_sources_passes(self):
+        out = run_js("""
+        const g = new m.ResearchDepthGuard();
+        g.check("web_open", { url: "https://a.example/one" });
+        g.check("web_open", { url: "https://b.example/two" });
+        const body = "finding\\n".repeat(400) + "source: https://a.example/one";
+        const r = g.check("write", { path: "report.md", content: body });
+        process.stdout.write(JSON.stringify({ blocked: !!r }));
+        """)
+        self.assertFalse(out["blocked"])
+
+    def test_an_edit_is_judged_on_its_new_text(self):
+        out = run_js("""
+        const g = new m.ResearchDepthGuard();
+        g.check("web_open", { url: "https://a.example/one" });
+        g.check("web_open", { url: "https://b.example/two" });
+        const r = g.check("edit", { path: "report.md",
+                                    edits: [{ newText: "y".repeat(3800) }] });
+        process.stdout.write(JSON.stringify({ blocked: !!r }));
+        """)
+        self.assertTrue(out["blocked"])
+
+    def test_a_plan_written_before_any_reading_is_untouched(self):
+        """task_plan.md comes first, legitimately, and has nothing to cite yet."""
+        out = run_js("""
+        const g = new m.ResearchDepthGuard();
+        const r = g.check("write", { path: "task_plan.md", content: "p".repeat(3800) });
+        process.stdout.write(JSON.stringify({ blocked: !!r }));
+        """)
+        self.assertFalse(out["blocked"])
+
+    def test_a_short_note_is_untouched(self):
+        out = run_js("""
+        const g = new m.ResearchDepthGuard();
+        g.check("web_open", { url: "https://a.example/one" });
+        g.check("web_open", { url: "https://b.example/two" });
+        const r = g.check("write", { path: "progress.md", content: "phase 1 done" });
+        process.stdout.write(JSON.stringify({ blocked: !!r }));
+        """)
+        self.assertFalse(out["blocked"])
+
+    def test_it_gives_up_rather_than_block_every_write(self):
+        """A run that will not cite must still be able to finish."""
+        out = run_js("""
+        const g = new m.ResearchDepthGuard();
+        g.check("web_open", { url: "https://a.example/one" });
+        g.check("web_open", { url: "https://b.example/two" });
+        let blocks = 0, allowed = 0;
+        for (let i = 0; i < 20; i++) {
+          if (g.check("write", { path: "r.md", content: "x".repeat(3800) })) blocks++;
+          else allowed++;
+        }
+        process.stdout.write(JSON.stringify({ blocks, allowed }));
+        """)
+        self.assertGreater(out["blocks"], 0)
+        self.assertGreater(out["allowed"], 0, "a run must always be able to finish writing")
+
+    def test_a_blocked_write_still_counts_as_having_written(self):
+        """Otherwise the artifact gate punishes a run for the citation gate's
+        refusal — two guards in the same module must not deadlock each other."""
+        out = run_js("""
+        const g = new m.ResearchDepthGuard();
+        g.check("web_open", { url: "https://a.example/one" });
+        g.check("web_open", { url: "https://b.example/two" });
+        g.check("write", { path: "r.md", content: "x".repeat(3800) });
+        process.stdout.write(JSON.stringify({ writes: g.stats().writes }));
+        """)
+        self.assertGreaterEqual(out["writes"], 1)
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
 class TestItCannotTrapTheRun(unittest.TestCase):
     """The GateGuard scar: a gate nobody had run denied the first bash command of
     every session. A gate that cannot be satisfied must step aside."""

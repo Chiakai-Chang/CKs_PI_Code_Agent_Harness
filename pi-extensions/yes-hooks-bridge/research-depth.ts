@@ -54,23 +54,57 @@ export const WRITE_AFTER_SEARCHES = 12;
  */
 export const MAX_BLOCKS_PER_GATE = 3;
 
+/**
+ * How long a written file has to be before it is expected to say where its
+ * content came from.
+ *
+ * A plan, a progress note or a one-line status has nothing to cite. The three
+ * measured reports were 3,482 / 3,788 / 4,295 chars, so this sits well below
+ * them and well above the notes.
+ */
+export const CITE_MIN_CHARS = 800;
+
+/** Pages that must have been read before a file is expected to cite any. */
+export const CITE_MIN_OPENS = 2;
+
 /** Tools that count as having read something in full. */
 const READ_TOOLS = new Set(["web_open"]);
 
 /** Tools that count as having written something down. */
 const WRITE_TOOLS = new Set(["write", "edit"]);
 
+const HAS_URL = /https?:\/\//i;
+
+/** The text a write or edit is about to put on disk. */
+function outgoingText(input: unknown): string {
+  const src = (input ?? {}) as Record<string, unknown>;
+  const parts: string[] = [];
+  if (typeof src.content === "string") parts.push(src.content);
+  const edits = src.edits;
+  if (Array.isArray(edits)) {
+    for (const e of edits) {
+      const t = (e as Record<string, unknown> | null)?.newText;
+      if (typeof t === "string") parts.push(t);
+    }
+  }
+  return parts.join("\n");
+}
+
 export interface DepthBlock {
   block: true;
   reason: string;
 }
 
-type GateName = "depth" | "artifact";
+type GateName = "depth" | "artifact" | "citation";
+
+/** How many addresses to quote back. Enough to act on, short enough to read. */
+const REASON_URLS = 6;
 
 export class ResearchDepthGuard {
   private searches = 0;
   private opens = 0;
   private writes = 0;
+  private readUrls: string[] = [];
   private blocked = new Map<GateName, number>();
   private retired = new Set<GateName>();
 
@@ -84,16 +118,22 @@ export class ResearchDepthGuard {
    * compromise: a `web_open` that fails still clears the depth gate, so a run
    * that genuinely cannot read a page is never held against a wall.
    */
-  check(toolName: string, _input?: unknown): DepthBlock | null {
+  check(toolName: string, input?: unknown): DepthBlock | null {
     const name = String(toolName || "").toLowerCase();
 
     if (READ_TOOLS.has(name)) {
       this.opens++;
+      const url = (input as Record<string, unknown> | undefined)?.url;
+      if (typeof url === "string" && url) this.readUrls.push(url);
       return null;
     }
     if (WRITE_TOOLS.has(name)) {
+      // Counted before the citation check can refuse it. A refusal here means
+      // "write this again with its sources", not "you have written nothing" —
+      // if the artifact gate could still see zero writes it would start
+      // refusing searches over a file this guard itself sent back.
       this.writes++;
-      return null;
+      return this.citationCheck(input);
     }
     if (name !== "web_search") return null;
 
@@ -132,6 +172,49 @@ export class ResearchDepthGuard {
   }
 
   /**
+   * Refuses a substantial file that names no source, after pages were read.
+   *
+   * Measured across three runs of the market-survey scenario with the other two
+   * gates installed: 11, 6 and 9 pages opened; reports of 3,788 / 4,295 / 3,482
+   * chars written; zero URLs in any file. The addresses that did appear were in
+   * the chat reply only, and one of those was invented — a shopee.tw search
+   * endpoint assembled from a pattern rather than read.
+   *
+   * All three runs had read `research-task-routing`, whose findings table
+   * carries a mandatory `Source` column. The instruction was already rewritten
+   * once, from a sentence into a table column with a blank cell, precisely
+   * because it was being ignored. It was ignored again, three times out of
+   * three. Text inside a skill loses; this is the channel that does not.
+   *
+   * The reason quotes the addresses back, because the failure is not refusal to
+   * cite — it is that by the time the report is written, the URLs are far back
+   * in the context and the page content is not.
+   */
+  private citationCheck(input: unknown): DepthBlock | null {
+    if (this.opens < CITE_MIN_OPENS) return null;
+    let text: string;
+    try {
+      text = outgoingText(input);
+    } catch {
+      return null;
+    }
+    if (text.length < CITE_MIN_CHARS) return null;
+    if (HAS_URL.test(text)) return null;
+    if (!this.refuse("citation")) return null;
+
+    const list = this.readUrls.slice(-REASON_URLS).map((u) => `  ${u}`).join("\n");
+    return {
+      block: true,
+      reason:
+        `Citation guard: this file is ${text.length} chars and contains no ` +
+        `address at all, after ${this.opens} page(s) were read. A report nobody ` +
+        `can trace is the polished version of a report nobody can check. Write ` +
+        `it again with the source next to each claim — these are the pages this ` +
+        `session actually opened:\n${list}`,
+    };
+  }
+
+  /**
    * Records a refusal and reports whether it should actually be delivered.
    *
    * Returns false once the gate has spent its budget, and retires it: a rule the
@@ -154,6 +237,7 @@ export class ResearchDepthGuard {
     this.searches = 0;
     this.opens = 0;
     this.writes = 0;
+    this.readUrls = [];
     this.blocked.clear();
     this.retired.clear();
   }
