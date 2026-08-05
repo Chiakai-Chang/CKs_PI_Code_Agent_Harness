@@ -1,0 +1,1 @@
+{"at": "2026-08-05T08:30:01", "repeats": 3, "scenarios": {"single-lookup-stays-cheap": {"pass": 3, "of": 3, "notes": []}, "multi-step-methodology": {"pass": 0, "of": 3, "notes": ["run1 no methodology skill loaded (read: none)", "run2 no methodology skill loaded (read: none)", "run3 no methodology skill loaded (read: none)"]}}, "total_pass": 3, "total_runs": 6, "seconds": 1018}

@@ -197,3 +197,48 @@ class TestRoutineHandedToTheModel(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestRoutineIsDeliveredBeforeTheFirstAction(unittest.TestCase):
+    """Measured failure of the first design, and why.
+
+    The routine was delivered — confirmed in a live session log, in the tool
+    result of the first web_search — and the model ignored it across 17 tool
+    calls, all searches and page opens, no plan.
+
+    `ToolCallEventResult` is `{block, reason}`, so a tool_call handler cannot add
+    text without blocking. Delivering at tool_result therefore means delivering
+    *after* the search already ran, with the model committed and results in hand.
+
+    The literature says to place an important instruction in several places at
+    once — system prompt, guidelines, tool descriptions, and tool results — and
+    that models attend most to the beginning and the end. The first design used
+    one place, and the weakest one. `buildSystemPromptNote` is the same routine
+    at the other end.
+    """
+
+    SURVEY = ("I want a market survey of the smart doorbell category in Taiwan — "
+              "who the competitors are, how they price, and which segments are underserved.")
+
+    def _note(self, prompt):
+        return run_js(
+            "process.stdout.write(JSON.stringify({ t: m.buildSystemPromptNote(m.classifyRequest(%s)) }));"
+            % json.dumps(prompt))["t"]
+
+    def test_a_multi_step_request_gets_a_note_for_the_system_prompt(self):
+        note = self._note(self.SURVEY)
+        self.assertIn("planning-with-files", note)
+        self.assertIn("3", note)
+
+    def test_a_single_step_request_gets_nothing(self):
+        """Every turn pays for whatever this returns."""
+        self.assertEqual(self._note("What is the latest version of Zig?"), "")
+
+    def test_it_is_small_enough_to_sit_in_every_turn(self):
+        self.assertLess(len(self._note(self.SURVEY)), 500)
+
+    def test_it_reads_as_harness_guidance_not_as_the_user_speaking(self):
+        """It lands in the system prompt. Unlabelled, an instruction there is
+        indistinguishable from something the operator asked for."""
+        self.assertIn("[task-shape]", self._note(self.SURVEY))

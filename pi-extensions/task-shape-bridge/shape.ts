@@ -131,6 +131,34 @@ export function buildRoutine(shape: RequestShape): string {
 }
 
 /**
+ * The same routine, at the other end of the context.
+ *
+ * The first design delivered only on the tool result, and it was measured
+ * failing: the routine arrived in the first web_search's result and the model
+ * ignored it across 17 tool calls. `ToolCallEventResult` is `{block, reason}`,
+ * so a tool_call handler cannot add text without blocking — delivering at
+ * tool_result means delivering *after* the search ran, with the model committed
+ * and results already in hand.
+ *
+ * Two findings shape this. Models attend most to the beginning and the end of a
+ * context and drift in the middle; and an instruction that matters should appear
+ * in several places at once rather than one. So the routine goes into the system
+ * prompt before the turn as well, and stays on the tool result for recency.
+ *
+ * Shorter than the tool-result version: this one is paid for on every turn of a
+ * multi-step task, not once.
+ */
+export function buildSystemPromptNote(shape: RequestShape): string {
+  if (!shape.multiStep) return "";
+  return (
+    `[task-shape] This request looks like ${shape.deliverables} separate deliverables. ` +
+    `Plan before executing: load the \`planning-with-files\` skill and write task_plan.md ` +
+    `with one phase per deliverable, then work one phase at a time. Use \`brainstorming\` ` +
+    `first if the scope is unclear. If it really is a single lookup, say so and carry on.`
+  );
+}
+
+/**
  * How many things is this asking for?
  *
  * Separators are counted per sentence and the largest run wins: a request is

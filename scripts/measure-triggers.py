@@ -87,8 +87,15 @@ SCENARIOS = [
         "prompt": ("I want a market survey of the smart doorbell category in Taiwan — "
                    "who the competitors are, how they price, and which segments are "
                    "underserved. Get started."),
+        # `research-task-routing` joins the list because it is a methodology skill
+        # of exactly the kind this scenario asks about — not because the run
+        # needed help passing. It exists because the others' descriptions are
+        # written for software work and cannot be edited here; it carries the
+        # research vocabulary they are missing. The scenario's question is
+        # unchanged: did any methodology skill load before the searching started.
         "expect_skill_read": ["brainstorming", "planning-with-files", "pi-planning-with-files",
-                              "mece-autopilot", "writing-plans", "overall-planning"],
+                              "mece-autopilot", "writing-plans", "overall-planning",
+                              "research-task-routing"],
         "why": ("a multi-step brief is exactly what the methodology routing exists for. If the "
                 "model opens web_search and reports back in one round, the routing in AGENTS.md "
                 "§10 and the 122-entry catalogue are decoration. This is the scenario the harness "

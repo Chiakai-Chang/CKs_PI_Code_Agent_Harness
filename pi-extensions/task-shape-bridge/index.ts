@@ -30,7 +30,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 
-import { classifyRequest, buildRoutine, isBroadTool } from "./shape.ts";
+import { classifyRequest, buildRoutine, buildSystemPromptNote, isBroadTool } from "./shape.ts";
 import { hasAnyPlan } from "./plan.ts";
 
 const pkgPath = require.resolve("./package.json");
@@ -80,6 +80,16 @@ export default function (pi: ExtensionAPI) {
       // A project that already has a plan does not need to be told to make one.
       if (hasAnyPlan(ctx.cwd)) return;
       armed = buildRoutine(shape);
+
+      // Delivered here as well as on the tool result, because the first design
+      // delivered only there and was measured failing: the routine arrived in
+      // the first web_search's result and the model ignored it across 17 tool
+      // calls. A tool_call handler cannot add text without blocking, so that
+      // path is always *after* the model has committed. Models attend to the
+      // start and the end of a context, and an instruction that matters belongs
+      // in more than one place.
+      const note = buildSystemPromptNote(shape);
+      if (note) return { systemPrompt: `${event.systemPrompt ?? ""}\n\n${note}` };
     } catch {
       // Classification must never break a turn.
     }
