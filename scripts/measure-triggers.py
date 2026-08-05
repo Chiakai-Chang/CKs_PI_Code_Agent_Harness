@@ -135,8 +135,8 @@ def run_once(scenario, cwd, session_dir, timeout):
         p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True,
                            encoding="utf-8", errors="replace", timeout=timeout)
     except subprocess.TimeoutExpired:
-        return [], [], "", "", "", "timeout after %ss" % timeout
-    tools, skills, results, answers, written = [], [], [], [], []
+        return [], [], "", "", "", [], "timeout after %ss" % timeout
+    tools, skills, results, answers, written, visited = [], [], [], [], [], []
     for line in p.stdout.splitlines():
         line = line.strip()
         if not line.startswith("{"):
@@ -154,6 +154,13 @@ def run_once(scenario, cwd, session_dir, timeout):
                     answers.append(c["text"])
                 if c.get("type") == "toolCall":
                     tools.append(c.get("name"))
+                    # Pages actually opened. A citation to something never
+                    # fetched is not a source, and counting it as one scores a
+                    # fabricated bibliography above an honest empty one.
+                    if c.get("name") == "web_open":
+                        u = (c.get("arguments") or {}).get("url")
+                        if isinstance(u, str) and u:
+                            visited.append(u)
                     # Files the run produced are part of the deliverable — the
                     # methodology it is routed to puts findings in one.
                     if c.get("name") in ("write", "edit"):
@@ -180,13 +187,13 @@ def run_once(scenario, cwd, session_dir, timeout):
     # between tool calls, and counting those as the deliverable would let a run
     # pass by mentioning a keyword on the way past.
     return (tools, skills, "\n".join(results), (answers[-1] if answers else ""),
-            "\n".join(written), err)
+            "\n".join(written), visited, err)
 
 
 URL_RE = re.compile(r"https?://[^\s<>\)\]\"'，。、]+")
 
 
-def judge(scenario, tools, skills, results, answer="", artifacts=""):
+def judge(scenario, tools, skills, results, answer="", artifacts="", visited=None):
     """Return (passed, note). Objective checks only — no model grading.
 
     `expect_output` scores the deliverable rather than the activation. Every other
@@ -253,9 +260,28 @@ def judge(scenario, tools, skills, results, answer="", artifacts=""):
         need = out.get("min_sources")
         if need:
             found = {u.rstrip(".,;") for u in URL_RE.findall(text)}
+            # Counting citations rewards inventing them. Measured: the only run
+            # that passed cited 14 URLs having opened 8, and seven of the
+            # fourteen were never visited — plausible addresses assembled from
+            # link text, because web_search returns no URLs at all. AGENTS.md §9
+            # makes fabrication the absolute floor, so a criterion that counts
+            # without checking scores a fabricated bibliography above an honest
+            # empty one.
+            if visited is not None:
+                seen = {str(v).rstrip(".,;") for v in visited}
+                real = {u for u in found if any(u.startswith(v[:40]) or v.startswith(u[:40])
+                                                for v in seen)}
+                invented = len(found) - len(real)
+                if invented:
+                    # Enough real sources does not buy the right to invent others.
+                    # A report where half the citations were never opened is
+                    # worse than one with none: it looks checkable and is not.
+                    ok = False
+                    notes.append("%d cited page(s) were never opened" % invented)
+                found = real
             if len(found) < need:
                 ok = False
-                notes.append("only %d distinct source(s), wanted %d" % (len(found), need))
+                notes.append("only %d verified source(s), wanted %d" % (len(found), need))
 
     return ok, "; ".join(notes)
 
@@ -304,12 +330,12 @@ def main():
                 # the first.
                 work_dir = tempfile.mkdtemp(prefix="pi-trigger-cwd-")
                 work_dirs.append(work_dir)
-                tools, skills, results, answer, artifacts, err = run_once(
+                tools, skills, results, answer, artifacts, visited, err = run_once(
                     sc, work_dir, session_dir, args.timeout)
                 if err:
                     notes.append("run%d %s" % (i + 1, err))
                     continue
-                ok, note = judge(sc, tools, skills, results, answer, artifacts)
+                ok, note = judge(sc, tools, skills, results, answer, artifacts, visited)
                 passes += 1 if ok else 0
                 if not ok and note:
                     notes.append("run%d %s" % (i + 1, note))
