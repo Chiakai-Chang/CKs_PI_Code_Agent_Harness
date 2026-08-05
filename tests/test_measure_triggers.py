@@ -167,6 +167,61 @@ class TestTheDeliverableIncludesWhatWasWritten(unittest.TestCase):
         self.assertTrue(ok)
 
 
+class TestTheBaselineRecordsMechanicsNotJustTheScore(unittest.TestCase):
+    """A pass/fail column cannot say why, and three times in one day it didn't.
+
+    2026-08-06: after each measured round the same questions had to be answered
+    by hand-grepping the kept session files — did the guard fire, how many pages
+    were opened, how many addresses reached the files. One round was run without
+    `--keep-sessions` at all and the evidence was deleted with the temp dir, so
+    the question could not be answered even in principle.
+
+    The score is what changed; the mechanics are why. Recording both is what
+    makes two rows comparable.
+    """
+
+    def test_it_counts_what_the_run_actually_did(self):
+        m = mt.mechanics(
+            tools=["web_search", "web_search", "web_open", "write", "edit", "read"],
+            artifacts="claim — https://a.example/one\nother — https://b.example/two",
+            visited=["https://a.example/one"],
+            guards={"Citation guard": 2},
+        )
+        self.assertEqual(m["searches"], 2)
+        self.assertEqual(m["opens"], 1)
+        self.assertEqual(m["writes"], 2)
+        self.assertEqual(m["urls_in_files"], 2)
+
+    def test_it_separates_a_cited_address_from_a_read_one(self):
+        """Ten addresses in a file with two pages opened is the shape that
+        matters: the citation gate took URLs from 0 to 10 and fabrications from
+        0 to 4 in the same run."""
+        m = mt.mechanics(
+            tools=["web_open"],
+            artifacts="https://a.example/one and https://invented.example/search?q=x",
+            visited=["https://a.example/one"],
+            guards={},
+        )
+        self.assertEqual(m["urls_in_files"], 2)
+        self.assertEqual(m["urls_opened"], 1)
+
+    def test_it_names_the_guards_that_fired(self):
+        m = mt.mechanics(tools=[], artifacts="", visited=[],
+                         guards={"Citation guard": 2, "Depth guard": 0})
+        self.assertEqual(m["guards"], {"Citation guard": 2})
+
+    def test_a_guard_that_never_fired_is_not_recorded_as_present(self):
+        """The depth and artifact gates have never fired in any measured run.
+        A row that listed them with a zero would read like they were tested."""
+        m = mt.mechanics(tools=["web_search"], artifacts="", visited=[], guards={"Depth guard": 0})
+        self.assertEqual(m["guards"], {})
+
+    def test_an_empty_run_does_not_crash(self):
+        m = mt.mechanics(tools=[], artifacts="", visited=None, guards=None)
+        self.assertEqual(m["searches"], 0)
+        self.assertEqual(m["urls_in_files"], 0)
+
+
 class TestSomethingMustSurviveTheSession(unittest.TestCase):
     """An answer that exists only in the reply cannot be checked later.
 

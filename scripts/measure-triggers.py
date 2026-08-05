@@ -149,10 +149,12 @@ def parse_session(path):
     the same number, which is the only way a baseline means anything.
     """
     tools, skills, answers, written, visited = [], [], [], [], []
+    guards = {m: 0 for m in GUARD_MARKERS}
     try:
         fh = open(path, encoding="utf-8", errors="replace")
     except OSError:
-        return {"tools": [], "skills": [], "answer": "", "artifacts": "", "visited": []}
+        return {"tools": [], "skills": [], "answer": "", "artifacts": "", "visited": [],
+                "guards": {}}
     with fh:
         for line in fh:
             try:
@@ -160,6 +162,17 @@ def parse_session(path):
             except ValueError:
                 continue
             msg = entry.get("message") or {}
+            if msg.get("role") == "toolResult":
+                # A blocked call's reason comes back as its tool result, so the
+                # run's own record says which guards fired. Counted here instead
+                # of hand-grepped afterwards, which is what each of the previous
+                # three measured rounds ended up doing.
+                content = msg.get("content")
+                blob = content if isinstance(content, str) else " ".join(
+                    x.get("text", "") for x in (content or []) if isinstance(x, dict))
+                for marker in GUARD_MARKERS:
+                    if marker in (blob or ""):
+                        guards[marker] += 1
             if msg.get("role") != "assistant":
                 continue
             for c in msg.get("content") or []:
@@ -191,6 +204,7 @@ def parse_session(path):
         "answer": answers[-1] if answers else "",
         "artifacts": "\n".join(written),
         "visited": visited,
+        "guards": guards,
     }
 
 
@@ -218,7 +232,7 @@ def run_once(scenario, cwd, session_dir, timeout):
         p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True,
                            encoding="utf-8", errors="replace", timeout=timeout)
     except subprocess.TimeoutExpired:
-        return [], [], "", "", "", [], "timeout after %ss" % timeout
+        return [], [], "", "", "", [], {}, "timeout after %ss" % timeout
     tools, skills, results, answers, written, visited = [], [], [], [], [], []
     for line in p.stdout.splitlines():
         line = line.strip()
@@ -276,16 +290,63 @@ def run_once(scenario, cwd, session_dir, timeout):
         rec = parse_session(session)
         if rec["tools"]:
             return (rec["tools"], rec["skills"], "\n".join(results), rec["answer"],
-                    rec["artifacts"], rec["visited"], err)
+                    rec["artifacts"], rec["visited"], rec.get("guards") or {}, err)
 
     # Only the last assistant text is the answer; the earlier ones are narration
     # between tool calls, and counting those as the deliverable would let a run
     # pass by mentioning a keyword on the way past.
     return (tools, skills, "\n".join(results), (answers[-1] if answers else ""),
-            "\n".join(written), visited, err)
+            "\n".join(written), visited, {}, err)
 
 
 URL_RE = re.compile(r"https?://[^\s<>\)\]\"'，。、]+")
+
+# Guards whose refusal text reaches the model as a tool result, so a run's own
+# record says whether each one fired. Kept as an explicit list rather than a
+# pattern: a marker that stops matching should show up as a zero here, not
+# silently vanish.
+GUARD_MARKERS = (
+    "Depth guard",
+    "Artifact guard",
+    "Citation guard",
+    "Repeat-lookup guard",
+    "[task-shape]",
+)
+
+
+def mechanics(tools, artifacts, visited, guards):
+    """What the run did, alongside whether it passed.
+
+    A pass/fail column cannot say why it moved. Three measured rounds in one day
+    each ended with the same questions answered by hand-grepping kept session
+    files — did the guard fire, how many pages were opened, how many addresses
+    reached the files — and one of those rounds was run without
+    `--keep-sessions`, so the evidence was deleted with the temp directory and
+    the question could not be answered at all.
+
+    `urls_in_files` and `urls_opened` are separate on purpose. The citation gate
+    took addresses in files from 0 to 10 in one run that had opened two pages;
+    a single "cited" count would have recorded that as a clean win.
+    """
+    tools = list(tools or [])
+    text = artifacts or ""
+    opened = {str(v).rstrip(".,;") for v in (visited or [])}
+    found = {u.rstrip(".,;") for u in URL_RE.findall(text)}
+    traceable = {
+        u for u in found
+        if any(u.startswith(p[:40]) or p.startswith(u[:40]) for p in opened)
+    }
+    return {
+        "searches": tools.count("web_search"),
+        "opens": tools.count("web_open"),
+        "writes": tools.count("write") + tools.count("edit"),
+        "urls_in_files": len(found),
+        "urls_opened": len(traceable),
+        # Only what actually fired. A gate listed with a zero reads as tested,
+        # and neither the depth nor the artifact gate has ever been reached by
+        # this probe.
+        "guards": {k: v for k, v in (guards or {}).items() if v},
+    }
 
 
 def judge(scenario, tools, skills, results, answer="", artifacts="", visited=None, seen=None):
@@ -451,7 +512,7 @@ def main():
     started = time.time()
     try:
         for sc in scenarios:
-            passes, notes = 0, []
+            passes, notes, runs = 0, [], []
             for i in range(args.repeats):
                 # A fresh directory per run. Sharing one let run 1's task_plan.md
                 # sit in front of runs 2-5: task-shape-bridge gates on
@@ -462,11 +523,12 @@ def main():
                 # the first.
                 work_dir = tempfile.mkdtemp(prefix="pi-trigger-cwd-")
                 work_dirs.append(work_dir)
-                tools, skills, results, answer, artifacts, visited, err = run_once(
+                tools, skills, results, answer, artifacts, visited, guards, err = run_once(
                     sc, work_dir, session_dir, args.timeout)
                 if err:
                     notes.append("run%d %s" % (i + 1, err))
                     continue
+                runs.append(mechanics(tools, artifacts, visited, guards))
                 # Addresses the run was shown, as distinct from ones it opened.
                 # Without this, citing a search result it did not read is scored
                 # the same as inventing an address, and the two are not the same
@@ -477,8 +539,14 @@ def main():
                 if not ok and note:
                     notes.append("run%d %s" % (i + 1, note))
             rate = 100.0 * passes / args.repeats
-            rows.append((sc["id"], passes, args.repeats, rate, sc["why"], notes))
+            rows.append((sc["id"], passes, args.repeats, rate, sc["why"], notes, runs))
             print("%-28s %d/%d  %5.0f%%" % (sc["id"], passes, args.repeats, rate))
+            for k, r in enumerate(runs):
+                fired = ", ".join("%s x%d" % (g, n) for g, n in sorted(r["guards"].items()))
+                print("      run%d  search %d / open %d / write %d / urls-in-files %d (%d opened)%s"
+                      % (k + 1, r["searches"], r["opens"], r["writes"],
+                         r["urls_in_files"], r["urls_opened"],
+                         "  | " + fired if fired else ""))
             for n in notes[:3]:
                 print("      %s" % n[:150])
     finally:
@@ -500,7 +568,12 @@ def main():
         entry = {
             "at": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "repeats": args.repeats,
-            "scenarios": {r[0]: {"pass": r[1], "of": r[2], "notes": r[5][:3]} for r in rows},
+            # `runs` carries what each repeat actually did. The score alone
+            # cannot say why it moved, and three rounds in one day each ended
+            # with the mechanics reconstructed by hand from kept session files —
+            # one of them impossible, because that round had not kept them.
+            "scenarios": {r[0]: {"pass": r[1], "of": r[2], "notes": r[5][:3], "runs": r[6]}
+                          for r in rows},
             "total_pass": total_pass,
             "total_runs": total_runs,
             "seconds": round(time.time() - started),
