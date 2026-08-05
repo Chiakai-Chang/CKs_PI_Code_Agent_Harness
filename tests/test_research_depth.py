@@ -267,6 +267,50 @@ class TestCitationGate(unittest.TestCase):
         self.assertGreater(out["blocks"], 0)
         self.assertGreater(out["allowed"], 0, "a run must always be able to finish writing")
 
+    def test_writing_the_same_report_in_small_pieces_does_not_get_around_it(self):
+        """Measured 2026-08-05, run3 of the market-survey scenario, immediately
+        after this gate first shipped:
+
+            write task_plan.md    773   under the floor, allowed
+            write findings.md     475   under the floor, allowed
+            write progress.md     143   under the floor, allowed
+            write findings.md    4524   REFUSED — no sources
+            edit  task_plan.md    109   under the floor, allowed
+            write progress.md     626   under the floor, allowed
+
+        6,657 chars on disk, zero addresses, one refusal. The per-call floor is
+        satisfied by writing smaller, which changes nothing about the artifact.
+        """
+        out = run_js("""
+        const g = new m.ResearchDepthGuard();
+        g.check("web_open", { url: "https://a.example/one" });
+        g.check("web_open", { url: "https://b.example/two" });
+        let blocked = 0;
+        for (let i = 0; i < 12; i++) {
+          if (g.check("write", { path: "part" + i + ".md", content: "z".repeat(600) })) blocked++;
+        }
+        process.stdout.write(JSON.stringify({ blocked }));
+        """)
+        self.assertGreater(out["blocked"], 0,
+                           "7,200 chars of unsourced text is unsourced however it is split")
+
+    def test_citing_once_settles_it_for_the_session(self):
+        """The cumulative rule must not nag a run that has already shown its
+        sources and then writes ordinary short notes."""
+        out = run_js("""
+        const g = new m.ResearchDepthGuard();
+        g.check("web_open", { url: "https://a.example/one" });
+        g.check("web_open", { url: "https://b.example/two" });
+        g.check("write", { path: "findings.md",
+                           content: "claim — https://a.example/one\\n".repeat(60) });
+        let blocked = 0;
+        for (let i = 0; i < 12; i++) {
+          if (g.check("write", { path: "n" + i + ".md", content: "z".repeat(600) })) blocked++;
+        }
+        process.stdout.write(JSON.stringify({ blocked }));
+        """)
+        self.assertEqual(out["blocked"], 0)
+
     def test_a_blocked_write_still_counts_as_having_written(self):
         """Otherwise the artifact gate punishes a run for the citation gate's
         refusal — two guards in the same module must not deadlock each other."""

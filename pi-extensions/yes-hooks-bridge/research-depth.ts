@@ -67,6 +67,16 @@ export const CITE_MIN_CHARS = 800;
 /** Pages that must have been read before a file is expected to cite any. */
 export const CITE_MIN_OPENS = 2;
 
+/**
+ * Unsourced characters allowed across the whole session, however they are split.
+ *
+ * The per-call floor above is satisfied by writing smaller. Measured the day
+ * this gate shipped: one run refused at a 4,524-char report and then wrote
+ * 773 + 475 + 143 + 109 + 626 in pieces, finishing with 6,657 chars on disk and
+ * not one address. Nothing about the artifact changed; only the chunk size did.
+ */
+export const CITE_MAX_UNSOURCED_TOTAL = 2500;
+
 /** Tools that count as having read something in full. */
 const READ_TOOLS = new Set(["web_open"]);
 
@@ -105,6 +115,8 @@ export class ResearchDepthGuard {
   private opens = 0;
   private writes = 0;
   private readUrls: string[] = [];
+  private unsourcedChars = 0;
+  private sourcedSomething = false;
   private blocked = new Map<GateName, number>();
   private retired = new Set<GateName>();
 
@@ -198,19 +210,35 @@ export class ResearchDepthGuard {
     } catch {
       return null;
     }
-    if (text.length < CITE_MIN_CHARS) return null;
-    if (HAS_URL.test(text)) return null;
+    if (HAS_URL.test(text)) {
+      // One sourced file settles the session. The cumulative rule exists to
+      // catch a report broken into pieces, not to nag a run that has already
+      // shown its work and is now writing ordinary short notes.
+      this.sourcedSomething = true;
+      return null;
+    }
+    if (this.sourcedSomething) return null;
+
+    this.unsourcedChars += text.length;
+    const oversize = text.length >= CITE_MIN_CHARS;
+    const accumulated = this.unsourcedChars >= CITE_MAX_UNSOURCED_TOTAL;
+    if (!oversize && !accumulated) return null;
     if (!this.refuse("citation")) return null;
 
     const list = this.readUrls.slice(-REASON_URLS).map((u) => `  ${u}`).join("\n");
+    const scale = oversize
+      ? `this file is ${text.length} chars`
+      : `${this.unsourcedChars} chars have been written this session`;
     return {
       block: true,
       reason:
-        `Citation guard: this file is ${text.length} chars and contains no ` +
-        `address at all, after ${this.opens} page(s) were read. A report nobody ` +
-        `can trace is the polished version of a report nobody can check. Write ` +
-        `it again with the source next to each claim — these are the pages this ` +
-        `session actually opened:\n${list}`,
+        `Citation guard: ${scale} and not one address appears in any of them, ` +
+        `after ${this.opens} page(s) were read. A report nobody can trace is the ` +
+        `polished version of a report nobody can check. Write it again with the ` +
+        `source next to each claim, and cite ONLY pages this session actually ` +
+        `opened — if there are fewer sources than claims, say which claims are ` +
+        `unsourced rather than inventing an address for them. The pages opened ` +
+        `so far:\n${list}`,
     };
   }
 
@@ -238,6 +266,8 @@ export class ResearchDepthGuard {
     this.opens = 0;
     this.writes = 0;
     this.readUrls = [];
+    this.unsourcedChars = 0;
+    this.sourcedSomething = false;
     this.blocked.clear();
     this.retired.clear();
   }
