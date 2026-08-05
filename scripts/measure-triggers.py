@@ -82,6 +82,18 @@ SCENARIOS = [
         "expect_skill_read": ["systematic-debugging", "diagnosing-bugs", "investigation-first"],
         "why": "the harness routes debugging to a methodology skill; if none loads, the routing is decorative",
     },
+    {
+        "id": "multi-step-methodology",
+        "prompt": ("I want a market survey of the smart doorbell category in Taiwan — "
+                   "who the competitors are, how they price, and which segments are "
+                   "underserved. Get started."),
+        "expect_skill_read": ["brainstorming", "planning-with-files", "pi-planning-with-files",
+                              "mece-autopilot", "writing-plans", "overall-planning"],
+        "why": ("a multi-step brief is exactly what the methodology routing exists for. If the "
+                "model opens web_search and reports back in one round, the routing in AGENTS.md "
+                "§10 and the 122-entry catalogue are decoration. This is the scenario the harness "
+                "owner described from real use."),
+    },
 ]
 
 
@@ -240,6 +252,11 @@ def main():
             "total_runs": total_runs,
             "seconds": round(time.time() - started),
         }
+        # A run of this script costs minutes of local-model time. Losing the
+        # numbers to a missing parent directory — after the runs completed and
+        # printed — is the one failure mode that cannot be retried cheaply.
+        parent = os.path.dirname(os.path.abspath(args.report))
+        os.makedirs(parent, exist_ok=True)
         with open(args.report, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
         print("appended to %s" % args.report)
