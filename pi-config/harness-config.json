@@ -34,6 +34,7 @@
     "core": [
       "agents-best-practices",
       "brainstorming",
+      "case-framework",
       "caveman",
       "contradiction-analysis",
       "darwin-skill",
@@ -41,7 +42,7 @@
       "executing-plans",
       "finishing-a-development-branch",
       "mece-autopilot",
-      "planning-with-files",
+      "pi-planning-with-files",
       "receiving-code-review",
       "requesting-code-review",
       "research-task-routing",

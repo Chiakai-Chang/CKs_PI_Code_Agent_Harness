@@ -155,6 +155,38 @@ class TestShippedConfig(unittest.TestCase):
                 name, tail,
                 "%s is declared core but landed in the catalog — name mismatch" % name)
 
+    def test_no_core_name_is_satisfied_only_by_a_never_installed_directory(self):
+        """A core entry whose only match is an excluded directory is dead.
+
+        `planning-with-files` was declared core for months and was never core.
+        The external submodule declares itself `pi-planning-with-files`, so the
+        core name matched nothing there and the skill landed in the catalog with
+        no description. Nothing reported it, because `pi-skills/core/
+        planning-with-files/` exists on disk — restore excludes it from the copy
+        on purpose, but its presence made the name look resolved.
+
+        The symptom took a dumped system prompt to see: 43 skills carried
+        descriptions and 122 carried names only, and planning-with-files —
+        the skill the routing note tells the model to load by name — was in
+        the 122.
+        """
+        tiers = self.cfg.get("skillTiers", {})
+        if tiers.get("mode") != "tiered":
+            self.skipTest("shipped config is not tiered")
+        manifest_path = os.path.join(ROOT, "pi-config", "external-skills-manifest.json")
+        if not os.path.exists(manifest_path):
+            self.skipTest("run scripts/restore.py first")
+        with open(manifest_path, encoding="utf-8") as f:
+            core_dirs = [e["path"] for e in json.load(f)]
+        external = {s[0] for s in restore.discover_skills(core_dirs)}
+
+        dead = [n for n in tiers.get("core", [])
+                if n in restore.PI_SKILLS_NEVER_INSTALLED and n not in external]
+        self.assertEqual(
+            dead, [],
+            "declared core but never registered under that name: %s — the "
+            "directory is excluded from the copy, so the entry does nothing" % dead)
+
     def test_declared_core_is_actually_registered(self):
         tiers = self.cfg.get("skillTiers", {})
         if tiers.get("mode") != "tiered":

@@ -322,6 +322,21 @@ ECC_BROKEN_SKILLS = {"loop-design-check"}  # invalid YAML in description (unquot
 # they must be pruned explicitly here.
 DEPRECATED_PACKAGE_SUBSTRINGS = {"context-mode", "pi-tasks", "superpowers"}
 
+# Directories under pi-skills/core/ that are never copied into the agent skills
+# directory, and therefore never registered.
+#
+#   "bridges"             holds RATIONALE decision docs, not skills.
+#   "planning-with-files" is shadowed on purpose: the external submodule version
+#                         is preferred, and it declares itself as
+#                         `pi-planning-with-files`.
+#
+# Named here rather than inline because the tier guard has to know: a core entry
+# whose only match is an excluded directory looks resolved and is dead. That is
+# exactly what happened to `planning-with-files` — declared core, never
+# registered under that name, and `pi-planning-with-files` sat in the catalog
+# without a description while no check said a word.
+PI_SKILLS_NEVER_INSTALLED = ("bridges", "planning-with-files")
+
 def prune_deprecated_packages(settings):
     """Drop deprecated residue packages from settings['packages'] in place.
 
@@ -391,6 +406,12 @@ def tier_local_skills(src_root, core_names):
 
     A directory without a SKILL.md is not a skill (pi-skills/core/bridges holds
     decision docs) and is neither kept nor catalogued here.
+
+    Neither is a directory this harness never installs. `planning-with-files` is
+    shadowed on purpose by the external submodule's `pi-planning-with-files`;
+    advertising the local copy in the catalog would offer the same capability
+    twice under two names, and the one it points at is the one that was
+    deliberately not registered.
     """
     kept, tail = set(), []
     if not os.path.isdir(src_root):
@@ -398,6 +419,8 @@ def tier_local_skills(src_root, core_names):
     for name in sorted(os.listdir(src_root)):
         path = os.path.join(src_root, name)
         if not os.path.isdir(path):
+            continue
+        if name in PI_SKILLS_NEVER_INSTALLED:
             continue
         skill_md = os.path.join(path, "SKILL.md")
         if name in core_names:
@@ -1177,10 +1200,8 @@ def main():
         return set(base_exclude) | {e["name"] for e in tail}
 
     if os.path.isdir(core_src):
-        # "bridges" holds RATIONALE decision docs, not skills — keep it out of the agent dir
-        # Also exclude "planning-with-files" because external submodule version is preferred
         copy_dir_contents(core_src, skills_dst,
-                          exclude=tier_exclusions(core_src, {"bridges", "planning-with-files"}))
+                          exclude=tier_exclusions(core_src, set(PI_SKILLS_NEVER_INSTALLED)))
     else:
         log("Core skills directory not found, skipping.")
 

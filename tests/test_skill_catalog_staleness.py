@@ -87,8 +87,12 @@ class TestExpectedLocalTail(unittest.TestCase):
             os.path.join(ROOT, "pi-skills", "core"), set(core))
         names = [t["name"] for t in tail]
         self.assertIn("hello-reflect", names)
-        self.assertNotIn("planning-with-files", names,
-                         "planning-with-files is in skillTiers.core, so it is not demoted")
+        self.assertNotIn(
+            "planning-with-files", names,
+            "the local copy is shadowed on purpose by the submodule's "
+            "pi-planning-with-files and is never installed — cataloguing it "
+            "would advertise the same capability twice, pointing at the copy "
+            "that was deliberately left unregistered")
 
     def test_directories_without_a_skill_md_are_not_skills(self):
         """pi-skills/core/bridges holds RATIONALE decision docs."""

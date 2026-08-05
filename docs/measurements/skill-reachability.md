@@ -1,8 +1,8 @@
 # 技能可達性全掃
 
-由 `scripts/audit-skill-reach.py` 產生於 2026-08-06 07:30。**不要手改** —— 重跑即可更新。
+由 `scripts/audit-skill-reach.py` 產生於 2026-08-06 07:50。**不要手改** —— 重跑即可更新。
 
-core 層來源:實測 prompt(C:/Users/User/AppData/Local/Temp/claude/D--MyProject-CKs-PI-Code-Agent-Harness/8c24d11d-f80e-4106-94eb-d5d96888c4da/scratchpad/pd/prompt.txt)
+core 層來源:實測 prompt(C:/Users/User/AppData/Local/Temp/claude/D--MyProject-CKs-PI-Code-Agent-Harness/8c24d11d-f80e-4106-94eb-d5d96888c4da/scratchpad/pd/prompt3.txt)
 
 ## 為什麼要有這份文件
 
@@ -18,15 +18,17 @@ README 畫的 Layer 1 三個技能也全部在裡面。
 
 | 層 | 數量 | 模型看得到什麼 |
 |---|---:|---|
-| core | 43 | 名稱、描述、絕對路徑 —— 可靠詞彙發現 |
-| catalog | 122 | 只有名稱 —— 需先讀 catalog JSON 再讀 SKILL.md |
+| core | 45 | 名稱、描述、絕對路徑 —— 可靠詞彙發現 |
+| catalog | 120 | 只有名稱 —— 需先讀 catalog JSON 再讀 SKILL.md |
 
-## core 層(有描述,43)
+## core 層(有描述,45)
 
 | 技能 | 來源 | 描述 |
 |---|---|---|
+| `case-framework` | external/Local-Agent-Workspace | Enforce or bootstrap the Context-Aware Scaffold Engine (C.A.S.E.) protocol, a file-as-state dual-track agent workflow. Make sure to use this skill whenever the… |
 | `caveman` | external/caveman | Ultra-compressed communication mode. Cuts token usage ~75% by speaking like caveman while keeping full technical accuracy. Supports intensity levels: lite, ful… |
 | `mece-autopilot` | external/mece-autopilot | Perform structured, dynamic MECE (Mutually Exclusive, Collectively Exhaustive) roundtable discussions to resolve complex engineering, architecture, or business… |
+| `pi-planning-with-files` | external/planning-with-files | Implements Manus-style file-based planning to organize and track progress on complex tasks. Creates task_plan.md, findings.md, and progress.md. Use when asked … |
 | `contradiction-analysis` | external/qiushi-skill | 触发：当问题复杂、存在多个冲突因素、优先级不清，或你不知道应该先解决什么时调用；常见信号包括 trade-off、瓶颈、根因不明、主次不清、多个问题互相牵制。 English: Trigger when a problem contains competing forces, unclear priorities, … |
 | `brainstorming` | external/superpowers | You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, require… |
 | `dispatching-parallel-agents` | external/superpowers | Use when facing 2+ independent tasks that can be worked on without shared state or sequential dependencies |
@@ -94,7 +96,7 @@ README 畫的 Layer 1 三個技能也全部在裡面。
 - `setup-pre-commit`
 - `tdd`
 
-## catalog 層(只有名字,122)
+## catalog 層(只有名字,120)
 
 描述欄是從各自的 `SKILL.md` frontmatter 讀出來的 —— **模型在 prompt 裡看不到這一欄**。
 列在這裡是為了讓人看得出哪些能力其實存在。
@@ -250,12 +252,6 @@ README 畫的 Layer 1 三個技能也全部在裡面。
 | `yes-ja` | "ファイル・設定・データベース・デプロイの変更を伴うタスクで発動。デバッグが2回以上連続で失敗した時に発動。証拠なしに推測・仮定しようとした時に発動（「おそらく」「多分」「〜だと思う」「〜のはず」）。ユーザーに丸投げしようとした時に発動（「ご確認ください」「手動で対応してください」「〜が必要かもしれません」）。修正後に動作確認せず完了と報告しようとした時に発動。根本原因の結論を出す時に発動。使え… |
 | `yes-zh` | "當任務涉及修改檔案、設定、資料庫或部署時觸發。當除錯連續失敗 2 次以上時觸發。當即將猜測或假設而沒有證據時觸發（「應該是」「可能是」「我覺得」「感覺是」）。當把問題推給用戶時觸發（「請你檢查」「建議您手動」「你可能需要」）。當改完東西沒有驗證就說完成時觸發。當下結論或判定根因時觸發。當有工具卻不用時觸發（有 WebSearch 不搜、有 Bash 不跑、有 Read 不讀）。當原地打轉時觸發… |
 
-### external/Local-Agent-Workspace(1)
-
-| 技能 | 描述(模型看不到) |
-|---|---|
-| `case-framework` | Enforce or bootstrap the Context-Aware Scaffold Engine (C.A.S.E.) protocol, a file-as-state dual-track agent workflow. Make sure to use this skill whenever the user mentions code quality, task pipeli… |
-
 ### external/evolver(1)
 
 | 技能 | 描述(模型看不到) |
@@ -273,12 +269,6 @@ README 畫的 Layer 1 三個技能也全部在裡面。
 | 技能 | 描述(模型看不到) |
 |---|---|
 | `llm-wiki` | \| Build and maintain an LLM-curated personal knowledge base — the "LLM Wiki" pattern from Andrej Karpathy's April 2026 gist. Use this skill whenever the user wants to ingest a source (paper, article,… |
-
-### external/planning-with-files(1)
-
-| 技能 | 描述(模型看不到) |
-|---|---|
-| `pi-planning-with-files` | Implements Manus-style file-based planning to organize and track progress on complex tasks. Creates task_plan.md, findings.md, and progress.md. Use when asked to plan out, break down, or organize a m… |
 
 ### external/prompt-master(1)
 
