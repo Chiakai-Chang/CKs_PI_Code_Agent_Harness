@@ -38,7 +38,7 @@ MANAGED_BRIDGES = ["ecc-hooks-bridge", "planning-with-files-bridge",
                    "stealth-web-bridge", "yes-hooks-bridge",
                    "skill-namespace-guard", "compact-continuation-bridge",
                    "skill-catalog-bridge", "deep-research-bridge",
-                   "async-exec-bridge"]
+                   "async-exec-bridge", "task-shape-bridge"]
 
 # Note: the stealth-recon backend stores logged-in browser profiles and cookies
 # under ~/.camofox/ (session secrets). The default uninstall leaves it in place;

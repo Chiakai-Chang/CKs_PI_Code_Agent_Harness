@@ -85,7 +85,7 @@
 ## 11. 5 層貫通 Harness OS 架構與蒸餾核心技能
 **「將開源專案的核心邏輯蒸餾為 C.A.S.E. 規格化技能，並以 Extension Bridge 熔鑄為 5 層閉環操作系統。」**
 
-> 數量會隨開發變動，因此不寫死在標題裡。以 2026-08-04 實跑為準：`pi-extensions/` 12 個 bridge、`pi-skills/core/` 16 個蒸餾技能、`python -m unittest discover -s tests` 490 個測試。
+> 數量會隨開發變動，因此不寫死在標題裡。以 2026-08-05 實跑為準：`pi-extensions/` 13 個 bridge、`pi-skills/core/` 16 個蒸餾技能、`python -m unittest discover -s tests` 611 個測試。
 
 > 📖 **完整整合機制與共存矩陣**：本 Harness 與原生 Pi 引擎之職責劃分、4 階段 Runtime 生命週期干預，以及 Skills / Extensions / 第三方 Harness 之隔離共存機制，請詳見獨立文件：[HARNESS_INTEGRATION_GUIDE.md](HARNESS_INTEGRATION_GUIDE.md)。
 

@@ -23,6 +23,9 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ECC = os.path.join(ROOT, "pi-extensions", "ecc-hooks-bridge", "plan.ts")
 PWF = os.path.join(ROOT, "pi-extensions", "planning-with-files-bridge", "index.ts")
+# A third copy. Bridges install as separate directories, so a shared module would
+# break at install time — the duplication is deliberate, and so is comparing it.
+TSB = os.path.join(ROOT, "pi-extensions", "task-shape-bridge", "plan.ts")
 
 
 def _node_major():
@@ -43,10 +46,11 @@ def run_js(script):
     driver = os.path.join(ROOT, "tests", ".tmp_parity_driver.mjs")
     with open(driver, "w", encoding="utf-8") as f:
         f.write(
-            "import * as ecc from %s;\nimport * as pwf from %s;\n%s"
+            "import * as ecc from %s;\nimport * as pwf from %s;\nimport * as tsb from %s;\n%s"
             % (
                 json.dumps("file:///" + ECC.replace("\\", "/")),
                 json.dumps("file:///" + PWF.replace("\\", "/")),
+                json.dumps("file:///" + TSB.replace("\\", "/")),
                 script,
             )
         )
@@ -118,7 +122,9 @@ class TestPlanDetectionParity(unittest.TestCase):
                 'const cwd = %s;\n'
                 'process.stdout.write(JSON.stringify({\n'
                 '  ecc: ecc.resolvePlanDir(cwd), pwf: pwf.resolvePlanDir(cwd),\n'
+                '  tsb: tsb.resolvePlanDir(cwd),\n'
                 '  eccHas: ecc.hasAnyPlan(cwd), pwfHas: pwf.hasAnyPlan(cwd),\n'
+                '  tsbHas: tsb.hasAnyPlan(cwd),\n'
                 '}));' % json.dumps(cwd)
             )
         finally:
@@ -128,10 +134,12 @@ class TestPlanDetectionParity(unittest.TestCase):
         for layout in LAYOUTS_WITH_A_PLAN + LAYOUTS_WITHOUT_A_PLAN:
             with self.subTest(layout=layout):
                 out = self._both(layout)
-                self.assertEqual(
-                    os.path.normcase(os.path.normpath(out["ecc"])),
-                    os.path.normcase(os.path.normpath(out["pwf"])),
-                )
+
+                def norm(p):
+                    return os.path.normcase(os.path.normpath(p))
+
+                self.assertEqual(norm(out["ecc"]), norm(out["pwf"]))
+                self.assertEqual(norm(out["tsb"]), norm(out["pwf"]))
 
     def test_both_bridges_agree_a_plan_exists(self):
         for layout in LAYOUTS_WITH_A_PLAN:
@@ -139,6 +147,7 @@ class TestPlanDetectionParity(unittest.TestCase):
                 out = self._both(layout)
                 self.assertTrue(out["pwfHas"], layout)
                 self.assertEqual(out["eccHas"], out["pwfHas"], layout)
+                self.assertEqual(out["tsbHas"], out["pwfHas"], layout)
 
     def test_both_bridges_agree_no_plan_exists(self):
         """The nag has to still fire when there genuinely is no plan — a parity
@@ -149,6 +158,7 @@ class TestPlanDetectionParity(unittest.TestCase):
                 out = self._both(layout)
                 self.assertFalse(out["pwfHas"], layout)
                 self.assertEqual(out["eccHas"], out["pwfHas"], layout)
+                self.assertEqual(out["tsbHas"], out["pwfHas"], layout)
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")

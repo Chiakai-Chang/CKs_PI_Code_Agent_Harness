@@ -16,6 +16,8 @@
   "enableHookAdvisories": true,
   "_enableEccGateGuard": "ECC GateGuard is a fact-forcing gate, not a destructive-command filter: measured, it denies the FIRST bash command of every session whatever it is. It has never evaluated a command on this harness (the payload never reached it), so blocking is opt-in. When false the finding still reaches the model as advice.",
   "enableEccGateGuard": false,
+  "_enableTaskShapeRouter": "Multi-step requests that open with web_search/bash get a short routine naming planning-with-files and brainstorming. Measured baseline before this existed: multi-step-methodology 0/3. Advises, never blocks; on by default and fails open, unlike enableEccGateGuard which blocks and fails closed.",
+  "enableTaskShapeRouter": true,
   "planningBridgeMaxChars": 600,
   "enableUniversalTagTransformer": true,
   "enableSelfHealingLoopGuard": true,

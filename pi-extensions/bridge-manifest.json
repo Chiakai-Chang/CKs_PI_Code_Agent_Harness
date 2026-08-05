@@ -73,6 +73,12 @@
       "entry": "pi-extensions/async-exec-bridge/index.ts",
       "version": "1.0.0",
       "description": "Background execution with automatic resumption"
+    },
+    {
+      "name": "task-shape-bridge",
+      "entry": "pi-extensions/task-shape-bridge/index.ts",
+      "version": "1.0.0",
+      "description": "Hands the model a planning routine when a multi-step request opens with a broad tool call"
     }
   ]
 }

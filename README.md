@@ -28,7 +28,7 @@ cd CKs_PI_Code_Agent_Harness
 *   **Windows**：雙擊 `update.bat`
 *   **macOS / Linux**：執行 `bash update.sh`
 *   **進階（等同上述）**：`python scripts/setup.py --mode update`
-    — 內部自動執行 `git pull --recurse-submodules` → `restore --auto` （自動同步全部 12 個 Extension 至 `~/.pi/agent/extensions/`） → `pi update --all`。
+    — 內部自動執行 `git pull --recurse-submodules` → `restore --auto` （自動同步全部 13 個 Extension 至 `~/.pi/agent/extensions/`） → `pi update --all`。
 
 > 🛠️ **舊用戶修復指南（若遇到 `@file` 無法讀取、標籤/JSON 假工具呼叫卡死、死鎖停擺、agent 宣告下一步就結束回合、PowerShell 指令在 Windows 上總是失敗）**：
 > 1. **執行一鍵更新**：執行上述 `update.bat` 或 `bash update.sh`，同步 Universal Parser 標籤轉譯器與 Self-Healing 擴充。
@@ -56,7 +56,7 @@ cd CKs_PI_Code_Agent_Harness
 > 4. **2026-08-04 新增 `async-exec-bridge`（一鍵更新即生效）**：新增 `bg_start` / `bg_status` / `bg_cancel` 三個工具，讓 agent 把長工作丟到背景、就地結束該輪，完成時自動被喚醒續跑（詳見上方功能說明與其中的安全須知）。**舊用戶請注意兩件事**：
 >    * 更新後 `~/.pi/agent/extensions/` 會多一個 `async-exec-bridge/` 目錄——Pi 是**依目錄自動探索**的，`settings.json` 不會、也不該多出一筆（重複註冊曾造成工具名稱衝突而讓 Pi 完全無法啟動）。
 >    * 專案目錄下會出現 `.pi/async-exec/`（工作記錄與輸出擷取），已加入 `.gitignore`。它是崩潰後對帳的唯一依據，請勿在工作進行中刪除。
->    * 同一次更新也修好了一個既有缺陷：`uninstall.py` 的受管 bridge 名單停在 5 個、而 `restore.py` 已管到 11 個，導致解除安裝會在 `~/.pi/agent/extensions/` **留下 7 個 bridge 繼續被載入**。名單現已補齊為 12 個並由測試鎖住，曾解除安裝過的使用者若發現殘留目錄，可手動刪除或重跑一次 `python scripts/uninstall.py`。
+>    * 同一次更新也修好了一個既有缺陷：`uninstall.py` 的受管 bridge 名單停在 5 個、而 `restore.py` 已管到 11 個，導致解除安裝會在 `~/.pi/agent/extensions/` **留下 7 個 bridge 繼續被載入**。名單現已補齊為 13 個並由測試鎖住，曾解除安裝過的使用者若發現殘留目錄，可手動刪除或重跑一次 `python scripts/uninstall.py`。
 >
 > 5. **`deep_research` 自 2026-07-31 起預設關閉**（`enableDeepResearch: false`）。實測同一個問題：它耗時 44 分鐘、四個子代理、零可用產出；直接用 `web_search` + `web_open` 則 8 分鐘給出有具名出處的答案。程式碼與測試都保留，要用時把該旗標改成 `true` 再跑一次更新即可。**舊設定檔沒有這個鍵時視為關閉**，所以升級不會意外開啟它。
 >
@@ -72,7 +72,7 @@ cd CKs_PI_Code_Agent_Harness
 ### 健康度驗證 (Health Checks)
 *   **Bridge 驗證**：`python scripts/verify-bridges.py` — 檢查所有橋接程式的入口路徑存在性、manifest 與 package.json 註冊一致性（零依賴）。
 *   **設定檔驗證**：`python scripts/validate-config.py` — 檢查 `pi-config/settings.json` 格式完整性、反模式偵測（已提交之機器特定路徑、明文金鑰）。
-*   **提示衝突稽核**：`python scripts/check-prompt-conflicts.py` — 把 12 個 bridge 各自注入的指令**合起來看**：偵測「for any task」這類無條件宣稱（會吃掉其他工具的適用範圍）、列出被多個工具同時宣稱的觸發詞、統計每輪注入總量，並明確標出它**沒有**涵蓋的部分（直接改寫 `systemPrompt` 的 bridge）。
+*   **提示衝突稽核**：`python scripts/check-prompt-conflicts.py` — 把 13 個 bridge 各自注入的指令**合起來看**：偵測「for any task」這類無條件宣稱（會吃掉其他工具的適用範圍）、列出被多個工具同時宣稱的觸發詞、統計每輪注入總量，並明確標出它**沒有**涵蓋的部分（直接改寫 `systemPrompt` 的 bridge）。
 *   **觸發率量測**：`python scripts/measure-triggers.py` — 以**不點名工具/技能**的情境描述任務，量測該觸發的機制有沒有真的觸發，並含「不該觸發」的反向情境（避免把指引寫得越來越強勢）。每情境重複 N 次取比率（本機模型 temp 0.6，單次樣本不可判讀），session 寫入隔離暫存目錄、cwd 為中性空目錄，避免污染真實歷史。速度慢，**不進 CI**。
 
 ### 外部來源管理
@@ -90,7 +90,7 @@ cd CKs_PI_Code_Agent_Harness
 
 ## 🛠️ 核心功能與 5 層 Harness OS 架構
 
-本專案將 **13 大開源蒸餾核心技能**、**12 大 Extension Bridges** 與 **17 個外部子模組** 無縫熔鑄為 5 層閉環操作系統 (Harness OS)，兼顧開發效率、網頁檢索能力與系統安全：
+本專案將 **13 大開源蒸餾核心技能**、**13 大 Extension Bridges** 與 **17 個外部子模組** 無縫熔鑄為 5 層閉環操作系統 (Harness OS)，兼顧開發效率、網頁檢索能力與系統安全：
 
 ```
 +-----------------------------------------------------------------------+
@@ -169,7 +169,7 @@ cd CKs_PI_Code_Agent_Harness
 
 1. **零覆蓋保護 (Zero Overwrite)**：`restore.py` 與 `uninstall.py` 嚴格限定僅管理 `managed_skills` 清單，絕不任意刪除或覆蓋使用者自行安裝於全域的 `.pi/agent/skills/` 與 `extensions`。
 2. **動態碰撞隔離 (Namespace Guard)**：當使用者安裝之技能與本專案外部技能同名時，`skill-namespace-guard` 在每次 Pi 啟動時自動比對，若內容不同則平滑重命名為 `harness-<name>` 獨立並存。
-3. **零擴充雙重註冊碰撞 (Config Hygiene)**：本 Harness 內部 12 大 Extension Bridges（如 `yes-hooks-bridge`、`stealth-web-bridge` 等）由 `restore.py` 實體複製至擴充目錄並由 Pi 自動載入，**絕不**重複寫入 `settings.json` 的 `extensions` 陣列中，防止 `registerTool()` 工具同名衝突崩潰。
+3. **零擴充雙重註冊碰撞 (Config Hygiene)**：本 Harness 內部 13 大 Extension Bridges（如 `yes-hooks-bridge`、`stealth-web-bridge` 等）由 `restore.py` 實體複製至擴充目錄並由 Pi 自動載入，**絕不**重複寫入 `settings.json` 的 `extensions` 陣列中，防止 `registerTool()` 工具同名衝突崩潰。
 
 ---
 

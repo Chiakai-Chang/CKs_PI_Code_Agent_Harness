@@ -1037,6 +1037,11 @@ def main():
     # agent, and wakes it with a followUp + triggerTurn message on completion.
     profile_extensions.append(os.path.join(pi_extensions_root, "async-exec-bridge").replace("\\", "/"))
 
+    # task-shape-bridge: a multi-step request that opens with web_search gets a
+    # routine naming planning-with-files and brainstorming. Measured baseline
+    # before it existed: multi-step-methodology 0/3.
+    profile_extensions.append(os.path.join(pi_extensions_root, "task-shape-bridge").replace("\\", "/"))
+
     # 3. Filter existing settings to keep user's custom skills/extensions not managed by Harness
     # (skipped in --config-only mode: keep whatever profile is already registered)
     if not args.config_only:
@@ -1048,7 +1053,7 @@ def main():
         settings["skills"] = clean_skills
 
         existing_extensions = settings.get("extensions", [])
-        internal_bridge_names = ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge", "stealth-web-bridge", "yes-hooks-bridge", "skill-namespace-guard", "compact-continuation-bridge", "skill-catalog-bridge", "deep-research-bridge", "async-exec-bridge"]
+        internal_bridge_names = ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge", "stealth-web-bridge", "yes-hooks-bridge", "skill-namespace-guard", "compact-continuation-bridge", "skill-catalog-bridge", "deep-research-bridge", "async-exec-bridge", "task-shape-bridge"]
         clean_extensions = []
         for p in existing_extensions:
             p_normalized = p.replace("\\", "/").lower()
@@ -1227,7 +1232,7 @@ def main():
     ext_dst = os.path.join(AGENT_DIR, "extensions")
     if os.path.isdir(ext_src):
         # We selectively delete only the bridges managed by this harness to preserve other extensions.
-        for bridge in ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge", "stealth-web-bridge", "yes-hooks-bridge", "skill-namespace-guard", "compact-continuation-bridge", "skill-catalog-bridge", "deep-research-bridge", "async-exec-bridge"]:
+        for bridge in ["ecc-hooks-bridge", "planning-with-files-bridge", "case-bridge", "taste-bridge", "mece-autopilot-bridge", "stealth-web-bridge", "yes-hooks-bridge", "skill-namespace-guard", "compact-continuation-bridge", "skill-catalog-bridge", "deep-research-bridge", "async-exec-bridge", "task-shape-bridge"]:
             delete_path(os.path.join(ext_dst, bridge))
             
         for ext_path in profile_extensions:
