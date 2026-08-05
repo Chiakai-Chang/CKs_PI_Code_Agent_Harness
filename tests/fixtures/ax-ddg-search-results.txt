@@ -1,0 +1,169 @@
+- link "DuckDuckGo" [e1]:
+  - /url: /html/
+- textbox [e2]: smart doorbell taiwan
+- button "Submit" [e3]
+- combobox:
+  - option "All Regions" [selected]
+  - option "Argentina"
+  - option "Australia"
+  - option "Austria"
+  - option "Belgium (fr)"
+  - option "Belgium (nl)"
+  - option "Brazil"
+  - option "Bulgaria"
+  - option "Canada (en)"
+  - option "Canada (fr)"
+  - option "Catalonia"
+  - option "Chile"
+  - option "China"
+  - option "Colombia"
+  - option "Croatia"
+  - option "Czech Republic"
+  - option "Denmark"
+  - option "Estonia"
+  - option "Finland"
+  - option "France"
+  - option "Germany"
+  - option "Greece"
+  - option "Hong Kong"
+  - option "Hungary"
+  - option "Iceland"
+  - option "India (en)"
+  - option "Indonesia (en)"
+  - option "Ireland"
+  - option "Israel (en)"
+  - option "Italy"
+  - option "Japan"
+  - option "Korea"
+  - option "Latvia"
+  - option "Lithuania"
+  - option "Malaysia (en)"
+  - option "Mexico"
+  - option "Netherlands"
+  - option "New Zealand"
+  - option "Norway"
+  - option "Pakistan (en)"
+  - option "Peru"
+  - option "Philippines (en)"
+  - option "Poland"
+  - option "Portugal"
+  - option "Romania"
+  - option "Russia"
+  - option "Saudi Arabia"
+  - option "Singapore"
+  - option "Slovakia"
+  - option "Slovenia"
+  - option "South Africa"
+  - option "Spain (ca)"
+  - option "Spain (es)"
+  - option "Sweden"
+  - option "Switzerland (de)"
+  - option "Switzerland (fr)"
+  - option "Taiwan"
+  - option "Thailand (en)"
+  - option "Turkey"
+  - option "US (English)"
+  - option "US (Spanish)"
+  - option "Ukraine"
+  - option "United Kingdom"
+  - option "Vietnam (en)"
+- combobox:
+  - option "Any Time" [selected]
+  - option "Past Day"
+  - option "Past Week"
+  - option "Past Month"
+  - option "Past Year"
+- 'heading "Smart Video Doorbell Guide for Taiwan: Wi-Fi Signals, Anti ... - 淘寶" [level=2]':
+  - 'link "Smart Video Doorbell Guide for Taiwan: Wi-Fi Signals, Anti ... - 淘寶"':
+    - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fworld.taobao.com%2Flang%2Fen%2Dus%2Fshopping%2Dguide%2F2014822477892419584.htm&rut=2f6304463d96a8cc7d94c068bf1d7addc7a85e4653e77f430c42b967b5dd1c8f
+- link [e4]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fworld.taobao.com%2Flang%2Fen%2Dus%2Fshopping%2Dguide%2F2014822477892419584.htm&rut=2f6304463d96a8cc7d94c068bf1d7addc7a85e4653e77f430c42b967b5dd1c8f
+- link "world.taobao.com/lang/en-us/shopping-guide/2014822477892419584.htm" [e5]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fworld.taobao.com%2Flang%2Fen%2Dus%2Fshopping%2Dguide%2F2014822477892419584.htm&rut=2f6304463d96a8cc7d94c068bf1d7addc7a85e4653e77f430c42b967b5dd1c8f
+- link "Discover practical smart video doorbell advice for Taiwan's unique architecture. Learn about Wi-Fi signal penetration, ecosystem integration, anti-theft mounting, and night vision realities to secure your home effectively." [e6]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fworld.taobao.com%2Flang%2Fen%2Dus%2Fshopping%2Dguide%2F2014822477892419584.htm&rut=2f6304463d96a8cc7d94c068bf1d7addc7a85e4653e77f430c42b967b5dd1c8f
+- 'heading "Smart Video Doorbell Guide for Taiwan: AI Detection, Audio ... - 淘寶" [level=2]':
+  - 'link "Smart Video Doorbell Guide for Taiwan: AI Detection, Audio ... - 淘寶"':
+    - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fworld.taobao.com%2Flang%2Fen%2Dus%2Fshopping%2Dguide%2F2004090578060443648.htm&rut=6f69c79ebcb033190774c3110f00e913ecc4a683723e9969368cfcbd7a2d7cba
+- link [e7]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fworld.taobao.com%2Flang%2Fen%2Dus%2Fshopping%2Dguide%2F2004090578060443648.htm&rut=6f69c79ebcb033190774c3110f00e913ecc4a683723e9969368cfcbd7a2d7cba
+- link "world.taobao.com/lang/en-us/shopping-guide/2004090578060443648.htm" [e8]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fworld.taobao.com%2Flang%2Fen%2Dus%2Fshopping%2Dguide%2F2004090578060443648.htm&rut=6f69c79ebcb033190774c3110f00e913ecc4a683723e9969368cfcbd7a2d7cba
+- link "Discover the ultimate guide to choosing smart video doorbells in Taiwan. Learn about AI motion detection, clear two-way audio, night vision options, and how to handle wiring challenges in older apartments for maximum security." [e9]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fworld.taobao.com%2Flang%2Fen%2Dus%2Fshopping%2Dguide%2F2004090578060443648.htm&rut=6f69c79ebcb033190774c3110f00e913ecc4a683723e9969368cfcbd7a2d7cba
+- heading "Smart Video Doorbell - Tecom Taiwan" [level=2]:
+  - link "Smart Video Doorbell - Tecom Taiwan" [e10]:
+    - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.tecom.com.tw%2Fen%2Fen%2Dconsumer%2Fen%2Dsmart%2Dvideo%2Ddoorbell%2F&rut=07754307c77469cef1ab83982c518d4829ee254cfecb011bea248a4658b269ef
+- link [e11]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.tecom.com.tw%2Fen%2Fen%2Dconsumer%2Fen%2Dsmart%2Dvideo%2Ddoorbell%2F&rut=07754307c77469cef1ab83982c518d4829ee254cfecb011bea248a4658b269ef
+- link "www.tecom.com.tw/en/en-consumer/en-smart-video-doorbell/" [e12]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.tecom.com.tw%2Fen%2Fen%2Dconsumer%2Fen%2Dsmart%2Dvideo%2Ddoorbell%2F&rut=07754307c77469cef1ab83982c518d4829ee254cfecb011bea248a4658b269ef
+- link "Consumer Smart Video Doorbell Use your smartphone to answer your doorbell from anywhere in the world ! Products" [e13]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.tecom.com.tw%2Fen%2Fen%2Dconsumer%2Fen%2Dsmart%2Dvideo%2Ddoorbell%2F&rut=07754307c77469cef1ab83982c518d4829ee254cfecb011bea248a4658b269ef
+- heading "Video Doorbell Cameras | eufy Doorbell - eufy Taiwan" [level=2]:
+  - link "Video Doorbell Cameras | eufy Doorbell - eufy Taiwan" [e14]:
+    - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Feufy.com.tw%2Fcollections%2Fvideo%2Ddoorbell&rut=aef861ac954123f8e5d64b49b6bd2c95d2fb56b183f903d16f540095e00876f0
+- link [e15]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Feufy.com.tw%2Fcollections%2Fvideo%2Ddoorbell&rut=aef861ac954123f8e5d64b49b6bd2c95d2fb56b183f903d16f540095e00876f0
+- link "eufy.com.tw/collections/video-doorbell" [e16]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Feufy.com.tw%2Fcollections%2Fvideo%2Ddoorbell&rut=aef861ac954123f8e5d64b49b6bd2c95d2fb56b183f903d16f540095e00876f0
+- link "Explore the most advanced video doorbell cameras from eufy, delivering 2K HD video, smart features, and superior security. Come shop eufy video doorbells now." [e17]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Feufy.com.tw%2Fcollections%2Fvideo%2Ddoorbell&rut=aef861ac954123f8e5d64b49b6bd2c95d2fb56b183f903d16f540095e00876f0
+- heading "一鍵開啟智慧家庭生活｜SwitchBot 台灣官方網站" [level=2]:
+  - link "一鍵開啟智慧家庭生活｜SwitchBot 台灣官方網站" [e18]:
+    - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fswitchbot.tw%2F&rut=d7ace987aeb7f79ce734d6f5c9a618db132b4874a5b828e123287fec3f9868b2
+- link [e19]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fswitchbot.tw%2F&rut=d7ace987aeb7f79ce734d6f5c9a618db132b4874a5b828e123287fec3f9868b2
+- link "switchbot.tw" [e20]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fswitchbot.tw%2F&rut=d7ace987aeb7f79ce734d6f5c9a618db132b4874a5b828e123287fec3f9868b2
+- link "SwitchBot 台灣官方網站，提供全系列智慧家庭裝置：智慧門鎖、遙控器、感應器、攝影機與自動化控制解決方案。一鍵開啟智慧家庭生活、打造你的專屬智能生活，立即探索 SwitchBot 的創新科技。" [e21]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fswitchbot.tw%2F&rut=d7ace987aeb7f79ce734d6f5c9a618db132b4874a5b828e123287fec3f9868b2
+- heading "SwitchBot Smart Video Doorbell 2K 智慧視訊門鈴 - PChome 24h購物" [level=2]:
+  - link "SwitchBot Smart Video Doorbell 2K 智慧視訊門鈴 - PChome 24h購物" [e22]:
+    - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2F24h.pchome.com.tw%2Fprod%2FDMAAPE%2DA900JON5J&rut=cdf16d9b46c0d58c61bf09e0abf7ccc26ca0d0d38aa372c270c152c8894d23aa
+- link [e23]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2F24h.pchome.com.tw%2Fprod%2FDMAAPE%2DA900JON5J&rut=cdf16d9b46c0d58c61bf09e0abf7ccc26ca0d0d38aa372c270c152c8894d23aa
+- link "24h.pchome.com.tw/prod/DMAAPE-A900JON5J" [e24]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2F24h.pchome.com.tw%2Fprod%2FDMAAPE%2DA900JON5J&rut=cdf16d9b46c0d58c61bf09e0abf7ccc26ca0d0d38aa372c270c152c8894d23aa
+- link "SwitchBot Smart Video Doorbell 2K 智慧視訊門鈴,2K 高畫質視訊門鈴;內建室內顯示器;雙向語音對講,PChome 24h購物,多元支付,超值,優惠,可靠迅速,您的網路購物的首選" [e25]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2F24h.pchome.com.tw%2Fprod%2FDMAAPE%2DA900JON5J&rut=cdf16d9b46c0d58c61bf09e0abf7ccc26ca0d0d38aa372c270c152c8894d23aa
+- heading "門鈴精簡版 - Ubiquiti 商店 台灣" [level=2]:
+  - link "門鈴精簡版 - Ubiquiti 商店 台灣" [e26]:
+    - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Ftw.store.ui.com%2Ftw%2Fzh%2Dtw%2Fproducts%2Fuvc%2Ddoorbell%2Dlite&rut=43f1fd074e3752b13c35474e4e87523530b5d27eaea396ce6aa75556e6a0d433
+- link [e27]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Ftw.store.ui.com%2Ftw%2Fzh%2Dtw%2Fproducts%2Fuvc%2Ddoorbell%2Dlite&rut=43f1fd074e3752b13c35474e4e87523530b5d27eaea396ce6aa75556e6a0d433
+- link "tw.store.ui.com/tw/zh-tw/products/uvc-doorbell-lite" [e28]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Ftw.store.ui.com%2Ftw%2Fzh%2Dtw%2Fproducts%2Fuvc%2Ddoorbell%2Dlite&rut=43f1fd074e3752b13c35474e4e87523530b5d27eaea396ce6aa75556e6a0d433
+- link "具有雙向音訊和多種安裝選項的Compact PoE視訊門鈴。" [e29]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Ftw.store.ui.com%2Ftw%2Fzh%2Dtw%2Fproducts%2Fuvc%2Ddoorbell%2Dlite&rut=43f1fd074e3752b13c35474e4e87523530b5d27eaea396ce6aa75556e6a0d433
+- heading "智慧視訊門鈴 - SwitchBot智慧家庭" [level=2]:
+  - link "智慧視訊門鈴 - SwitchBot智慧家庭" [e30]:
+    - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fswitchbot.tw%2Fproducts%2Fswitchbot%2Dvideo%2Ddoorbell%2F&rut=ccb8b195beeadb06bae989563bb7bfe07ef7dea44e538b6039a305f5829cccc9
+- link [e31]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fswitchbot.tw%2Fproducts%2Fswitchbot%2Dvideo%2Ddoorbell%2F&rut=ccb8b195beeadb06bae989563bb7bfe07ef7dea44e538b6039a305f5829cccc9
+- link "switchbot.tw/products/switchbot-video-doorbell/" [e32]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fswitchbot.tw%2Fproducts%2Fswitchbot%2Dvideo%2Ddoorbell%2F&rut=ccb8b195beeadb06bae989563bb7bfe07ef7dea44e538b6039a305f5829cccc9
+- link "智慧視訊門鈴 2K高清清晰度、超廣視角和彩色夜視：這款門鈴相機配備驚豔的 2K 全高清影片、165° 超廣角鏡頭和 16:9 的全景視角，可全面覆蓋您的前門，確保不會錯過任何訪客或包裹。即使在完全黑暗的環境下，您也能清楚地看到門外是誰。" [e33]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fswitchbot.tw%2Fproducts%2Fswitchbot%2Dvideo%2Ddoorbell%2F&rut=ccb8b195beeadb06bae989563bb7bfe07ef7dea44e538b6039a305f5829cccc9
+- heading "智慧門鈴 - PChome 24h購物" [level=2]:
+  - link "智慧門鈴 - PChome 24h購物" [e34]:
+    - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2F24h.pchome.com.tw%2Fsearch%2F%3Fq%3D%25E6%2599%25BA%25E6%2585%25A7%25E9%2596%2580%25E9%2588%25B4&rut=93a2de87a4c6d4a8bfb1e772353a92797b29e91f38dd71cc734609625206b323
+- link [e35]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2F24h.pchome.com.tw%2Fsearch%2F%3Fq%3D%25E6%2599%25BA%25E6%2585%25A7%25E9%2596%2580%25E9%2588%25B4&rut=93a2de87a4c6d4a8bfb1e772353a92797b29e91f38dd71cc734609625206b323
+- link "24h.pchome.com.tw/search/?q=智慧門鈴" [e36]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2F24h.pchome.com.tw%2Fsearch%2F%3Fq%3D%25E6%2599%25BA%25E6%2585%25A7%25E9%2596%2580%25E9%2588%25B4&rut=93a2de87a4c6d4a8bfb1e772353a92797b29e91f38dd71cc734609625206b323
+- link "智慧門鈴相關商品哪裡買? 從人氣熱銷到超值特價一次逛齊。馬上進來挑選最符合需求的款式，不僅能輕鬆比價，還享滿額免運與快速到貨服務，輕鬆好物與優惠帶回家!" [e37]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2F24h.pchome.com.tw%2Fsearch%2F%3Fq%3D%25E6%2599%25BA%25E6%2585%25A7%25E9%2596%2580%25E9%2588%25B4&rut=93a2de87a4c6d4a8bfb1e772353a92797b29e91f38dd71cc734609625206b323
+- heading "Ring Video Doorbell price in Taiwan (2026) — compare deals in TWD" [level=2]:
+  - link "Ring Video Doorbell price in Taiwan (2026) — compare deals in TWD" [e38]:
+    - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fshopsaverss.com%2Fproduct%2Fring%2Dvideo%2Ddoorbell%2Ftaiwan&rut=ce10b22b1ca5c15906568d30e2dc4758f9f0ae4d9d1767940a8189301b5c98bf
+- link [e39]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fshopsaverss.com%2Fproduct%2Fring%2Dvideo%2Ddoorbell%2Ftaiwan&rut=ce10b22b1ca5c15906568d30e2dc4758f9f0ae4d9d1767940a8189301b5c98bf
+- link "shopsaverss.com/product/ring-video-doorbell/taiwan" [e40]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fshopsaverss.com%2Fproduct%2Fring%2Dvideo%2Ddoorbell%2Ftaiwan&rut=ce10b22b1ca5c15906568d30e2dc4758f9f0ae4d9d1767940a8189301b5c98bf
+- link "Looking for the best price on Ring Video Doorbell in Taiwan? The Ring Video Doorbell by Ring (rated 4.4/5) is homeowners wanting affordable smart doorbell security with alexa integration. Key features include 1080p HD video with night vision, Two-way talk with noise cancellation, Motion detection zones." [e41]:
+  - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fshopsaverss.com%2Fproduct%2Fring%2Dvideo%2Ddoorbell%2Ftaiwan&rut=ce10b22b1ca5c15906568d30e2dc4758f9f0ae4d9d1767940a8189301b5c98bf
+- button "Next" [e42]
+- link "Feedback" [e43]:
+  - /url: //duckduckgo.com/feedback.html
+- img

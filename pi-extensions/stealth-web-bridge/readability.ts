@@ -61,6 +61,61 @@ function headsAResult(lines: string[], index: number, indent: number): boolean {
   return false;
 }
 
+/** `- heading "…" [level=2]:` — a heading that contains its result. */
+const HEADING_CONTAINER = /-\s*heading\b.*:\s*$/;
+
+/**
+ * Is this `/url:` inside a heading's subtree?
+ *
+ * The other shape a result link takes, captured from a live DuckDuckGo page:
+ *
+ *   - heading "Smart Video Doorbell - Tecom Taiwan" [level=2]:
+ *     - link "Smart Video Doorbell - Tecom Taiwan" [e10]:
+ *       - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.tecom.com.tw%2F…
+ *
+ * The first version of this filter only scanned forward for a heading, which is
+ * the BBC shape, and was designed against the news homepage on the reasoning
+ * that it was "closest to a search results page". It was not: the fix shipped
+ * and the next measurement still showed 0 URLs in every search result.
+ *
+ * Measured cost of adding this rule: wikipedia 0.0%, forum 0.0%, docs 0.1%,
+ * github issue 3.8%, news homepage 0.0%.
+ */
+function insideAHeading(lines: string[], index: number, indent: number): boolean {
+  for (let j = index - 1; j >= 0; j--) {
+    const prev = lines[j];
+    if (prev.trim() === "") continue;
+    const ind = indentOf(prev);
+    if (ind >= indent) continue;
+    if (HEADING_CONTAINER.test(prev)) return true;
+    indent = ind;
+  }
+  return false;
+}
+
+/** `//duckduckgo.com/l/?uddg=<percent-encoded target>` */
+const DDG_REDIRECT = /\/l\/\?uddg=([^&\s"]+)/;
+
+/**
+ * Turn a search engine's redirect into the address it points at.
+ *
+ * Keeping the line is not enough on its own: every DuckDuckGo result address is
+ * a redirect with the real target percent-encoded inside `uddg=`. Cited as-is it
+ * names duckduckgo.com, which is neither the page that was read nor an address
+ * that stays valid.
+ */
+function unwrapRedirect(line: string): string {
+  const m = DDG_REDIRECT.exec(line);
+  if (!m) return line;
+  try {
+    const target = decodeURIComponent(m[1]);
+    if (!/^https?:\/\//i.test(target)) return line;
+    return line.replace(/\/url:.*$/, `/url: ${target}`);
+  } catch {
+    return line;
+  }
+}
+
 /** Interactive and decorative scaffolding: useful for clicking, noise for reading. */
 const CHROME =
   /-\s+(navigation|banner|contentinfo|menu|menuitem|menubar|searchbox|button|combobox|option|img|image|separator|tablist|tab|form|textbox|checkbox|radio|slider|status|complementary|toolbar|progressbar|switch|spinbutton)\b/;
@@ -141,8 +196,9 @@ export function extractReadable(snapshot: string, minChars = 200): ReadableResul
     //   github issue       /url all 28.0%   headline-only 0.0%   (0 of 110)
     //   news homepage      /url all 16.8%   headline-only 5.3%   (42 of 112)
     if (URL_LINE.test(line)) {
-      if (!headsAResult(lines, i, indent)) continue;
-      kept.push(line.replace(REF, "").trimEnd());
+      const isResult = headsAResult(lines, i, indent) || insideAHeading(lines, i, indent);
+      if (!isResult) continue;
+      kept.push(unwrapRedirect(line.replace(REF, "").trimEnd()));
       continue;
     }
     const isProse = PROSE.test(line);

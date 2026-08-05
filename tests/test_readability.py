@@ -163,6 +163,54 @@ class TestCitableAddressesSurvive(unittest.TestCase):
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestSearchResultsPage(unittest.TestCase):
+    """A real DuckDuckGo snapshot, captured rather than imagined.
+
+    The first attempt at keeping citable addresses was designed against the news
+    homepage, on the reasoning that it was "closest to a search results page".
+    It was not. BBC nests the address under the link and the heading under that:
+
+        - link "Spain and France brace ...":
+          - /url: /news/articles/ckg34128nvpo
+          - heading "Spain and France brace ..." [level=2]
+
+    DuckDuckGo puts the heading on the outside:
+
+        - heading "Smart Video Doorbell - Tecom Taiwan" [level=2]:
+          - link "Smart Video Doorbell - Tecom Taiwan" [e10]:
+            - /url: //duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.tecom.com.tw%2F...
+
+    A forward-scanning rule sees the first and misses the second, so the fix
+    shipped and changed nothing: the next measurement still showed 0 URLs in
+    every search result. This fixture exists so the next change is designed
+    against the page it has to work on.
+
+    It also shows why keeping the line is not enough on its own — the address is
+    a DuckDuckGo redirect with the real target percent-encoded inside `uddg=`.
+    """
+
+    def setUp(self):
+        self.r = extract("ax-ddg-search-results.txt")
+
+    def test_result_addresses_survive(self):
+        self.assertIn("/url:", self.r["text"],
+                      "a search results page without addresses cannot be cited from")
+
+    def test_the_real_target_is_unwrapped_not_the_redirect(self):
+        """`//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.tecom.com.tw%2F...` is not
+        a citation. The page the user has to be able to check is the one inside."""
+        self.assertIn("tecom.com.tw", self.r["text"])
+        self.assertNotIn("uddg=", self.r["text"])
+
+    def test_the_search_boxs_own_plumbing_still_goes(self):
+        """`- /url: /html/` under the DuckDuckGo logo is navigation."""
+        self.assertNotIn("/url: /html/", self.r["text"])
+
+    def test_the_page_is_still_reduced(self):
+        self.assertLess(self.r["readableChars"], self.r["originalChars"])
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
 class TestFailOpen(unittest.TestCase):
     def test_widget_only_page_returns_the_original(self):
         """Returning an empty 'article' would read as a successfully-read blank
