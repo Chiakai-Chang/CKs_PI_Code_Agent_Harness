@@ -96,6 +96,18 @@ SCENARIOS = [
         "expect_skill_read": ["brainstorming", "planning-with-files", "pi-planning-with-files",
                               "mece-autopilot", "writing-plans", "overall-planning",
                               "research-task-routing"],
+        # Activation is a proxy. This is the deliverable: the brief named three
+        # things and cited nothing, so an answer that covers two of three, or
+        # covers all three with no sources, has not done the work — however many
+        # methodology skills loaded on the way.
+        "expect_output": {
+            "covers": [
+                ["competitor", "brand", "品牌", "廠商", "競爭"],
+                ["price", "pricing", "價格", "定價", "售價"],
+                ["segment", "underserved", "區隔", "客群", "缺口"],
+            ],
+            "min_sources": 2,
+        },
         "why": ("a multi-step brief is exactly what the methodology routing exists for. If the "
                 "model opens web_search and reports back in one round, the routing in AGENTS.md "
                 "§10 and the 122-entry catalogue are decoration. This is the scenario the harness "
@@ -123,8 +135,8 @@ def run_once(scenario, cwd, session_dir, timeout):
         p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True,
                            encoding="utf-8", errors="replace", timeout=timeout)
     except subprocess.TimeoutExpired:
-        return [], [], "", "timeout after %ss" % timeout
-    tools, skills, results = [], [], []
+        return [], [], "", "", "timeout after %ss" % timeout
+    tools, skills, results, answers = [], [], [], []
     for line in p.stdout.splitlines():
         line = line.strip()
         if not line.startswith("{"):
@@ -136,6 +148,10 @@ def run_once(scenario, cwd, session_dir, timeout):
         msg = ev.get("message") or {}
         if msg.get("role") == "assistant":
             for c in msg.get("content", []) or []:
+                # The answer the user actually receives. Only tool results were
+                # collected before, so nothing here could score the deliverable.
+                if c.get("type") == "text" and c.get("text"):
+                    answers.append(c["text"])
                 if c.get("type") == "toolCall":
                     tools.append(c.get("name"))
                     if c.get("name") == "read":
@@ -150,11 +166,26 @@ def run_once(scenario, cwd, session_dir, timeout):
                 x.get("text", "") for x in (content or []) if isinstance(x, dict))
             results.append(text)
     err = "" if p.returncode == 0 else "exit %s: %s" % (p.returncode, p.stderr[-200:])
-    return tools, skills, "\n".join(results), err
+    # Only the last assistant text is the answer; the earlier ones are narration
+    # between tool calls, and counting those as the deliverable would let a run
+    # pass by mentioning a keyword on the way past.
+    return tools, skills, "\n".join(results), (answers[-1] if answers else ""), err
 
 
-def judge(scenario, tools, skills, results):
-    """Return (passed, note). Objective checks only — no model grading."""
+URL_RE = re.compile(r"https?://[^\s<>\)\]\"'，。、]+")
+
+
+def judge(scenario, tools, skills, results, answer=""):
+    """Return (passed, note). Objective checks only — no model grading.
+
+    `expect_output` scores the deliverable rather than the activation. Every other
+    criterion here asks whether a mechanism fired, which is a proxy: once that is
+    the acceptance bar, each change drifts toward firing more often, and firing
+    more often was never the goal.
+
+    Mechanical by design. The local model is what is under test, so grading its
+    output with it would be self-certification.
+    """
     notes = []
     ok = True
 
@@ -187,6 +218,27 @@ def judge(scenario, tools, skills, results):
         if any(re.search(r"\[e\d+\]", b) for b in page_blocks):
             ok = False
             notes.append("page result still carried [eN] refs")
+
+    out = scenario.get("expect_output") or {}
+    if out:
+        text = answer or ""
+        lower = text.lower()
+
+        # Each group is one deliverable, listed with its synonyms — the answer may
+        # come back in either language and still be the same deliverable. A brief
+        # that asked for three things and came back with two is not two-thirds
+        # done: the third is absent, and the answer does not say so.
+        for group in out.get("covers", []):
+            if not any(str(term).lower() in lower for term in group):
+                ok = False
+                notes.append("answer never covers %s" % "/".join(group))
+
+        need = out.get("min_sources")
+        if need:
+            found = {u.rstrip(".,;") for u in URL_RE.findall(text)}
+            if len(found) < need:
+                ok = False
+                notes.append("only %d distinct source(s), wanted %d" % (len(found), need))
 
     return ok, "; ".join(notes)
 
@@ -226,11 +278,11 @@ def main():
         for sc in scenarios:
             passes, notes = 0, []
             for i in range(args.repeats):
-                tools, skills, results, err = run_once(sc, work_dir, session_dir, args.timeout)
+                tools, skills, results, answer, err = run_once(sc, work_dir, session_dir, args.timeout)
                 if err:
                     notes.append("run%d %s" % (i + 1, err))
                     continue
-                ok, note = judge(sc, tools, skills, results)
+                ok, note = judge(sc, tools, skills, results, answer)
                 passes += 1 if ok else 0
                 if not ok and note:
                     notes.append("run%d %s" % (i + 1, note))

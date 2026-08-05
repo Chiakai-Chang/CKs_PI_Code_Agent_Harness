@@ -66,6 +66,90 @@ class TestJudge(unittest.TestCase):
         self.assertTrue(mt.judge(sc, ["web_open"], [], other)[0])
 
 
+class TestOutcomeChecks(unittest.TestCase):
+    """Scoring the deliverable, not the activation.
+
+    Every criterion in this file until now asked whether a mechanism fired. That
+    is a proxy, and once it is the acceptance criterion every future change drifts
+    toward firing more often — which is not the goal. The goal is the work being
+    done well.
+
+    Mechanical only, deliberately. The local model is the thing under test; using
+    it to grade its own output is self-certification, and this repo already has a
+    scar for that.
+    """
+
+    def test_an_answer_covering_every_deliverable_passes(self):
+        sc = {"expect_output": {"covers": [["competitor", "品牌"], ["price", "價格"]]}}
+        ok, note = mt.judge(sc, [], [], "", answer="Main competitors are X and Y; price ranges NT$2000-5000.")
+        self.assertTrue(ok, note)
+
+    def test_a_missing_deliverable_fails_and_names_it(self):
+        """A survey that answers two of three asks is not two-thirds done — the
+        third is simply absent, and the report does not say so."""
+        sc = {"expect_output": {"covers": [["competitor"], ["price"], ["segment", "區隔"]]}}
+        ok, note = mt.judge(sc, [], [], "", answer="Competitors are X and Y, priced around NT$3000.")
+        self.assertFalse(ok)
+        self.assertIn("segment", note)
+
+    def test_any_synonym_in_a_group_counts(self):
+        """The answer may be in either language; the deliverable is the same."""
+        sc = {"expect_output": {"covers": [["segment", "區隔", "客群"]]}}
+        ok, _ = mt.judge(sc, [], [], "", answer="未被滿足的客群是租屋族。")
+        self.assertTrue(ok)
+
+    def test_an_unsourced_research_answer_fails(self):
+        """A research deliverable with no sources cannot be checked by the person
+        who asked for it, which is most of what makes it a deliverable."""
+        sc = {"expect_output": {"min_sources": 2}}
+        ok, note = mt.judge(sc, [], [], "", answer="The market is growing fast and prices are falling.")
+        self.assertFalse(ok)
+        self.assertIn("source", note.lower())
+
+    def test_sources_are_counted_distinctly(self):
+        """Citing one page three times is one source."""
+        sc = {"expect_output": {"min_sources": 2}}
+        one = "See https://a.example/x and https://a.example/x and https://a.example/x"
+        ok, _ = mt.judge(sc, [], [], "", answer=one)
+        self.assertFalse(ok)
+        ok2, _ = mt.judge(sc, [], [], "", answer=one + " and https://b.example/y")
+        self.assertTrue(ok2)
+
+    def test_outcome_and_activation_are_both_required_when_both_are_stated(self):
+        """A scenario may ask for both. Passing one must not carry the other."""
+        sc = {"expect_skill_read": ["planning-with-files"],
+              "expect_output": {"min_sources": 1}}
+        ok, note = mt.judge(sc, [], ["planning-with-files"], "", answer="no links here")
+        self.assertFalse(ok, note)
+
+    def test_a_scenario_without_output_expectations_is_unaffected(self):
+        """Existing scenarios must keep judging exactly as before."""
+        sc = {"expect_tools": ["web_search"]}
+        ok, _ = mt.judge(sc, ["web_search"], [], "", answer="")
+        self.assertTrue(ok)
+
+
+class TestRunOnceArity(unittest.TestCase):
+    """Every exit from run_once must hand back the same shape.
+
+    Adding the answer to the returned tuple updated the successful path and
+    missed the timeout path, so a scenario that timed out crashed the whole run
+    — after the first scenario had already spent its minutes. The unit tests
+    could not see it: they call `judge` directly and never go through run_once.
+    """
+
+    def test_the_timeout_path_returns_the_same_arity_as_the_normal_one(self):
+        import inspect
+        src = inspect.getsource(mt.run_once)
+        returns = [ln.strip() for ln in src.splitlines() if ln.strip().startswith("return ")]
+        self.assertTrue(returns, "run_once has no return statements to compare")
+        widths = {r.count(",") for r in returns}
+        self.assertEqual(
+            len(widths), 1,
+            "run_once returns different tuple widths on different paths: %s" % returns,
+        )
+
+
 class TestScenarioHygiene(unittest.TestCase):
     """A scenario that names the tool measures nothing — the model is just
     following an instruction. Three trigger tests earlier today did exactly

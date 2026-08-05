@@ -121,9 +121,10 @@ export function buildRoutine(shape: RequestShape): string {
   return (
     `This request looks like ${shape.deliverables} separate deliverables. ` +
     `Before searching, take one of two paths:\n` +
-    `  A. Scope is clear -> load the \`planning-with-files\` skill, write task_plan.md ` +
-    `with one phase per deliverable, then do one phase at a time and verify each ` +
-    `before starting the next.\n` +
+    `  A. Scope is clear -> load the \`planning-with-files\` skill (it is registered; ` +
+    `use it by name, do not go looking for the file), write task_plan.md with one ` +
+    `phase per deliverable, then do one phase at a time and verify each before ` +
+    `starting the next.\n` +
     `  B. Scope is not clear -> load the \`brainstorming\` skill and settle the open ` +
     `questions first.\n` +
     `If this really is a single lookup, say so in one sentence and carry on.`
