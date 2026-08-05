@@ -235,6 +235,67 @@ class TestCitationsMustBeVisited(unittest.TestCase):
         self.assertTrue(ok)
 
 
+class TestHonestyAndRigourAreDifferentFailures(unittest.TestCase):
+    """Citing a search result you did not read is sloppy. Citing a page that
+    never existed anywhere is a different thing entirely.
+
+    While `web_search` returned no URLs at all, the two were indistinguishable:
+    any citation the model had not opened was necessarily reconstructed. With
+    addresses restored, the same five runs break down as 37 citations, 24 of them
+    unopened — but 20 of those 20 appeared in a search result the model had read.
+    Only 4 were assembled out of nothing, things like
+    `https://www.momoshop.com.tw/search/智慧門鈴`.
+
+    Treating both as fabrication hid the improvement the URL fix actually made,
+    from nearly-all-reconstructed down to 4 in 37. So: invention fails outright,
+    because AGENTS.md §9 makes that the floor; reading what you cite is measured
+    by how many sources were opened.
+    """
+
+    SC = {"expect_output": {"min_sources": 2}}
+
+    def test_an_address_that_appeared_nowhere_fails(self):
+        ok, note = mt.judge(self.SC, [], [], "", answer="https://invented.example/x",
+                            visited=["https://a.example/1", "https://a.example/2"],
+                            seen=["https://a.example/1", "https://a.example/2"])
+        self.assertFalse(ok)
+        self.assertIn("never appeared", note)
+
+    def test_citing_a_search_result_without_opening_it_is_not_invention(self):
+        ok, note = mt.judge(
+            self.SC, [], [], "",
+            answer="https://a.example/1 https://a.example/2 https://seen.example/3",
+            visited=["https://a.example/1", "https://a.example/2"],
+            seen=["https://a.example/1", "https://a.example/2", "https://seen.example/3"])
+        self.assertTrue(ok, note)
+
+    def test_but_it_is_reported(self):
+        """Silently accepting it would let a report of unread pages look clean."""
+        _ok, note = mt.judge(
+            self.SC, [], [], "",
+            answer="https://a.example/1 https://a.example/2 https://seen.example/3",
+            visited=["https://a.example/1", "https://a.example/2"],
+            seen=["https://a.example/1", "https://a.example/2", "https://seen.example/3"])
+        self.assertIn("not opened", note)
+
+    def test_the_source_count_is_pages_that_were_read(self):
+        """Three citations, one page read: the report rests on one page."""
+        ok, note = mt.judge(
+            self.SC, [], [], "",
+            answer="https://a.example/1 https://s.example/2 https://s.example/3",
+            visited=["https://a.example/1"],
+            seen=["https://a.example/1", "https://s.example/2", "https://s.example/3"])
+        self.assertFalse(ok)
+        self.assertIn("verified", note)
+
+    def test_without_a_seen_list_everything_unopened_is_still_invention(self):
+        """Callers that cannot say what the run saw keep the older, stricter
+        reading — which is correct for any harness whose search returns no URLs."""
+        ok, _ = mt.judge(self.SC, [], [], "", answer="https://x.example/1",
+                         visited=["https://a.example/1", "https://a.example/2"])
+        self.assertFalse(ok)
+
+
 class TestScoringReadsTheSessionFile(unittest.TestCase):
     """Score the run from its record, not from a stream that may be lossy.
 

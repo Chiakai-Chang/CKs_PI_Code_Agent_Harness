@@ -278,7 +278,7 @@ def run_once(scenario, cwd, session_dir, timeout):
 URL_RE = re.compile(r"https?://[^\s<>\)\]\"'，。、]+")
 
 
-def judge(scenario, tools, skills, results, answer="", artifacts="", visited=None):
+def judge(scenario, tools, skills, results, answer="", artifacts="", visited=None, seen=None):
     """Return (passed, note). Objective checks only — no model grading.
 
     `expect_output` scores the deliverable rather than the activation. Every other
@@ -353,17 +353,36 @@ def judge(scenario, tools, skills, results, answer="", artifacts="", visited=Non
             # without checking scores a fabricated bibliography above an honest
             # empty one.
             if visited is not None:
-                seen = {str(v).rstrip(".,;") for v in visited}
-                real = {u for u in found if any(u.startswith(v[:40]) or v.startswith(u[:40])
-                                                for v in seen)}
-                invented = len(found) - len(real)
-                if invented:
-                    # Enough real sources does not buy the right to invent others.
-                    # A report where half the citations were never opened is
-                    # worse than one with none: it looks checkable and is not.
-                    ok = False
-                    notes.append("%d cited page(s) were never opened" % invented)
-                found = real
+                # Two different failures, and while web_search returned no URLs
+                # they were indistinguishable — anything unopened had to have
+                # been reconstructed. With addresses restored, the same five runs
+                # cited 37 pages, 24 unopened, of which 20 had appeared in a
+                # search result the model read. Only 4 came from nowhere.
+                #
+                # Invention is the floor (AGENTS.md §9) and fails outright.
+                # Citing a listed result without reading it is weak sourcing: it
+                # is reported, and it does not count toward the source bar.
+                opened = {str(v).rstrip(".,;") for v in visited}
+                matches = lambda u, pool: any(u.startswith(p[:40]) or p.startswith(u[:40])
+                                              for p in pool)
+                read = {u for u in found if matches(u, opened)}
+
+                if seen is None:
+                    unread = found - read
+                    if unread:
+                        ok = False
+                        notes.append("%d cited page(s) were never opened" % len(unread))
+                else:
+                    observed = {str(s).rstrip(".,;") for s in seen}
+                    listed = {u for u in found - read if matches(u, observed)}
+                    invented = found - read - listed
+                    if invented:
+                        ok = False
+                        notes.append("%d cited address(es) never appeared anywhere: %s"
+                                     % (len(invented), ", ".join(sorted(invented)[:2])))
+                    if listed:
+                        notes.append("%d cited page(s) were listed but not opened" % len(listed))
+                found = read
             if len(found) < need:
                 ok = False
                 notes.append("only %d verified source(s), wanted %d" % (len(found), need))
@@ -420,7 +439,12 @@ def main():
                 if err:
                     notes.append("run%d %s" % (i + 1, err))
                     continue
-                ok, note = judge(sc, tools, skills, results, answer, artifacts, visited)
+                # Addresses the run was shown, as distinct from ones it opened.
+                # Without this, citing a search result it did not read is scored
+                # the same as inventing an address, and the two are not the same
+                # failure.
+                seen = sorted(set(URL_RE.findall(results)))
+                ok, note = judge(sc, tools, skills, results, answer, artifacts, visited, seen)
                 passes += 1 if ok else 0
                 if not ok and note:
                     notes.append("run%d %s" % (i + 1, note))
