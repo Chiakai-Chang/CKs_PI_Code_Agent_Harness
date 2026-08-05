@@ -167,6 +167,45 @@ class TestTheDeliverableIncludesWhatWasWritten(unittest.TestCase):
         self.assertTrue(ok)
 
 
+class TestRepeatsAreIndependent(unittest.TestCase):
+    """Each repeat must start in a directory the previous one never touched.
+
+    The script's own design note says the cwd is neutral "so the model does not
+    see this repo's active plan". It created that directory once and reused it
+    for every repeat, so run 1 wrote task_plan.md and runs 2-5 began with a plan
+    already sitting there. Measured consequence: task-shape-bridge gates on
+    `hasAnyPlan(cwd)`, so it did nothing at all for four of five runs, and run 4
+    wrote `findings_01` rather than overwrite run 1's file. A 1/5 read as a score
+    for the bridge was mostly a score for something else.
+    """
+
+    def test_the_work_dir_is_created_inside_the_repeat_loop(self):
+        import ast
+        import inspect
+        import textwrap
+
+        def makes_a_cwd(node):
+            """A tempfile.mkdtemp whose prefix names the per-run directory."""
+            for sub in ast.walk(node):
+                if not isinstance(sub, ast.Call):
+                    continue
+                if getattr(sub.func, "attr", None) != "mkdtemp":
+                    continue
+                for kw in sub.keywords:
+                    if isinstance(kw.value, ast.Constant) and "cwd" in str(kw.value.value):
+                        return True
+            return False
+
+        tree = ast.parse(textwrap.dedent(inspect.getsource(mt.main)))
+        loops = [n for n in ast.walk(tree) if isinstance(n, ast.For)]
+        self.assertTrue(loops, "main has no loop to check")
+        self.assertTrue(
+            any(makes_a_cwd(loop) for loop in loops),
+            "the per-run working directory must be created inside the repeat loop; "
+            "sharing it lets one run's task_plan.md change what the next run sees",
+        )
+
+
 class TestRunOnceArity(unittest.TestCase):
     """Every exit from run_once must hand back the same shape.
 

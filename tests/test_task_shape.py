@@ -242,3 +242,54 @@ class TestRoutineIsDeliveredBeforeTheFirstAction(unittest.TestCase):
         """It lands in the system prompt. Unlabelled, an instruction there is
         indistinguishable from something the operator asked for."""
         self.assertIn("[task-shape]", self._note(self.SURVEY))
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestNonInteractiveRunsMustNotStallOnQuestions(unittest.TestCase):
+    """One run in five asked four scoping questions and stopped.
+
+    Its questions were good ones — geography, time window, product definition,
+    output format — and interactively that is the right move before a market
+    survey. Under `pi --print` there is nobody to answer, so the run ended with
+    no work done and no artifacts.
+
+    The model cannot tell which mode it is in. The harness can: ExtensionContext
+    carries `hasUI`, documented as "whether dialog-capable UI is available (true
+    in TUI and RPC modes)". So the harness says it rather than asking the model
+    to guess.
+    """
+
+    SURVEY = ("I want a market survey of the smart doorbell category in Taiwan — "
+              "who the competitors are, how they price, and which segments are underserved.")
+
+    def _note(self, interactive):
+        return run_js(
+            "process.stdout.write(JSON.stringify({ t: m.buildSystemPromptNote("
+            "m.classifyRequest(%s), { interactive: %s }) }));"
+            % (json.dumps(self.SURVEY), "true" if interactive else "false"))["t"]
+
+    def test_without_a_user_it_says_to_assume_and_proceed(self):
+        note = self._note(False)
+        self.assertRegex(note, r"(?i)assumption|assume|proceed")
+
+    def test_with_a_user_it_still_offers_to_ask(self):
+        """Asking first is the better behaviour when someone is there to answer;
+        the fix must not delete it."""
+        note = self._note(True)
+        self.assertIn("brainstorming", note)
+
+    def test_the_default_keeps_the_interactive_wording(self):
+        """Callers that pass no options must behave as before."""
+        note = run_js("process.stdout.write(JSON.stringify({ t: m.buildSystemPromptNote("
+                      "m.classifyRequest(%s)) }));" % json.dumps(self.SURVEY))["t"]
+        self.assertIn("brainstorming", note)
+
+    def test_a_single_step_request_gets_nothing_either_way(self):
+        for interactive in (True, False):
+            with self.subTest(interactive=interactive):
+                out = run_js(
+                    "process.stdout.write(JSON.stringify({ t: m.buildSystemPromptNote("
+                    "m.classifyRequest(%s), { interactive: %s }) }));"
+                    % (json.dumps("What is the latest version of Zig?"),
+                       "true" if interactive else "false"))["t"]
+                self.assertEqual(out, "")

@@ -284,10 +284,10 @@ def main():
         return 2
 
     session_dir = tempfile.mkdtemp(prefix="pi-trigger-sessions-")
-    work_dir = tempfile.mkdtemp(prefix="pi-trigger-cwd-")
+    work_dirs = []
     print("scenarios: %d   repeats: %d   timeout: %ss" % (len(scenarios), args.repeats, args.timeout))
     print("sessions -> %s (isolated from ~/.pi/agent/sessions)" % session_dir)
-    print("cwd      -> %s (neutral; no repo plan/CASE state in view)\n" % work_dir)
+    print("cwd      -> a fresh temp dir per run (neutral; no repo plan/CASE state in view)\n")
 
     rows = []
     started = time.time()
@@ -295,6 +295,15 @@ def main():
         for sc in scenarios:
             passes, notes = 0, []
             for i in range(args.repeats):
+                # A fresh directory per run. Sharing one let run 1's task_plan.md
+                # sit in front of runs 2-5: task-shape-bridge gates on
+                # hasAnyPlan(cwd), so it did nothing at all for four of five runs,
+                # and one of them wrote `findings_01` rather than overwrite the
+                # earlier file. The script's own design note already said the cwd
+                # must be neutral; this makes it true for every repeat, not just
+                # the first.
+                work_dir = tempfile.mkdtemp(prefix="pi-trigger-cwd-")
+                work_dirs.append(work_dir)
                 tools, skills, results, answer, artifacts, err = run_once(
                     sc, work_dir, session_dir, args.timeout)
                 if err:
@@ -312,7 +321,11 @@ def main():
     finally:
         if not args.keep_sessions:
             shutil.rmtree(session_dir, ignore_errors=True)
-        shutil.rmtree(work_dir, ignore_errors=True)
+        for d in work_dirs:
+            # Kept alongside the sessions when asked: the files a run wrote are
+            # half of what a failing run has to say for itself.
+            if not args.keep_sessions:
+                shutil.rmtree(d, ignore_errors=True)
 
     total_pass = sum(r[1] for r in rows)
     total_runs = sum(r[2] for r in rows)

@@ -149,13 +149,29 @@ export function buildRoutine(shape: RequestShape): string {
  * Shorter than the tool-result version: this one is paid for on every turn of a
  * multi-step task, not once.
  */
-export function buildSystemPromptNote(shape: RequestShape): string {
+export function buildSystemPromptNote(
+  shape: RequestShape,
+  options?: { interactive?: boolean },
+): string {
   if (!shape.multiStep) return "";
+  const interactive = options?.interactive !== false;
+
+  // One run in five asked four scoping questions — geography, time window,
+  // product definition, output format — and stopped. Interactively that is the
+  // better move before a market survey. Under `pi --print` there is nobody to
+  // answer, and the run ended with no work and no artifacts.
+  //
+  // The model cannot tell which mode it is in. `ExtensionContext.hasUI` can, so
+  // the harness says it rather than asking the model to guess.
+  const scope = interactive
+    ? "Use `brainstorming` first if the scope is unclear."
+    : "Nobody can answer questions in this run: write your assumptions into the plan and proceed rather than stopping to ask.";
+
   return (
     `[task-shape] This request looks like ${shape.deliverables} separate deliverables. ` +
     `Plan before executing: load the \`planning-with-files\` skill and write task_plan.md ` +
-    `with one phase per deliverable, then work one phase at a time. Use \`brainstorming\` ` +
-    `first if the scope is unclear. If it really is a single lookup, say so and carry on.`
+    `with one phase per deliverable, then work one phase at a time. ${scope} ` +
+    `If it really is a single lookup, say so and carry on.`
   );
 }
 

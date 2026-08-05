@@ -46,9 +46,28 @@ Finish and verify a phase before starting the next. A single round of fifteen
 searches produces a summary that cannot be checked, because there is no record of
 which finding came from where.
 
-**4. Cite where each finding came from.**
-A research deliverable with no sources is not a deliverable. Name the page for
-each claim as you go, not at the end from memory.
+**4. Record the URL with the finding, in this shape.**
+
+Measured across five runs of one market-survey brief: four of them searched
+10–20 times, opened 3–8 pages, wrote a `findings.md`, and recorded **zero URLs**.
+The instruction to cite sources was already in this file and was not followed.
+So it is a format now, where a blank column is visible:
+
+```markdown
+## Phase 1 — competitors
+
+| Finding | Source |
+| --- | --- |
+| Ring, Eufy and Tapo hold the visible shelf space on momo | https://… |
+| Local brand X sells only through Shopee | https://… |
+```
+
+Fill the Source cell **at the moment you read the page**, from the URL you just
+opened. Reconstructing sources at the end, from memory, is how a report ends up
+with none — that is the measured failure, not a hypothetical one.
+
+A row with an empty Source is a finding you cannot defend. Either find the page
+again or delete the row.
 
 ## When NOT to use this
 

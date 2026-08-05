@@ -88,7 +88,10 @@ export default function (pi: ExtensionAPI) {
       // path is always *after* the model has committed. Models attend to the
       // start and the end of a context, and an instruction that matters belongs
       // in more than one place.
-      const note = buildSystemPromptNote(shape);
+      // `hasUI` is documented as "whether dialog-capable UI is available (true in
+      // TUI and RPC modes)". Under `pi --print` there is nobody to answer a
+      // scoping question, and one measured run spent its whole turn asking four.
+      const note = buildSystemPromptNote(shape, { interactive: ctx.hasUI !== false });
       if (note) return { systemPrompt: `${event.systemPrompt ?? ""}\n\n${note}` };
     } catch {
       // Classification must never break a turn.
