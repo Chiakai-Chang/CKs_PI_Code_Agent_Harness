@@ -135,8 +135,8 @@ def run_once(scenario, cwd, session_dir, timeout):
         p = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True,
                            encoding="utf-8", errors="replace", timeout=timeout)
     except subprocess.TimeoutExpired:
-        return [], [], "", "", "timeout after %ss" % timeout
-    tools, skills, results, answers = [], [], [], []
+        return [], [], "", "", "", "timeout after %ss" % timeout
+    tools, skills, results, answers, written = [], [], [], [], []
     for line in p.stdout.splitlines():
         line = line.strip()
         if not line.startswith("{"):
@@ -154,6 +154,16 @@ def run_once(scenario, cwd, session_dir, timeout):
                     answers.append(c["text"])
                 if c.get("type") == "toolCall":
                     tools.append(c.get("name"))
+                    # Files the run produced are part of the deliverable — the
+                    # methodology it is routed to puts findings in one.
+                    if c.get("name") in ("write", "edit"):
+                        args = c.get("arguments") or {}
+                        body = args.get("content")
+                        if isinstance(body, str):
+                            written.append(body)
+                        for e in (args.get("edits") or []):
+                            if isinstance(e, dict) and isinstance(e.get("newText"), str):
+                                written.append(e["newText"])
                     if c.get("name") == "read":
                         path = str((c.get("arguments") or {}).get("path") or "")
                         if path.upper().endswith("SKILL.MD"):
@@ -169,13 +179,14 @@ def run_once(scenario, cwd, session_dir, timeout):
     # Only the last assistant text is the answer; the earlier ones are narration
     # between tool calls, and counting those as the deliverable would let a run
     # pass by mentioning a keyword on the way past.
-    return tools, skills, "\n".join(results), (answers[-1] if answers else ""), err
+    return (tools, skills, "\n".join(results), (answers[-1] if answers else ""),
+            "\n".join(written), err)
 
 
 URL_RE = re.compile(r"https?://[^\s<>\)\]\"'，。、]+")
 
 
-def judge(scenario, tools, skills, results, answer=""):
+def judge(scenario, tools, skills, results, answer="", artifacts=""):
     """Return (passed, note). Objective checks only — no model grading.
 
     `expect_output` scores the deliverable rather than the activation. Every other
@@ -221,7 +232,13 @@ def judge(scenario, tools, skills, results, answer=""):
 
     out = scenario.get("expect_output") or {}
     if out:
-        text = answer or ""
+        # The deliverable is the answer plus what the run wrote. Measured: a run
+        # that did everything asked returned a 1,250-char summary with zero links
+        # and a findings.md with ten distinct sources — and the first version of
+        # this check, reading the reply alone, scored it 0. `planning-with-files`
+        # says findings belong in a file; a criterion that only reads the chat
+        # marks the methodology down for following its own instruction.
+        text = "\n".join(t for t in (answer or "", artifacts or "") if t)
         lower = text.lower()
 
         # Each group is one deliverable, listed with its synonyms — the answer may
@@ -278,11 +295,12 @@ def main():
         for sc in scenarios:
             passes, notes = 0, []
             for i in range(args.repeats):
-                tools, skills, results, answer, err = run_once(sc, work_dir, session_dir, args.timeout)
+                tools, skills, results, answer, artifacts, err = run_once(
+                    sc, work_dir, session_dir, args.timeout)
                 if err:
                     notes.append("run%d %s" % (i + 1, err))
                     continue
-                ok, note = judge(sc, tools, skills, results, answer)
+                ok, note = judge(sc, tools, skills, results, answer, artifacts)
                 passes += 1 if ok else 0
                 if not ok and note:
                     notes.append("run%d %s" % (i + 1, note))

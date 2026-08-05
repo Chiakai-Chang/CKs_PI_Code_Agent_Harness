@@ -129,6 +129,44 @@ class TestOutcomeChecks(unittest.TestCase):
         self.assertTrue(ok)
 
 
+class TestTheDeliverableIncludesWhatWasWritten(unittest.TestCase):
+    """Scoring only the chat answer penalised the behaviour being encouraged.
+
+    Measured: a run that did everything asked — read the routing skill, wrote
+    task_plan.md, worked the phases — produced a 1,250-char summary with zero
+    links and a findings.md with ten distinct sources. The first outcome
+    criterion looked at the chat text alone and scored it 0 sources.
+
+    `planning-with-files` says findings belong in a file. A criterion that only
+    reads the reply marks the methodology down for following its own instruction.
+    The deliverable is the answer plus the artifacts.
+    """
+
+    def test_sources_in_a_written_file_count(self):
+        sc = {"expect_output": {"min_sources": 2}}
+        ok, note = mt.judge(sc, [], [], "", answer="Summary of findings, details in findings.md.",
+                            artifacts="see https://a.example/x and https://b.example/y")
+        self.assertTrue(ok, note)
+
+    def test_coverage_can_come_from_the_artifacts_too(self):
+        sc = {"expect_output": {"covers": [["segment", "區隔"]]}}
+        ok, _ = mt.judge(sc, [], [], "", answer="Done, written up in findings.md.",
+                         artifacts="## 未被滿足的區隔\n租屋族")
+        self.assertTrue(ok)
+
+    def test_a_run_that_wrote_nothing_and_cited_nothing_still_fails(self):
+        """The relaxation must not turn into a free pass."""
+        sc = {"expect_output": {"min_sources": 1}}
+        ok, note = mt.judge(sc, [], [], "", answer="The market is growing.", artifacts="")
+        self.assertFalse(ok)
+
+    def test_artifacts_default_to_empty(self):
+        """Callers that pass no artifacts must judge exactly as before."""
+        sc = {"expect_output": {"min_sources": 1}}
+        ok, _ = mt.judge(sc, [], [], "", answer="https://a.example/x")
+        self.assertTrue(ok)
+
+
 class TestRunOnceArity(unittest.TestCase):
     """Every exit from run_once must hand back the same shape.
 
@@ -139,14 +177,24 @@ class TestRunOnceArity(unittest.TestCase):
     """
 
     def test_the_timeout_path_returns_the_same_arity_as_the_normal_one(self):
+        """Parsed, not pattern-matched.
+
+        A first version counted commas per line and broke the moment a return was
+        wrapped across two lines — a guard that fails on formatting is a guard
+        someone eventually loosens instead of reading.
+        """
+        import ast
         import inspect
-        src = inspect.getsource(mt.run_once)
-        returns = [ln.strip() for ln in src.splitlines() if ln.strip().startswith("return ")]
-        self.assertTrue(returns, "run_once has no return statements to compare")
-        widths = {r.count(",") for r in returns}
+        import textwrap
+        tree = ast.parse(textwrap.dedent(inspect.getsource(mt.run_once)))
+        widths = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Return) and isinstance(node.value, ast.Tuple):
+                widths.add(len(node.value.elts))
+        self.assertTrue(widths, "run_once returns no tuples to compare")
         self.assertEqual(
             len(widths), 1,
-            "run_once returns different tuple widths on different paths: %s" % returns,
+            "run_once returns different tuple widths on different paths: %s" % sorted(widths),
         )
 
 
