@@ -67,6 +67,7 @@ import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { CycleDetector, SAME_QUERY_LIMIT } from "./loop-detect.ts";
+import { ResearchDepthGuard } from "./research-depth.ts";
 
 function harnessRoot(): string {
   const here = dirname(fileURLToPath(import.meta.url));
@@ -302,6 +303,12 @@ let repeatBreakerTripped = false;
 
 // Cycling loops are per session, like every other counter here.
 const cycleDetector = new CycleDetector();
+
+// Guard 10 — see research-depth.ts. Separate object from the cycle detector
+// because they answer different questions: that one asks "have I asked this
+// before?", this one asks "have I read anything, and have I written anything
+// down?". The measured session that motivated it repeated no query at all.
+const researchDepth = new ResearchDepthGuard();
 
 function repeatCallGuard(event: ToolCallEvent, ctx: ExtensionContext, pi: ExtensionAPI) {
   let signature: string;
@@ -1389,6 +1396,7 @@ export default function (pi: ExtensionAPI) {
   // not yet made.
   pi.on("session_start", async () => {
     cycleDetector.reset();
+    researchDepth.reset();
   });
 
   pi.on("before_agent_start", (event, _ctx) => {
@@ -1439,6 +1447,17 @@ export default function (pi: ExtensionAPI) {
     if (cycling) {
       ctx.ui.notify(`🔁 Blocked a lookup already issued ${SAME_QUERY_LIMIT}× — same query, same answer`, "warning");
       return cycling;
+    }
+    // Breadth without depth, and a run that leaves nothing behind. Counts
+    // web_open and write/edit too, so it must see every call, not just searches.
+    const shallow = researchDepth.check(event.toolName, event.input);
+    if (shallow) {
+      const s = researchDepth.stats();
+      ctx.ui.notify(
+        `🔎 ${s.searches} 次搜尋 / 開啟 ${s.opens} 頁 / 寫入 ${s.writes} 檔 — 已擋下,請先讀或先落檔`,
+        "warning",
+      );
+      return shallow;
     }
     if (event.toolName === "bash") {
       // Cross-shell quoting first: the destructive-pattern script has nothing to

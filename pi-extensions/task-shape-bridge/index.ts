@@ -64,16 +64,30 @@ export default function (pi: ExtensionAPI) {
   // session_start once per session.
   let armed: string | null = null;
   let pending: string | null = null;
-  let firedThisSession = false;
+  let delivered = 0;
+
+  /**
+   * How many times the routine may ride along on a tool result in one session.
+   *
+   * The first version stopped after one, permanently, for the whole session. In
+   * session 019fd29d that was measured costing everything: three user turns, the
+   * note delivered on turn 1, and turns 2 and 3 — where the request was
+   * *sharpened* and the work actually mattered — routed by nobody. Thirty-eight
+   * searches, two pages read, no file written.
+   *
+   * A conversation is not one request. Each new turn gets classified again; the
+   * cap only stops a single long turn from repeating itself.
+   */
+  const MAX_DELIVERIES = 2;
 
   pi.on("session_start", async () => {
     armed = null;
     pending = null;
-    firedThisSession = false;
+    delivered = 0;
   });
 
   pi.on("before_agent_start", (event, ctx) => {
-    if (!enabled || firedThisSession) return;
+    if (!enabled) return;
     try {
       const shape = classifyRequest(event.prompt);
       if (!shape.multiStep) return;
@@ -100,11 +114,17 @@ export default function (pi: ExtensionAPI) {
 
   pi.on("tool_call", async (event, ctx) => {
     if (!armed || !isBroadTool(event.toolName)) return;
+    if (delivered >= MAX_DELIVERIES) {
+      armed = null;
+      return;
+    }
     pending = armed;
     armed = null;
-    firedThisSession = true;
+    delivered++;
     ctx.ui.notify("🧭 多步任務:已提示先規劃再執行", "info");
-    // No block. The routine says what to do; the model decides.
+    // No block. The routine says what to do; the model decides — and when it
+    // decides not to, `yes-hooks-bridge`'s depth and artifact gates are what
+    // actually stops the run. This bridge advises; that one refuses.
   });
 
   pi.on("tool_result", async (event) => {

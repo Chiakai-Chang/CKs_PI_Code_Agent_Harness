@@ -167,6 +167,48 @@ class TestTheDeliverableIncludesWhatWasWritten(unittest.TestCase):
         self.assertTrue(ok)
 
 
+class TestSomethingMustSurviveTheSession(unittest.TestCase):
+    """An answer that exists only in the reply cannot be checked later.
+
+    The harness owner chose this criterion on 2026-08-06, after session
+    019fd29d ran a three-turn investigation to completion with 38 `web_search`
+    calls and `write/edit` = 0. The working directory afterwards held `.git` and
+    nothing else — no way to review a claim, resume the work, or find out where
+    any of it came from.
+
+    Deliberately not "did a methodology skill load". That metric drifts into
+    firing more often; this one is satisfied only by leaving something behind.
+    """
+
+    SC = {"expect_output": {"min_artifacts": 1}}
+
+    def test_a_run_that_wrote_nothing_fails(self):
+        ok, note = mt.judge(self.SC, ["web_search", "web_open"], [], "", answer="Here is what I found.")
+        self.assertFalse(ok)
+        self.assertIn("nothing survives", note)
+
+    def test_a_run_that_wrote_a_real_file_passes(self):
+        ok, note = mt.judge(self.SC, ["web_search", "write"], [], "", answer="Written up.",
+                            artifacts="x" * 250)
+        self.assertTrue(ok, note)
+
+    def test_a_token_file_does_not_count(self):
+        """`write("notes.md", "ok")` satisfies the letter and defeats the point."""
+        ok, note = mt.judge(self.SC, ["write"], [], "", answer="Done.", artifacts="ok")
+        self.assertFalse(ok)
+        self.assertIn("too little to resume", note)
+
+    def test_an_edit_counts_as_leaving_something_behind(self):
+        ok, note = mt.judge(self.SC, ["edit"], [], "", answer="Updated the plan.",
+                            artifacts="y" * 250)
+        self.assertTrue(ok, note)
+
+    def test_scenarios_that_do_not_ask_for_artifacts_are_unaffected(self):
+        ok, _ = mt.judge({"expect_output": {"covers": [["price", "價格"]]}}, [], [], "",
+                         answer="價格約 NT$3000")
+        self.assertTrue(ok)
+
+
 class TestCitationsMustBeVisited(unittest.TestCase):
     """Counting URLs rewards inventing them.
 

@@ -1,0 +1,165 @@
+/**
+ * The run that searches wide, reads nothing, and leaves nothing behind.
+ *
+ * Measured 2026-08-05, Pi session 019fd29d-4e18-7970-835b-87b2d2ae46cc — a real
+ * research request, three turns, run to completion:
+ *
+ *     40 tool calls = 38 web_search + 2 web_open + 0 write/edit
+ *     distinct query signatures: 40      max repeat: 1
+ *
+ * `loop-detect.ts` was correct to stay silent: no query was ever repeated. This
+ * is a third shape, and neither existing guard can see it. The consecutive guard
+ * watches for AAAA. The cycle guard watches for ABCABCABC. This one is
+ * ABCDEFGHIJ… — forty distinct questions, none of them followed anywhere.
+ *
+ * Two things went wrong, and they are separate:
+ *
+ *   Depth. Two pages opened out of thirty-eight searches. Every conclusion in
+ *   that session rests on search-result snippets, which are written to earn a
+ *   click rather than to be quoted. The tell was in the output itself: the same
+ *   person is referred to as 他 in one paragraph and 她 in another, which is what
+ *   stitching snippets together without reading them looks like.
+ *
+ *   Residue. Nothing was written. Afterwards the working directory held `.git`
+ *   and nothing else. The investigation existed only in context — not
+ *   reviewable, not resumable, and no claim traceable to its source. The harness
+ *   owner's point, and the reason C.A.S.E. exists: work that lives only in
+ *   context gets the model's natural pull toward closing the topic, while work
+ *   split across files gets a fresh context per piece.
+ *
+ * Refusing a search is the only lever that reaches either one. There is no
+ * "about to answer" event, and advice loses to momentum — the task-shape router
+ * delivered a correct routing note attached to the FIRST search of that very
+ * session, and thirty-seven searches followed it.
+ *
+ * So: block, but only past the point where the next search could still be the
+ * useful one, and never in a way that can trap the run. This repo's scar from
+ * GateGuard is a gate nobody had ever run denying the first bash command of
+ * every session; the retirement rule below exists because of it.
+ */
+
+/** Searches allowed before anything at all has been read in full. */
+export const OPEN_AFTER_SEARCHES = 8;
+
+/** Searches allowed before anything at all has been written down. */
+export const WRITE_AFTER_SEARCHES = 12;
+
+/**
+ * How many times one gate may refuse before it gives up for the session.
+ *
+ * `web_open` can fail for reasons the run does not control — the site refuses
+ * the fetch, the address 404s, the page is a login wall. A gate that demands
+ * something impossible and never relents turns a shallow run into a stuck one,
+ * which is worse. Three refusals is enough to change a mind that can be changed.
+ */
+export const MAX_BLOCKS_PER_GATE = 3;
+
+/** Tools that count as having read something in full. */
+const READ_TOOLS = new Set(["web_open"]);
+
+/** Tools that count as having written something down. */
+const WRITE_TOOLS = new Set(["write", "edit"]);
+
+export interface DepthBlock {
+  block: true;
+  reason: string;
+}
+
+type GateName = "depth" | "artifact";
+
+export class ResearchDepthGuard {
+  private searches = 0;
+  private opens = 0;
+  private writes = 0;
+  private blocked = new Map<GateName, number>();
+  private retired = new Set<GateName>();
+
+  /**
+   * Counts the call, and refuses it if it is a search that has run past one of
+   * the two gates.
+   *
+   * Counting happens on the ATTEMPT, not the result — this guard sees
+   * `tool_call`, which fires before the tool runs, and there is no honest way to
+   * know from here whether the page loaded. That is deliberate rather than a
+   * compromise: a `web_open` that fails still clears the depth gate, so a run
+   * that genuinely cannot read a page is never held against a wall.
+   */
+  check(toolName: string, _input?: unknown): DepthBlock | null {
+    const name = String(toolName || "").toLowerCase();
+
+    if (READ_TOOLS.has(name)) {
+      this.opens++;
+      return null;
+    }
+    if (WRITE_TOOLS.has(name)) {
+      this.writes++;
+      return null;
+    }
+    if (name !== "web_search") return null;
+
+    this.searches++;
+
+    if (this.searches > OPEN_AFTER_SEARCHES && this.opens === 0) {
+      const hit = this.refuse("depth");
+      if (hit) {
+        return {
+          block: true,
+          reason:
+            `Depth guard: ${this.searches} searches, 0 pages opened. Every answer ` +
+            `built from here rests on result snippets, which are written to earn ` +
+            `a click, not to be quoted. Call \`web_open\` on one of the addresses ` +
+            `the results already gave you. Reading one page beats a ninth query.`,
+        };
+      }
+    }
+
+    if (this.searches > WRITE_AFTER_SEARCHES && this.writes === 0) {
+      const hit = this.refuse("artifact");
+      if (hit) {
+        return {
+          block: true,
+          reason:
+            `Artifact guard: ${this.searches} searches and nothing written to ` +
+            `disk. When this session ends, none of it can be reviewed, resumed, ` +
+            `or traced back to a source. Write what you have so far to a file ` +
+            `(findings.md, or a phase file if a plan exists) — one line per claim ` +
+            `with the URL it came from — then carry on searching.`,
+        };
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Records a refusal and reports whether it should actually be delivered.
+   *
+   * Returns false once the gate has spent its budget, and retires it: a rule the
+   * run has declined three times is not going to work on the fourth, and the
+   * only thing further refusals can still do is deadlock the session.
+   */
+  private refuse(gate: GateName): boolean {
+    if (this.retired.has(gate)) return false;
+    const count = (this.blocked.get(gate) ?? 0) + 1;
+    this.blocked.set(gate, count);
+    if (count > MAX_BLOCKS_PER_GATE) {
+      this.retired.add(gate);
+      return false;
+    }
+    return true;
+  }
+
+  /** A new session starts with no history. */
+  reset(): void {
+    this.searches = 0;
+    this.opens = 0;
+    this.writes = 0;
+    this.blocked.clear();
+    this.retired.clear();
+  }
+
+  /** For the TUI line and for measurement. */
+  stats(): { searches: number; opens: number; writes: number } {
+    return { searches: this.searches, opens: this.opens, writes: this.writes };
+  }
+}

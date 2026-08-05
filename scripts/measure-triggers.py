@@ -107,6 +107,16 @@ SCENARIOS = [
                 ["segment", "underserved", "區隔", "客群", "缺口"],
             ],
             "min_sources": 2,
+            # The harness owner's criterion, chosen 2026-08-06 after session
+            # 019fd29d finished a three-turn investigation with 38 searches and
+            # `write/edit` = 0: the working directory held `.git` and nothing
+            # else. An answer that exists only in the reply cannot be reviewed,
+            # resumed, or checked against its sources once the session ends.
+            #
+            # Deliberately not "did a methodology skill load" — that is the
+            # metric that drifts into firing more often. This one is satisfied
+            # by leaving something behind that a later run can read.
+            "min_artifacts": 1,
         },
         "why": ("a multi-step brief is exactly what the methodology routing exists for. If the "
                 "model opens web_search and reports back in one round, the routing in AGENTS.md "
@@ -341,6 +351,24 @@ def judge(scenario, tools, skills, results, answer="", artifacts="", visited=Non
             if not any(str(term).lower() in lower for term in group):
                 ok = False
                 notes.append("answer never covers %s" % "/".join(group))
+
+        want_files = out.get("min_artifacts")
+        if want_files:
+            # Counted from the tool calls rather than from `artifacts` being
+            # non-empty, because an `edit` that replaces text with the same text
+            # still leaves a file behind and an empty `content` still leaves one
+            # too. The length floor is here so `write("notes.md", "ok")` cannot
+            # satisfy a criterion whose whole point is that a later run can pick
+            # the work up: 200 chars is roughly one finding with its URL.
+            files = sum(1 for t in tools if t in ("write", "edit"))
+            if files < want_files:
+                ok = False
+                notes.append("wrote %d file(s), wanted %d — nothing survives the session"
+                             % (files, want_files))
+            elif len(artifacts or "") < 200:
+                ok = False
+                notes.append("wrote %d file(s) but only %d chars — too little to resume from"
+                             % (files, len(artifacts or "")))
 
         need = out.get("min_sources")
         if need:
