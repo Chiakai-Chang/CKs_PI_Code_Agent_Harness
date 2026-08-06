@@ -10,6 +10,8 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 
+import { TaskQueueGuard } from "./task-queue-guard.ts";
+
 const MAX_INJECT_CHARS = 3000;
 
 function fileExists(dir: string, name: string): boolean {
@@ -48,11 +50,38 @@ function caseBridgeEnabled(): boolean {
 }
 
 export default function (pi: ExtensionAPI) {
+  // The half of the protocol that is a transition rather than a decision. See
+  // task-queue-guard.ts — every status change is a write, a write is a
+  // tool_call, and tool_call fires before the tool runs, so the old value is
+  // still there to compare against.
+  //
+  // Measured the day this landed: the same protocol as skill text was skipped
+  // 3/3, and `case-framework` promoted into the core tier with a full
+  // description was loaded 0/3. A refusal is the one channel that has moved
+  // behaviour in this harness.
+  const queueGuard = new TaskQueueGuard();
+
   // On session start: detect C.A.S.E. status
   pi.on("session_start", async (_event, ctx) => {
+    // A new session is a new Worker: whoever moved a task to IN_PROGRESS last
+    // time is not this session, and the dual-track rule must not carry over.
+    queueGuard.reset();
     if (!isCaseProject(ctx.cwd)) return;
     if (!caseBridgeEnabled()) return;
     ctx.ui.setStatus("case", "[C.A.S.E.] framework active in workspace");
+  });
+
+  // Deliberately not gated on isCaseProject(cwd): a project with
+  // 02_Task_Queue/Task_NNN_*/ is working the protocol whether or not it also
+  // has CASE.md at the root, and the guard's own scope is already narrow enough
+  // that nothing else in any project can reach it.
+  pi.on("tool_call", async (event, ctx) => {
+    if (!caseBridgeEnabled()) return;
+    const refusal = queueGuard.check(event.toolName, event.input, ctx.cwd);
+    if (refusal) {
+      ctx.ui.notify("🔒 C.A.S.E. 佇列規則:已擋下不合協定的狀態變更", "warning");
+      return refusal;
+    }
   });
 
   // Before each agent turn: inject C.A.S.E. rules and file-based state context

@@ -311,6 +311,16 @@ GUARD_MARKERS = (
     "Citation guard",
     "Repeat-lookup guard",
     "[task-shape]",
+    # The C.A.S.E. queue guards. Their refusals only happen inside a real task
+    # queue, which `--print` runs in a clean temp directory never have — so
+    # these will read as absent here and only appear in the owner's own
+    # sessions. Listed anyway, because the alternative is grepping by hand,
+    # which this round did three times and got wrong once.
+    "C.A.S.E. transition guard",
+    "C.A.S.E. one-at-a-time guard",
+    "C.A.S.E. retrospective guard",
+    "C.A.S.E. dual-track guard",
+    "C.A.S.E. boundary guard",
 )
 
 
