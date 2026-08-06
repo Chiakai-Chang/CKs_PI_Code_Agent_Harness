@@ -205,14 +205,22 @@ export class TaskQueueGuard {
             `itself should change — then close the task.`,
         };
       }
+      // Session boundary as the proxy for "a fresh context". Path B of the
+      // protocol (autonomous Checker approval, for unattended runs) allows the
+      // same model to approve — but explicitly "in a fresh context", and §1
+      // makes role separation non-negotiable. So this costs an unattended run a
+      // session boundary per task, which is the protocol's price rather than
+      // this guard's, and pi-skills/commands/case.md says so up front.
       if (this.startedHere.has(taskDir) && this.refuse("self-approval")) {
         return {
           block: true,
           reason:
             `C.A.S.E. dual-track guard: this session moved ${taskName} to ` +
             `IN_PROGRESS, so it is the Worker and cannot also be the Checker. ` +
-            `A Worker approving its own output is the failure the two roles ` +
-            `exist to prevent. Leave it at REVIEW for a separate check.`,
+            `Section 1 makes that non-negotiable, and Path B's autonomous ` +
+            `approval still requires a FRESH context. Leave it at REVIEW, start ` +
+            `a new session, and check output.md against recipe.md's Local DoD ` +
+            `there.`,
         };
       }
     }

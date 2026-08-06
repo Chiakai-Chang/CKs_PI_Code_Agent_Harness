@@ -80,3 +80,16 @@ python "$PI_HARNESS_ROOT/external/Local-Agent-Workspace/verifiers/verify.py" --q
   * 寫進不是當前進行中的那個任務目錄
 
 被擋下時**照理由做**,不要繞路。理由會指名是哪個任務、下一步該做什麼。
+
+## 一個要先知道的代價:收尾要換 session
+
+「Worker 不得自我核可」是 C.A.S.E. 的**核心公理**(`for_agents.md` §1,標明 Non-Negotiable),
+而 Path B 的自主核可寫的是「**same model in a fresh context**」—— fresh context,不是同一個。
+
+所以:**把某個任務改成 `IN_PROGRESS` 的那個 session,不能再把它改成 `DONE`。**
+
+正常收尾方式:做到 `REVIEW` 就停,`/new` 開新 session 當 Checker,對照 `recipe.md` 的
+Local DoD 逐項評估 `output.md`,通過才改 `DONE`。
+
+這不是 harness 多加的規矩,是協定本來就這樣。守衛擋滿 3 次會退場,所以**不會卡死**,
+但那三次是白花的 —— 直接換 session 比較快。
