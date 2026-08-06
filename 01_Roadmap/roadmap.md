@@ -33,7 +33,10 @@
 
 ## Phase 2:依量測結果決定下一步
 
-- [ ] `Task_003_cwd_confusion`:**降級為效率問題。** 乾淨重測顯示模型前 16 步在錯的目錄,
+- [ ] `Task_003_cwd_confusion`:**降級已撤銷 —— 2026-08-06 的 advancer 判定量測顯示
+      它吃掉 5 次 run 裡的 2 次(擋阻 11 次與 72 次,狀態一次都沒離開 PENDING)。
+      這是目前最大的單一失敗來源,最高優先。** 原本的降級理由如下,保留以示對照:
+      ~~降級為效率問題。~~ 乾淨重測顯示模型前 16 步在錯的目錄,
       但**自己修正了**,任務仍走到 DONE。所以它拖慢流程、不阻斷流程。原本的計畫是: Task_002 顯示遵循率 0 的原因
       不是推進器,是模型把相對路徑解析到 harness 根目錄去。同一問題今天出現三次。
       **修法已依實測修正**:dump 出的 prompt 顯示 Pi **本來就宣告了** cwd(1 次,89% 深度),
@@ -55,8 +58,14 @@
       從來沒響過;改用 `tool_execution_start`/`end` 配對,並修好輪次邊界。
       → REVIEW,**已在真實 session 拿到交付證明**(模型收到注入後自己查檔並更正)。
       結論見 [docs/case/task-011-blocked-claim-channel.md](../docs/case/task-011-blocked-claim-channel.md)。
-- [ ] `Task_008_advancer_verdict`:bash 洞補上後重測遵循率,再決定預設值與門檻。
-      **三個 bash 洞都補上了,儀器也證明過看得見擋阻(第 0 步),這是下一步。**
+- [x] `Task_008_advancer_verdict`(佇列狀態 `REVIEW`):**判定 = 維持 `false`。**
+      21 次 status 寫入全走 `write`/`edit`、`bash` 0 次(基準線是 3 次全走 bash)——
+      Task_004/005 的修正在真實流程裡成立。但 5 次 run 沒有一次到 DONE,因為退場計數器
+      數的是注入次數而非停滯,終點步驟必然被判卡住;而研究型 run 顯示推進器在 `turn_end`
+      根本追不上「一上來就搜」。見
+      [docs/measurements/2026-08-06-advancer-verdict.md](../docs/measurements/2026-08-06-advancer-verdict.md)。
+- [ ] `Task_015_advancer_retirement_unit`:退場計數器改為「任務包自上次注入後無變化」
+      才累加,並把「交還使用者」標為終端步驟不累加。修完才談預設值。
 
 **出口條件**:預設值有實測依據,不是設計時的直覺。
 
