@@ -314,7 +314,7 @@ GUARD_MARKERS = (
 )
 
 
-def mechanics(tools, artifacts, visited, guards):
+def mechanics(tools, artifacts, visited, guards, skills=None):
     """What the run did, alongside whether it passed.
 
     A pass/fail column cannot say why it moved. Three measured rounds in one day
@@ -346,6 +346,11 @@ def mechanics(tools, artifacts, visited, guards):
         # and neither the depth nor the artifact gate has ever been reached by
         # this probe.
         "guards": {k: v for k, v in (guards or {}).items() if v},
+        # Deduplicated, order preserved: a run that reads the same SKILL.md
+        # seven times has not done seven things. The question a tier change
+        # asks — did the model reach for this now that it can see it? — has no
+        # other column to live in.
+        "skills": list(dict.fromkeys(skills or [])),
     }
 
 
@@ -528,7 +533,7 @@ def main():
                 if err:
                     notes.append("run%d %s" % (i + 1, err))
                     continue
-                runs.append(mechanics(tools, artifacts, visited, guards))
+                runs.append(mechanics(tools, artifacts, visited, guards, skills))
                 # Addresses the run was shown, as distinct from ones it opened.
                 # Without this, citing a search result it did not read is scored
                 # the same as inventing an address, and the two are not the same
@@ -547,6 +552,8 @@ def main():
                       % (k + 1, r["searches"], r["opens"], r["writes"],
                          r["urls_in_files"], r["urls_opened"],
                          "  | " + fired if fired else ""))
+                if r["skills"]:
+                    print("            skills: %s" % ", ".join(r["skills"]))
             for n in notes[:3]:
                 print("      %s" % n[:150])
     finally:

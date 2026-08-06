@@ -205,6 +205,27 @@ class TestTheBaselineRecordsMechanicsNotJustTheScore(unittest.TestCase):
         self.assertEqual(m["urls_in_files"], 2)
         self.assertEqual(m["urls_opened"], 1)
 
+    def test_it_records_which_skills_were_read(self):
+        """The question a tier change asks is "did it load now?", and the score
+        cannot answer it.
+
+        2026-08-06 promoted case-framework from the catalog into the core tier,
+        where it finally carries a description. Whether that alone is enough to
+        make the model reach for it is the whole point of the change, and
+        nothing in the row said which skills a run opened.
+        """
+        m = mt.mechanics(tools=["read", "web_search"], artifacts="", visited=[], guards={},
+                         skills=["case-framework", "pi-planning-with-files", "case-framework"])
+        self.assertEqual(m["skills"], ["case-framework", "pi-planning-with-files"])
+
+    def test_a_run_that_read_no_skill_records_an_empty_list(self):
+        m = mt.mechanics(tools=["web_search"], artifacts="", visited=[], guards={}, skills=[])
+        self.assertEqual(m["skills"], [])
+
+    def test_skills_default_to_empty_for_callers_that_do_not_pass_them(self):
+        m = mt.mechanics(tools=[], artifacts="", visited=None, guards=None)
+        self.assertEqual(m["skills"], [])
+
     def test_it_names_the_guards_that_fired(self):
         m = mt.mechanics(tools=[], artifacts="", visited=[],
                          guards={"Citation guard": 2, "Depth guard": 0})
