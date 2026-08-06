@@ -131,9 +131,39 @@ function leaf(target: string): string {
   return parts.length ? parts[parts.length - 1] : target;
 }
 
+/** The text of a tool result, whatever shape it arrives in. */
+function resultText(result: unknown): string {
+  if (typeof result === "string") return result;
+  const content = (result as { content?: unknown })?.content;
+  if (Array.isArray(content)) {
+    return content.map((c) => (c as { text?: string })?.text ?? "").join(" ");
+  }
+  return "";
+}
+
 export class BlockedClaimTracker {
   private refused = new Set<string>();
   private landed = new Set<string>();
+  /**
+   * Calls seen starting, keyed by id, because the end event does not carry the
+   * input.
+   *
+   * The pairing exists because of what a blocked call actually emits. Measured
+   * 2026-08-06 with a probe on the installed bridge:
+   *
+   *     blocked:  tool_execution_start + tool_execution_end   (isError, reason)
+   *     allowed:  those two, plus tool_call and tool_result
+   *
+   * This tracker was fed from `tool_result`, which a refused call never
+   * produces, so it never recorded a single block in any real session while
+   * twelve unit tests passed. The transcript is what misled the first wiring:
+   * Pi writes a `role: toolResult` record with `isError: true` into the session
+   * log, and that record is not the event an extension receives.
+   *
+   * `ToolExecutionEndEvent` has `toolCallId`, `toolName`, `result` and
+   * `isError` — no input. The path lives in `ToolExecutionStartEvent.args`.
+   */
+  private started = new Map<string, unknown>();
 
   /** Record that a call was refused. */
   blocked(_toolName: string, input: unknown): void {
@@ -183,9 +213,64 @@ export class BlockedClaimTracker {
     };
   }
 
+  /** A call is starting; keep its input until the matching end arrives. */
+  executionStart(toolCallId: string, _toolName: string, args: unknown): void {
+    if (typeof toolCallId === "string" && toolCallId) this.started.set(toolCallId, args);
+  }
+
+  /**
+   * A call finished — or was refused before it ran, which looks the same here
+   * except for the reason text.
+   *
+   * An end with no matching start has no target, and a correction with no
+   * target is one this guard must not send. It is dropped rather than guessed
+   * at.
+   */
+  executionEnd(toolCallId: string, toolName: string, isError: boolean, result: unknown): void {
+    const input = this.started.get(toolCallId);
+    this.started.delete(toolCallId);
+    if (input === undefined) return;
+    // A command that ran and exited non-zero also arrives with isError set.
+    // Correcting the run for that would contradict an honest report of a real
+    // failure, so only refusals count.
+    if (isError === true && looksLikeRefusal(resultText(result))) this.blocked(toolName, input);
+    else if (isError !== true) this.succeeded(toolName, input);
+  }
+
+  /**
+   * End of one turn: returns a correction if the reply asserted a refused
+   * change, and clears the turn's history.
+   *
+   * A turn that produced no text is not the end of a reply, and clearing there
+   * is what kept this guard silent even after the event wiring was fixed. Pi
+   * ends a turn when the model stops, and a model that only called a tool stops
+   * with no text at all — so the block landed in turn one, `reset()` wiped it,
+   * and the claim arrived in turn two with nothing recorded against it. Probed
+   * live on 2026-08-06:
+   *
+   *     start / end (isError: true)     <- the block
+   *     turn_end  text: ""              <- reset() ran here
+   *     turn_end  text: "已執行完畢…"     <- and this had an empty history
+   *
+   * A refusal from a turn that did reply must not follow the run around, so the
+   * clearing still happens — just on the turns that actually said something.
+   */
+  turnEnded(finalText: string): Correction | null {
+    if (!String(finalText || "").trim()) return null;
+    const correction = this.review(finalText);
+    this.reset();
+    return correction;
+  }
+
+  /** Calls started whose end has not arrived. */
+  pendingCount(): number {
+    return this.started.size;
+  }
+
   /** One turn's history. */
   reset(): void {
     this.refused.clear();
     this.landed.clear();
+    this.started.clear();
   }
 }

@@ -69,7 +69,7 @@ import { spawnSync } from "node:child_process";
 import { CycleDetector, SAME_QUERY_LIMIT } from "./loop-detect.ts";
 import { ResearchDepthGuard } from "./research-depth.ts";
 import { bashContainmentBlock } from "./bash-containment.ts";
-import { BlockedClaimTracker, looksLikeRefusal } from "./blocked-claim.ts";
+import { BlockedClaimTracker } from "./blocked-claim.ts";
 import { compactionEcho } from "./compaction-echo.ts";
 
 function harnessRoot(): string {
@@ -1492,28 +1492,41 @@ export default function (pi: ExtensionAPI) {
     if (event.toolName === "write" || event.toolName === "edit") return containmentGuard(event, ctx);
   });
 
-  // A call that produced a result is a call that ran, so a retry after a
-  // refusal clears it.
+  // Refusals reach this bridge through the execution pair, not through
+  // `tool_result`.
+  //
+  // The second wiring watched `tool_result` on the reasoning that a refused
+  // call "arrives with isError set and the reason as content, whoever refused
+  // it". Measured on 2026-08-06 with a probe on the installed bridge, one run
+  // per row:
+  //
+  //     blocked call:  tool_execution_start (args), tool_execution_end
+  //                    (isError: true, reason) — no tool_call, no tool_result
+  //     allowed call:  all four
+  //
+  // So the tracker never recorded a single block in any real session, while its
+  // unit tests passed. The session transcript is what made the wrong wiring look
+  // right: Pi writes a `role: toolResult` record with `isError: true` into the
+  // log, and that record is not the event handlers receive.
+  pi.on("tool_execution_start", async (event) => {
+    blockedClaims.executionStart(event.toolCallId, event.toolName, event.args);
+  });
+
+  pi.on("tool_execution_end", async (event) => {
+    blockedClaims.executionEnd(event.toolCallId, event.toolName, event.isError, event.result);
+  });
+
+  // Still `tool_result` for this one, and deliberately: it needs the tool's
+  // input under a settled shape (`path`), it only cares about calls that ran,
+  // and a correction pointing at a deliverable is wrong if the write was
+  // refused. `tool_execution_end` fires for both outcomes and carries no input.
   pi.on("tool_result", async (event) => {
-    // Classified from the result rather than from this bridge's own returns.
-    // A refusal arrives with isError set and the reason as content, and that is
-    // visible whichever extension refused it — the first version watched only
-    // its own guards and missed the C.A.S.E. one in case-bridge entirely.
-    const text = Array.isArray(event.content)
-      ? event.content.map((c) => (c as { text?: string })?.text ?? "").join(" ")
-      : "";
-    if (event.isError === true && looksLikeRefusal(text)) {
-      blockedClaims.blocked(event.toolName, event.input);
-    } else {
-      blockedClaims.succeeded(event.toolName, event.input);
-      // Kept so a correction can point at the deliverable that already exists,
-      // rather than asking for work that was in fact done.
-      if (event.toolName === "write" || event.toolName === "edit") {
-        const p = (event.input as { path?: unknown })?.path;
-        if (typeof p === "string" && p) {
-          const leaf = p.replace(/\\/g, "/").split("/").pop() as string;
-          if (leaf && !turnWrites.includes(leaf)) turnWrites.push(leaf);
-        }
+    if (event.isError === true) return;
+    if (event.toolName === "write" || event.toolName === "edit") {
+      const p = (event.input as { path?: unknown })?.path;
+      if (typeof p === "string" && p) {
+        const leaf = p.replace(/\\/g, "/").split("/").pop() as string;
+        if (leaf && !turnWrites.includes(leaf)) turnWrites.push(leaf);
       }
     }
   });
@@ -1525,8 +1538,20 @@ export default function (pi: ExtensionAPI) {
     // Session 019fd702: the work was done and a 9,092-char report written, and
     // the user read a chronological recap of the conversation instead — then
     // reasonably concluded the whole methodology had stopped working.
-    const echoed = compactionEcho(finalText, turnWrites);
-    turnWrites = [];
+    // A turn that produced no text is not the end of a reply — Pi ends a turn
+    // whenever the model stops, and a model that only called a tool stops with
+    // nothing to say. Clearing the turn's history there is what kept the
+    // blocked-claim guard silent even after its events were wired correctly:
+    // the block landed in the tool-only turn and the claim arrived in the next
+    // one, with an empty history behind it.
+    const spoke = Boolean(String(finalText || "").trim());
+
+    // A reply that opens with Pi's compaction envelope when nobody compacted.
+    // Session 019fd702: the work was done and a 9,092-char report written, and
+    // the user read a chronological recap of the conversation instead — then
+    // reasonably concluded the whole methodology had stopped working.
+    const echoed = spoke ? compactionEcho(finalText, turnWrites) : null;
+    if (spoke) turnWrites = [];
     if (echoed) {
       ctx.ui.notify("⚠️ 回覆用了壓縮摘要的格式,不是答案", "warning");
       pi.sendMessage(
@@ -1540,8 +1565,8 @@ export default function (pi: ExtensionAPI) {
     // messages for one turn is two nudges the run has to reconcile. The echo
     // wins because it is the more fundamental complaint: the reply is not the
     // answer at all, so correcting a sentence inside it is beside the point.
-    const correction = echoed ? null : blockedClaims.review(finalText);
-    blockedClaims.reset();
+    const correction = echoed ? null : blockedClaims.turnEnded(finalText);
+    if (echoed) blockedClaims.reset();
     if (correction) {
       ctx.ui.notify("⚠️ 回覆宣稱了一項被擋下的變更", "warning");
       pi.sendMessage(

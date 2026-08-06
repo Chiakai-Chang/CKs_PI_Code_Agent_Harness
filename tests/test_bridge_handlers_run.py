@@ -88,6 +88,10 @@ const events = {
   tool_call: { toolName: "write", input: { path: "notes.md", content: "x" } },
   tool_result: { toolName: "write", input: { path: "notes.md" },
                  content: [{ type: "text", text: "ok" }], isError: false },
+  tool_execution_start: { toolCallId: "call-1", toolName: "bash",
+                          args: { command: "echo hi > notes.md" } },
+  tool_execution_end: { toolCallId: "call-1", toolName: "bash", isError: false,
+                        result: { content: [{ type: "text", text: "ok" }] } },
   turn_end: { message: { content: [{ type: "text", text: "done" }] }, toolResults: [] },
   session_compact: { messages: [] },
   session_before_compact: { messages: [] },
@@ -216,6 +220,15 @@ class TestHandlersExecute(unittest.TestCase):
         self.assertNotIn("import_failed", result)
         self.assertIn("tool_result", result["registered"])
         self.assertEqual(result["failures"], [])
+
+    def test_it_still_listens_where_refusals_actually_arrive(self):
+        """A blocked call emits no `tool_result` at all — only the execution
+        pair. Wiring the blocked-claim tracker to `tool_result` left it silent
+        in every real session while its unit tests passed, so the subscription
+        itself is worth holding down."""
+        result = drive("yes-hooks-bridge")
+        self.assertIn("tool_execution_start", result["registered"])
+        self.assertIn("tool_execution_end", result["registered"])
 
 
 if __name__ == "__main__":
