@@ -49,8 +49,14 @@
       而它正是唯一被實測證明改變行為的守衛(檔案內網址 0/0/0 → 10/15/0)。
       不是推測:乾淨重測的紀錄裡模型用 `cat > output.md << EOF` 寫檔。
       → REVIEW,結論見 [docs/case/task-005-research-depth-bash.md](../docs/case/task-005-research-depth-bash.md)。
+- [ ] `Task_010_blocked_claim_vocabulary`:矯正器的動詞表漏掉真實說法(第三句)。
+      → REVIEW,結論見 [docs/case/task-010-blocked-claim-vocabulary.md](../docs/case/task-010-blocked-claim-vocabulary.md)。
+- [ ] `Task_011_blocked_claim_channel`:**被擋的呼叫不發 `tool_result`**,所以這個守衛
+      從來沒響過;改用 `tool_execution_start`/`end` 配對,並修好輪次邊界。
+      → REVIEW,**已在真實 session 拿到交付證明**(模型收到注入後自己查檔並更正)。
+      結論見 [docs/case/task-011-blocked-claim-channel.md](../docs/case/task-011-blocked-claim-channel.md)。
 - [ ] `Task_008_advancer_verdict`:bash 洞補上後重測遵循率,再決定預設值與門檻。
-      **三個 bash 洞都補上了,這是下一步。**
+      **三個 bash 洞都補上了,儀器也證明過看得見擋阻(第 0 步),這是下一步。**
 
 **出口條件**:預設值有實測依據,不是設計時的直覺。
 
