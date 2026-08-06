@@ -12,6 +12,7 @@ import { join, dirname } from "node:path";
 
 import { TaskQueueGuard } from "./task-queue-guard.ts";
 import { ActionLogger } from "./action-log.ts";
+import { QueueAdvancer } from "./queue-advancer.ts";
 
 const MAX_INJECT_CHARS = 3000;
 
@@ -37,6 +38,35 @@ function isCaseProject(cwd: string): boolean {
 // Mirrors the enableCaseBridge check in before_agent_start. A status line that
 // says "active" while the injection is switched off is how a disabled bridge
 // passes for a working one (taste-bridge shipped that way for months).
+/**
+ * Fails CLOSED, unlike `caseBridgeEnabled`.
+ *
+ * The bridge only injects text; the advancer triggers a turn, which is a larger
+ * behaviour change than any refusal in this harness. GateGuard is the standing
+ * lesson: a mechanism nobody had run went live and denied the first bash command
+ * of every session. Whether this default flips is for measurement to decide,
+ * not for the design.
+ */
+function harnessRoot(): string | null {
+  try {
+    const here = dirname(require.resolve("./package.json"));
+    const pkg = JSON.parse(readFileSync(join(here, "package.json"), "utf-8"));
+    return pkg["pi-harness"]?.root || join(here, "../..");
+  } catch {
+    return null;
+  }
+}
+
+function caseAdvancerEnabled(harnessRoot: string): boolean {
+  try {
+    const cfgPath = join(harnessRoot, "pi-config", "harness-config.json");
+    if (!existsSync(cfgPath)) return false;
+    return JSON.parse(readFileSync(cfgPath, "utf8"))["enableCaseAdvancer"] === true;
+  } catch {
+    return false;
+  }
+}
+
 function caseBridgeEnabled(): boolean {
   try {
     const here = dirname(require.resolve("./package.json"));
@@ -67,11 +97,18 @@ export default function (pi: ExtensionAPI) {
   // measured to be worth: session 019fd29d made 40 tool calls and wrote nothing.
   const actionLog = new ActionLogger();
 
+  // The backbone. Ten rounds established that code cannot decide whether to
+  // start, only how to proceed — so this stops asking the model to propose the
+  // next step and works it out from the queue on disk. Default off; see
+  // caseAdvancerEnabled.
+  const advancer = new QueueAdvancer();
+
   // On session start: detect C.A.S.E. status
   pi.on("session_start", async (_event, ctx) => {
     // A new session is a new Worker: whoever moved a task to IN_PROGRESS last
     // time is not this session, and the dual-track rule must not carry over.
     queueGuard.reset();
+    advancer.reset();
     if (!isCaseProject(ctx.cwd)) return;
     if (!caseBridgeEnabled()) return;
     ctx.ui.setStatus("case", "[C.A.S.E.] framework active in workspace");
@@ -96,6 +133,28 @@ export default function (pi: ExtensionAPI) {
   pi.on("tool_result", async (event, ctx) => {
     if (!caseBridgeEnabled()) return;
     actionLog.record(ctx.cwd, event.toolName, event.input, event.isError === true);
+  });
+
+  // At the end of a turn: work out the next step and drive it.
+  //
+  // `followUp` + `triggerTurn` is the only delivery that advances a turn rather
+  // than waiting for a human — verified in session 019fcf32, where a custom
+  // message sat between an assistant turn that ended in text and a new
+  // assistant turn that made a real tool call, with no user message between.
+  pi.on("turn_end", async (_event, ctx) => {
+    const root = harnessRoot();
+    if (!root || !caseAdvancerEnabled(root)) return;
+    if (!isCaseProject(ctx.cwd)) return;
+    const queueDir = join(ctx.cwd, "02_Task_Queue");
+    const step = advancer.advance(queueDir);
+    if (!step) return;
+    ctx.ui.notify(step.escalate
+      ? "⛔ C.A.S.E. 同一步停滯,已停止推進"
+      : "▶️ C.A.S.E. 推進下一步", step.escalate ? "warning" : "info");
+    pi.sendMessage(
+      { customType: "case-advance", content: step.message, display: true },
+      { deliverAs: "followUp", triggerTurn: true },
+    );
   });
 
   // Before each agent turn: inject C.A.S.E. rules and file-based state context

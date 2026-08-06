@@ -28,10 +28,19 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+HERE = os.path.dirname(os.path.abspath(__file__))
+# `unittest discover -s tests` puts this directory on sys.path and
+# `python -m unittest tests.test_bridge_handlers_run` does not, so the sibling
+# import below worked in the full suite and failed when the module was run on
+# its own. A test that only passes under one runner is a test with a mode.
+if HERE not in sys.path:
+    sys.path.insert(0, HERE)
+
+ROOT = os.path.dirname(HERE)
 BRIDGES = os.path.join(ROOT, "pi-extensions")
 
 

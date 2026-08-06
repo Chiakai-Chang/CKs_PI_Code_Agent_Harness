@@ -11,6 +11,8 @@
   "enableTasteBridge": false,
   "enableCaseBridge": true,
   "caseBridgeMaxChars": 600,
+  "_enableCaseAdvancer": "turn_end 讀 02_Task_Queue 狀態、查 C.A.S.E. 轉換表得出下一步,注入並觸發下一輪。預設 false —— 它會主動觸發回合,那是比擋阻更大的行為改變,而本 repo 的 GateGuard 疤正是「沒人跑過的東西直接上線」。開啟與否由實測決定。",
+  "enableCaseAdvancer": false,
   "enablePlanningBridge": true,
   "_enableHookAdvisories": "ECC hook findings (quality-gate, format/typecheck, plan reminder) are appended to tool results so the model can read them. Set false if they pull a weak local model off course.",
   "enableHookAdvisories": true,

@@ -196,11 +196,21 @@ class TestWritingTheLog(unittest.TestCase):
         self.assertEqual(self.ws.log_lines("Task_002_B"), [])
 
     def test_a_project_with_no_queue_is_left_alone(self):
+        """A directory of its own, not process.cwd().
+
+        This used cwd until 2026-08-06, when the harness repo was bootstrapped
+        as a C.A.S.E. project — and the test failed, correctly, because the
+        logger found the repo's own queue and wrote there. A fixture that
+        borrows the repository is a fixture that changes when the repository
+        does.
+        """
+        bare = tempfile.mkdtemp(prefix="case-noqueue-")
+        self.addCleanup(shutil.rmtree, bare, ignore_errors=True)
         out = run_js("""
         const lg = new m.ActionLogger();
-        const w = lg.record(process.cwd(), "web_search", { query: "q" }, false);
+        const w = lg.record(%s, "web_search", { query: "q" }, false);
         process.stdout.write(JSON.stringify({ wrote: w }));
-        """)
+        """ % json.dumps(bare.replace("\\", "/")))
         self.assertIsNone(out["wrote"])
 
     def test_unserializable_input_does_not_throw(self):
