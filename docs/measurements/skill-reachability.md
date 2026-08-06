@@ -1,8 +1,8 @@
 # 技能可達性全掃
 
-由 `scripts/audit-skill-reach.py` 產生於 2026-08-06 07:50。**不要手改** —— 重跑即可更新。
+由 `scripts/audit-skill-reach.py` 產生於 2026-08-06 09:04。**不要手改** —— 重跑即可更新。
 
-core 層來源:實測 prompt(C:/Users/User/AppData/Local/Temp/claude/D--MyProject-CKs-PI-Code-Agent-Harness/8c24d11d-f80e-4106-94eb-d5d96888c4da/scratchpad/pd/prompt3.txt)
+core 層來源:實測 prompt dump(41864 字元)
 
 ## 為什麼要有這份文件
 

@@ -155,7 +155,10 @@ def main():
     args = ap.parse_args()
 
     core = core_from_prompt(args.prompt) if args.prompt else None
-    core_source = "實測 prompt(%s)" % args.prompt if core else \
+    # The dump lives in a scratch directory that differs per machine and per
+    # session, and naming it in a committed document is noise at best. Record
+    # what it was and how big it was, which is the part a reader can use.
+    core_source = ("實測 prompt dump(%d 字元)" % len(read_text(args.prompt))) if core else \
                   "external-skills-manifest.json(不含外來技能)"
     if core is None:
         core = core_from_manifest()
