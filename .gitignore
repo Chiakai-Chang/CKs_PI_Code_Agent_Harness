@@ -36,3 +36,7 @@ pi-config/harness-config.local.json
 # handlers in tests produced it once and it was committed by accident; the
 # driver now runs in a temp cwd, and this keeps a stray one out of the repo.
 TODO_SET_BY_RESTORE/
+
+# C.A.S.E. Framework — task queues are agent workspace
+02_Task_Queue/
+*.case/
