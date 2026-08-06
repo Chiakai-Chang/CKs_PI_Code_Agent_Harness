@@ -87,7 +87,14 @@ export default function (pi: ExtensionAPI) {
     if (!isSlim) {
       parts.push(
         `- To bootstrap C.A.S.E. in a project, run: python "${BOOTSTRAP_SCRIPT}" .`,
-        `- To verify a C.A.S.E. task queue folder, run: python "${VERIFIER_SCRIPT}" <path_to_task_folder>`
+        // The old wording said "task queue folder" and then passed a task
+        // folder. Both now exist and check different things: one task package,
+        // or the invariant the queue is for — at most one task IN_PROGRESS.
+        // `--strict` matters because ten of the verifier's fifteen checks are
+        // warnings by default, so a task with no audit trail and no Definition
+        // of Done still exits 0.
+        `- To verify one C.A.S.E. task package, run: python "${VERIFIER_SCRIPT}" <path_to_task_folder> --strict`,
+        `- To verify the queue itself (at most one task IN_PROGRESS, tasks finished in order), run: python "${VERIFIER_SCRIPT}" --queue <path_to_02_Task_Queue>`
       );
     }
 
