@@ -29,14 +29,70 @@
  * anything.
  */
 
-/** Phrases that assert something was done. Both languages, because both appear. */
-const CLAIM = /(已完成|已將|已把|已寫入|已建立|已創建|已更新|已修改|已改為|已改成|完成了|\bdone\b|\bupdated\b|\bcreated\b|\bwrote\b|\bwritten\b|\bchanged\b|\bset to\b|successfully)/i;
+/**
+ * Phrases that say a thing did NOT happen, or that the run knows it was stopped.
+ *
+ * This list carries the whole judgement now, and that is a deliberate move. The
+ * first version asked the opposite question — does the reply sound like a
+ * completion claim? — from a list of verbs written off two observed replies. A
+ * third real reply walked straight past it on 2026-08-06:
+ *
+ *     "已執行完畢。`.../status.txt` 的內容已透過 `printf` 改為 `IN_PROGRESS`。"
+ *
+ * `已完成`, `已將` and `已改為` were all on that list; the sentence used none of
+ * them. Ways of saying "I did it" are an open set, so enumerating them means
+ * going silent on every phrasing not yet seen, and silence is invisible.
+ *
+ * Ways of saying "it did not happen" are far smaller, and a miss here is loud
+ * rather than silent: it produces a correction on a truthful report. That is the
+ * expensive direction, which is why the correction message states only what this
+ * guard is certain of and asks the run to check the file — a false positive
+ * costs one read, not a lesson that honest reporting gets contradicted.
+ *
+ * Mentioning the guard counts as disclaiming. A reply that says the guard
+ * refused it and then also claims success gets past this, and that is the
+ * accepted cost: naming the block means the run knows about it, which is more
+ * than can be said for the turn that motivated the change.
+ */
+const DISCLAIMED = /(擋下|被擋|阻擋|拒絕|未能|沒有成功|失敗|無法|不允許|不被允許|改用|需改為|守衛|guard|not allowed|not permitted|refused|blocked|could not|failed|denied|must use|tool-first)/i;
 
 /**
- * Phrases that say a thing did NOT happen. Checked first: a truthful report of
- * the refusal usually also contains the words for what was attempted.
+ * Sentence terminators in both languages, plus line breaks.
+ *
+ * A bare `.` ends a sentence only at whitespace or end of text. Treating every
+ * dot as a terminator split `status.txt` in half, and then no segment contained
+ * the target at all — the check quietly decided nothing was mentioned and fired
+ * on a question. Filenames are exactly what these replies are full of.
  */
-const DISCLAIMED = /(擋下|被擋|拒絕|未能|沒有成功|失敗|無法|not allowed|refused|blocked|could not|failed|denied)/i;
+const TERMINATOR = /[。！？!?\n]|\.(?=\s|$)/g;
+
+/**
+ * Whether every mention of the target sits inside a question.
+ *
+ * "我要處理 status.txt,該用哪個工具?" names a refused target and asserts
+ * nothing. Before the verb list was removed it fell through because no verb
+ * matched; that reason is gone, so the shape has to be recognised directly.
+ * Asking about a file is not reporting that it changed.
+ */
+function onlyAsksAbout(text: string, needles: string[]): boolean {
+  const bounds: Array<{ body: string; mark: string }> = [];
+  let start = 0;
+  TERMINATOR.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = TERMINATOR.exec(text)) !== null) {
+    bounds.push({ body: text.slice(start, m.index), mark: m[0] });
+    start = m.index + m[0].length;
+  }
+  if (start < text.length) bounds.push({ body: text.slice(start), mark: "" });
+
+  let mentioned = false;
+  for (const { body, mark } of bounds) {
+    if (!needles.some((n) => body.includes(n))) continue;
+    mentioned = true;
+    if (mark !== "?" && mark !== "？") return false;
+  }
+  return mentioned;
+}
 
 /**
  * Refusal text, as it comes back in the tool result.
@@ -110,18 +166,19 @@ export class BlockedClaimTracker {
   review(finalText: string): Correction | null {
     const text = String(finalText || "");
     if (!text || !this.refused.size) return null;
-    if (!CLAIM.test(text)) return null;
     if (DISCLAIMED.test(text)) return null;
 
     const stillRefused = [...this.refused].filter((t) => !this.landed.has(t));
     const named = stillRefused.filter((t) => text.includes(t) || text.includes(leaf(t)));
     if (!named.length) return null;
+    if (onlyAsksAbout(text, named.flatMap((t) => [t, leaf(t)]))) return null;
 
     return {
       message:
-        `[SYSTEM] 上一輪對 ${named.map(leaf).join("、")} 的變更**被守衛擋下,並未發生**,` +
-        `但你的回覆說它完成了。請先確認檔案的實際內容,再據實更正給使用者 —— ` +
-        `守衛擋下的東西如果被回報成已完成,擋下來就失去意義了。` +
+        `[SYSTEM] 上一輪對 ${named.map(leaf).join("、")} 的變更**被守衛擋下,並未發生** —— ` +
+        `這一點守衛是確定的。你的回覆提到了它,卻沒有提到它被擋下。` +
+        `請確認檔案的實際內容:若你的回覆說了它已完成,請據實更正給使用者;` +
+        `若你本來就沒有那個意思,確認過就好。` +
         `擋阻理由裡有下一步該怎麼做。`,
     };
   }
