@@ -23,15 +23,20 @@
 
 - [ ] `Task_001_queue_advancer`:佇列推進器 —— turn_end 讀佇列狀態,查 CASE 轉換表得出下一步,
       注入並觸發下一輪。預設關閉。
-- [ ] `Task_002_advancer_measurement`:在真實專案量遵循率 = 狀態前進次數 / 推進次數。
+- [x] `Task_002_advancer_measurement`:在真實專案量遵循率 = 狀態前進次數 / 推進次數。
       **魔鬼代言人已下注:第一次不會是 1.0。先說,再量。**
+      → **注贏了:0/3。** 但機制成立(3 次推進 + 1 次升級,分毫不差),0 的原因是模型在
+      錯的目錄作業,與推進器無關。見
+      [docs/measurements/2026-08-06-queue-advancer-first-run.md](../docs/measurements/2026-08-06-queue-advancer-first-run.md)。
 
-**出口條件**:有一份真實 session 的遵循率數字,不論高低。
+**出口條件**:✅ 有一份真實 session 的遵循率數字。
 
 ## Phase 2:依量測結果決定下一步
 
-- [ ] `Task_003_advancer_verdict`:遵循率高 → 決定預設值與門檻;遵循率低 → 記錄為
-      「政策推進亦無效」並回到 Round 9 的其他選項。
+- [ ] `Task_003_cwd_confusion`:**先修 cwd 誤判,再重測。** Task_002 顯示遵循率 0 的原因
+      不是推進器,是模型把相對路徑解析到 `PI_HARNESS_ROOT` 去。同一問題今天出現三次。
+      `case-bridge` 注入 harness 絕對路徑時,應同時明確宣告工作目錄。
+- [ ] `Task_004_advancer_verdict`:cwd 修好後重測遵循率,再決定預設值與門檻。
 
 **出口條件**:預設值有實測依據,不是設計時的直覺。
 
