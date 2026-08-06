@@ -85,5 +85,9 @@ grep -o "Depth guard\|Artifact guard" "$D"/.sess/**/*.jsonl | sort | uniq -c
 ls "$D"
 ```
 
-本機模型 temperature 0.6,單次樣本。**這是存在性證據(這兩個閘會在真實情境開火並改變行為),
-不是頻率證據。**
+單次樣本,**temperature 1.0**(伺服器 `--temp 1.0`;Pi 不覆寫 sampler —— 2026-08-06 實測:
+發一次請求再讀 `/slots` 回來確認)。先前多份文件寫「temperature 0.6」是錯的,那個數字屬於
+`probe-tool-calls.mjs`,它在請求裡釘死。
+
+temp 1.0 的變異比 0.6 大,所以 n=3 比原本宣稱的更粗 —— **這是存在性證據(這兩個閘會在真實
+情境開火並改變行為),更不是頻率證據。**

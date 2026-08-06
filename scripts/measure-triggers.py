@@ -11,8 +11,17 @@ prompt change.
 
 DESIGN NOTES (each of these came from reviewing the first draft of this script)
 
-  * REPEATS. The local model runs at temperature 0.6; a single run says almost
-    nothing. Every scenario runs N times (default 3) and reports a rate.
+  * REPEATS. A single run says almost nothing. Every scenario runs N times
+    (default 3) and reports a rate.
+  * SAMPLER RECORDED, NOT ASSUMED. This script's design notes said "temperature
+    0.6" for months, and several committed documents repeated it. Measured
+    2026-08-06 by making a request and reading /slots back: Pi sends no sampler
+    at all, so runs use whatever the server was launched with — 1.0 here. The
+    0.6 figure belongs to probe-tool-calls.mjs, which pins it in the request.
+    Pinning it here would be its own mistake (no two model cards agree, and
+    pinning is how a difference gets manufactured away), so the sampler is read
+    from /props and written into the baseline row instead. A row nobody can
+    interpret is not a baseline.
   * ISOLATED SESSIONS. Runs write to a temp --session-dir. Without this the
     harness's own measurements get polluted by its test runs — exactly what
     happened when `agent-architecture-audit` showed 4 loads in the real history
@@ -124,6 +133,29 @@ SCENARIOS = [
                 "owner described from real use."),
     },
 ]
+
+
+def server_sampler(api_base="http://127.0.0.1:8080"):
+    """The sampler the server is actually serving with.
+
+    Read rather than assumed, and stored with the numbers it shaped. Pi sends
+    no sampler of its own — verified by issuing a request and reading /slots
+    back — so this is what every run in the row was generated under.
+    """
+    import urllib.request
+    try:
+        with urllib.request.urlopen(api_base.rstrip("/") + "/props", timeout=10) as fh:
+            props = json.loads(fh.read().decode("utf-8", "replace"))
+    except Exception:
+        return {}
+    gen = props.get("default_generation_settings") or {}
+    params = gen.get("params") or gen
+    keep = ("temperature", "top_p", "top_k", "min_p", "repeat_penalty")
+    out = {k: params[k] for k in keep if k in params}
+    build = props.get("build_info")
+    if build:
+        out["build"] = build
+    return out
 
 
 def pi_executable():
@@ -585,6 +617,10 @@ def main():
         entry = {
             "at": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "repeats": args.repeats,
+            # What the numbers were generated under. Without it a row cannot be
+            # compared with another, and for months the documents around this
+            # file asserted a temperature nobody had checked.
+            "sampler": server_sampler(),
             # `runs` carries what each repeat actually did. The score alone
             # cannot say why it moved, and three rounds in one day each ended
             # with the mechanics reconstructed by hand from kept session files —

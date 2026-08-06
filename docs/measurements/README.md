@@ -52,7 +52,11 @@ run2–5 一開始就看到它，而 `task-shape-bridge` 卡在 `hasAnyPlan(cwd)
 
 ## n=3 的解析度
 
-本機模型 temperature 0.6。1/3 與 2/3 在三次取樣下分不開。要宣稱任何調整有效，
+走 `pi --print` 的量測不釘 sampler —— Pi 什麼都不送，實際用的是伺服器啟動參數
+（2026-08-06 實測為 `--temp 1.0`；先前文件寫的 0.6 是錯的，那個數字屬於 `probe-tool-calls.mjs`，
+它在請求裡釘死）。2026-08-06 起每筆 baseline 會記下當時的 sampler 與 build。
+
+1/3 與 2/3 在三次取樣下分不開，temp 1.0 下更分不開。要宣稱任何調整有效，
 `--repeats` 需提高到 5 以上，否則量到的是雜訊。
 
 

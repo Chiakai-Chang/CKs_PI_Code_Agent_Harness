@@ -529,3 +529,49 @@ https://shopee.tw/<主題>
 後續:同一個方法用在深度閘與產出閘上,一次就驗成 —— **它們一直是可測的**,缺的是一個會產生該條件的 fixture,不是能力。
 
 **「我測不了」要先枚舉過才能說。**
+
+---
+
+## llama.cpp b10293 的 gfx1151 修正:**不適用於這台**(2026-08-06 查證)
+
+上游 b10293 有一組 Strix Halo(gfx1151)修正,其中最刺眼的是:
+
+> The gfx1151 ROCm CI job produced **incorrect inference output (qwen3 perplexity ~88 vs ~9.4)**
+> due to an **async-execution correctness issue in the HIP path**. Serializing kernel launches
+> with `HIP_LAUNCH_BLOCKING=1` restores correctness.
+
+另一條:mmap 載入的權重被 GPU kernel 讀取時可能回傳錯誤結果,而且是**間歇性**的。
+
+perplexity 88 對 9.4 不是「模型比較弱」,是輸出被後端弄壞。**很誘人拿它來解釋本 harness
+一路在防的那些失效(捏造、忽略指令、迴圈)。**
+
+**查證結果:不適用。**
+
+```
+EXE   C:\models\llama-bin-win-vulkan-x64\llama-server.exe
+DLL   ggml-vulkan.dll,目錄下無任何 hip/rocm
+build b10293-a1f96d4fc
+```
+
+**這台跑的是 Vulkan build。** 上述全部是 HIP path 的問題。b10293 對這台有用的是它含 b10291 的
+`vulkan: fix submission batching size`(submission threshold applied too late)。
+
+**結論:那些失效是真的模型行為,不能歸咎後端。** 記在這裡是因為下次再看到類似的上游修正,
+第一步應該是確認自己跑的是哪個後端 —— 而不是先假設它有關。
+
+## 量測的 sampler 一直被寫錯(2026-08-06 已修)
+
+多份文件(含本檔、`docs/measurements/README.md`、task-shape 的計畫書)寫「本機模型
+temperature 0.6」。**實測是 1.0。**
+
+驗法:發一次 `pi --print` 請求,再讀 `/slots` 回來 —— **Pi 完全不送 sampler**,所以走
+`pi --print` 的每一次量測都用伺服器啟動參數(`--temp 1.0 --top-p 0.95 --top-k 20`)。
+
+0.6 只對 `scripts/probe-tool-calls.mjs` 成立,它在**請求裡釘死**。兩件事被混為一談了好幾個月。
+
+**影響**:temp 1.0 的變異比 0.6 大,所以所有 n=3 的解析度比宣稱的更粗。存在性主張
+(「這個閘會開火」)不受影響,比率主張更站不住。
+
+**修法不是去釘死 sampler** —— 那有自己的疤(釘死會製造「沒有差異」)。改成
+`measure-triggers.py` 每次從 `/props` 讀回實際 sampler 與 build,寫進 baseline 那一列。
+**沒人看得懂的那一列不算基線。**
