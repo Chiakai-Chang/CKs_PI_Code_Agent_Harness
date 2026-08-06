@@ -34,23 +34,25 @@
 ## Phase 2:依量測結果決定下一步
 
 - [ ] `Task_003_cwd_confusion`:**先修 cwd 誤判,再重測。** Task_002 顯示遵循率 0 的原因
-      不是推進器,是模型把相對路徑解析到 `PI_HARNESS_ROOT` 去。同一問題今天出現三次。
-      `case-bridge` 注入 harness 絕對路徑時,應同時明確宣告工作目錄。
+      不是推進器,是模型把相對路徑解析到 harness 根目錄去。同一問題今天出現三次。
+      **修法已依實測修正**:dump 出的 prompt 顯示 Pi **本來就宣告了** cwd(1 次,89% 深度),
+      而 harness 的絕對路徑出現 28 次(多數是 `<available_skills>` 的 `<location>`)。
+      問題是訊噪比,不是沒講 —— 所以不再往建議通道加話,改在**擋阻理由**裡糾正世界觀。
 - [ ] `Task_004_advancer_verdict`:cwd 修好後重測遵循率,再決定預設值與門檻。
 
 **出口條件**:預設值有實測依據,不是設計時的直覺。
 
 ## Phase 3:剩下的可達性缺口
 
-- [ ] `Task_004_layer1_reachability`:README 的 Layer 1(`grilling-protocol` /
+- [ ] `Task_005_layer1_reachability`:README 的 Layer 1(`grilling-protocol` /
       `contrarian-review` / `adversary-review`)全在 catalog 層無描述。先量升 core 的
       prompt 成本,再決定。
-- [ ] `Task_005_catalog_triage`:120 個 catalog 技能逐一評估哪些值得升 core。
+- [ ] `Task_006_catalog_triage`:120 個 catalog 技能逐一評估哪些值得升 core。
       已全數落檔於 `docs/measurements/skill-reachability.md`。
 
 ## Phase 4:已知但刻意未解
 
-- [ ] `Task_006_open_issues_review`:結論隨施壓翻轉、編造搜尋端點網址、19 個外來技能佔
+- [ ] `Task_007_open_issues_review`:結論隨施壓翻轉、編造搜尋端點網址、19 個外來技能佔
       描述層。每一項重新評估「刻意不做」是否仍成立。
 
 ## 不在這份 roadmap 裡的
