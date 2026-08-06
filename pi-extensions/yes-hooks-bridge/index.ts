@@ -68,6 +68,7 @@ import { homedir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { CycleDetector, SAME_QUERY_LIMIT } from "./loop-detect.ts";
 import { ResearchDepthGuard } from "./research-depth.ts";
+import { bashContainmentBlock } from "./bash-containment.ts";
 
 function harnessRoot(): string {
   const here = dirname(fileURLToPath(import.meta.url));
@@ -1464,6 +1465,15 @@ export default function (pi: ExtensionAPI) {
       // say about it, and a command that cannot work should not be run at all.
       const xshell = crossShellQuotingGuard(event, ctx);
       if (xshell) return xshell;
+      // Containment, which until 2026-08-06 was wired to write/edit only. A
+      // live run refused there retried with `echo ... > <same path>`, got
+      // through, and left a file inside this harness's vendored submodule.
+      const escaped = bashContainmentBlock(
+        String((event.input as { command?: unknown })?.command ?? ""), String(ctx.cwd ?? ""));
+      if (escaped) {
+        ctx.ui.notify("🚧 已擋下寫到專案外的 bash 指令", "warning");
+        return escaped;
+      }
       return bashGuard(event, ctx);
     }
     if (event.toolName === "write" || event.toolName === "edit") return containmentGuard(event, ctx);
