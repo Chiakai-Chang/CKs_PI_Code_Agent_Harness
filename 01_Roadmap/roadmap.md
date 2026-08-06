@@ -23,7 +23,7 @@
 
 - [ ] `Task_001_queue_advancer`:佇列推進器 —— turn_end 讀佇列狀態,查 CASE 轉換表得出下一步,
       注入並觸發下一輪。預設關閉。
-- [x] `Task_002_advancer_measurement`:在真實專案量遵循率 = 狀態前進次數 / 推進次數。
+- [ ] `Task_002_advancer_measurement`(佇列狀態 `REVIEW`;§1 不許做這件工作的 session 核可它自己):在真實專案量遵循率 = 狀態前進次數 / 推進次數。
       **魔鬼代言人已下注:第一次不會是 1.0。先說,再量。**
       → **注贏了:0/3。** 但機制成立(3 次推進 + 1 次升級,分毫不差),0 的原因是模型在
       錯的目錄作業,與推進器無關。見
@@ -59,6 +59,22 @@
       **三個 bash 洞都補上了,儀器也證明過看得見擋阻(第 0 步),這是下一步。**
 
 **出口條件**:預設值有實測依據,不是設計時的直覺。
+
+## Phase 2b:三個 retro 提出、目前只活在任務包裡的後續
+
+**這一節存在的理由:** retro 寫在 `02_Task_Queue/`,而那是 gitignore 的。
+`docs/case/` 有結論摘錄,但沒有人會把摘錄當待辦追。不列進來就是靜靜漂走。
+
+- [ ] `Task_012_guard_shape_audit`:掃 `pi-extensions/**/*.ts`,凡是以工具名稱集合為
+      條件的分支,同檔沒有 `bash` 分支就報告。**同型缺陷今天出現三次**
+      (Task_004 / Task_005 以及更早的目錄圍堵),第四次不該再靠人想起來。
+      同一支腳本可一併檢查「每個 bridge 有沒有訂閱它需要的事件」(Task_011 的教訓)。
+- [ ] `Task_013_write_forms_blind_spot`:`sed -i`、`tee -a`、`dd of=` 對 `writeTargets`
+      完全不可見。補它要同步改 `bash-containment.ts`、case-bridge 的複製與平權測試。
+- [ ] `Task_014_case_upstream_round2`:兩條上游回饋還沒送出 ——
+      (a) 任務包之間沒有「同型缺陷」的連結欄位;
+      (b) `Local Definition of Done` 沒有區分單元證據與**交付證據**,
+      而 Task_011 證明了兩者可以差一整天。
 
 ## Phase 3:剩下的可達性缺口
 
