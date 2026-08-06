@@ -1535,7 +1535,12 @@ export default function (pi: ExtensionAPI) {
       );
     }
 
-    const correction = blockedClaims.review(finalText);
+    // One correction per turn from this pair. They can both match — a summary
+    // that also asserts a refused change — and two followUp+triggerTurn
+    // messages for one turn is two nudges the run has to reconcile. The echo
+    // wins because it is the more fundamental complaint: the reply is not the
+    // answer at all, so correcting a sentence inside it is beside the point.
+    const correction = echoed ? null : blockedClaims.review(finalText);
     blockedClaims.reset();
     if (correction) {
       ctx.ui.notify("⚠️ 回覆宣稱了一項被擋下的變更", "warning");

@@ -174,6 +174,33 @@ class TestHandlersExecute(unittest.TestCase):
         if skipped:
             print("  not importable under bare node (Pi-only deps): %s" % ", ".join(skipped))
 
+    def test_only_one_correction_is_queued_when_both_would_match(self):
+        """The echo guard and the blocked-claim guard can both match one reply.
+
+        Two followUp+triggerTurn messages for one turn is two nudges the run has
+        to reconcile, and the echo is the more fundamental complaint: the reply
+        is not the answer at all, so correcting a sentence inside it is beside
+        the point.
+        """
+        from _one_correction_driver import source
+
+        entry = os.path.join(BRIDGES, "yes-hooks-bridge", "index.ts").replace(os.sep, "/")
+        driver = os.path.join(ROOT, "tests", ".tmp_onecorrection.mjs")
+        with open(driver, "w", encoding="utf-8") as f:
+            f.write(source("file:///" + entry))
+        sandbox = tempfile.mkdtemp(prefix="one-correction-")
+        try:
+            p = subprocess.run(["node", driver], capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", cwd=sandbox, timeout=180)
+        finally:
+            shutil.rmtree(sandbox, ignore_errors=True)
+            if os.path.exists(driver):
+                os.remove(driver)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        sent = json.loads(p.stdout)["sent"]
+        self.assertEqual(sent, ["compaction-echo"],
+                         "exactly one correction, and the echo wins: %s" % sent)
+
     def test_the_regression_that_motivated_this(self):
         """yes-hooks-bridge's tool_result handler, specifically."""
         result = drive("yes-hooks-bridge")
