@@ -62,7 +62,7 @@ function unquote(token: string): string {
   return token.replace(/^["']|["']$/g, "");
 }
 
-function isScratch(abs: string, raw?: string): boolean {
+export function isScratch(abs: string, raw?: string): boolean {
   const p = norm(abs);
   // The raw token matters as much as the resolved path: on Windows,
   // resolve("/tmp/x") becomes "D:/tmp/x" because a leading slash is

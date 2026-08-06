@@ -43,21 +43,28 @@
       守衛全部被 `bash printf > status.txt` 繞過 —— 包括「Worker 不得自我核可」這條
       §1 不可協商的公理。守衛只看 `write`/`edit`。協定 SKILL.md:122 與 for_agents.md:424
       **本來就禁止** shell 重導向改檔,所以這是強制既有規則,不是新增。
+      → REVIEW,結論見 [docs/case/task-004-case-guard-bash.md](../docs/case/task-004-case-guard-bash.md)。
+- [ ] `Task_005_research_depth_bash`:**第三個同型洞。** `research-depth.ts:84` 同樣只認
+      `write`/`edit`。後果:產出閘看不到 bash 寫的檔會誤擋;**引用閘完全繞得過** ——
+      而它正是唯一被實測證明改變行為的守衛(檔案內網址 0/0/0 → 10/15/0)。
+      不是推測:乾淨重測的紀錄裡模型用 `cat > output.md << EOF` 寫檔。
+      → REVIEW,結論見 [docs/case/task-005-research-depth-bash.md](../docs/case/task-005-research-depth-bash.md)。
 - [ ] `Task_008_advancer_verdict`:bash 洞補上後重測遵循率,再決定預設值與門檻。
+      **三個 bash 洞都補上了,這是下一步。**
 
 **出口條件**:預設值有實測依據,不是設計時的直覺。
 
 ## Phase 3:剩下的可達性缺口
 
-- [ ] `Task_005_layer1_reachability`:README 的 Layer 1(`grilling-protocol` /
+- [ ] `Task_006_layer1_reachability`:README 的 Layer 1(`grilling-protocol` /
       `contrarian-review` / `adversary-review`)全在 catalog 層無描述。先量升 core 的
       prompt 成本,再決定。
-- [ ] `Task_006_catalog_triage`:120 個 catalog 技能逐一評估哪些值得升 core。
+- [ ] `Task_007_catalog_triage`:120 個 catalog 技能逐一評估哪些值得升 core。
       已全數落檔於 `docs/measurements/skill-reachability.md`。
 
 ## Phase 4:已知但刻意未解
 
-- [ ] `Task_007_open_issues_review`:結論隨施壓翻轉、編造搜尋端點網址、19 個外來技能佔
+- [ ] `Task_009_open_issues_review`:結論隨施壓翻轉、編造搜尋端點網址、19 個外來技能佔
       描述層。每一項重新評估「刻意不做」是否仍成立。
 
 ## 不在這份 roadmap 裡的

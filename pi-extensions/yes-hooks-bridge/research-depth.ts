@@ -38,6 +38,11 @@
  * every session; the retirement rule below exists because of it.
  */
 
+// Same bridge, so a direct import rather than a copy. The C.A.S.E. guard keeps
+// its own copy because it lives in another bridge and installed bridges are
+// sibling directories — a dependency across them is one waiting to break.
+import { writeTargets, isScratch } from "./bash-containment.ts";
+
 /** Searches allowed before anything at all has been read in full. */
 export const OPEN_AFTER_SEARCHES = 8;
 
@@ -83,6 +88,27 @@ const READ_TOOLS = new Set(["web_open"]);
 /** Tools that count as having written something down. */
 const WRITE_TOOLS = new Set(["write", "edit"]);
 
+/**
+ * The text a shell command puts on disk, when that is knowable.
+ *
+ * A heredoc body and a `printf`/`echo` literal are recoverable; `sed -i`,
+ * command substitution and variable expansion are not. Whatever cannot be read
+ * is counted as an unchecked write rather than treated as clean — partial
+ * coverage is honest only while the gap is on the report.
+ *
+ * The C.A.S.E. guard refuses shell writes to `status.txt` outright instead of
+ * parsing them, because the protocol already demands the write tool there.
+ * Nothing demands it here: writing a file with bash is ordinary work.
+ */
+export function bashOutgoing(command: string): string | null {
+  const heredoc = command.match(/<<[-\s]*['"]?(\w+)['"]?\r?\n([\s\S]*?)\r?\n\1/);
+  if (heredoc) return heredoc[2];
+  const literal = command.match(
+    /^\s*(?:printf|echo)\s+(?:-\S+\s+)*("(?:[^"\\]|\\.)*"|'[^']*')\s*>>?/);
+  if (literal) return literal[1].slice(1, -1);
+  return null;
+}
+
 const HAS_URL = /https?:\/\//i;
 
 /** The text a write or edit is about to put on disk. */
@@ -114,6 +140,8 @@ export class ResearchDepthGuard {
   private searches = 0;
   private opens = 0;
   private writes = 0;
+  /** Shell writes whose content could not be read, so were never judged. */
+  private uncheckedWrites = 0;
   private readUrls: string[] = [];
   private unsourcedChars = 0;
   private sourcedSomething = false;
@@ -139,6 +167,7 @@ export class ResearchDepthGuard {
       if (typeof url === "string" && url) this.readUrls.push(url);
       return null;
     }
+    if (name === "bash") return this.checkBashWrite(input);
     if (WRITE_TOOLS.has(name)) {
       // Counted before the citation check can refuse it. A refusal here means
       // "write this again with its sources", not "you have written nothing" —
@@ -181,6 +210,38 @@ export class ResearchDepthGuard {
     }
 
     return null;
+  }
+
+  /**
+   * Shell writes, which these gates could not see until 2026-08-06.
+   *
+   * Measured that day: the artifact gate kept refusing searches from a run that
+   * had written its deliverable with `cat > output.md << EOF`, and the citation
+   * gate — the one guard here measured to change behaviour — never saw that
+   * file at all.
+   *
+   * Scratch targets earn no credit. Crediting `echo x > /tmp/f` would let a run
+   * satisfy "leave something behind" by touching a temp file, which is the gate
+   * dismantling itself.
+   */
+  private checkBashWrite(input: unknown): DepthBlock | null {
+    const command = (input as { command?: unknown } | undefined)?.command;
+    if (typeof command !== "string" || !command) return null;
+    let targets: string[];
+    try {
+      targets = writeTargets(command).filter((t) => !isScratch(t, t));
+    } catch {
+      return null;
+    }
+    if (!targets.length) return null;
+
+    this.writes += targets.length;
+    const body = bashOutgoing(command);
+    if (body === null) {
+      this.uncheckedWrites += targets.length;
+      return null;
+    }
+    return this.citationCheck({ content: body });
   }
 
   /**
@@ -266,6 +327,7 @@ export class ResearchDepthGuard {
     this.opens = 0;
     this.writes = 0;
     this.readUrls = [];
+    this.uncheckedWrites = 0;
     this.unsourcedChars = 0;
     this.sourcedSomething = false;
     this.blocked.clear();
@@ -273,7 +335,14 @@ export class ResearchDepthGuard {
   }
 
   /** For the TUI line and for measurement. */
-  stats(): { searches: number; opens: number; writes: number } {
-    return { searches: this.searches, opens: this.opens, writes: this.writes };
+  stats(): { searches: number; opens: number; writes: number; uncheckedWrites: number } {
+    return {
+      searches: this.searches,
+      opens: this.opens,
+      writes: this.writes,
+      // Surfaced so the coverage gap is visible to an operator rather than
+      // implied to be zero.
+      uncheckedWrites: this.uncheckedWrites,
+    };
   }
 }
