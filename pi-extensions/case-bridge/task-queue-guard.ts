@@ -59,6 +59,46 @@ const TASK_DIR_RE = /^Task_(\d+)_/;
 const QUEUE_DIR = "02_Task_Queue";
 const WRITE_TOOLS = new Set(["write", "edit"]);
 
+/**
+ * Paths a shell command would write to.
+ *
+ * A deliberate copy of `writeTargets` in yes-hooks-bridge/bash-containment.ts.
+ * Installed bridges are sibling directories and a cross-bridge import is a
+ * dependency waiting to break; two copies drift, so a parity test in
+ * tests/test_case_guard_bash.py holds them to the same answers.
+ *
+ * Content is never extracted. `printf "DONE" >` would yield it, `cat > f << EOF`
+ * and `echo $VAR >` would not, and partial parsing is worse than none: it would
+ * imply the transition rules cover shell writes when they would only cover some
+ * spellings of them.
+ */
+export function bashWriteTargets(command: unknown): string[] {
+  if (typeof command !== "string" || !command.trim()) return [];
+  const masked = command.replace(/"[^"]*"|'[^']*'/g, (m) => " ".repeat(m.length));
+  const out: string[] = [];
+  const unquote = (t: string) => t.replace(/^["']|["']$/g, "");
+
+  const redir = /(^|[\s;&|])\d?>>?(?!&)/g;
+  let m: RegExpExecArray | null;
+  while ((m = redir.exec(masked)) !== null) {
+    const token = command.slice(m.index + m[0].length).match(/^\s*("[^"]*"|'[^']*'|[^\s;&|<>]+)/);
+    if (token) out.push(unquote(token[1]));
+  }
+
+  const DEST_LAST = new Set(["cp", "mv", "install", "rsync"]);
+  const DEST_ALL = new Set(["mkdir", "touch", "tee"]);
+  for (const seg of command.split(/(?:&&|\|\||;|\|)/)) {
+    const tokens = seg.trim().match(/"[^"]*"|'[^']*'|[^\s]+/g);
+    if (!tokens || tokens.length < 2) continue;
+    const cmd = unquote(tokens[0]).split("/").pop() || "";
+    const args = tokens.slice(1).map(unquote).filter((t) => !t.startsWith("-"));
+    if (!args.length) continue;
+    if (DEST_LAST.has(cmd)) out.push(args[args.length - 1]);
+    else if (DEST_ALL.has(cmd)) out.push(...args);
+  }
+  return out.filter(Boolean);
+}
+
 /** How many times one rule may refuse before it gives up for the session. */
 export const MAX_BLOCKS_PER_RULE = 3;
 
@@ -67,7 +107,7 @@ export interface QueueBlock {
   reason: string;
 }
 
-type RuleName = "transition" | "one-at-a-time" | "self-approval" | "retro" | "boundary";
+type RuleName = "transition" | "one-at-a-time" | "self-approval" | "retro" | "boundary" | "tool-first";
 
 /** The text a write or edit is about to put on disk. */
 function outgoingText(input: unknown): string {
@@ -145,7 +185,9 @@ export class TaskQueueGuard {
   }
 
   private evaluate(toolName: string, input: unknown): QueueBlock | null {
-    if (!WRITE_TOOLS.has(String(toolName || "").toLowerCase())) return null;
+    const name = String(toolName || "").toLowerCase();
+    if (name === "bash") return this.checkBash(input);
+    if (!WRITE_TOOLS.has(name)) return null;
 
     const src = (input ?? {}) as Record<string, unknown>;
     const target = typeof src.path === "string" ? src.path : "";
@@ -226,6 +268,45 @@ export class TaskQueueGuard {
     }
 
     if (next === "IN_PROGRESS") this.startedHere.add(taskDir);
+    return null;
+  }
+
+  /**
+   * Shell writes into a task package.
+   *
+   * Measured 2026-08-06: a task went PENDING to DONE with none of the five
+   * rules firing, because every status change was `printf ... > status.txt`.
+   * Section 1's dual-track rule — non-negotiable — was among the bypassed.
+   *
+   * `status.txt` is refused outright rather than inspected, and the reason
+   * cites the protocol's own Tool-First Rule, whose example of what never to do
+   * is word for word what was observed. Any other file in a task package falls
+   * through to the boundary rule, which needs no content either.
+   */
+  private checkBash(input: unknown): QueueBlock | null {
+    const command = (input as { command?: unknown } | undefined)?.command;
+    for (const target of bashWriteTargets(command)) {
+      const taskDir = taskDirOf(target);
+      if (!taskDir) continue;
+      const queueDir = dirname(taskDir);
+      const taskName = basename(taskDir);
+      if (basename(resolve(target)) === "status.txt") {
+        if (!this.refuse("tool-first")) return null;
+        return {
+          block: true,
+          reason:
+            `C.A.S.E. tool-first guard: this changes ${taskName}'s status with a ` +
+            `shell redirect, which the protocol names as the thing never to do ` +
+            `(SKILL.md §4: "NEVER run host shell redirection commands, e.g. ` +
+            `echo \"IN_PROGRESS\" > status.txt"). It also steps around every ` +
+            `state rule, because those watch the write tool — a run reached DONE ` +
+            `this way with no dual-track check at all. Use \`write\` on ` +
+            `${taskName}/status.txt instead.`,
+        };
+      }
+      const refusal = this.checkBoundary(queueDir, taskName);
+      if (refusal) return refusal;
+    }
     return null;
   }
 
