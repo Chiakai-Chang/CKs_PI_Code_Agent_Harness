@@ -954,6 +954,14 @@ def main():
         # /browse — deterministic camofox-stealth entry point (does not rely on the
         # model auto-discovering the skill; weak local models routinely fail to).
         profile_prompts.append(os.path.join(pi_skills_root, "optional", "camofox-stealth", "commands").replace("\\", "/"))
+        # /case — same pattern, same reason, measured this time. `case-framework`
+        # was promoted into the core tier where it carries a full description
+        # naming task pipelines and step-by-step planning, and across three runs
+        # of a three-deliverable brief it was loaded zero times. Being visible is
+        # not being used; starting a framework is a decision, and a decision has
+        # no before-state for code to check. A slash command is the entry point
+        # that does not depend on the model deciding anything.
+        profile_prompts.append(os.path.join(pi_skills_root, "commands").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "llm-wiki-plugin", "skills", "llm-wiki").replace("\\", "/"))
         profile_skills.append(os.path.join(ext_root, "prompt-master").replace("\\", "/"))
         ecc_modules = ecc_modules_from_config(

@@ -11,6 +11,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 
 import { TaskQueueGuard } from "./task-queue-guard.ts";
+import { ActionLogger } from "./action-log.ts";
 
 const MAX_INJECT_CHARS = 3000;
 
@@ -61,6 +62,11 @@ export default function (pi: ExtensionAPI) {
   // behaviour in this harness.
   const queueGuard = new TaskQueueGuard();
 
+  // The audit trail, written here rather than requested from the model. Asking
+  // the agent under audit to keep its own audit trail is worth what it was
+  // measured to be worth: session 019fd29d made 40 tool calls and wrote nothing.
+  const actionLog = new ActionLogger();
+
   // On session start: detect C.A.S.E. status
   pi.on("session_start", async (_event, ctx) => {
     // A new session is a new Worker: whoever moved a task to IN_PROGRESS last
@@ -82,6 +88,14 @@ export default function (pi: ExtensionAPI) {
       ctx.ui.notify("🔒 C.A.S.E. 佇列規則:已擋下不合協定的狀態變更", "warning");
       return refusal;
     }
+  });
+
+  // After a call runs. `tool_result` rather than `tool_call` on purpose: a
+  // refused call never executed, and an audit trail that records intentions is
+  // not an audit trail. Returns nothing, so the tool result is untouched.
+  pi.on("tool_result", async (event, ctx) => {
+    if (!caseBridgeEnabled()) return;
+    actionLog.record(ctx.cwd, event.toolName, event.input, event.isError === true);
   });
 
   // Before each agent turn: inject C.A.S.E. rules and file-based state context
