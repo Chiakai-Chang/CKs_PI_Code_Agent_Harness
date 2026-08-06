@@ -69,6 +69,7 @@ import { spawnSync } from "node:child_process";
 import { CycleDetector, SAME_QUERY_LIMIT } from "./loop-detect.ts";
 import { ResearchDepthGuard } from "./research-depth.ts";
 import { bashContainmentBlock } from "./bash-containment.ts";
+import { BlockedClaimTracker, looksLikeRefusal } from "./blocked-claim.ts";
 
 function harnessRoot(): string {
   const here = dirname(fileURLToPath(import.meta.url));
@@ -310,6 +311,11 @@ const cycleDetector = new CycleDetector();
 // before?", this one asks "have I read anything, and have I written anything
 // down?". The measured session that motivated it repeated no query at all.
 const researchDepth = new ResearchDepthGuard();
+
+// Guard 11 — see blocked-claim.ts. A guard doing its job produces a session
+// record that says the opposite when the reply claims the refused change
+// happened; watched live twice on 2026-08-06.
+const blockedClaims = new BlockedClaimTracker();
 
 function repeatCallGuard(event: ToolCallEvent, ctx: ExtensionContext, pi: ExtensionAPI) {
   let signature: string;
@@ -1479,5 +1485,39 @@ export default function (pi: ExtensionAPI) {
     if (event.toolName === "write" || event.toolName === "edit") return containmentGuard(event, ctx);
   });
 
-  pi.on("turn_end", async (event, ctx) => loopGuard(event as { message: unknown; toolResults?: unknown[] }, ctx, pi));
+  // A call that produced a result is a call that ran, so a retry after a
+  // refusal clears it.
+  pi.on("tool_result", async (event) => {
+    // Classified from the result rather than from this bridge's own returns.
+    // A refusal arrives with isError set and the reason as content, and that is
+    // visible whichever extension refused it — the first version watched only
+    // its own guards and missed the C.A.S.E. one in case-bridge entirely.
+    const text = Array.isArray(event.content)
+      ? event.content.map((c) => (c as { text?: string })?.text ?? "").join(" ")
+      : "";
+    if (event.isError === true && looksLikeRefusal(text)) {
+      blockedClaims.blocked(event.toolName, event.input);
+    } else {
+      blockedClaims.succeeded(event.toolName, event.input);
+    }
+  });
+
+  pi.on("turn_end", async (event, ctx) => {
+    const correction = blockedClaims.review(
+      extractMessageText((event as { message?: unknown }).message));
+    blockedClaims.reset();
+    if (correction) {
+      ctx.ui.notify("⚠️ 回覆宣稱了一項被擋下的變更", "warning");
+      pi.sendMessage(
+        { customType: "blocked-claim", content: correction.message, display: true },
+        // followUp + triggerTurn, not nextTurn. The first draft used nextTurn on
+        // the reasoning that the turn was over — and an existing test caught it,
+        // correctly. nextTurn parks the correction until the human types again,
+        // so the user reads the false "已完成" now and the truth later. The
+        // point of this guard is that the reply should not stand.
+        { deliverAs: "followUp", triggerTurn: true },
+      );
+    }
+    return loopGuard(event as { message: unknown; toolResults?: unknown[] }, ctx, pi);
+  });
 }
