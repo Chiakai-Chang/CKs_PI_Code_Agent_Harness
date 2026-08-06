@@ -29,3 +29,10 @@ reference/
 
 # Machine-specific context calibration (see harness-config.local.json.example)
 pi-config/harness-config.local.json
+
+# Written when a bridge's handler runs against the REPO copy of its
+# package.json, whose "pi-harness.root" is still the literal placeholder
+# `TODO_SET_BY_RESTORE` until restore.py substitutes it on copy. Driving
+# handlers in tests produced it once and it was committed by accident; the
+# driver now runs in a temp cwd, and this keeps a stray one out of the repo.
+TODO_SET_BY_RESTORE/

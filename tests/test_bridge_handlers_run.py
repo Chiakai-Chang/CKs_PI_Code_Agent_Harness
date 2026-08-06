@@ -28,6 +28,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -114,8 +115,18 @@ def drive(bridge):
     with open(driver, "w", encoding="utf-8") as f:
         f.write(DRIVER % {"url": json.dumps("file:///" + entry)})
     try:
-        p = subprocess.run(["node", driver], capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", cwd=ROOT, timeout=180)
+        # A temp cwd, not the repo. Handlers have side effects: driving
+        # skill-namespace-guard once wrote a conflict report into
+        # ./TODO_SET_BY_RESTORE/pi-config/, because the repo copy of a bridge's
+        # package.json still carries that placeholder for its harness root
+        # until restore substitutes it. The stray file was committed before
+        # anyone noticed.
+        sandbox = tempfile.mkdtemp(prefix="bridge-handlers-")
+        try:
+            p = subprocess.run(["node", driver], capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", cwd=sandbox, timeout=180)
+        finally:
+            shutil.rmtree(sandbox, ignore_errors=True)
         if p.returncode != 0:
             return {"import_failed": (p.stderr or p.stdout).strip()[:200]}
         return json.loads(p.stdout)
