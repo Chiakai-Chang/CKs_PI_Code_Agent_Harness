@@ -575,3 +575,61 @@ temperature 0.6」。**實測是 1.0。**
 **修法不是去釘死 sampler** —— 那有自己的疤(釘死會製造「沒有差異」)。改成
 `measure-triggers.py` 每次從 `/props` 讀回實際 sampler 與 build,寫進 baseline 那一列。
 **沒人看得懂的那一列不算基線。**
+
+---
+
+## 回覆被壓縮摘要掉包(2026-08-06,session 019fd702)
+
+擁有者回報兩件事:「一開始有用 planning-with-files,後來都沒有了」、「出現 `<analysis>`
+`<summary>` 這種沒有對應任何 tool 的 tag」。
+
+**查 session 紀錄,兩個印象都來自同一則被掉包的回覆。**
+
+那一輪其實做得很好:
+
+```
+web_search 15 · web_open 10 · write 10 · edit 4 · 載入 planning-with-files
+task_plan.md 4524 → edit → edit      progress.md 381 → edit ×3 → 1347
+findings.md 164 → 5633               phase1/phase3/phase4 各 4000+ 字元
+ach-analysis-report.md 9092(5 個競爭假設、13 條附 URL 的證據)
+```
+
+**最後兩個動作還是寫檔。** 三個閘都沒開火是正確的 —— 搜尋 15 / 開頁 10 的比值遠優於門檻。
+
+問題出在**最後一則回覆**(6,466 字元),它的開頭是:
+
+```
+<analysis>
+Let me chronologically analyze the conversation:
+1. **First User Message (Message 1)**: ...
+```
+
+那是 Pi **壓縮對話歷史**的輸出格式(`dist/core/messages.js` 的 `COMPACTION_SUMMARY_PREFIX`
+用 `<summary>` 包住),而**這個 session 一次壓縮都沒發生**(0 個 compact 事件)。
+
+**工作做完了、報告寫好了,使用者看到的卻是對話流水帳。** 一則被掉包的回覆,產生了兩個
+對「其實運作良好的 session」的錯誤診斷。
+
+**已加守衛** `compaction-echo.ts`:回覆**開頭**是 `<analysis>` / `<summary>` 就糾正,並指名
+這一輪實際寫出的檔案。刻意很窄 —— `<summary>` 是 `<details>` 區塊的正常 HTML,本 repo 自己
+的文件到處都是。真實壓縮永遠不會以裸標籤開頭,因為 Pi 一定先寫前綴。
+
+## 沒有任何檢查會執行 bridge 的 handler(2026-08-06 已補)
+
+修上面那個守衛時,`turnWrites` 被用在 `tool_result` handler 裡卻**從未宣告**。
+
+**774 個測試、verify-bridges、validate-config、check-prompt-conflicts 全部通過,restore 還回報
+安裝副本位元組相同。** 而它會在每個 session 的第一個 tool result 丟
+`ReferenceError: turnWrites is not defined`。
+
+原因:既有測試會 **import** `index.ts`(所以語法錯誤抓得到 —— 稍早一個字串裡的換行就是這樣
+被抓到的),但**從來不呼叫 handler**。函式本體裡的未宣告識別字是執行期錯誤。
+
+已補 `tests/test_bridge_handlers_run.py`:用 stub `pi` 註冊每個 bridge 的 handler,再用最小
+事件真的呼叫它們。刻意把刪掉宣告的情況重現過一次,測試報出
+`tool_result: turnWrites is not defined`。
+
+覆蓋範圍**具名列出,不靜默跳過**:
+* 有跑到:`compact-continuation` / `planning-with-files` / `skill-catalog` / `skill-namespace-guard` / `taste` / `yes-hooks`
+* 需要 Pi 的 `require` shim,此處未覆蓋:`case-bridge`、`mece-autopilot-bridge`
+* 裸 node 匯入不了(Pi 專屬相依):`async-exec` / `deep-research` / `ecc-hooks` / `stealth-web` / `task-shape`

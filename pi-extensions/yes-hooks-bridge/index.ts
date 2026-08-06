@@ -70,6 +70,7 @@ import { CycleDetector, SAME_QUERY_LIMIT } from "./loop-detect.ts";
 import { ResearchDepthGuard } from "./research-depth.ts";
 import { bashContainmentBlock } from "./bash-containment.ts";
 import { BlockedClaimTracker, looksLikeRefusal } from "./blocked-claim.ts";
+import { compactionEcho } from "./compaction-echo.ts";
 
 function harnessRoot(): string {
   const here = dirname(fileURLToPath(import.meta.url));
@@ -316,6 +317,12 @@ const researchDepth = new ResearchDepthGuard();
 // record that says the opposite when the reply claims the refused change
 // happened; watched live twice on 2026-08-06.
 const blockedClaims = new BlockedClaimTracker();
+
+// Files the current turn wrote. A reply that substitutes a summary for the
+// answer usually has the answer on disk already, and naming it beats asking for
+// the work a second time. Module scope, like the guards above: Pi calls the
+// default export once per process, and this is cleared at every turn_end.
+let turnWrites: string[] = [];
 
 function repeatCallGuard(event: ToolCallEvent, ctx: ExtensionContext, pi: ExtensionAPI) {
   let signature: string;
@@ -1499,12 +1506,36 @@ export default function (pi: ExtensionAPI) {
       blockedClaims.blocked(event.toolName, event.input);
     } else {
       blockedClaims.succeeded(event.toolName, event.input);
+      // Kept so a correction can point at the deliverable that already exists,
+      // rather than asking for work that was in fact done.
+      if (event.toolName === "write" || event.toolName === "edit") {
+        const p = (event.input as { path?: unknown })?.path;
+        if (typeof p === "string" && p) {
+          const leaf = p.replace(/\\/g, "/").split("/").pop() as string;
+          if (leaf && !turnWrites.includes(leaf)) turnWrites.push(leaf);
+        }
+      }
     }
   });
 
   pi.on("turn_end", async (event, ctx) => {
-    const correction = blockedClaims.review(
-      extractMessageText((event as { message?: unknown }).message));
+    const finalText = extractMessageText((event as { message?: unknown }).message);
+
+    // A reply that opens with Pi's compaction envelope when nobody compacted.
+    // Session 019fd702: the work was done and a 9,092-char report written, and
+    // the user read a chronological recap of the conversation instead — then
+    // reasonably concluded the whole methodology had stopped working.
+    const echoed = compactionEcho(finalText, turnWrites);
+    turnWrites = [];
+    if (echoed) {
+      ctx.ui.notify("⚠️ 回覆用了壓縮摘要的格式,不是答案", "warning");
+      pi.sendMessage(
+        { customType: "compaction-echo", content: echoed.message, display: true },
+        { deliverAs: "followUp", triggerTurn: true },
+      );
+    }
+
+    const correction = blockedClaims.review(finalText);
     blockedClaims.reset();
     if (correction) {
       ctx.ui.notify("⚠️ 回覆宣稱了一項被擋下的變更", "warning");
