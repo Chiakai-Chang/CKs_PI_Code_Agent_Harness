@@ -99,14 +99,111 @@ ECC、evolver、yes.md、karpathy-skills)。它們的「放棄理由」多半來
 
 ---
 
+## 2026-08-06 — romiluz13/auto-pi
+
+**來源**:https://github.com/romiluz13/auto-pi(`research/auto-pi`)
+**研究目的**:它是 `workflow-os-guide` 的蒸餾來源,而本專案卡在「模型不先規劃就開始動手」。
+先讀它怎麼做階段門控,再決定 Task_015 的設計。
+
+### 核心發現
+
+**它把「先規劃」變成模型做不到別的事,而不是變成一段建議。**
+
+`extensions/loop.ts:1020` 的 phase tool gate 在 **`tool_call`** 上依當前階段擋工具:
+
+```
+PLAN   階段:唯讀 —— 不准 write/edit,不准會改東西的 bash
+VERIFY 階段:read/bash/lsp only —— 驗證者不准自己改東西
+```
+
+擋阻理由直接寫「tool "X" is not in the phase allowlist」。
+
+`extensions/workflow-gate-logic.ts` 另一層:**把操作綁在技能上**。
+
+| 操作 | 必須已載入的技能 |
+|---|---|
+| commit | `verification-before-completion` |
+| push | `commit` |
+| 寫入**原始碼**檔(測試檔不算) | `tdd` |
+| review | `code-review` |
+
+技能沒載入 → 操作被擋。**這是「技能裝了卻從來沒被觸發」的直接解法** ——
+不是提醒模型用技能,是讓不用技能就做不了那件事。
+
+第三層 `loop.ts:1339` 的 **RED guard**:輸出裡出現 `RED` / 測試失敗 / 非 0 exit 就
+**不算完成**,回送一段補救提示(「A failing test is never completion」),
+並有上限(`maxIterations`);另有 plateau 偵測。
+
+### 採用項目
+
+| # | 採用什麼 | 對應本專案的什麼 |
+|---|---|---|
+| 1 | **階段工具白名單,在 `tool_call` 擋** | 本專案 Task_008 的判定寫著「推進器在 `turn_end` 追不上第一輪就搜完的行為,只有 `tool_call` 擋得到」—— auto-pi 就是那個實作 |
+| 2 | **操作綁技能**(沒載入就擋) | 直接對應擁有者的原始抱怨:Superpowers / C.A.S.E. / MECE 裝著沒被用 |
+| 3 | RED guard:失敗輸出不算完成,回送補救提示並設上限 | 本專案的 `blocked-claim` 只看「回覆有沒有謊報」,不看**工具輸出裡的失敗證據** |
+| 4 | 純邏輯與 runtime 分離(`workflow-gate-logic.ts` vs `workflow-gate.ts`) | 本專案已部分如此(`bash-containment.ts`),值得成為慣例 |
+
+### 放棄項目
+
+| 項目 | 放棄原因 |
+|------|---------|
+| 整套安裝(`install.sh`、`mise`、`jq`、`gh` 依賴) | 本專案自有 `setup.py` 部署鏈,且不引入 mise |
+| 六個預設 workflow 與 slash palette | 領域不同;本專案的工作單位是 C.A.S.E. 任務包 |
+| `loop.ts` 單檔 1557 行的形狀 | 本專案的守衛以小模組 + 平權測試為慣例,不採此規模 |
+| 全自主模式 | 本專案明確要求人類核可(C.A.S.E. §1 雙軌驗證) |
+
+### 這一則改變了工作順序
+
+**階段門控比推進器更直接命中擁有者的抱怨。** 推進器在事後推,階段門控在事前擋;
+而本專案自己的量測已經證明「事後推」追不上。因此新增
+`Task_016_phase_tool_gate`,與 `Task_015` 並列,並排在它前面。
+
+---
+
+## 2026-08-06 — Forward-Future/loopy
+
+**來源**:https://github.com/Forward-Future/loopy(`external/loopy`,submodule)
+**研究目的**:確認它是否有可移植的迴圈控制機制(與 Task_015 同題)。
+
+### 核心發現
+
+**它不是程式,是一個技能 + 一個線上 loop 目錄。** 可移植的是一句定義:
+
+> Treat a loop as a feedback system with **terminal states**, not as permission
+> for endless autonomy.
+
+以及它的 loop 審計面向:**弱檢查(weak checks)** 與 **不安全的授權(unsafe authority)**。
+
+### 採用項目
+
+**1. 終端狀態是迴圈定義的一部分,不是例外。**
+本專案的推進器沒有終端狀態的概念,於是「交還使用者核可」這個**正確且穩定**的狀態
+被計時器判成卡住並升級 —— Task_008 逐字重現過。已列入 Task_015 的移植項第 4 條,
+並已作為回饋送往 C.A.S.E. 上游(要求協定標明哪些狀態是 terminal)。
+
+**2. 「弱檢查」是一個可審計的類別。**
+本專案有現成的實例:`blocked-claim` 曾經有 12 條綠測試而**在真實 session 裡從未響過**。
+值得把「這個守衛真的響過嗎」做成定期審計,而不是等下一次疤。
+
+### 放棄項目
+
+| 項目 | 放棄原因 |
+|------|---------|
+| Loop Library 網站與 catalog | 外部服務,本專案離線優先 |
+| 把 loop 發佈到公開目錄的流程 | 不適用 |
+| Loopy 的 discover/craft 互動流程 | 與本專案的 MECE-Autopilot + brainstorming 重疊 |
+
+---
+
 ## 待辦:尚未寫入本檔的來源
 
-`REGISTER.md` 目前有 **26 個標為「未審視」**。優先序依「壓在當前卡點上」排:
+`scripts/check-prior-art.py` 在寫入當下回報 **23 個未審視**。優先序依「壓在當前卡點上」排:
 
 | 優先 | 來源 | 壓在哪個卡點 |
 |---|---|---|
-| 1 | auto-pi(`workflow-os-guide` 的來源) | Pins / Gates / Steers 階段門控 —— 直接對應「先規劃再開始」 |
-| 2 | loopy | 循環工程閉環控制 —— 與 Task_015 的續跑迴圈同題 |
+| ~~1~~ ✅ | ~~auto-pi~~ | 已完成 —— 直接改變了工作順序,見上 |
+| ~~2~~ ✅ | ~~loopy~~ | 已完成 |
 | 3 | agentic-harness.pi | `detect → parse → review` 生命週期合約 —— 對應守衛的通道選擇 |
 | 4 | harness-engineering | grilling 一問一答門控 —— 對應「不先釐清就動手」 |
 | 5 | pi-browser-harness | 研究型 session 的實作(本專案最痛的場景) |
+| 6 | pi-superagents / pi-tool-repair-layer / 其餘 | 依需要 |

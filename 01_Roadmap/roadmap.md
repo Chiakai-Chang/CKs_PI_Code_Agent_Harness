@@ -32,8 +32,9 @@
 | # | 做什麼 | 為什麼排在這 |
 |---|---|---|
 | 0 ✅ | prior-art 登記表 + CI 檢查 + RATIONALE 格式(取自 OmniHeal) | 不先修這個,下面每一項都會再重做一次 |
-| 1 | **先讀**:`auto-pi`、`loopy` 的迴圈與階段門控,寫進 RATIONALE | 與 Task_015 同題;先讀可能直接改掉 Task_015 的設計 |
-| 2 | `Task_015_advancer_settled_loop`:移植四項 | 有了 1 的結果才動工 |
+| 1 ✅ | **先讀**:`auto-pi`、`loopy`,寫進 [RATIONALE](../docs/prior-art/RATIONALE.md) | 做對了:auto-pi 的階段門控直接改變了下面的順序,新增 Task_016 排在 Task_015 前面 |
+| 2 | **`Task_016_phase_tool_gate`**:階段工具白名單,在 `tool_call` 擋 —— 規劃階段不准寫檔 | **這才是「先規劃再開始」的直接解**;Task_008 的判定已寫明 `turn_end` 追不上,auto-pi 就是那個實作 |
+| 2b | `Task_015_advancer_settled_loop`:移植四項 | 推進器負責「做完一件接下一件」,與 2 不重疊 |
 | 3 | `Task_003_cwd_confusion`:最大單一失敗來源 | 2/5 run 被它整場吃掉,推進器再好也救不了 |
 | 4 | 重測(基準線 3 次 + 研究型 1 次),**才**談 `enableCaseAdvancer` 預設值 | 判定要建立在修好的地基上 |
 | 5 | 依 `docs/prior-art/REGISTER.md` 的優先序清掉其餘 25 個未審視來源 | 每清一個寫一則 RATIONALE 條目 |

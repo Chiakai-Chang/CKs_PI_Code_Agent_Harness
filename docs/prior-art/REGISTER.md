@@ -48,7 +48,7 @@
 | agentic-harness.pi | reference-clone | research/agentic-harness.pi | 未審視 | — | 蒸餾為 `guardian-pipeline-guide`(同上) | — | — |
 | pi-superagents | reference-clone | research/pi-superagents | 未審視 | — | 蒸餾為 `subagent-orchestration-guide`(同上) | — | — |
 | Huiyu-Pi | reference-clone | research/Huiyu-Pi | 未審視 | — | 蒸餾為 `minimal-prompt-guide`(同上) | — | — |
-| auto-pi | reference-clone | research/auto-pi | 未審視 | — | 蒸餾為 `workflow-os-guide`(同上) | — | — |
+| auto-pi | reference-clone | research/auto-pi | 已審視 | docs/prior-art/RATIONALE.md | **階段工具白名單(`tool_call` 擋)**、操作綁技能、RED guard、純邏輯與 runtime 分離 | install.sh/mise/jq 依賴、六個預設 workflow 與 palette、1557 行單檔形狀、全自主模式 | 2026-08-06 |
 | oh-my-pi-audreyt | reference-clone | research/oh-my-pi-audreyt | 未審視 | — | 蒸餾為 `ide-intelligence-guide`(同上) | — | — |
 | oh-my-pi-can1357 | reference-clone | research/oh-my-pi-can1357 | 未審視 | — | 同上 | — | — |
 | claude-reflect | distillation-source | (無 clone) | 已審視 | docs/core/ | 本地移植為 `hello-reflect` | — | 2026-07-07 |
@@ -68,7 +68,7 @@
 | qiushi-skill | submodule | external/qiushi-skill | 未審視 | — | bridge 註冊 | — | — |
 | agents-best-practices | submodule | external/agents-best-practices | 未審視 | — | bridge 註冊 | — | — |
 | graphify | submodule | external/graphify | 未審視 | — | bridge 註冊 | — | — |
-| loopy | submodule | external/loopy | 未審視 | — | bridge 註冊 | — | — |
+| loopy | submodule | external/loopy | 已審視 | docs/prior-art/RATIONALE.md | 「迴圈必須有終端狀態」的定義;「弱檢查」作為可審計類別 | Loop Library 網站與發佈流程、discover/craft 互動(與 MECE-Autopilot 重疊) | 2026-08-06 |
 | OmniHeal | reference-clone(擁有者自有專案) | research/OmniHeal | 已審視 | docs/prior-art/RATIONALE.md | **本登記表與 RATIONALE 格式即取自它**;Task Queue 恢復點定義;3-Strike 的「換一種方式」分層 | 零安裝硬約束、三個健檢技能、SWOT 產出格式、Phase 掃描模型(領域不同) | 2026-08-06 |
 
 ---
