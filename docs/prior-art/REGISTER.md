@@ -34,7 +34,7 @@
 
 | 來源 | 類型 | 位置 | 審視狀態 | 收穫文件 | 已採用 | 明確不採用 | 最後審視 |
 |---|---|---|---|---|---|---|---|
-| pi-until-done | reference-clone(**README 未列**) | reference/pi-until-done | 已審視 | docs/superpowers/pi-until-done-learnings/ | compaction 生存套件、Verifiability Block、hook 紀律文件 | Judge 系統、Ralph loop(當時判為「擴充層職責」)—— **這個否決已被 2026-08-06 的工作事實推翻,待重新決定** | 2026-08-06 |
+| pi-until-done | reference-clone(**README 未列**) | reference/pi-until-done | 已審視(實作層) | docs/superpowers/pi-until-done-learnings/ · docs/prior-art/2026-08-06-pi-until-done-loop-reference.md | compaction 生存套件、Verifiability Block、hook 紀律文件;**待移植**:`agent_settled` 續跑、加權 progress signal、自動化失敗不動任務狀態、終端步驟不計時 | turn budget 對話框、YAML/widget UI、mise 綁定;**原本排除的 judge / Ralph loop 已被 Task_010/011/001 的工作事實推翻,重新列為待決** | 2026-08-06 |
 | oh-my-pi | reference-clone | reference/oh-my-pi | 已審視 | docs/superpowers/oh-my-pi-learnings/ | hashline edit 概念、context discovery 觀念 | 整套 natives/bash runtime | 2026-08-06 |
 | camofox-browser | reference-clone | reference/camofox-browser | 已審視 | docs/core/ | `stealth-web-bridge` 的 `web_search`/`web_open` | — | 2026-07-12 |
 | market-research | reference-clone | reference/market-research | 未審視 | — | — | — | — |

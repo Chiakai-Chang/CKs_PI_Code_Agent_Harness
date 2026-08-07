@@ -64,8 +64,12 @@
       數的是注入次數而非停滯,終點步驟必然被判卡住;而研究型 run 顯示推進器在 `turn_end`
       根本追不上「一上來就搜」。見
       [docs/measurements/2026-08-06-advancer-verdict.md](../docs/measurements/2026-08-06-advancer-verdict.md)。
-- [ ] `Task_015_advancer_retirement_unit`:退場計數器改為「任務包自上次注入後無變化」
-      才累加,並把「交還使用者」標為終端步驟不累加。修完才談預設值。
+- [ ] `Task_015_advancer_settled_loop`:**不是調計數器,是換地基。** 依
+      [docs/prior-art/2026-08-06-pi-until-done-loop-reference.md](../docs/prior-art/2026-08-06-pi-until-done-loop-reference.md)
+      的四項對照移植:(1) 續跑改掛 `agent_settled`;(2) 停滯判準改為加權 progress
+      signal `=== 0`;(3) **自動化放棄時暫停自己,不去寫 `status.txt`** ——
+      目前三次 ESCALATED 有至少兩次是我們自己造的假失敗;(4) 終端步驟不計時。
+      移植前先用探針量 `agent_settled` 的真實觸發時機(型別不說觸發時機)。
 
 **出口條件**:預設值有實測依據,不是設計時的直覺。
 
