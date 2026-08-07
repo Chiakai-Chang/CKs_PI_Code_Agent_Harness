@@ -43,6 +43,13 @@ jobs:
         run: |
           python scripts/validate-config.py
 
+      # Every external source stays accounted for: README's list, the manifest
+      # and the clones on disk must all appear in the prior-art register. A day
+      # was spent rebuilding mechanisms a registered clone already implements.
+      - name: Check the prior-art register
+        run: |
+          python scripts/check-prior-art.py
+
       - name: Install shellcheck
         run: |
           sudo apt-get update
