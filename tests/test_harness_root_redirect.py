@@ -124,6 +124,29 @@ class TestItDoesNotGuess(unittest.TestCase):
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestEachMissingInputIsItsOwnReason(unittest.TestCase):
+    """Added 2026-08-08 because the mutation runner found the hole, not because
+    anyone suspected it.
+
+    `harness-root.ts:40` reads `if (!t || !c || !h) return null;`. Flipping
+    either `||` to `&&` — so the guard bails only when ALL THREE are empty —
+    left the whole suite green. `test_no_harness_root_known` looks like it
+    covers this and does not: with an empty harness root the mutant falls
+    through to `t.startsWith("/")`, which is false for a Windows path, so null
+    comes back through a different door and the test passes either way.
+
+    An empty cwd is the case that shows it. The mutant builds a hint whose
+    workspace path is `/02_Task_Queue/x` — a confident redirection to the root
+    of the drive, offered to a model that is already lost."""
+
+    def test_an_empty_cwd_gets_no_hint(self):
+        self.assertIsNone(hint(HARNESS + "/02_Task_Queue/x", cwd="")["hint"])
+
+    def test_an_empty_target_gets_no_hint(self):
+        self.assertIsNone(hint("")["hint"])
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
 class TestTheGuardCarriesIt(unittest.TestCase):
     def test_the_refusal_text_includes_the_hint(self):
         with open(os.path.join(ROOT, "pi-extensions", "yes-hooks-bridge", "index.ts"),

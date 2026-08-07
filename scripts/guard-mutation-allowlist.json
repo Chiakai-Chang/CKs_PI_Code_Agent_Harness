@@ -1,0 +1,9 @@
+{
+  "_comment": "Mutations that survive with an argument for why no test can tell the difference. A blank reason fails the run - see verdict() in scripts/check-guard-mutations.py. Verify each claim before adding one; an unverified entry is how a survivor list becomes a formality.",
+
+  "bash-containment.ts:47:10:true->false": "Type declaration, not code: `export interface ContainmentBlock { block: true; }`. TypeScript types are erased before the module runs, so the mutant is byte-identical at runtime and no test can distinguish it. Verified by reading lines 46-49.",
+
+  "loop-detect.ts:44:10:true->false": "Same shape as bash-containment.ts:47 - `block: true;` inside an interface declaration, erased at runtime. Note the semicolon: the object-literal form ends in a comma and IS a real hole, see task-queue-guard.ts:217.",
+
+  "queue-advancer.ts:81:12:true->false": "`paused?: true;` - an optional property in a type declaration. The `?:` syntax exists only in types, so this cannot reach runtime."
+}
