@@ -244,21 +244,33 @@ class TestItStopsRatherThanRepeats(unittest.TestCase):
         self.q = Queue()
         self.addCleanup(self.q.cleanup)
 
-    def test_the_same_step_three_times_then_escalation(self):
+    def test_idle_cycles_then_it_pauses_itself(self):
+        """Was "three injections then ESCALATE". Both halves of that were wrong,
+        and measurement said so:
+
+          * counting injections declared steps in normal progress stuck — five
+            runs, none reached DONE;
+          * escalating wrote the automation's surrender into the task's own
+            status, so three of five runs recorded failed tasks and at least two
+            of those tasks were fine.
+
+        Now: cycles that call no tools at all are what retire it, and it pauses
+        ITSELF. `endCycle()` marks the boundary — one agent run, not one turn."""
         self.q.task("Task_001_a", "IN_PROGRESS")
         out = run_js("""
         const a = new m.QueueAdvancer();
         const seen = [];
         for (let i = 0; i < 6; i++) {
           const r = a.advance(%s);
-          seen.push(r ? (r.escalate ? "ESCALATE" : "advance") : "silent");
+          seen.push(r ? (r.paused ? "PAUSED" : "advance") : "silent");
+          a.endCycle();
         }
         process.stdout.write(JSON.stringify({ seen }));
         """ % self.q.js)
         self.assertEqual(out["seen"][:3], ["advance", "advance", "advance"])
-        self.assertEqual(out["seen"][3], "ESCALATE")
+        self.assertEqual(out["seen"][3], "PAUSED")
         self.assertEqual(out["seen"][4:], ["silent", "silent"],
-                         "after escalating it must stop, not keep talking")
+                         "after pausing it must stop, not keep talking")
 
     def test_progress_resets_the_count(self):
         d = self.q.task("Task_001_a", "IN_PROGRESS")

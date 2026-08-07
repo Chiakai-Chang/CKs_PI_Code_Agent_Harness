@@ -134,6 +134,9 @@ export default function (pi: ExtensionAPI) {
       ctx.ui.notify("🔒 C.A.S.E. 佇列規則:已擋下不合協定的狀態變更", "warning");
       return refusal;
     }
+    // Evidence that this cycle did something. Weighted, and counted here
+    // because `tool_call` fires whether or not the call is later refused.
+    advancer.noteProgress(event.toolName);
     const phase = phaseGate.check(join(ctx.cwd ?? "", "02_Task_Queue"), event.toolName, event.input);
     if (phase) {
       ctx.ui.notify("🚦 C.A.S.E. 階段閘:先認領、先規劃,再產出", "warning");
@@ -155,20 +158,45 @@ export default function (pi: ExtensionAPI) {
   // than waiting for a human — verified in session 019fcf32, where a custom
   // message sat between an assistant turn that ended in text and a new
   // assistant turn that made a real tool call, with no user message between.
-  pi.on("turn_end", async (_event, ctx) => {
+  // `agent_settled`, not `turn_end`. Probed 2026-08-06: settled fires ONCE per
+  // agent run, 1ms after `agent_end`, while `turn_end` fires on every turn —
+  // and speaking every turn is what declared steps in normal progress stuck,
+  // measured across five runs that never reached DONE. Same event
+  // `reference/pi-until-done` uses (`hooks/agent.ts:62`).
+  pi.on("agent_settled", async (_event, ctx) => {
     const root = harnessRoot();
     if (!root || !caseAdvancerEnabled(root)) return;
     if (!isCaseProject(ctx.cwd)) return;
     const queueDir = join(ctx.cwd, "02_Task_Queue");
     const step = advancer.advance(queueDir);
+    advancer.endCycle();
     if (!step) return;
-    ctx.ui.notify(step.escalate
-      ? "⛔ C.A.S.E. 同一步停滯,已停止推進"
-      : "▶️ C.A.S.E. 推進下一步", step.escalate ? "warning" : "info");
-    pi.sendMessage(
-      { customType: "case-advance", content: step.message, display: true },
-      { deliverAs: "followUp", triggerTurn: true },
-    );
+    if (step.paused) {
+      // The automation gave up; the task did not fail. Nothing writes protocol
+      // state here, and the message says so — three of five measured runs
+      // recorded ESCALATED tasks that were progressing fine.
+      ctx.ui.notify("⏸️ C.A.S.E. 推進器已暫停(任務狀態未變更)", "warning");
+      // Paused deliberately says nothing to the model — it is a note to the
+      // human. `nextTurn` parks it until someone types, which is exactly right
+      // for "the automation stopped; the task did not fail".
+      pi.sendMessage(
+        { customType: "case-advance-paused", content: step.message, display: true },
+        { deliverAs: "nextTurn" },
+      );
+      return;
+    }
+    ctx.ui.notify("▶️ C.A.S.E. 推進下一步", "info");
+    // `sendUserMessage`, not `sendMessage`. Measured: a custom message queued at
+    // `agent_settled` never reached the session at all — settled fires after
+    // `agent_end`, when the agent loop that would pick it up has finished.
+    // `reference/pi-until-done` uses sendUserMessage here
+    // (`hooks/agent-end-helpers.ts:93`), and its options do not even offer
+    // `triggerTurn` — a user message IS the trigger.
+    // Not awaited. A live run with `await` here produced no session file at
+    // all and had to be killed at ten minutes — awaiting a send while the agent
+    // is settling is a plausible way to hang shutdown, and an advancer that can
+    // hang Pi is worse than one that does not advance.
+    void pi.sendUserMessage(step.message, { deliverAs: "followUp" });
   });
 
   // Before each agent turn: inject C.A.S.E. rules and file-based state context

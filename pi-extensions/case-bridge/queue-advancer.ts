@@ -55,12 +55,48 @@ export interface NextStep {
   /** "" when nothing is missing and the step is a transition. */
   missing: "" | "planning" | "self-review" | "output" | "retro";
   instruction: string;
+  /**
+   * The protocol's stopping point: nothing this session may do next.
+   *
+   * loopy states it plainly — a loop is a feedback system with terminal states,
+   * not permission for endless autonomy. Without this flag the handoff step was
+   * re-issued and then escalated as stuck, because it is a state that by design
+   * never changes.
+   */
+  terminal?: true;
 }
 
 export interface Advance {
   message: string;
-  escalate?: true;
+  /**
+   * The advancer has given up on this step and paused ITSELF.
+   *
+   * Not `escalate`. The previous version asked the model to write ESCALATED
+   * into `status.txt`, so every time the automation quit, the protocol recorded
+   * a failed task: three of five measured runs ended ESCALATED and at least two
+   * of those tasks were progressing fine. `reference/pi-until-done` pauses its
+   * own state and never touches the executed task
+   * (`hooks/agent-end-helpers.ts:13`); that is the shape adopted here.
+   */
+  paused?: true;
 }
+
+/**
+ * What a tool call is worth as evidence that the cycle did something.
+ *
+ * Borrowed wholesale from pi-until-done (`hooks/tools.ts:65`) — these are its
+ * numbers, not ones this project derived, and that is recorded so a later
+ * measurement can question them. A stall is a cycle that scores zero, not a
+ * cycle that failed to move the state: a step can legitimately take several
+ * cycles of reading and editing.
+ */
+const PROGRESS_WEIGHTS: Record<string, number> = {
+  write: 3, edit: 3, bash: 2, read: 1, grep: 1, find: 1, ls: 1,
+};
+const DEFAULT_WEIGHT = 2;
+
+/** Cycles scoring zero before the advancer pauses itself. */
+export const MAX_IDLE_CYCLES = 3;
 
 function read(path: string): string | null {
   try {
@@ -123,8 +159,10 @@ export function nextStep(queueDir: unknown): NextStep | null {
 
   const dir = join(queueDir, task.name);
   const at = (f: string) => join(dir, f);
-  const say = (missing: NextStep["missing"], instruction: string): NextStep =>
-    ({ task: task!.name, status: task!.status, missing, instruction });
+  const say = (missing: NextStep["missing"], instruction: string,
+               terminal?: true): NextStep =>
+    ({ task: task!.name, status: task!.status, missing, instruction,
+       ...(terminal ? { terminal } : {}) });
 
   // §6 step 1 — a pending task begins by claiming itself.
   if (task.status === "PENDING") {
@@ -173,7 +211,7 @@ export function nextStep(queueDir: unknown): NextStep | null {
     return say("",
       `[C.A.S.E.] ${task.name} 已在 REVIEW 且復盤已寫。核可必須由**另一個 session** 進行 —— ` +
       `§1 的雙軌驗證不可協商,Path B 的自主核可也明訂需要 fresh context。` +
-      `這一輪到此為止,請告訴使用者可以開新 session 當 Checker。`);
+      `這一輪到此為止,請告訴使用者可以開新 session 當 Checker。`, true);
   }
 
   // DONE / ESCALATED / anything unrecognised: not this mechanism's business.
@@ -183,6 +221,34 @@ export function nextStep(queueDir: unknown): NextStep | null {
 export class QueueAdvancer {
   private seen = new Map<string, number>();
   private done = new Set<string>();
+  private progress = 0;
+  private idleCycles = 0;
+
+  /** Score a tool call for this cycle. Called from `tool_call`. */
+  noteProgress(toolName: unknown): void {
+    const name = String(toolName ?? "");
+    if (!name) return;
+    this.progress += PROGRESS_WEIGHTS[name] ?? DEFAULT_WEIGHT;
+  }
+
+  /** This cycle's weighted score, for tests and for the status line. */
+  progressThisCycle(): number {
+    return this.progress;
+  }
+
+  /**
+   * End of one agent run.
+   *
+   * A cycle is `agent_settled` to `agent_settled`, not turn to turn. Probed
+   * 2026-08-06: `agent_settled` fires once per agent run, 1ms after
+   * `agent_end`, while `turn_end` fires on every turn — and counting turns is
+   * what declared steps in normal progress stuck.
+   */
+  endCycle(): void {
+    if (this.progress === 0) this.idleCycles += 1;
+    else this.idleCycles = 0;
+    this.progress = 0;
+  }
 
   /**
    * The message to inject, or null.
@@ -204,23 +270,38 @@ export class QueueAdvancer {
     const key = `${step.task}:${step.status}:${step.missing}`;
     if (this.done.has(key)) return null;
 
-    const count = (this.seen.get(key) ?? 0) + 1;
-    this.seen.set(key, count);
-    if (count <= MAX_ADVANCES_PER_STEP) return { message: step.instruction };
+    // A terminal step is the protocol's stopping point, not a stalled one.
+    // "Approval belongs to another session" is correct and stable, and the old
+    // counter escalated it as stuck — reproduced deterministically before this
+    // change. Say it once; then stop.
+    if (step.terminal) {
+      this.done.add(key);
+      return { message: step.instruction };
+    }
 
-    this.done.add(key);
-    return {
-      escalate: true,
-      message:
-        `[C.A.S.E.] ${step.task} 在同一步停了 ${MAX_ADVANCES_PER_STEP} 次都沒有前進。` +
-        `依 00_Constitution 的升級政策,這一輪停止推進 —— 請把 status.txt 改成 ESCALATED、` +
-        `在 feedback.md 寫下卡住的原因,並交還給使用者。`,
-    };
+    // Idleness, not repetition, is what retires it. A cycle that called tools
+    // was working even if the state has not moved yet.
+    if (this.idleCycles >= MAX_IDLE_CYCLES) {
+      this.done.add(key);
+      return {
+        paused: true,
+        message:
+          `[C.A.S.E.] 推進器已暫停:連續 ${MAX_IDLE_CYCLES} 個回合完全沒有工具呼叫,` +
+          `所以它停止推進 ${step.task} 的「${step.missing || "下一步"}」。` +
+          `**任務狀態沒有被更動,也不需要被更動** —— 停下來的是自動化,不是這件工作。` +
+          `需要繼續時直接告訴我下一步,或自行接手。`,
+      };
+    }
+
+    this.seen.set(key, (this.seen.get(key) ?? 0) + 1);
+    return { message: step.instruction };
   }
 
   /** A new session starts with no history. */
   reset(): void {
     this.seen.clear();
     this.done.clear();
+    this.progress = 0;
+    this.idleCycles = 0;
   }
 }
