@@ -10,7 +10,7 @@
 
 ## 🧪 Testing & Verification Commands
 * Run tests (zero-dependency, stdlib unittest): `python -m unittest discover -s tests`
-* Verify bridge health (entry points exist, manifest vs package.json cross-check): `python scripts/verify-bridges.py`
+* Verify bridge health (entry points exist, manifest vs package.json cross-check, **and whether the installed copies Pi loads still match the repo**): `python scripts/verify-bridges.py`. The drift check needs a machine with Pi installed — in CI it prints SKIP and checks nothing, so run it locally before believing a bridge fix is live.
 * Validate pi-config files (schema, anti-patterns, secret detection): `python scripts/validate-config.py`
 * Audit the combined injected prompt across bridges (absolutist scope claims, shared trigger vocabulary, total budget): `python scripts/check-prompt-conflicts.py`
 * Build a pinned, reproducible fixture for the probe scripts (sizes against whichever model is being served; records sha256 so a rebuild proves the sources have not moved): `python scripts/make-probe-fixture.py --out <dir> --sources rules|neutral --tokens N [--url http://127.0.0.1:8080]`
