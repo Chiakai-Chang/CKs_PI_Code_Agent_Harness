@@ -70,6 +70,7 @@ import { CycleDetector, SAME_QUERY_LIMIT } from "./loop-detect.ts";
 import { ResearchDepthGuard } from "./research-depth.ts";
 import { bashContainmentBlock } from "./bash-containment.ts";
 import { BlockedClaimTracker } from "./blocked-claim.ts";
+import { harnessRootHint } from "./harness-root.ts";
 import { compactionEcho } from "./compaction-echo.ts";
 
 function harnessRoot(): string {
@@ -416,7 +417,14 @@ function containmentGuard(event: ToolCallEvent, ctx: ExtensionContext) {
   ctx.ui.notify(`🚨 Blocked ${event.toolName} outside project root: ${target}`, "error");
   return {
     block: true,
-    reason: `Directory containment: ${event.toolName} target "${target}" is outside the project root (${cwd}). Write inside the project you were launched in. If you truly need to touch another directory, ask the user.`,
+    // The refusal supplies the workspace path when the target landed in the
+    // harness install — cwd confusion ate two of five measured runs, and the
+    // model retried nine times against a refusal that named the mistake and
+    // nothing else.
+    reason: `Directory containment: ${event.toolName} target "${target}" is outside the project root (${cwd}). Write inside the project you were launched in. If you truly need to touch another directory, ask the user.`
+      + (harnessRootHint(target, cwd, harnessRoot()) ? `
+
+${harnessRootHint(target, cwd, harnessRoot())}` : ""),
   };
 }
 
