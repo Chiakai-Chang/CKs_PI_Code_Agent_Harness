@@ -60,6 +60,24 @@ class TestTheOperatorsChangeTheCode(unittest.TestCase):
         for expected in ("&&->||", "===->!==", "<=-><", "!==->===", "true->false"):
             self.assertIn(expected, kinds)
 
+    def test_a_negation_is_removed(self):
+        """Added 2026-08-08 after the first sweep could not reach the line
+        Task_003 broke. Its surviving break deleted a whole precondition —
+        `if (!t.startsWith(h + "/")) return null;` — and the operator set had
+        no site on that line at all, so the tool finishing said nothing about
+        whether the condition was met. Guard clauses are written `if (!x)
+        return`, and dropping the `!` inverts exactly that shape."""
+        kinds = {m.kind for m in gm.mutations("if (!ok) return null;\n")}
+        self.assertIn("!x->x", kinds)
+
+    def test_the_bang_of_a_not_equals_is_left_alone(self):
+        """`!==` is its own operator and `!=` would become `=`, which is an
+        assignment, not a mutation — it would not parse as a comparison and the
+        result would be noise rather than a survivor."""
+        for src in ("if (a !== b) return 1;\n", "if (a != b) return 1;\n"):
+            with self.subTest(src=src):
+                self.assertNotIn("!x->x", {m.kind for m in gm.mutations(src)})
+
     def test_an_integer_threshold_is_shifted(self):
         found = [m for m in gm.mutations("const MAX = 4;\n") if "4" in m.kind]
         self.assertTrue(found, "thresholds are the parameter most often wrong")
@@ -83,6 +101,22 @@ class TestItDoesNotMutateProseOrStrings(unittest.TestCase):
 
     def test_a_template_literal_is_left_alone(self):
         self.assertEqual(gm.mutations("const s = `blocked && refused === no`;\n"), [])
+
+    def test_a_regex_literal_is_left_alone(self):
+        """The runner's own first false positive. `blocked-claim.ts:67` is
+        `const TERMINATOR = /[。！？!?\\n]|\\.(?=\\s|$)/g;` and the `!` inside the
+        character class was reported as an untested negation — a pattern is
+        data, exactly as a string is, and a survivor list with noise in it is a
+        survivor list nobody reads."""
+        src = "const T = /[!?a-z]|x/g;\n"
+        self.assertEqual(gm.mutations(src), [])
+
+    def test_division_is_not_mistaken_for_a_pattern(self):
+        """`a / b` after a value is arithmetic. Masking it would hide real
+        operators on that line."""
+        kinds = {m.kind for m in gm.mutations("const r = total / count >= 2 && ok;\n")}
+        self.assertIn(">=->>", kinds)
+        self.assertIn("&&->||", kinds)
 
     def test_code_beside_a_comment_is_still_mutated(self):
         kinds = {m.kind for m in gm.mutations("if (a && b) return 1; // x === y\n")}

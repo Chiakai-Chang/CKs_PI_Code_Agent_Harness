@@ -39,7 +39,8 @@
 | 2e ✅ | **Checker 核可批次**(使用者授權單軌) | 十個任務九個 `DONE`、`Task_003` 擋下。判定與三項副產發現見 [docs/case/2026-08-08-checker-pass.md](../docs/case/2026-08-08-checker-pass.md) |
 | 2c ✅ | **`Task_017_guard_mutation_check`**(REVIEW) | **機制成立且抓到真洞**:`harness-root.ts:40` 兩個 `||` 都沒被守住(已補測試,5/5 全殺);全掃描 34 個存活者,其中 `task-queue-guard.ts:217` 的 `block: true` 可改成 `false` 而測試全綠 —— 守衛繼續算、繼續給理由、就是不再擋。**但 Task_003 的解除條件未滿足**(那一行沒有變異點)。後續:negation-removal 運算子 + 31 個未分類存活者 |
 | ~~2c~~ | ~~`Task_017_guard_mutation_check`~~(原始理由,保留) | 全日復盤:B 類失敗(檢查無法失敗 / fixture 無法區分)今天兩次、更早兩次,而目前**只有紀律沒有機制**。**且 Task_003 已明確把兩個活下來的變異留給它抓,那是解除 Task_003 REVIEW 的條件。** 見 [docs/retro/2026-08-06-session-retrospective.md](../docs/retro/2026-08-06-session-retrospective.md) |
-| 3 ⏸ | `Task_003_cwd_confusion`:交付已生效,**核可被擋在 REVIEW** | 5 種破壞只抓到 3 種;結論見 [docs/case/task-003-cwd-confusion.md](../docs/case/task-003-cwd-confusion.md) |
+| 3 ✅ | `Task_003_cwd_confusion`(DONE,二次核可) | 兩個活下來的破壞**原樣重現、都會紅**;窮舉變異 10/10 全殺。修法是把理由字串搬成純函式,不是把斷言寫緊。見 [docs/case/task-003-cwd-confusion.md](../docs/case/task-003-cwd-confusion.md) |
+| 2f ✅ | 變異檢查進 CI(`--cap 4`,實測 79 秒) | governance 測試擋下了「有記錄卻不在 CI 的 check」,而它是對的。進 CI 的前提是**先把取樣點上的存活者處理掉** —— 8 個減到 3 個,剩下的全部具名 |
 | 4 | 重測(基準線 3 次 + 研究型 1 次),**才**談 `enableCaseAdvancer` 預設值 | 判定要建立在修好的地基上 |
 | 5 | 依 `docs/prior-art/REGISTER.md` 的優先序清掉其餘 25 個未審視來源 | 每清一個寫一則 RATIONALE 條目 |
 

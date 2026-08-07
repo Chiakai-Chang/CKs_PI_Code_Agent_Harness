@@ -85,6 +85,13 @@ _SKIP = re.compile(
       | ("(?:\\.|[^"\\])*")   # double-quoted
       | ('(?:\\.|[^'\\])*')   # single-quoted
       | (`(?:\\.|[^`\\])*`)   # template literal
+      # A regex literal is data, the same as a string. Missing it produced the
+      # runner's own first false positive: `blocked-claim.ts:67` is
+      # `const TERMINATOR = /[。！？!?\n]|\.(?=\s|$)/g;` and the `!` inside the
+      # character class was reported as an untested negation. The lookbehind
+      # keeps division out — `/` after a value is a divide, after `= ( , : [ !
+      # & | ? { } ; return` it opens a pattern.
+      | ((?<=[=(,:\[!&|?{};])\s*/(?![/*])(?:\\.|\[(?:\\.|[^\]\\])*\]|[^/\\\n])+/[gimsuy]*)
     """,
     re.VERBOSE | re.DOTALL,
 )
@@ -146,6 +153,27 @@ def mutations(src: str) -> list:
             for k in range(i, end):
                 taken[k] = True
             found.append(Mutation(i, label, pattern, replacement))
+
+    # Guard clauses are written `if (!x) return ...`, and this operator inverts
+    # exactly that shape. It exists because the first sweep could not reach the
+    # line Task_003 broke: its surviving break deleted a whole precondition, and
+    # nothing in the operator set had a site on that line, so a clean sweep said
+    # nothing about it. Operators should be derived from the breaks on record,
+    # not chosen because they look standard.
+    start = 0
+    while True:
+        i = src.find("!", start)
+        if i < 0:
+            break
+        start = i + 1
+        if not mask[i] or taken[i]:
+            continue
+        # `!==` is its own operator above; `!=` would become a bare `=`, which
+        # is an assignment rather than a comparison — noise, not a survivor.
+        if src[i + 1:i + 2] == "=":
+            continue
+        taken[i] = True
+        found.append(Mutation(i, "!x->x", "!", ""))
 
     for m in _INT.finditer(src):
         i, end = m.start(), m.end()

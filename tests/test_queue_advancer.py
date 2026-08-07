@@ -327,6 +327,55 @@ class TestTheInstruction(unittest.TestCase):
         self.q.task("Task_001_a", "IN_PROGRESS")
         self.assertRegex(step_of(self.q)["instruction"], r"(?i)C\.A\.S\.E|for_agents|§|Section")
 
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestTheOutputThresholdIsExact(unittest.TestCase):
+    """Added 2026-08-08 from the mutation sweep, not from a suspicion.
+
+    `OUTPUT_MIN_CHARS = 200` shifted to 201 and nothing turned red, because
+    every fixture writes either a stub or a wall of text. The number decides
+    when the advancer stops asking for a deliverable and starts asking for a
+    handover, so an unpinned threshold means the step boundary can drift
+    without a single test noticing.
+
+    Also pinned here: an empty queue directory. `if (typeof queueDir !==
+    "string" || !queueDir) return null` had its `||` flipped to `&&` and
+    survived — no case passed an empty string, so the fail-open path for a
+    project without a queue was never exercised at its own boundary."""
+
+    def setUp(self):
+        self.q = Queue()
+        self.addCleanup(self.q.cleanup)
+
+    def _step(self, output):
+        # chr(10) rather than an escape: this is the sixth backslash today lost
+        # between the shell, the heredoc and the file.
+        self.q.task("Task_001_probe", "IN_PROGRESS",
+                    planning="## Self-Review" + chr(10) + "ok" + chr(10),
+                    output=output)
+        # nextStep(), not advance(): advance() returns the wrapper {message},
+        # so `s.missing` was undefined and JSON.stringify dropped the key
+        # entirely — a KeyError that reads like a broken fixture and is really
+        # the wrong function.
+        return run_js("""
+        const s = m.nextStep(%s);
+        process.stdout.write(JSON.stringify({ missing: s ? s.missing : null,
+                                              min: m.OUTPUT_MIN_CHARS }));
+        """ % json.dumps(self.q.dir.replace("\\", "/")))
+
+    def test_one_char_short_still_asks_for_the_deliverable(self):
+        out = self._step("z" * 199)
+        self.assertEqual(out["min"], 200)
+        self.assertEqual(out["missing"], "output")
+
+    def test_exactly_at_the_threshold_moves_on(self):
+        self.assertNotEqual(self._step("z" * 200)["missing"], "output")
+
+    def test_an_empty_queue_directory_returns_nothing(self):
+        out = run_js("""
+        process.stdout.write(JSON.stringify({ next: m.nextStep("") }));
+        """)
+        self.assertIsNone(out["next"])
+
 
 if __name__ == "__main__":
     unittest.main()

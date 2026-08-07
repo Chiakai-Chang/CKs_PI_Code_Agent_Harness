@@ -168,6 +168,33 @@ class TestIllegalTransitions(unittest.TestCase):
         self.assertTrue(out["blocked"])
         self.assertIn("PENDING", out["reason"])
 
+    def test_the_dual_track_refusal_actually_carries_block_true(self):
+        """Added 2026-08-08 from the mutation sweep.
+
+        `block: true` in the self-approval refusal could be flipped to `false`
+        and the whole suite stayed green: every assertion in this file reads
+        `!!r`, and a refusal object with `block: false` is still truthy. Pi
+        reads the field, so the guard would keep detecting that the Worker is
+        approving itself, keep quoting Section 1 at the model, and let the write
+        through.
+
+        Section 1 is the protocol's one non-negotiable rule. It is worth a test
+        that names the field."""
+        d = self.fx.task("Task_001_A", "PENDING", retro=True)
+        out = run_js("""
+        const g = new m.TaskQueueGuard();
+        // The guard inspects; it does not write. The file has to move for the
+        // current status to change, or every later check still sees PENDING
+        // and answers with the transition rule instead.
+        g.check("write", { path: %(d)s + "/status.txt", content: "IN_PROGRESS" }, "");
+        fs.writeFileSync(%(d)s + "/status.txt", "REVIEW");
+        const r = g.check("write", { path: %(d)s + "/status.txt", content: "DONE" }, "");
+        process.stdout.write(JSON.stringify({ block: r ? r.block : null,
+                                              reason: r ? r.reason : "" }));
+        """ % {"d": json.dumps(d)})
+        self.assertIn("Section 1", out["reason"])
+        self.assertIs(out["block"], True)
+
     def test_the_normal_path_is_allowed(self):
         d = self.fx.task("Task_001_A", "PENDING")
         out = run_js("""

@@ -111,6 +111,27 @@ class TestItDoesNotGuess(unittest.TestCase):
             with self.subTest(target=target):
                 self.assertIsNone(hint(target)["hint"])
 
+    def test_an_unrelated_path_longer_than_the_harness_root(self):
+        """The break Task_003 could not catch, caught.
+
+        Deleting the whole `if (!t.startsWith(h + "/")) return null;`
+        precondition left all eleven tests green on 2026-08-08, and the
+        mutation runner could not reach it either — statement deletion is not
+        one of its operators. Only reproducing the original break by hand found
+        it, which is the third time a fixture has been unable to distinguish a
+        removed guard from a present one.
+
+        The reason the other cases pass is arithmetic, not coverage: every
+        unrelated path above is SHORTER than the harness root, so without the
+        precondition `t.slice(h.length + 1)` yields "" and the next line's
+        `if (!rest) return null` catches it by accident. A longer one falls
+        through and produces a redirection built from someone else's path."""
+        target = ("D:/SomeoneElsesProject/deeply/nested/source/tree/"
+                  "that/is/longer/than/the/harness/root/main.ts")
+        self.assertGreater(len(target), len(HARNESS),
+                           "the whole point of this case is the length")
+        self.assertIsNone(hint(target)["hint"])
+
     def test_working_inside_the_harness_itself_is_not_confusion(self):
         """Someone editing this repository is not lost — there is nowhere to
         redirect them to."""
@@ -146,17 +167,58 @@ class TestEachMissingInputIsItsOwnReason(unittest.TestCase):
         self.assertIsNone(hint("")["hint"])
 
 
+def refusal(target, cwd=WORK, harness=HARNESS, tool="write"):
+    return run_js("""
+    const r = m.containmentRefusal(%s, %s, %s, %s);
+    process.stdout.write(JSON.stringify({ reason: r }));
+    """ % (json.dumps(tool), json.dumps(target), json.dumps(cwd), json.dumps(harness)))["reason"]
+
+
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
-class TestTheGuardCarriesIt(unittest.TestCase):
-    def test_the_refusal_text_includes_the_hint(self):
+class TestTheRefusalCarriesIt(unittest.TestCase):
+    """Task_003's second surviving break, closed by moving the code rather than
+    by tightening the assertion.
+
+    The old test read `index.ts` and looked for `harnessRootHint(...)` near
+    `reason:`. Replacing the call with `null` left it green, because the
+    identifier appears twice in that expression and the assertion was textual.
+    No amount of regex fixes that: `index.ts` needs Pi's runtime, so nothing
+    there is driven by a behavioural test.
+
+    So the refusal string is now built by a pure function here — the repo's own
+    pure-logic/runtime split, borrowed from auto-pi's `workflow-gate-logic.ts`
+    and already used for `phase-gate.ts`. `index.ts` calls it and formats
+    nothing, and this module is inside the mutation sweep."""
+
+    def test_the_hint_is_part_of_what_the_model_reads(self):
+        reason = refusal(HARNESS + "/02_Task_Queue/Task_001/status.txt")
+        self.assertIn(WORK + "/02_Task_Queue/Task_001/status.txt", reason)
+
+    def test_the_base_refusal_is_still_there(self):
+        reason = refusal(HARNESS + "/wiki/x.md")
+        self.assertIn("Directory containment", reason)
+        self.assertIn(WORK, reason)
+
+    def test_an_unrelated_target_gets_the_refusal_unchanged(self):
+        """The DoD item that says the ordinary refusal must not drift. Compared
+        against the same call with no harness root known, which is the shape a
+        machine without PI_HARNESS_ROOT produces."""
+        target = "D:/SomeoneElsesProject/deeply/nested/tree/longer/than/harness/main.ts"
+        self.assertEqual(refusal(target), refusal(target, harness=""))
+
+    def test_the_tool_name_reaches_the_text(self):
+        self.assertIn("edit", refusal(HARNESS + "/x/y.md", tool="edit"))
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestTheBridgeUsesIt(unittest.TestCase):
+    def test_index_delegates_instead_of_formatting_its_own(self):
         with open(os.path.join(ROOT, "pi-extensions", "yes-hooks-bridge", "index.ts"),
                   encoding="utf-8") as f:
             src = f.read()
-        # Asserting the identifier appears is too weak: the import alone
-        # satisfies it, and a break that replaced the call with `null` passed.
-        self.assertRegex(
-            src, r"reason:[\s\S]{0,600}harnessRootHint\(target, cwd, harnessRoot\(\)\)",
-            "the hint must be part of the refusal the model reads, not just imported")
+        self.assertIn("containmentRefusal(", src)
+        self.assertNotIn("harnessRootHint(target, cwd, harnessRoot())", src,
+                         "the refusal is built in one place now, and it is not here")
 
 
 if __name__ == "__main__":

@@ -158,6 +158,25 @@ class TestTheOldPhrasingsStillFire(unittest.TestCase):
         out = review("Done — status.txt has been updated.")
         self.assertTrue(out["caught"])
 
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestAQuestionStartingAtTheFirstCharacter(unittest.TestCase):
+    """Added 2026-08-08 from the mutation sweep.
+
+    `onlyAsksAbout` starts its sentence scan at `let start = 0`, and shifting
+    that to 1 left every test green — because every fixture reply has something
+    before the target name, so losing the first character never removed the
+    name. A reply that opens with the target loses its `s` under the mutant,
+    the question is no longer recognised as being about the target, and the
+    guard corrects a model that only asked whether the file was written.
+
+    A false correction is not harmless: it tells the model it lied when it
+    did not, and this guard's whole value is that the model trusts it enough
+    to go and check."""
+
+    def test_a_bare_question_that_opens_with_the_target_is_not_a_claim(self):
+        out = review("status.txt 現在是 IN_PROGRESS 了嗎?")
+        self.assertFalse(out["caught"], out["message"])
+
 
 if __name__ == "__main__":
     unittest.main()

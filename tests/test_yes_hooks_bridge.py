@@ -53,7 +53,15 @@ class TestContainmentGuard(unittest.TestCase):
         for token in ("isAbsolute", "relative(cwd", 'rel.startsWith("..")'):
             self.assertIn(token, c)
         self.assertIn("block: true", c)
-        self.assertIn("outside the project root", c)
+        # The refusal text moved to harness-root.ts on 2026-08-08 so a
+        # behavioural test could reach it — a string assertion over this file is
+        # the only kind available here, and one of those already let a break
+        # through (Task_003). What this file must still show is that it
+        # delegates; what the text says is asserted against the running function
+        # in tests/test_harness_root_redirect.py.
+        self.assertIn("containmentRefusal(event.toolName, target, cwd, harnessRoot())", c)
+        self.assertIn("outside the project root",
+                      read(os.path.join(os.path.dirname(self.IDX), "harness-root.ts")))
 
     def test_fails_open_when_undecidable(self):
         """Missing path or cwd must NOT break every write/edit."""

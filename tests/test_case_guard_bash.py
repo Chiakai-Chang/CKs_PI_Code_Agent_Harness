@@ -97,7 +97,8 @@ def bash_check(command):
     return run_js("""
     const g = new m.TaskQueueGuard();
     const r = g.check("bash", { command: %s }, "");
-    process.stdout.write(JSON.stringify({ blocked: !!r, reason: r ? r.reason : "" }));
+    process.stdout.write(JSON.stringify({ blocked: !!r, block: r ? r.block : null,
+                                          reason: r ? r.reason : "" }));
     """ % json.dumps(command))
 
 
@@ -117,6 +118,20 @@ class TestTheHoleThatWasWalkedThrough(unittest.TestCase):
         out = bash_check('printf "IN_PROGRESS" > "%s/status.txt"' % d)
         self.assertRegex(out["reason"], r"write")
         self.assertRegex(out["reason"], r"(?i)tool-first|SKILL\.md|for_agents")
+
+    def test_the_refusal_actually_carries_block_true(self):
+        """`block: true` in this refusal survived the mutation sweep on
+        2026-08-08. Every assertion above reads `!!r`, and a refusal object with
+        `block: false` is still truthy — so the tool-first guard could keep
+        matching the command, keep quoting SKILL.md at the model, and stop
+        blocking, with nothing red.
+
+        This is the guard with live evidence behind it: 21 status writes in the
+        Task_008 runs went through `write`/`edit` and none through `bash`,
+        against a baseline of three that all used `bash`. Pi reads the field."""
+        d = self.q.task("Task_001_probe", "PENDING")
+        out = bash_check('printf "IN_PROGRESS" > "%s/status.txt"' % d)
+        self.assertIs(out["block"], True)
 
     def test_echo_redirection_too(self):
         d = self.q.task("Task_001_probe", "PENDING")

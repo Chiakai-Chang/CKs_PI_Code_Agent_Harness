@@ -52,3 +52,32 @@ export function harnessRootHint(
     `如果你要的是這次工作目錄裡的同一個位置,路徑是:${c}/${rest}`
   );
 }
+
+/**
+ * The whole refusal for a write that landed outside the project root.
+ *
+ * This lives here rather than being formatted inline in `index.ts` because of
+ * how Task_003's second surviving break got away: the test read `index.ts` and
+ * looked for `harnessRootHint(...)` near `reason:`, and replacing the call with
+ * `null` left it green — the identifier appeared twice in that expression and
+ * the assertion was textual. Tightening the regex would not have fixed it.
+ * `index.ts` needs Pi's runtime, so nothing in it is driven by a behavioural
+ * test, and a string assertion is the only kind available there.
+ *
+ * A pure function is testable, and it is inside the mutation sweep. This is the
+ * pure-logic/runtime split the repo already uses for `phase-gate.ts`, taken
+ * from auto-pi's `workflow-gate-logic.ts`.
+ */
+export function containmentRefusal(
+  toolName: unknown,
+  target: unknown,
+  cwd: unknown,
+  harnessRoot: unknown,
+): string {
+  const base =
+    `Directory containment: ${String(toolName)} target "${String(target)}" is ` +
+    `outside the project root (${String(cwd)}). Write inside the project you ` +
+    `were launched in. If you truly need to touch another directory, ask the user.`;
+  const hint = harnessRootHint(target, cwd, harnessRoot);
+  return hint ? `${base}\n\n${hint}` : base;
+}

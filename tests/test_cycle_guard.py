@@ -117,6 +117,47 @@ class TestCyclingSearches(unittest.TestCase):
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestTheBoundaryIsExactlyWhereItSays(unittest.TestCase):
+    """Added 2026-08-08 from the mutation sweep, not from a suspicion.
+
+    Three separate mutations survived here at once and they are all the same
+    boundary: `SAME_QUERY_LIMIT = 5` shifted to 6, the `?? 0` default shifted to
+    1, and `count <= LIMIT` narrowed to `<`. Every existing test loops well past
+    the limit and asserts that something was blocked, so any of those three
+    changes the exact firing point and none of them changes the answer.
+
+    A repeat guard that fires one call early is a guard that refuses work the
+    user asked for; one call late is one more wasted call. The number is the
+    behaviour, so the test has to name it."""
+
+    def test_the_fifth_identical_query_is_allowed_and_the_sixth_is_not(self):
+        out = run_js("""
+        const d = new m.CycleDetector();
+        const verdicts = [];
+        for (let i = 1; i <= 6; i++) {
+          verdicts.push(d.check("web_search", { query: "same" }) ? "BLOCKED" : "allowed");
+        }
+        process.stdout.write(JSON.stringify({ verdicts, limit: m.SAME_QUERY_LIMIT }));
+        """)
+        self.assertEqual(out["limit"], 5)
+        self.assertEqual(out["verdicts"],
+                         ["allowed", "allowed", "allowed", "allowed", "allowed", "BLOCKED"])
+
+    def test_the_refusal_actually_carries_block_true(self):
+        """`block: true` in the returned object survived the sweep: every test
+        here checks that `check()` returned something truthy, and a refusal with
+        `block: false` is still an object. Pi reads the field, so that guard
+        would keep counting, keep explaining itself, and stop blocking."""
+        out = run_js("""
+        const d = new m.CycleDetector();
+        let r = null;
+        for (let i = 0; i < 8; i++) r = d.check("web_search", { query: "same" }) || r;
+        process.stdout.write(JSON.stringify({ block: r && r.block }));
+        """)
+        self.assertIs(out["block"], True)
+
+
 class TestLegitimateRepetitionIsUntouched(unittest.TestCase):
     """The existing guard's comment is right about this and must stay right."""
 

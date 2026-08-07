@@ -70,7 +70,7 @@ import { CycleDetector, SAME_QUERY_LIMIT } from "./loop-detect.ts";
 import { ResearchDepthGuard } from "./research-depth.ts";
 import { bashContainmentBlock } from "./bash-containment.ts";
 import { BlockedClaimTracker } from "./blocked-claim.ts";
-import { harnessRootHint } from "./harness-root.ts";
+import { containmentRefusal } from "./harness-root.ts";
 import { compactionEcho } from "./compaction-echo.ts";
 
 function harnessRoot(): string {
@@ -417,14 +417,13 @@ function containmentGuard(event: ToolCallEvent, ctx: ExtensionContext) {
   ctx.ui.notify(`🚨 Blocked ${event.toolName} outside project root: ${target}`, "error");
   return {
     block: true,
-    // The refusal supplies the workspace path when the target landed in the
-    // harness install — cwd confusion ate two of five measured runs, and the
-    // model retried nine times against a refusal that named the mistake and
-    // nothing else.
-    reason: `Directory containment: ${event.toolName} target "${target}" is outside the project root (${cwd}). Write inside the project you were launched in. If you truly need to touch another directory, ask the user.`
-      + (harnessRootHint(target, cwd, harnessRoot()) ? `
-
-${harnessRootHint(target, cwd, harnessRoot())}` : ""),
+    // Built by a pure function so a behavioural test can reach it: the refusal
+    // supplies the workspace path when the target landed in the harness install
+    // — cwd confusion ate two of five measured runs, and the model retried nine
+    // times against a refusal that named the mistake and nothing else. Nothing
+    // is formatted here, because a string assertion over this file is the only
+    // kind available and one of those already let a break through.
+    reason: containmentRefusal(event.toolName, target, cwd, harnessRoot()),
   };
 }
 

@@ -50,6 +50,19 @@ jobs:
         run: |
           python scripts/check-prior-art.py
 
+      # Mutate the guards and require the tests to notice. Four defects of one
+      # class are on record and every one was a check that could not fail, so
+      # "the tests are green" needed something behind it.
+      #
+      # Sampled at 4 sites per module, measured at 79s across ten modules — an
+      # exhaustive sweep is minutes and belongs in a local run. A green here is
+      # therefore not proof of coverage; it is proof that these sites are held,
+      # and it moves as the files move. Survivors must be argued in
+      # scripts/guard-mutation-allowlist.json or this fails.
+      - name: Mutate the guards
+        run: |
+          python scripts/check-guard-mutations.py --cap 4
+
       - name: Install shellcheck
         run: |
           sudo apt-get update

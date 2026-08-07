@@ -243,5 +243,28 @@ class TestNestedLayout(unittest.TestCase):
         self.assertEqual(len(self.ws.log_lines("Task_001_A")), 1)
 
 
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestTheTruncationBoundaryIsExact(unittest.TestCase):
+    """Added 2026-08-08 from the mutation sweep. `MAX_FIELD_CHARS = 256` shifted
+    to 257 and nothing turned red: every existing case is either far under the
+    limit or far over it, so the number could be anything within a wide band.
+
+    The log is the evidence trail the measurements are read from — a field that
+    silently keeps one more or one fewer character is a small thing, but "the
+    number nobody pinned" is how a measurement stops being reproducible."""
+
+    def test_a_field_at_the_limit_is_untouched_and_one_past_it_is_cut(self):
+        out = run_js("""
+        const at = "x".repeat(256), over = "y".repeat(257);
+        const a = m.summarizeInput("bash", { command: at });
+        const b = m.summarizeInput("bash", { command: over });
+        process.stdout.write(JSON.stringify({ at: a.command, over: b.command }));
+        """)
+        self.assertEqual(len(out["at"]), 256, "exactly at the limit must not be cut")
+        self.assertTrue(out["over"].endswith("…"))
+        self.assertEqual(len(out["over"]), 257, "256 kept plus the ellipsis")
+
+
 if __name__ == "__main__":
     unittest.main()
