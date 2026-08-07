@@ -217,31 +217,47 @@ class TestTerminalStepsAreNotStalls(unittest.TestCase):
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
-class TestTheBridgeDrivesItFromSettled(unittest.TestCase):
-    """The wiring is the port. A single `pi.on("turn_end")` doing the advancing
-    is what this task exists to remove."""
+class TestTheBridgeDrivesItWhereDeliveryWorks(unittest.TestCase):
+    """The position port was REVERSED, and these tests record why.
 
-    def test_the_bridge_advances_on_agent_settled(self):
-        with open(BRIDGE, encoding="utf-8") as f:
-            src = f.read()
-        settled = src.split('pi.on("agent_settled"', 1)
-        self.assertEqual(len(settled), 2, "no agent_settled handler at all")
-        self.assertIn("advancer.advance", settled[1][:1200],
-                      "advancing must happen in the agent_settled handler")
+    `agent_settled`'s own declaration says it fires "after an agent run has
+    fully settled and no automatic retry, compaction, or queued continuation
+    will run" — a continuation queued there is too late by definition. Measured
+    twice: nothing reached the session. `sendUserMessage`, which pi-until-done
+    uses at that point, hung the process in `--print` on both attempts.
 
-    def test_turn_end_no_longer_advances(self):
+    `turn_end` + sendMessage(followUp, triggerTurn) is the channel measured to
+    deliver in this project: eleven injections in the clean rerun. Delivery was
+    never the defect — frequency and blame were, and those are fixed in the
+    advancer itself. So the trigger stays where messages arrive, and speaks only
+    on a turn that produced text and called no tools."""
+
+    def _src(self):
         with open(BRIDGE, encoding="utf-8") as f:
-            src = f.read()
-        after = src.split('pi.on("turn_end"', 1)
-        if len(after) == 1:
-            return
-        self.assertNotIn("advancer.advance", after[1][:1200],
-                         "two triggers is the thing the recipe forbids")
+            return f.read()
+
+    def test_it_advances_from_turn_end(self):
+        after = self._src().split('pi.on("turn_end"', 1)
+        self.assertEqual(len(after), 2, "no turn_end handler at all")
+        self.assertIn("advancer.advance", after[1][:1600])
+
+    def test_there_is_no_second_trigger(self):
+        src = self._src()
+        self.assertEqual(src.count("advancer.advance("), 1,
+                         "two triggers is what the recipe forbids")
+
+    def test_it_stays_quiet_on_a_working_turn(self):
+        body = self._src().split('pi.on("turn_end"', 1)[1][:1600]
+        self.assertIn("progressThisCycle", body,
+                      "a turn that called tools is work, not a stall")
+
+    def test_it_stays_quiet_on_a_tool_only_turn(self):
+        body = self._src().split('pi.on("turn_end"', 1)[1][:1600]
+        self.assertIn("spoke", body,
+                      "a turn with no text is not the end of a reply")
 
     def test_tool_calls_are_scored(self):
-        with open(BRIDGE, encoding="utf-8") as f:
-            src = f.read()
-        self.assertIn("noteProgress", src)
+        self.assertIn("noteProgress", self._src())
 
 
 if __name__ == "__main__":
