@@ -34,7 +34,7 @@
 | 0 ✅ | prior-art 登記表 + CI 檢查 + RATIONALE 格式(取自 OmniHeal) | 不先修這個,下面每一項都會再重做一次 |
 | 1 ✅ | **先讀**:`auto-pi`、`loopy`,寫進 [RATIONALE](../docs/prior-art/RATIONALE.md) | 做對了:auto-pi 的階段門控直接改變了下面的順序,新增 Task_016 排在 Task_015 前面 |
 | 2 ✅ | **`Task_016_phase_tool_gate`**(REVIEW):階段工具白名單,在 `tool_call` 擋 | **閘會響、繞道被堵、但模型仍未認領** —— 擋阻移除錯的路,不供給對的路。見 [docs/case/task-016-phase-tool-gate.md](../docs/case/task-016-phase-tool-gate.md) |
-| **2b** | `Task_015_advancer_settled_loop`:移植四項 | **升為必要,不是後續** —— Task_016 兩次真實 run 證明只有閘沒有推,結果是「有反應、沒有結果」 |
+| 2b ✅ | `Task_015_advancer_settled_loop`(REVIEW) | **跑通了**:閘 + 推一起,任務自己走到 `REVIEW`,推進器只開口 4 次、零升級。換事件那一項以證據反轉(`agent_settled` 依合約接不到續跑) |
 | **2c** | **`Task_017_guard_mutation_check`**(新增) | 全日復盤:B 類失敗(檢查無法失敗 / fixture 無法區分)今天兩次、更早兩次,而目前**只有紀律沒有機制**。見 [docs/retro/2026-08-06-session-retrospective.md](../docs/retro/2026-08-06-session-retrospective.md) |
 | 3 | `Task_003_cwd_confusion`:最大單一失敗來源 | 2/5 run 被它整場吃掉,推進器再好也救不了 |
 | 4 | 重測(基準線 3 次 + 研究型 1 次),**才**談 `enableCaseAdvancer` 預設值 | 判定要建立在修好的地基上 |
