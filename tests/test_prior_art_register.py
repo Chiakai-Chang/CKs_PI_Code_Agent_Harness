@@ -162,6 +162,16 @@ class TestItCanActuallyFail(unittest.TestCase):
         self.assertNotEqual(code, 0, out)
         self.assertIn("some-undeclared-clone", out)
 
+    def test_a_missing_register_file_fails(self):
+        """Counted as a break in the commit message before a test existed for it.
+        The claim came first, so the test follows rather than the number being
+        quietly dropped."""
+        d = self._tree()
+        os.remove(os.path.join(d, "docs", "prior-art", "REGISTER.md"))
+        code, out = run(cwd=d)
+        self.assertNotEqual(code, 0, out)
+        self.assertIn("REGISTER.md", out)
+
     def test_a_learnings_path_that_does_not_exist_fails(self):
         d = self._tree()
         reg = os.path.join(d, "docs", "prior-art", "REGISTER.md")
