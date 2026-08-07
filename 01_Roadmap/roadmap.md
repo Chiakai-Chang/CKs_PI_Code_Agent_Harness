@@ -35,8 +35,10 @@
 | 1 ✅ | **先讀**:`auto-pi`、`loopy`,寫進 [RATIONALE](../docs/prior-art/RATIONALE.md) | 做對了:auto-pi 的階段門控直接改變了下面的順序,新增 Task_016 排在 Task_015 前面 |
 | 2 ✅ | **`Task_016_phase_tool_gate`**(REVIEW):階段工具白名單,在 `tool_call` 擋 | **閘會響、繞道被堵、但模型仍未認領** —— 擋阻移除錯的路,不供給對的路。見 [docs/case/task-016-phase-tool-gate.md](../docs/case/task-016-phase-tool-gate.md) |
 | 2b ✅ | `Task_015_advancer_settled_loop`(REVIEW) | **跑通了**:閘 + 推一起,任務自己走到 `REVIEW`,推進器只開口 4 次、零升級。換事件那一項以證據反轉(`agent_settled` 依合約接不到續跑) |
-| **2c** | **`Task_017_guard_mutation_check`**(新增) | 全日復盤:B 類失敗(檢查無法失敗 / fixture 無法區分)今天兩次、更早兩次,而目前**只有紀律沒有機制**。見 [docs/retro/2026-08-06-session-retrospective.md](../docs/retro/2026-08-06-session-retrospective.md) |
-| 3 | `Task_003_cwd_confusion`:最大單一失敗來源 | 2/5 run 被它整場吃掉,推進器再好也救不了 |
+| 2d ✅ | **repo↔installed 漂移檢查**(`scripts/verify-bridges.py`) | 2026-08-08:Task_003 的修正推上去了卻**沒安裝**,Pi 整天載入修正前版本,而 910 測試 + 四個檢查全綠。「Pi 跑的是安裝副本」以前**只有紀律**;現在有 missing / changed / extra 三種形狀,對真實安裝目錄證明過會紅 |
+| 2e ✅ | **Checker 核可批次**(使用者授權單軌) | 十個任務九個 `DONE`、`Task_003` 擋下。判定與三項副產發現見 [docs/case/2026-08-08-checker-pass.md](../docs/case/2026-08-08-checker-pass.md) |
+| **2c** | **`Task_017_guard_mutation_check`**(新增) | 全日復盤:B 類失敗(檢查無法失敗 / fixture 無法區分)今天兩次、更早兩次,而目前**只有紀律沒有機制**。**且 Task_003 已明確把兩個活下來的變異留給它抓,那是解除 Task_003 REVIEW 的條件。** 見 [docs/retro/2026-08-06-session-retrospective.md](../docs/retro/2026-08-06-session-retrospective.md) |
+| 3 ⏸ | `Task_003_cwd_confusion`:交付已生效,**核可被擋在 REVIEW** | 5 種破壞只抓到 3 種;結論見 [docs/case/task-003-cwd-confusion.md](../docs/case/task-003-cwd-confusion.md) |
 | 4 | 重測(基準線 3 次 + 研究型 1 次),**才**談 `enableCaseAdvancer` 預設值 | 判定要建立在修好的地基上 |
 | 5 | 依 `docs/prior-art/REGISTER.md` 的優先序清掉其餘 25 個未審視來源 | 每清一個寫一則 RATIONALE 條目 |
 
