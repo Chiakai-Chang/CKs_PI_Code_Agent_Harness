@@ -13,6 +13,7 @@ import { join, dirname } from "node:path";
 import { TaskQueueGuard } from "./task-queue-guard.ts";
 import { ActionLogger } from "./action-log.ts";
 import { QueueAdvancer } from "./queue-advancer.ts";
+import { PhaseGate } from "./phase-gate.ts";
 
 const MAX_INJECT_CHARS = 3000;
 
@@ -118,12 +119,25 @@ export default function (pi: ExtensionAPI) {
   // 02_Task_Queue/Task_NNN_*/ is working the protocol whether or not it also
   // has CASE.md at the root, and the guard's own scope is already narrow enough
   // that nothing else in any project can reach it.
+  // "Plan first" made unavailable rather than advised. The research-shaped run
+  // opened with six searches and three page opens before any injection landed,
+  // and its task never left PENDING — a mechanism speaking at `turn_end` cannot
+  // catch that, which is what the same measurement concluded.
+  const phaseGate = new PhaseGate();
+
   pi.on("tool_call", async (event, ctx) => {
     if (!caseBridgeEnabled()) return;
+    // Order matters: the transition guard's complaint is the more specific one,
+    // so it speaks first when both would refuse the same call.
     const refusal = queueGuard.check(event.toolName, event.input, ctx.cwd);
     if (refusal) {
       ctx.ui.notify("🔒 C.A.S.E. 佇列規則:已擋下不合協定的狀態變更", "warning");
       return refusal;
+    }
+    const phase = phaseGate.check(join(ctx.cwd ?? "", "02_Task_Queue"), event.toolName, event.input);
+    if (phase) {
+      ctx.ui.notify("🚦 C.A.S.E. 階段閘:先認領、先規劃,再產出", "warning");
+      return phase;
     }
   });
 

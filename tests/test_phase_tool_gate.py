@@ -1,0 +1,300 @@
+"""Plan first, enforced where it can actually be enforced.
+
+The owner's complaint, twice, verbatim: Pi "還是會直接開始搜尋網頁,然後煞有其事的
+搜尋可能十幾次,然後給我一個結論" — and then the correction that matters:
+"他多搜幾次是好的阿?越多越好不是? 我抱怨的是他沒有先規劃就開始."
+
+So this gate does not restrain searching. It restrains *starting without
+claiming and planning*. Measured 2026-08-06 in the research-shaped run: the
+first eleven actions were six searches and three page opens, the first advancer
+injection landed after them, and the task's status never left PENDING. Our own
+verdict from that measurement says the advancer speaks at `turn_end` and cannot
+catch a turn that already searched — only `tool_call` can.
+
+`research/auto-pi` implements exactly that (`extensions/loop.ts:1020`): a phase
+tool allowlist enforced at `tool_call`, where PLAN is read-only. What is NOT
+copied is its phase model — ours is derived from C.A.S.E. protocol state, because
+a second state machine running beside the protocol would fight it.
+
+  PENDING, nothing claimed   -> CLAIM phase: research tools refused, reads fine,
+                                writing status.txt fine. Claiming costs one write.
+  IN_PROGRESS, no plan yet   -> PLAN phase: deliverables refused, research tools
+                                WIDE OPEN — planning is exactly when you look
+                                things up.
+  plan present               -> nothing refused.
+
+And a layer taken from OmniHeal's 3-Strike: the second refusal must say something
+different from the first — offer another way — before the third stands aside. A
+guard that repeats itself verbatim and then gives up has taught nothing.
+"""
+
+import json
+import os
+import re
+import shutil
+import subprocess
+import tempfile
+import unittest
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MOD = os.path.join(ROOT, "pi-extensions", "case-bridge", "phase-gate.ts")
+
+
+def _node_major():
+    if not shutil.which("node"):
+        return 0
+    try:
+        out = subprocess.run(["node", "--version"], capture_output=True, text=True, timeout=30).stdout
+    except Exception:
+        return 0
+    m = re.match(r"v(\d+)", out.strip())
+    return int(m.group(1)) if m else 0
+
+
+NODE_OK = _node_major() >= 22
+
+
+def run_js(script):
+    driver = os.path.join(ROOT, "tests", ".tmp_phasegate_driver.mjs")
+    url = "file:///" + MOD.replace("\\", "/")
+    with open(driver, "w", encoding="utf-8") as f:
+        f.write("import * as m from %s;\n%s" % (json.dumps(url), script))
+    try:
+        p = subprocess.run(["node", driver], capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", cwd=ROOT, timeout=120)
+        if p.returncode != 0:
+            raise AssertionError("node driver failed:\n%s\n%s" % (p.stdout, p.stderr))
+        return json.loads(p.stdout)
+    finally:
+        if os.path.exists(driver):
+            os.remove(driver)
+
+
+class Queue:
+    """A C.A.S.E. task package on disk, because the phase is read from files."""
+
+    def __init__(self, status="PENDING", planning=None, name="Task_001_probe"):
+        self.root = tempfile.mkdtemp(prefix="phasegate-")
+        self.dir = os.path.join(self.root, "02_Task_Queue")
+        self.task = os.path.join(self.dir, name)
+        os.makedirs(self.task)
+        self.write("status.txt", status)
+        self.write("role.md", "role")
+        self.write("recipe.md", "recipe")
+        if planning is not None:
+            self.write("planning.md", planning)
+
+    def write(self, name, content):
+        with open(os.path.join(self.task, name), "w", encoding="utf-8") as f:
+            f.write(content)
+
+    @property
+    def queue_dir(self):
+        return self.dir.replace("\\", "/")
+
+    def cleanup(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+
+def gate(queue_dir, tool, input_obj, times=1):
+    return run_js("""
+    const g = new m.PhaseGate();
+    const out = [];
+    for (let i = 0; i < %d; i++) {
+      const r = g.check(%s, %s, %s);
+      out.push(r ? r.reason : null);
+    }
+    process.stdout.write(JSON.stringify({ reasons: out,
+                                          phase: m.phaseOf(%s) }));
+    """ % (times, json.dumps(queue_dir), json.dumps(tool), json.dumps(input_obj),
+           json.dumps(queue_dir)))
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestClaimPhase(unittest.TestCase):
+    """PENDING means nobody has taken the task. One write fixes that."""
+
+    def setUp(self):
+        self.q = Queue(status="PENDING")
+        self.addCleanup(self.q.cleanup)
+
+    def test_the_first_search_of_the_research_run_is_refused(self):
+        out = gate(self.q.queue_dir, "web_search", {"query": "harness completion guards"})
+        self.assertIsNotNone(out["reasons"][0])
+        self.assertIn("IN_PROGRESS", out["reasons"][0])
+
+    def test_the_refusal_says_searching_is_not_the_problem(self):
+        """A run that learns "this harness dislikes searching" is a run that
+        stops looking things up. The reason has to say the opposite."""
+        out = gate(self.q.queue_dir, "web_search", {"query": "x"})
+        self.assertRegex(out["reasons"][0], r"認領|一次寫入|之後.*全開|不是.*搜")
+
+    def test_reading_and_searching_the_repo_are_untouched(self):
+        for tool, args in (("read", {"path": "a.md"}), ("grep", {"pattern": "x"}),
+                           ("ls", {"path": "."}), ("find", {"pattern": "*.md"})):
+            with self.subTest(tool=tool):
+                out = gate(self.q.queue_dir, tool, args)
+                self.assertIsNone(out["reasons"][0])
+
+    def test_claiming_the_task_is_allowed(self):
+        out = gate(self.q.queue_dir, "write",
+                   {"path": self.q.task.replace("\\", "/") + "/status.txt",
+                    "content": "IN_PROGRESS"})
+        self.assertIsNone(out["reasons"][0])
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestPlanPhase(unittest.TestCase):
+    """Claimed but unplanned: deliverables wait, research does not."""
+
+    def setUp(self):
+        self.q = Queue(status="IN_PROGRESS")
+        self.addCleanup(self.q.cleanup)
+
+    def test_writing_the_deliverable_before_a_plan_is_refused(self):
+        out = gate(self.q.queue_dir, "write",
+                   {"path": self.q.task.replace("\\", "/") + "/output.md",
+                    "content": "findings"})
+        self.assertIsNotNone(out["reasons"][0])
+        self.assertIn("planning.md", out["reasons"][0])
+
+    def test_writing_the_plan_is_the_way_out(self):
+        out = gate(self.q.queue_dir, "write",
+                   {"path": self.q.task.replace("\\", "/") + "/planning.md",
+                    "content": "## Self-Review"})
+        self.assertIsNone(out["reasons"][0])
+
+    def test_searching_is_wide_open_here(self):
+        """Planning is exactly when you look things up. The owner said so."""
+        out = gate(self.q.queue_dir, "web_search", {"query": "x"})
+        self.assertIsNone(out["reasons"][0])
+
+    def test_bash_written_deliverables_count_too(self):
+        cmd = 'cat > "%s/output.md" << EOF\nfindings\nEOF' % self.q.task.replace("\\", "/")
+        out = gate(self.q.queue_dir, "bash", {"command": cmd})
+        self.assertIsNotNone(out["reasons"][0])
+
+    def test_a_plan_with_self_review_opens_everything(self):
+        self.q.write("planning.md", "# plan\n\n## Self-Review\nchecked")
+        out = gate(self.q.queue_dir, "write",
+                   {"path": self.q.task.replace("\\", "/") + "/output.md",
+                    "content": "findings"})
+        self.assertIsNone(out["reasons"][0])
+        self.assertEqual(out["phase"], "open")
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestItStandsAsideButOffersAnotherWayFirst(unittest.TestCase):
+    """OmniHeal's 3-Strike has a layer ours lacked: try another way before
+    giving up. A guard that repeats itself and then folds taught nothing."""
+
+    def setUp(self):
+        self.q = Queue(status="PENDING")
+        self.addCleanup(self.q.cleanup)
+
+    def test_the_second_refusal_is_not_the_first_one_repeated(self):
+        out = gate(self.q.queue_dir, "web_search", {"query": "x"}, times=2)
+        self.assertIsNotNone(out["reasons"][0])
+        self.assertIsNotNone(out["reasons"][1])
+        self.assertNotEqual(out["reasons"][0], out["reasons"][1],
+                            "the second refusal must offer another way, not repeat")
+
+    def test_it_retires_eventually(self):
+        """Was "the third call goes through". The first live run showed two
+        refusals were cheaper to absorb than one write, so the count moved to
+        four; the property that matters — it does retire — is asserted here and
+        the cost argument in TestWhatTheFirstLiveRunShowed."""
+        out = gate(self.q.queue_dir, "web_search", {"query": "x"}, times=6)
+        self.assertIsNone(out["reasons"][-1], "a gate that cannot retire deadlocks")
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestWhatTheFirstLiveRunShowed(unittest.TestCase):
+    """The gate fired and the run ignored it. Both holes are measured, not
+    imagined — session t016-live, 2026-08-06:
+
+      * it refused `web_search` twice, then `web_open` twice, then retired and
+        the run carried on searching. Two refusals per tool is cheaper to wait
+        out than to satisfy;
+      * it wrote its 6,358-byte report to `research/…report.md`, OUTSIDE the
+        task package, where the deliverable rule has no opinion at all.
+
+    Status never left PENDING. A threshold defines the shape of the evasion, and
+    this is the shape it took on the first try."""
+
+    def setUp(self):
+        self.q = Queue(status="PENDING")
+        self.addCleanup(self.q.cleanup)
+
+    def test_writing_a_report_anywhere_before_claiming_is_refused(self):
+        """The evasion was not subtle: write the deliverable somewhere else."""
+        out = gate(self.q.queue_dir, "write",
+                   {"path": "research/anti-hallucination-harness-report.md",
+                    "content": "# findings\n" * 200})
+        self.assertIsNotNone(out["reasons"][0])
+        self.assertIn("IN_PROGRESS", out["reasons"][0])
+
+    def test_claiming_is_still_the_one_write_that_gets_through(self):
+        out = gate(self.q.queue_dir, "write",
+                   {"path": self.q.task.replace("\\", "/") + "/status.txt",
+                    "content": "IN_PROGRESS"})
+        self.assertIsNone(out["reasons"][0])
+
+    def test_waiting_it_out_costs_more_than_complying(self):
+        """Two refusals was cheaper to absorb than one write. Four, each saying
+        something new, is not — and it still retires, because a guard that can
+        deadlock an unfamiliar project gets switched off."""
+        out = gate(self.q.queue_dir, "web_search", {"query": "x"}, times=6)
+        refused = [r for r in out["reasons"] if r]
+        self.assertGreaterEqual(len(refused), 4)
+        self.assertEqual(len(set(refused)), len(refused),
+                         "every refusal must say something the previous did not")
+        self.assertIsNone(out["reasons"][-1], "it must still retire")
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestFailOpen(unittest.TestCase):
+    """A gate that misfires in an unfamiliar project gets switched off within a
+    day, and then it protects nothing at all."""
+
+    def test_no_queue_at_all(self):
+        d = tempfile.mkdtemp(prefix="phasegate-empty-")
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        out = gate(os.path.join(d, "02_Task_Queue").replace("\\", "/"),
+                   "web_search", {"query": "x"})
+        self.assertIsNone(out["reasons"][0])
+
+    def test_an_unrecognised_status(self):
+        q = Queue(status="SOMETHING_ELSE")
+        self.addCleanup(q.cleanup)
+        out = gate(q.queue_dir, "web_search", {"query": "x"})
+        self.assertIsNone(out["reasons"][0])
+
+    def test_two_open_tasks_means_it_says_nothing(self):
+        """Needs a PENDING task alongside the two open ones, or the branch is
+        unobservable: without a PENDING task the function returns "open" for
+        another reason and deleting the guard changes nothing. The first version
+        of this test was that unobservable one — it passed with the check
+        removed."""
+        q = Queue(status="IN_PROGRESS")
+        self.addCleanup(q.cleanup)
+        for name, status in (("Task_002_other", "IN_PROGRESS"),
+                             ("Task_003_waiting", "PENDING")):
+            d = os.path.join(q.dir, name)
+            os.makedirs(d)
+            with open(os.path.join(d, "status.txt"), "w", encoding="utf-8") as f:
+                f.write(status)
+        out = gate(q.queue_dir, "web_search", {"query": "x"})
+        self.assertIsNone(out["reasons"][0],
+                          "two open tasks: another guard reports that, this one guesses nothing")
+        self.assertEqual(out["phase"], "open")
+
+    def test_writes_outside_the_task_package_are_not_this_gate_s_business(self):
+        q = Queue(status="IN_PROGRESS")
+        self.addCleanup(q.cleanup)
+        out = gate(q.queue_dir, "write", {"path": "src/index.ts", "content": "x"})
+        self.assertIsNone(out["reasons"][0])
+
+
+if __name__ == "__main__":
+    unittest.main()
