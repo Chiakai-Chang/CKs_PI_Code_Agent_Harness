@@ -69,8 +69,7 @@
 | agents-best-practices | submodule | external/agents-best-practices | 未審視 | — | bridge 註冊 | — | — |
 | graphify | submodule | external/graphify | 未審視 | — | bridge 註冊 | — | — |
 | loopy | submodule | external/loopy | 未審視 | — | bridge 註冊 | — | — |
-| OmniHeal | 非本專案來源 | research/OmniHeal | 未審視 | — | — | **不是本專案的來源** —— 其他專案停在這裡,建議移出 `research/` | — |
-| taiwan-smart-doorbell | 非本專案來源 | research/taiwan-smart-doorbell | 未審視 | — | — | **不是本專案的來源** —— 同上 | — |
+| OmniHeal | reference-clone(擁有者自有專案) | research/OmniHeal | 已審視 | docs/prior-art/RATIONALE.md | **本登記表與 RATIONALE 格式即取自它**;Task Queue 恢復點定義;3-Strike 的「換一種方式」分層 | 零安裝硬約束、三個健檢技能、SWOT 產出格式、Phase 掃描模型(領域不同) | 2026-08-06 |
 
 ---
 
@@ -84,7 +83,7 @@
 | README 有、manifest 無 | `camofox-browser` | 隱身瀏覽引擎,實際有用,卻不在來源宣告裡 |
 | manifest 有、**README 無** | **`pi-until-done`** | **有答案的那個 repo,不在擁有者會讀到的清單上** |
 | 名稱不一致 | README 寫 `andrej-karpathy-skills`,本地叫 `karpathy-skills` | 兩份清單互查時會漏掉 |
-| 磁碟有、兩份都無 | `market-research`、`OmniHeal`、`taiwan-smart-doorbell` | 沒有人決定要留,但一直在 |
+| 磁碟有、兩份都無 | `market-research`、`OmniHeal` | 沒有人決定要留,但一直在。`taiwan-smart-doorbell` 查證後是**空目錄**,已刪除 |
 
 `scripts/check-prior-art.py` 現在同時比對 **README 連結 / manifest 宣告 / 磁碟 clone**,
 任何一邊有而登記表沒有就紅。上面四項就是它第一次跑出來的東西。
