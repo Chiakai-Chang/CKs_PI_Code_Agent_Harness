@@ -112,8 +112,11 @@
       條件的分支,同檔沒有 `bash` 分支就報告。**同型缺陷今天出現三次**
       (Task_004 / Task_005 以及更早的目錄圍堵),第四次不該再靠人想起來。
       同一支腳本可一併檢查「每個 bridge 有沒有訂閱它需要的事件」(Task_011 的教訓)。
-- [ ] `Task_013_write_forms_blind_spot`:`sed -i`、`tee -a`、`dd of=` 對 `writeTargets`
-      完全不可見。補它要同步改 `bash-containment.ts`、case-bridge 的複製與平權測試。
+- [x] `Task_013_write_forms_blind_spot`(REVIEW):**已補。** 事實修正:`tee -a` 本來就抽得到,
+      實際缺口是 `sed -i`(四種寫法)與 `dd of=`,一併納入 `perl -i`。兩份抽取器同步改,
+      分段改為引號感知(`sed -i -e 's|a|b|'` 原本被 `|` 切成四段)。
+      **變異掃描當場在新分支抓到 3 個存活者**,補測試 + 刪掉一個冗餘條件後 7/7 全殺。
+      結論見 [docs/case/task-013-write-forms.md](../docs/case/task-013-write-forms.md)。
 - [ ] `Task_014_case_upstream_round2`:兩條上游回饋還沒送出 ——
       (a) 任務包之間沒有「同型缺陷」的連結欄位;
       (b) `Local Definition of Done` 沒有區分單元證據與**交付證據**,

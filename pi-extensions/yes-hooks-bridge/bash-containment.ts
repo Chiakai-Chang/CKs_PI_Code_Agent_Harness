@@ -36,6 +36,56 @@ import { isAbsolute, resolve, sep } from "node:path";
 const DEST_LAST = new Set(["cp", "mv", "install", "rsync"]);
 const DEST_ALL = new Set(["mkdir", "touch", "tee"]);
 
+/**
+ * Editors that rewrite their input files, but only when told to.
+ *
+ * `sed -i` was invisible here, and so to every guard that reads this function —
+ * which is all three of the ones measured to change model behaviour. `perl` is
+ * in the set because it is the same shape and the same test; covering one and
+ * not the other leaves half a class open while looking closed.
+ */
+const IN_PLACE = new Set(["sed", "perl"]);
+/** `-i`, `-i.bak`, `-pi`, `--in-place`. Not `-n`, `-E`, `-e`. */
+const IN_PLACE_FLAG = /^(--in-place|-[a-zA-Z]*i)/;
+/** Flags whose NEXT token is a script, not a file. */
+const TAKES_ARG = new Set(["-e", "-f", "--expression", "--file"]);
+
+/**
+ * Files an in-place editor would rewrite, or [] when it only reads.
+ *
+ * The script is not a path. `sed -i -e 's|a|b|' f` naming `s|a|b|` as a target
+ * would have containment refuse a legitimate edit because of this function's
+ * own parsing — a guard blocking real work over its own mistake is how a guard
+ * gets switched off, and a guard that is off protects nothing.
+ */
+function inPlaceTargets(tokens: string[]): string[] {
+  if (!tokens.some((t) => IN_PLACE_FLAG.test(t))) return [];
+  const files: string[] = [];
+  let scriptSeen = false;
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (t.startsWith("-")) {
+      if (TAKES_ARG.has(t)) {
+        i++;            // the script rides with the flag
+        scriptSeen = true;
+      } else if (/^--(expression|file)=/.test(t)) {
+        // No `t.includes("=")` guard in front: the pattern already requires one,
+        // and the mutation sweep found the redundancy by surviving a flip of the
+        // `&&` that nothing could observe. A condition no test can reach is a
+        // condition to delete, not one to write a test for.
+        scriptSeen = true;
+      }
+      continue;
+    }
+    if (!scriptSeen) {  // the bare first operand is the script
+      scriptSeen = true;
+      continue;
+    }
+    files.push(t);
+  }
+  return files;
+}
+
 /** Written to constantly and owned by nobody's project. */
 const SCRATCH_PREFIXES = [
   "/tmp/", "/var/tmp/", "/dev/",
@@ -84,6 +134,27 @@ export function isScratch(abs: string, raw?: string): boolean {
  * mistaken for real ones, then reads the corresponding token out of the
  * original text so the path itself survives its quotes.
  */
+/**
+ * Command segments, split on separators that are really separators.
+ *
+ * The separator positions come from the masked text so a `|` inside a quoted
+ * script is not one, and the text comes from the original so quoted paths
+ * survive. Splitting the raw command was fine until an in-place edit arrived
+ * carrying `s|a|b|`.
+ */
+function segmentsOf(command: string, masked: string): string[] {
+  const sep = /&&|\|\||;|\|/g;
+  const parts: string[] = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = sep.exec(masked)) !== null) {
+    parts.push(command.slice(last, m.index));
+    last = m.index + m[0].length;
+  }
+  parts.push(command.slice(last));
+  return parts;
+}
+
 export function writeTargets(command: string): string[] {
   if (typeof command !== "string" || !command.trim()) return [];
   const masked = stripQuoted(command);
@@ -111,12 +182,25 @@ export function writeTargets(command: string): string[] {
 
   // Command destinations. Tokens are read from the original so quoted paths
   // containing spaces are still recovered as one argument.
-  const segments = command.split(/(?:&&|\|\||;|\|)/);
-  for (const seg of segments) {
+  //
+  // Segments are located in the MASKED text for the same reason redirection is:
+  // `sed -i -e 's|a|b|' f` has a pipe inside its script, and splitting the raw
+  // command tore that one command into four pieces.
+  for (const seg of segmentsOf(command, masked)) {
     const tokens = seg.trim().match(/"[^"]*"|'[^']*'|[^\s]+/g);
     if (!tokens || tokens.length < 2) continue;
     const cmd = unquote(tokens[0]).split("/").pop() || "";
-    const args = tokens.slice(1).map(unquote).filter((t) => !t.startsWith("-"));
+    const rest = tokens.slice(1).map(unquote);
+    const args = rest.filter((t) => !t.startsWith("-"));
+    if (cmd === "dd") {
+      // `of=` is the output; `if=` is the input and must not be confused for it.
+      for (const t of rest) if (t.startsWith("of=")) out.push(t.slice(3));
+      continue;
+    }
+    if (IN_PLACE.has(cmd)) {
+      out.push(...inPlaceTargets(rest));
+      continue;
+    }
     if (!args.length) continue;
     if (DEST_LAST.has(cmd)) out.push(args[args.length - 1]);
     else if (DEST_ALL.has(cmd)) out.push(...args);

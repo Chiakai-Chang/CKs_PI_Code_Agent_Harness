@@ -217,6 +217,48 @@ class TestExistingBehaviourIsUnchanged(unittest.TestCase):
         """)
         self.assertFalse(out["threw"])
 
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestInPlaceEditsCountButAreNotJudged(unittest.TestCase):
+    """Task_013. `research-depth` imports writeTargets from bash-containment, so
+    the new forms arrive here for free — and "for free" is exactly the kind of
+    claim this repo does not accept without running it.
+
+    The two halves have to land differently. The output gate must SEE the write,
+    or a run that produced its report with `sed -i` looks like a run that
+    produced nothing. The citation gate must NOT judge it, because no content
+    can be extracted from an in-place edit and a gate that judges what it cannot
+    read is a gate reporting on its own guesses."""
+
+    IN_PLACE = "sed -i 's/TODO/done/' report.md"
+
+    def test_it_is_counted_as_a_write(self):
+        out = run_js("""
+        const g = new m.ResearchDepthGuard();
+        g.check("bash", { command: %s });
+        process.stdout.write(JSON.stringify(g.stats()));
+        """ % json.dumps(self.IN_PLACE))
+        self.assertEqual(out["writes"], 1)
+
+    def test_the_content_is_recorded_as_unchecked_rather_than_judged(self):
+        out = run_js("""
+        const g = new m.ResearchDepthGuard();
+        g.check("web_open", { url: "https://a.example/one" });
+        g.check("web_open", { url: "https://b.example/two" });
+        const r = g.check("bash", { command: %s });
+        process.stdout.write(JSON.stringify({ blocked: !!r, stats: g.stats() }));
+        """ % json.dumps(self.IN_PLACE))
+        self.assertFalse(out["blocked"], "nothing was read, so nothing may be judged")
+        self.assertEqual(out["stats"]["uncheckedWrites"], 1)
+
+    def test_a_read_only_sed_is_not_a_write_at_all(self):
+        out = run_js("""
+        const g = new m.ResearchDepthGuard();
+        g.check("bash", { command: "sed -n '1,5p' report.md" });
+        process.stdout.write(JSON.stringify(g.stats()));
+        """)
+        self.assertEqual(out["writes"], 0)
+        self.assertEqual(out["uncheckedWrites"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

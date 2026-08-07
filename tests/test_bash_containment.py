@@ -156,6 +156,127 @@ class TestFailOpen(unittest.TestCase):
     def test_a_command_it_cannot_parse(self):
         self.assertFalse(blocked('eval "$(cat script.sh)"')["blocked"])
 
+def targets(command):
+    return run_js("""
+    process.stdout.write(JSON.stringify({ t: m.writeTargets(%s) }));
+    """ % json.dumps(command))["t"]
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestInPlaceEditsAreWrites(unittest.TestCase):
+    """`sed -i` was invisible to every guard that reads writeTargets, and those
+    are the only guards this project has measured changing model behaviour:
+    directory containment (11 and 72 refusals in one day, none leaked), the
+    C.A.S.E. tool-first rule (21 status writes, none through bash) and the
+    citation gate (URLs in files 0 to 10). One unparsed spelling is a back door
+    into all three.
+
+    `perl -i` is here because it is the same code path and the same test. Adding
+    only `sed` would leave half of one class open while looking closed, which is
+    the shape of the last three defects in this repo."""
+
+    def test_the_plain_form(self):
+        self.assertEqual(targets("sed -i 's/a/b/' notes.md"), ["notes.md"])
+
+    def test_a_backup_suffix_is_still_the_flag(self):
+        self.assertEqual(targets("sed -i.bak 's/a/b/' notes.md"), ["notes.md"])
+
+    def test_expression_flags_and_several_files(self):
+        """The script belongs to `-e`, not to the file list. Counting `s|a|b|`
+        as a path would make containment refuse a legitimate edit because of the
+        guard's own parsing — the worst kind of false positive.
+
+        The `|` inside the script is also the case that made segment splitting
+        quote-aware: splitting the raw command on `|` tore this one into four
+        pieces."""
+        self.assertEqual(targets("sed -i -e 's|a|b|' f1.md f2.md"), ["f1.md", "f2.md"])
+
+    def test_perl_in_place(self):
+        self.assertEqual(targets("perl -pi -e 's/a/b/' notes.md"), ["notes.md"])
+
+    def test_a_long_flag_carrying_its_own_script(self):
+        """`--expression=s/a/b/` holds the script inside the flag, so the next
+        bare operand is a file and not the script.
+
+        Added from the mutation sweep on the branch this task wrote: three
+        mutations inside `inPlaceTargets` survived at once — the loop starting
+        at 1 instead of 0, the `&&` in the long-flag test, and the `scriptSeen`
+        it sets. All three are only observable when a long flag comes first and
+        carries the script, which nothing else here exercises. Writing the
+        branch and testing the branch are different jobs."""
+        self.assertEqual(
+            targets("sed --expression='s/a/b/' -i notes.md"), ["notes.md"])
+
+    def test_without_the_in_place_flag_nothing_is_written(self):
+        """`sed 's/a/b/' f` prints to stdout. A guard that refuses it teaches
+        the user to turn the guard off, and a guard that is off protects
+        nothing — which this module's own header already says."""
+        self.assertEqual(targets("sed 's/a/b/' notes.md"), [])
+        self.assertEqual(targets("sed -n '1,5p' notes.md"), [])
+        self.assertEqual(targets("perl -e 'print 1' notes.md"), [])
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestDdWritesToItsOf(unittest.TestCase):
+    def test_of_is_the_target_and_if_is_not(self):
+        self.assertEqual(targets("dd if=in.bin of=out.bin bs=1M"), ["out.bin"])
+
+    def test_no_of_writes_nowhere_we_can_see(self):
+        self.assertEqual(targets("dd if=in.bin bs=1M"), [])
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestTheExistingShapesAreUnchanged(unittest.TestCase):
+    """Locked verbatim. Every one of these worked before Task_013 and the whole
+    value of the change is that it adds forms without moving any of them."""
+
+    def test_redirection_and_destinations(self):
+        self.assertEqual(targets("cat draft.md > report.md"), ["report.md"])
+        self.assertEqual(targets("echo x >> log.txt"), ["log.txt"])
+        self.assertEqual(targets("cp a.md b.md"), ["b.md"])
+        self.assertEqual(targets("mv a.md b.md"), ["b.md"])
+        self.assertEqual(targets("tee -a log.txt"), ["log.txt"])
+        self.assertEqual(targets("mkdir -p out/dir"), ["out/dir"])
+
+    def test_reading_is_still_not_writing(self):
+        for cmd in ("cat notes.md", "ls -la", "grep -r x .", "head -5 f.md"):
+            with self.subTest(cmd=cmd):
+                self.assertEqual(targets(cmd), [])
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestScratchAndFailOpenBoundaries(unittest.TestCase):
+    """Two survivors that landed on CI sample points after Task_013 grew the
+    file. Sampling moves as the files move, which is the design — and what it
+    surfaced here are two documented behaviours with no test behind them."""
+
+    def test_a_path_under_the_temp_env_var_is_scratch(self):
+        """`isScratch` consults TEMP/TMP/TMPDIR, and returning false there would
+        make ordinary temp writes read as escaping the project — the module
+        header says a guard that refuses those gets switched off within a day."""
+        out = run_js("""
+        process.env.TMPDIR = "/home/someone/scratchspace";
+        process.stdout.write(JSON.stringify({
+          under: m.isScratch("/home/someone/scratchspace/notes.md",
+                             "/home/someone/scratchspace/notes.md"),
+          beside: m.isScratch("/home/someone/scratchspaceX/notes.md",
+                              "/home/someone/scratchspaceX/notes.md"),
+        }));
+        """)
+        self.assertTrue(out["under"])
+        self.assertFalse(out["beside"], "a prefix match must not swallow a sibling")
+
+    def test_escapes_cwd_fails_open_on_missing_inputs(self):
+        """Undecidable is not the same as outside. Returning true here would
+        block every write whose path or cwd the guard could not read."""
+        out = run_js("""
+        process.stdout.write(JSON.stringify({
+          noTarget: m.escapesCwd("", "C:/project"),
+          noCwd: m.escapesCwd("C:/project/a.md", ""),
+        }));
+        """)
+        self.assertFalse(out["noTarget"])
+        self.assertFalse(out["noCwd"])
+
 
 if __name__ == "__main__":
     unittest.main()

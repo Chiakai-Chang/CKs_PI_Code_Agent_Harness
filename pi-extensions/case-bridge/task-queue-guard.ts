@@ -87,11 +87,50 @@ export function bashWriteTargets(command: unknown): string[] {
 
   const DEST_LAST = new Set(["cp", "mv", "install", "rsync"]);
   const DEST_ALL = new Set(["mkdir", "touch", "tee"]);
-  for (const seg of command.split(/(?:&&|\|\||;|\|)/)) {
+  const IN_PLACE = new Set(["sed", "perl"]);
+  const IN_PLACE_FLAG = /^(--in-place|-[a-zA-Z]*i)/;
+  const TAKES_ARG = new Set(["-e", "-f", "--expression", "--file"]);
+
+  // Separator positions come from the masked text: `sed -i -e 's|a|b|' f`
+  // carries a pipe inside its script, and splitting the raw command tore that
+  // one command into four pieces.
+  const segments: string[] = [];
+  const sep = /&&|\|\||;|\|/g;
+  let last = 0;
+  let sm: RegExpExecArray | null;
+  while ((sm = sep.exec(masked)) !== null) {
+    segments.push(command.slice(last, sm.index));
+    last = sm.index + sm[0].length;
+  }
+  segments.push(command.slice(last));
+
+  for (const seg of segments) {
     const tokens = seg.trim().match(/"[^"]*"|'[^']*'|[^\s]+/g);
     if (!tokens || tokens.length < 2) continue;
     const cmd = unquote(tokens[0]).split("/").pop() || "";
-    const args = tokens.slice(1).map(unquote).filter((t) => !t.startsWith("-"));
+    const rest = tokens.slice(1).map(unquote);
+    const args = rest.filter((t) => !t.startsWith("-"));
+    if (cmd === "dd") {
+      for (const t of rest) if (t.startsWith("of=")) out.push(t.slice(3));
+      continue;
+    }
+    if (IN_PLACE.has(cmd)) {
+      // Only with an in-place flag: `sed 's/a/b/' f` prints and writes nothing,
+      // and a guard that refuses ordinary reads gets switched off.
+      if (!rest.some((t) => IN_PLACE_FLAG.test(t))) continue;
+      let scriptSeen = false;
+      for (let i = 0; i < rest.length; i++) {
+        const t = rest[i];
+        if (t.startsWith("-")) {
+          if (TAKES_ARG.has(t)) { i++; scriptSeen = true; }
+          else if (/^--(expression|file)=/.test(t)) scriptSeen = true;
+          continue;
+        }
+        if (!scriptSeen) { scriptSeen = true; continue; }
+        out.push(t);
+      }
+      continue;
+    }
     if (!args.length) continue;
     if (DEST_LAST.has(cmd)) out.push(args[args.length - 1]);
     else if (DEST_ALL.has(cmd)) out.push(...args);

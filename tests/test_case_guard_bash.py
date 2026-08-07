@@ -250,7 +250,35 @@ class TestTheTwoExtractorsAgree(unittest.TestCase):
         'echo "a > b"',
         'some-cmd 2>&1',
         'eval "$(cat script.sh)"',
+        # Task_013. Added to BOTH copies in the same change, because parity is
+        # silent when both sides are wrong: every one of these returned [] on
+        # both extractors before the change, so the parity test was green while
+        # the hole was open.
+        "sed -i 's/a/b/' notes.md",
+        "sed -i.bak 's/a/b/' notes.md",
+        "sed -i -e 's|a|b|' f1.md f2.md",
+        "sed 's/a/b/' notes.md",
+        "perl -pi -e 's/a/b/' notes.md",
+        'dd if=in.bin of=out.bin bs=1M',
+        'dd if=in.bin bs=1M',
     ]
+
+    def test_the_new_forms_are_actually_extracted(self):
+        """Parity alone would pass if both copies still returned nothing. This
+        pins the answers, so a future edit that quietly drops a form fails here
+        as well as in the containment tests."""
+        imports = ('import * as g from %s;\n'
+                   % json.dumps("file:///" + GUARD.replace("\\", "/")))
+        out = run_js("""
+        process.stdout.write(JSON.stringify({
+          inPlace: g.bashWriteTargets("sed -i 's/a/b/' notes.md"),
+          readOnly: g.bashWriteTargets("sed 's/a/b/' notes.md"),
+          dd: g.bashWriteTargets("dd if=in.bin of=out.bin bs=1M"),
+        }));
+        """, imports=imports)
+        self.assertEqual(out["inPlace"], ["notes.md"])
+        self.assertEqual(out["readOnly"], [])
+        self.assertEqual(out["dd"], ["out.bin"])
 
     def test_same_targets_for_the_same_commands(self):
         imports = ('import * as g from %s;\nimport * as c from %s;\n'
