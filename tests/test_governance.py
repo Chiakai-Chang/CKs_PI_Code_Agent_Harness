@@ -231,6 +231,14 @@ class TestDocumentedChecksRunInCI(unittest.TestCase):
         # against, and its own unit tests (which inject the git reader and the
         # tokenizer) are what CI actually runs.
         documented.discard("scripts/make-probe-fixture.py")
+        # measure-advancer launches Pi against the local model, several minutes
+        # per run; CI has neither. Unlike the others it carries its own
+        # falsifiability check — `--self-check` reproduces counts from a fixture
+        # copied out of a captured session and REFUSES to measure when they
+        # disagree, which is what CI would otherwise have been asked to do. It
+        # earned that check the hard way: the first version's counters were
+        # structurally incapable of returning anything but zero, twice.
+        documented.discard("scripts/measure-advancer.py")
         missing = [c for c in sorted(documented) if c not in self.ci]
         self.assertEqual(missing, [], "documented checks absent from CI: %s" % missing)
 

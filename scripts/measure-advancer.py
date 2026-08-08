@@ -1,0 +1,340 @@
+#!/usr/bin/env python3
+"""Measure whether the C.A.S.E. loop drives a task to completion, on real runs.
+
+Usage:
+    python scripts/measure-advancer.py --runs 3 --prompt baseline
+    python scripts/measure-advancer.py --runs 1 --prompt research
+    python scripts/measure-advancer.py --self-check     # prove it can fail
+
+Slow: each run launches Pi against the local model. NOT in CI.
+
+This exists because the 2026-08-06 verdict ("keep enableCaseAdvancer false")
+rested on three defects that are now fixed - the advancer judged stalls by
+counting its own injections, it wrote ESCALATED into the task's status, and cwd
+confusion consumed two of five runs. The verdict has to be re-earned on the
+repaired foundation rather than inherited.
+
+Three things this script does because the last measurement got them wrong:
+
+* **Counts by field, not by substring.** Counting `case-advance` with grep over
+  raw JSONL once reported zero injections when there were four, and the run was
+  one step from being escalated on that number. Every count here filters on
+  `message.role` / `toolName` / `customType`.
+* **Counts `edit` as a status write.** A run reported "0 status writes" while
+  the status had moved six times, because only `write` was counted. That number
+  read as "the guard was bypassed" - the opposite of the truth.
+* **Polls for file growth instead of waiting for a timeout.** "540 seconds with
+  no session file" was written up as a hang; the run finished in 3m14s and
+  reached REVIEW. A timeout measures the observer's patience.
+
+Each run gets its own temp directory. Sharing one made four of five runs measure
+something other than what they claimed, and the tell (`findings_01`) was sitting
+in the output the whole time.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+
+PROMPTS = {
+    # Verbatim from docs/measurements/2026-08-06-advancer-verdict.md so the
+    # numbers are comparable. A reworded prompt is a different experiment.
+    "baseline": "這個專案是什麼?簡短說明就好。",
+    # Verbatim from docs/measurements/2026-08-06-depth-and-artifact-gates-live.md.
+    # The owner's complaint is about research sessions, and a trivial task
+    # cannot answer it.
+    "research": (
+        "我要一份速查表:列出這 15 個工具各自的最新穩定版本號 —— "
+        "Node.js、Python、Go、Rust、Deno、Bun、TypeScript、Vite、PostgreSQL、"
+        "Redis、Docker、Kubernetes、Nginx、Terraform、Ansible。只要版本號,不用細節說明。"
+    ),
+}
+
+STATUS_NAMES = ("status.txt",)
+
+
+def session_records(session_dir: Path):
+    """Every message a session recorded, unwrapped from its envelope.
+
+    The envelope matters and cost a run to learn. Records are
+    `{"type": "message", "message": {"role": ..., "content": [...]}}`, plus
+    `session` / `model_change` / `thinking_level_change` lines that carry no
+    message at all. Reading `role` off the top level returns None for every
+    line, so the first real run reported zero tool calls against an 11 KB
+    session — a clean set of zeroes that looked like "the advancer never fired"
+    and was really "the parser never matched".
+
+    The self-check did not catch it because its fixture was written from
+    memory. Fixtures that invent the payload pass while the thing they stand
+    for is broken; this one is now built from records copied out of session
+    019fdebe.
+    """
+    for path in sorted(session_dir.rglob("*.jsonl")):
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(rec, dict) and rec.get("type") == "message":
+                    msg = rec.get("message")
+                    if isinstance(msg, dict):
+                        yield msg
+                elif isinstance(rec, dict) and rec.get("type") == "custom_message":
+                    # An injection has NO `role` field at all — it is
+                    # `{"type": "custom_message", "customType": ..., "content": ...}`.
+                    # Filtering on `role` made both injection counters
+                    # structurally incapable of returning anything but zero,
+                    # and three baseline runs reported "0 injections" before
+                    # this was checked against a session known to contain one.
+                    yield rec
+                elif isinstance(rec, dict) and "role" in rec:
+                    yield rec
+
+
+def tally(session_dir: Path) -> dict:
+    """Counts taken from record fields.
+
+    `write` and `edit` both change a file. Counting only `write` produced a
+    zero that read as "the tool-first guard was bypassed" when the guard had in
+    fact worked - the model had used `edit`.
+    """
+    counts = {
+        "tool_calls": 0,
+        "blocked": 0,
+        "advance_injections": 0,
+        "blocked_claim_injections": 0,
+        "status_writes_tool": 0,
+        "status_writes_bash": 0,
+        "assistant_turns": 0,
+    }
+    for rec in session_records(session_dir):
+        role = rec.get("role")
+        if role == "assistant":
+            counts["assistant_turns"] += 1
+            for block in rec.get("content") or []:
+                if isinstance(block, dict) and block.get("type") == "toolCall":
+                    counts["tool_calls"] += 1
+                    name = str(block.get("name") or block.get("toolName") or "")
+                    args = block.get("arguments") or block.get("input") or {}
+                    if not isinstance(args, dict):
+                        continue
+                    if name in ("write", "edit"):
+                        path = str(args.get("path") or args.get("file_path") or "")
+                        if any(path.endswith(s) for s in STATUS_NAMES):
+                            counts["status_writes_tool"] += 1
+                    elif name == "bash":
+                        cmd = str(args.get("command") or "")
+                        if any(s in cmd for s in STATUS_NAMES) and (">" in cmd or "tee" in cmd):
+                            counts["status_writes_bash"] += 1
+        elif role == "toolResult":
+            if rec.get("isError"):
+                counts["blocked"] += 1
+        elif rec.get("type") == "custom_message" or rec.get("customType"):
+            ct = str(rec.get("customType") or "")
+            if ct == "case-advance":
+                counts["advance_injections"] += 1
+            elif ct == "blocked-claim":
+                counts["blocked_claim_injections"] += 1
+    return counts
+
+
+def read_status(task_dir: Path) -> str:
+    p = task_dir / "status.txt"
+    try:
+        return p.read_text(encoding="utf-8").strip()
+    except OSError:
+        return "<missing>"
+
+
+def make_fixture(base: Path) -> Path:
+    """A C.A.S.E. project with one PENDING task, outside this repository.
+
+    Outside on purpose: the flag is global once restored, and a queue left
+    inside the harness became a decoy that consumed an entire run.
+    """
+    subprocess.run(["git", "init", "-q"], cwd=base, check=True)
+    task = base / "02_Task_Queue" / "Task_001_probe"
+    task.mkdir(parents=True)
+    (task / "status.txt").write_text("PENDING", encoding="utf-8")
+    (task / "role.md").write_text(
+        "# Role\n\nWorker. 回答使用者的問題,並照 C.A.S.E. 流程留下紀錄。\n",
+        encoding="utf-8")
+    (task / "recipe.md").write_text(
+        "# Recipe\n\n## Objective\n\n回答使用者的問題。\n\n"
+        "## Local Definition of Done\n\n- [ ] 回答寫進 output.md\n- [ ] retro.md 有四節\n",
+        encoding="utf-8")
+    return task
+
+
+def poll_until_done(proc, session_dir: Path, task_dir: Path, limit_s: int, quiet_s: int):
+    """Watch the session file grow. Stop when it stops growing, not on a clock.
+
+    A run that produces nothing for ten minutes and a run that is thinking look
+    identical to a timeout. They do not look identical to a file that is getting
+    longer.
+    """
+    started = time.time()
+    last_size, last_change = -1, time.time()
+    while proc.poll() is None:
+        size = sum(p.stat().st_size for p in session_dir.rglob("*.jsonl")) if session_dir.exists() else 0
+        now = time.time()
+        if size != last_size:
+            last_size, last_change = size, now
+            print(f"    [{int(now - started):>4}s] {size:>7} bytes  status={read_status(task_dir)}")
+        if now - last_change > quiet_s:
+            print(f"    quiet for {quiet_s}s — stopping")
+            proc.terminate()
+            return "quiet"
+        if now - started > limit_s:
+            print(f"    hit the {limit_s}s ceiling — stopping")
+            proc.terminate()
+            return "ceiling"
+        time.sleep(5)
+    return "finished"
+
+
+def one_run(prompt_key: str, index: int, limit_s: int, quiet_s: int) -> dict:
+    base = Path(tempfile.mkdtemp(prefix=f"advancer-{prompt_key}-{index}-"))
+    task = make_fixture(base)
+    session_dir = base / ".sess"
+    print(f"\n=== run {index} ({prompt_key})  {base}")
+    # The resolved path, not the bare name: on Windows `pi` is `pi.CMD`, which
+    # `shutil.which` finds and `CreateProcess` refuses. The check passing and
+    # the launch failing is the same gap this repo keeps meeting - "it is on
+    # PATH" is not "it will start".
+    exe = shutil.which("pi")
+    proc = subprocess.Popen(
+        [exe, "--print", "--session-dir", str(session_dir), PROMPTS[prompt_key]],
+        cwd=str(base), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        shell=exe.lower().endswith((".cmd", ".bat")),
+    )
+    how = poll_until_done(proc, session_dir, task, limit_s, quiet_s)
+    try:
+        proc.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+    counts = tally(session_dir) if session_dir.exists() else {}
+    result = {"run": index, "prompt": prompt_key, "ended": how,
+              "status": read_status(task),
+              "files": sorted(p.name for p in task.iterdir()),
+              "dir": str(base), **counts}
+    print("    " + json.dumps({k: v for k, v in result.items() if k != "dir"}, ensure_ascii=False))
+    return result
+
+
+def self_check() -> int:
+    """Break the counters on purpose and require the numbers to move.
+
+    The previous measurement script reported a zero twice, each time on a
+    metric that would have inverted the conclusion, and both were found by
+    accident. A counter nobody has seen fail is a counter nobody should quote.
+    """
+    fake = Path(tempfile.mkdtemp(prefix="advancer-selfcheck-"))
+    sess = fake / ".sess"
+    sess.mkdir(parents=True)
+    # Wrapped exactly as Pi writes them, copied from session 019fdebe: message
+    # records carry a `type` and nest the message one level down, and the file
+    # also holds `session` / `model_change` lines with no message at all. The
+    # first version of this fixture wrote bare `{"role": ...}` objects from
+    # memory, passed, and hid a parser that matched nothing — an 11 KB session
+    # tallied as all zeroes, which reads as "the advancer never fired".
+    def msg(m):
+        return {"type": "message", "id": "x", "timestamp": "t", "message": m}
+
+    records = [
+        {"type": "session", "cwd": "/tmp/x", "version": 1},
+        {"type": "model_change", "modelId": "probe"},
+        msg({"role": "assistant", "content": [
+            {"type": "thinking", "text": "..."},
+            {"type": "toolCall", "id": "a", "name": "write",
+             "arguments": {"path": "02_Task_Queue/Task_001_probe/status.txt"}}]}),
+        msg({"role": "assistant", "content": [
+            {"type": "toolCall", "id": "b", "name": "edit",
+             "arguments": {"path": "02_Task_Queue/Task_001_probe/status.txt"}}]}),
+        msg({"role": "assistant", "content": [
+            {"type": "toolCall", "id": "c", "name": "bash",
+             "arguments": {"command": "printf DONE > 02_Task_Queue/Task_001_probe/status.txt"}}]}),
+        msg({"role": "assistant", "content": [
+            {"type": "toolCall", "id": "d", "name": "bash",
+             "arguments": {"command": "cat 02_Task_Queue/Task_001_probe/status.txt"}}]}),
+        msg({"role": "toolResult", "isError": True, "toolName": "bash",
+             "toolCallId": "c", "content": [{"type": "text", "text": "refused"}]}),
+        {"role": "custom", "customType": "case-advance"},
+        {"role": "custom", "customType": "blocked-claim"},
+    ]
+    with open(sess / "probe.jsonl", "w", encoding="utf-8") as f:
+        for r in records:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+
+    got = tally(sess)
+    expected = {
+        "tool_calls": 4,
+        "blocked": 1,
+        "advance_injections": 1,
+        "blocked_claim_injections": 1,
+        # write + edit. Counting only `write` gives 1, which is the exact
+        # under-count that once read as "the guard was bypassed".
+        "status_writes_tool": 2,
+        # `cat status.txt` is a read. Counting it gave a number that nearly
+        # inverted the headline.
+        "status_writes_bash": 1,
+        "assistant_turns": 4,
+    }
+    shutil.rmtree(fake, ignore_errors=True)
+    bad = {k: (got.get(k), v) for k, v in expected.items() if got.get(k) != v}
+    if bad:
+        print("SELF-CHECK FAILED — counters disagree with the hand-built fixture:")
+        for k, (g, e) in bad.items():
+            print(f"  {k}: got {g}, expected {e}")
+        return 1
+    print("self-check: 7 counters agree with a fixture built by hand, including")
+    print("  the two that were wrong last time (edit counts; `cat` does not).")
+    return 0
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Measure the C.A.S.E. advancer on real runs.")
+    ap.add_argument("--runs", type=int, default=1)
+    ap.add_argument("--prompt", choices=sorted(PROMPTS), default="baseline")
+    ap.add_argument("--limit", type=int, default=900, help="seconds per run before giving up")
+    ap.add_argument("--quiet", type=int, default=180, help="seconds of no file growth before giving up")
+    ap.add_argument("--out", help="write the results as JSON here")
+    ap.add_argument("--self-check", action="store_true", help="prove the counters can fail")
+    args = ap.parse_args()
+
+    if args.self_check:
+        return self_check()
+
+    if self_check() != 0:
+        print("refusing to measure with counters that do not agree with a known fixture")
+        return 2
+
+    if not shutil.which("pi"):
+        print("FAIL: `pi` is not on PATH")
+        return 2
+
+    results = [one_run(args.prompt, i + 1, args.limit, args.quiet) for i in range(args.runs)]
+    if args.out:
+        Path(args.out).write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"\nwrote {args.out}")
+    reached = [r for r in results if r["status"] in ("REVIEW", "DONE")]
+    print(f"\n{len(reached)}/{len(results)} runs reached REVIEW or DONE.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

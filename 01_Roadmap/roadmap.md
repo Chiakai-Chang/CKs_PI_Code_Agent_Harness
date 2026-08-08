@@ -41,7 +41,7 @@
 | ~~2c~~ | ~~`Task_017_guard_mutation_check`~~(原始理由,保留) | 全日復盤:B 類失敗(檢查無法失敗 / fixture 無法區分)今天兩次、更早兩次,而目前**只有紀律沒有機制**。**且 Task_003 已明確把兩個活下來的變異留給它抓,那是解除 Task_003 REVIEW 的條件。** 見 [docs/retro/2026-08-06-session-retrospective.md](../docs/retro/2026-08-06-session-retrospective.md) |
 | 3 ✅ | `Task_003_cwd_confusion`(DONE,二次核可) | 兩個活下來的破壞**原樣重現、都會紅**;窮舉變異 10/10 全殺。修法是把理由字串搬成純函式,不是把斷言寫緊。見 [docs/case/task-003-cwd-confusion.md](../docs/case/task-003-cwd-confusion.md) |
 | 2f ✅ | 變異檢查進 CI(`--cap 4`,實測 79 秒) | governance 測試擋下了「有記錄卻不在 CI 的 check」,而它是對的。進 CI 的前提是**先把取樣點上的存活者處理掉** —— 8 個減到 3 個,剩下的全部具名 |
-| 4 | 重測(基準線 3 次 + 研究型 1 次),**才**談 `enableCaseAdvancer` 預設值 | 判定要建立在修好的地基上 |
+| 4 ⏸ | 重測 —— **儀器做好了,而它量到一個新缺陷** | 三次基準線的最後一輪都是「有文字、沒工具」(推進器的開口條件),而它 **0 次注入**。旗標讀得到、bridge 有載入(階段閘同場擋阻一次)。**下一步是對安裝版下探針,不是繼續推理。** 見 [docs/measurements/2026-08-08-advancer-remeasure.md](../docs/measurements/2026-08-08-advancer-remeasure.md) |
 | 5 | 依 `docs/prior-art/REGISTER.md` 的優先序清掉其餘 25 個未審視來源 | 每清一個寫一則 RATIONALE 條目 |
 
 **一條從 OmniHeal 借來、待評估的改進**:它的 3-Strike 是分層的
