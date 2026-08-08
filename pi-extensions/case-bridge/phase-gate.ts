@@ -53,7 +53,20 @@ const PLAN_WRITABLE = new Set(["status.txt", "planning.md", "feedback.md"]);
  * write that ends it. It still retires — a gate that can deadlock an
  * unfamiliar project is a gate someone switches off.
  */
-const MAX_REFUSALS = 4;
+/**
+ * How many TURNS a rule may refuse before it steps aside — not how many calls.
+ *
+ * The unit is the whole point. Measured 2026-08-08 on a research run: this
+ * model issues five parallel `web_search` calls per turn, so a budget counted
+ * in calls was spent inside the first batch, before one refusal had reached the
+ * model. The refusal named the next action and nothing read it in time.
+ *
+ * The ramp exists so a model is not stuck against one wall forever, and being
+ * stuck is something that can only happen across turns. 2026-08-06 got the same
+ * unit wrong from the other side: the exit was two, claiming cost one write, so
+ * absorbing two refusals was cheaper than complying.
+ */
+const MAX_REFUSAL_TURNS = 4;
 
 export type Phase = "claim" | "plan" | "open";
 
@@ -186,6 +199,14 @@ const CLAIM_REASONS = [CLAIM_FIRST, CLAIM_SECOND, CLAIM_THIRD, CLAIM_FOURTH];
 
 export class PhaseGate {
   private refusals = new Map<string, number>();
+  /**
+   * Rules refused during the current turn, counted once when it ends.
+   *
+   * Every call in a parallel batch gets the same text on purpose: the model
+   * chose all five before reading any of them, so escalating within the batch
+   * spends four messages nobody could act on.
+   */
+  private refusedThisTurn = new Set<string>();
 
   /**
    * Refuses a call that does not belong to the current phase, or null.
@@ -205,7 +226,7 @@ export class PhaseGate {
 
     const key = `${phase}:${toolName}`;
     const seen = this.refusals.get(key) ?? 0;
-    if (seen >= MAX_REFUSALS) return null;
+    if (seen >= MAX_REFUSAL_TURNS) return null;
 
     if (phase === "claim") {
       // Read-only until the task is claimed — auto-pi's PLAN shape, applied
@@ -216,7 +237,7 @@ export class PhaseGate {
       const writes = writeTargets(toolName, input);
       const onlyStatus = writes.length > 0 && writes.every((t) => leaf(t) === "status.txt");
       if (!RESEARCH_TOOLS.has(toolName) && (!writes.length || onlyStatus)) return null;
-      this.refusals.set(key, seen + 1);
+      this.refusedThisTurn.add(key);
       return { block: true, reason: CLAIM_REASONS[Math.min(seen, CLAIM_REASONS.length - 1)] };
     }
 
@@ -228,14 +249,29 @@ export class PhaseGate {
       if (!task) continue;
       const name = leaf(target);
       if (PLAN_WRITABLE.has(name)) continue;
-      this.refusals.set(key, seen + 1);
+      this.refusedThisTurn.add(key);
       return { block: true, reason: planFirst(seen > 0, name) };
     }
     return null;
   }
 
+  /**
+   * Close the turn: each rule that refused at all counts once.
+   *
+   * Called from the bridge's `turn_end`. Without it the budget never advances
+   * and the gate would refuse forever, which is the opposite failure and just
+   * as bad — a wall with no door is how a guard gets switched off.
+   */
+  turnEnded(): void {
+    for (const key of this.refusedThisTurn) {
+      this.refusals.set(key, (this.refusals.get(key) ?? 0) + 1);
+    }
+    this.refusedThisTurn.clear();
+  }
+
   /** One session's history. */
   reset(): void {
     this.refusals.clear();
+    this.refusedThisTurn.clear();
   }
 }

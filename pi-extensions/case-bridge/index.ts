@@ -187,6 +187,13 @@ export default function (pi: ExtensionAPI) {
   // the model has stopped and is talking, which is exactly when a push is due.
   // A tool-only turn is not the end of a reply, and mid-work is not a stall.
   pi.on("turn_end", async (event, ctx) => {
+    // The gate's budget advances per turn, not per call: this model issues
+    // five parallel tool calls at once, and a call-counted budget was spent
+    // inside the first batch before one refusal reached it (measured
+    // 2026-08-08). This runs before every early return below — a gate whose
+    // budget never advances is a wall with no door.
+    phaseGate.turnEnded();
+
     const root = harnessRoot();
     if (!root || !caseAdvancerEnabled(root)) return;
     if (!isCaseProject(ctx.cwd)) return;

@@ -97,12 +97,21 @@ class Queue:
 
 
 def gate(queue_dir, tool, input_obj, times=1):
+    """`times` counts TURNS, one call each.
+
+    It counted calls until 2026-08-08, which is the unit the exit ramp was
+    measured to have wrong: the model issues five parallel calls per turn, so a
+    call-counted budget was spent inside the first batch before any refusal
+    reached it. These tests always meant turns — the live session they came from
+    showed refusals across separate turns — so the loop now ends each turn the
+    way the bridge does."""
     return run_js("""
     const g = new m.PhaseGate();
     const out = [];
     for (let i = 0; i < %d; i++) {
       const r = g.check(%s, %s, %s);
       out.push(r ? r.reason : null);
+      g.turnEnded();
     }
     process.stdout.write(JSON.stringify({ reasons: out,
                                           phase: m.phaseOf(%s) }));
@@ -294,6 +303,130 @@ class TestFailOpen(unittest.TestCase):
         self.addCleanup(q.cleanup)
         out = gate(q.queue_dir, "write", {"path": "src/index.ts", "content": "x"})
         self.assertIsNone(out["reasons"][0])
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestTheExitRampCountsTurnsNotCalls(unittest.TestCase):
+    """Measured 2026-08-08 on a real research run, and the fixture below is that
+    run's shape rather than an invented one.
+
+    The model issues FIVE parallel web_search calls per turn:
+
+        turn 1: 5 calls [web_search x 5]
+        turn 2: 5 calls [web_search x 5]
+        turn 3: 5 calls [web_search x 5]
+
+    The exit ramp let a rule refuse four times and then stepped aside, so the
+    entire budget was spent inside the first batch — before a single refusal had
+    come back to the model. The refusal text is good and names the next action;
+    nothing read it in time.
+
+    The ramp exists so a model is not stuck against one wall forever. That
+    intent is about turns the model could have learned from, not about raw
+    calls, and 2026-08-06 got the same unit wrong from the other direction
+    (exit at two, while claiming cost one write, so absorbing was cheaper than
+    complying)."""
+
+    def setUp(self):
+        self.q = Queue(status="PENDING")
+        self.addCleanup(self.q.cleanup)
+
+    def _burst(self, turns, per_turn):
+        return run_js("""
+        const g = new m.PhaseGate();
+        const rows = [];
+        for (let t = 0; t < %d; t++) {
+          const turn = [];
+          for (let i = 0; i < %d; i++) {
+            const r = g.check(%s, "web_search", { query: "x" + i });
+            turn.push(r ? r.reason : null);
+          }
+          rows.push(turn);
+          g.turnEnded();
+        }
+        process.stdout.write(JSON.stringify({ rows }));
+        """ % (turns, per_turn, json.dumps(self.q.dir)))["rows"]
+
+    def test_one_parallel_batch_does_not_spend_the_whole_budget(self):
+        rows = self._burst(turns=1, per_turn=5)
+        self.assertTrue(all(r is not None for r in rows[0]),
+                        "a batch issued before any refusal arrived must be "
+                        "refused in full, not partly waved through")
+
+    def test_a_turn_speaks_with_one_voice(self):
+        """Five different escalating texts inside one batch is four wasted
+        escalations: the model chose all five before reading any of them."""
+        self.assertEqual(len(set(self._burst(turns=1, per_turn=5)[0])), 1)
+
+    def test_the_text_escalates_between_turns(self):
+        rows = self._burst(turns=3, per_turn=2)
+        firsts = [r[0] for r in rows]
+        self.assertEqual(len(set(firsts)), 3, "each turn must say something new")
+
+    def test_it_still_gets_out_of_the_way(self):
+        """Bounded is the point. After MAX_REFUSAL_TURNS turns of refusing the
+        same rule, the model is not learning and the wall has to come down."""
+        rows = self._burst(turns=8, per_turn=2)
+        self.assertTrue(any(all(c is None for c in row) for row in rows),
+                        "the ramp must still end")
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestTheBridgeEndsTheTurn(unittest.TestCase):
+    """A budget that never advances is a wall with no door — the opposite
+    failure, and just as effective at getting a guard switched off."""
+
+    def test_index_calls_turn_ended(self):
+        with open(os.path.join(ROOT, "pi-extensions", "case-bridge", "index.ts"),
+                  encoding="utf-8") as f:
+            body = f.read().split('pi.on("turn_end"', 1)[1]
+        self.assertIn("phaseGate.turnEnded()", body[:900])
+
+    def test_it_runs_before_the_early_returns(self):
+        """The handler returns early when the advancer is off or the project is
+        not C.A.S.E. If the turn is ended after those, the gate refuses forever
+        on every machine with the flag off — which is every machine today."""
+        with open(os.path.join(ROOT, "pi-extensions", "case-bridge", "index.ts"),
+                  encoding="utf-8") as f:
+            body = f.read().split('pi.on("turn_end"', 1)[1][:1400]
+        # A statement, not the word: the comment above the call says "early
+        # return", and matching bare text made this assertion fail against
+        # correct code.
+        first_return = re.search(r"^\s*(if \(.*\) )?return\b", body, re.M)
+        self.assertIsNotNone(first_return, "no early return to be ahead of")
+        self.assertLess(body.index("phaseGate.turnEnded()"), first_return.start())
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestTheRefusalsActuallyCarryBlockTrue(unittest.TestCase):
+    """Both `block: true` object literals in this gate survived the mutation
+    sweep: every assertion above reads the reason, and a refusal with
+    `block: false` still has one. Pi reads the field, so the gate would keep
+    deriving the phase, keep writing the text that names the next action, and
+    let the call through.
+
+    Same shape closed in task-queue-guard and loop-detect on 2026-08-08. Third
+    time, so it is a class and not an incident."""
+
+    def test_the_claim_refusal_blocks(self):
+        q = Queue(status="PENDING")
+        self.addCleanup(q.cleanup)
+        out = run_js("""
+        const g = new m.PhaseGate();
+        const r = g.check(%s, "web_search", { query: "x" });
+        process.stdout.write(JSON.stringify({ block: r ? r.block : null }));
+        """ % json.dumps(q.dir))
+        self.assertIs(out["block"], True)
+
+    def test_the_plan_refusal_blocks(self):
+        # chr(10), not an escape: seventh backslash lost to the heredoc today.
+        q = Queue(status="IN_PROGRESS",
+                  planning="# Plan" + chr(10) + "no self review" + chr(10))
+        self.addCleanup(q.cleanup)
+        out = run_js("""
+        const g = new m.PhaseGate();
+        const r = g.check(%s, "write", { path: %s });
+        process.stdout.write(JSON.stringify({ block: r ? r.block : null }));
+        """ % (json.dumps(q.dir), json.dumps(os.path.join(q.task, "output.md").replace("\\", "/"))))
+        self.assertIs(out["block"], True)
+
 
 
 if __name__ == "__main__":

@@ -42,7 +42,8 @@
 | 3 ✅ | `Task_003_cwd_confusion`(DONE,二次核可) | 兩個活下來的破壞**原樣重現、都會紅**;窮舉變異 10/10 全殺。修法是把理由字串搬成純函式,不是把斷言寫緊。見 [docs/case/task-003-cwd-confusion.md](../docs/case/task-003-cwd-confusion.md) |
 | 2f ✅ | 變異檢查進 CI(`--cap 4`,實測 79 秒) | governance 測試擋下了「有記錄卻不在 CI 的 check」,而它是對的。進 CI 的前提是**先把取樣點上的存活者處理掉** —— 8 個減到 3 個,剩下的全部具名 |
 | 4 ⏸ | 重測完成:**4/4 走到 REVIEW、零升級、status 8 次寫入全走工具**(對照 2026-08-06 的 0/5 與三次 ESCALATED)。但 **`enableCaseAdvancer` 仍維持 `false`**,因為量到兩個**門檻定在錯單位**的缺陷:(a) 階段閘的退場數拒絕次數,而模型**一輪並行五個 `web_search`**,一輪就用光 4 次額度;(b) `nextStep()` 在 `REVIEW` + 有 retro 時直接判終端,**不回頭看 `output.md`** —— 一次 run 因此在沒有交付物的情況下被祝福為完成。 見 [docs/measurements/2026-08-08-advancer-remeasure.md](../docs/measurements/2026-08-08-advancer-remeasure.md) |
-| 4a | 修門檻:退場改以**輪**為單位;終端判定回頭檢查交付物 | 修完才談預設值 |
+| 4a ✅ | 兩個門檻都改了:退場以**輪**為單位(同一輪內同一段文案,跨輪才升級);`nextStep()` 在 `REVIEW` 回頭檢查 `output.md` | 順帶補上 phase-gate 兩處 `block: true` 物件字面值的測試 —— **同型第三次**(task-queue-guard、loop-detect、phase-gate) |
+| 4b | **重測**:驗開場那一擊現在會不會被擋 | 門檻改了卻沒在真實 run 響過,就是「沒響過的守衛」。這是談預設值的最後一步 |
 | 5 | 依 `docs/prior-art/REGISTER.md` 的優先序清掉其餘 25 個未審視來源 | 每清一個寫一則 RATIONALE 條目 |
 
 **一條從 OmniHeal 借來、待評估的改進**:它的 3-Strike 是分層的

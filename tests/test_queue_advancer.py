@@ -377,5 +377,41 @@ class TestTheOutputThresholdIsExact(unittest.TestCase):
         self.assertIsNone(out["next"])
 
 
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestAReviewWithNoDeliverable(unittest.TestCase):
+    """Baseline run 2, 2026-08-08: reached REVIEW with planning.md and retro.md
+    and no output.md, and the advancer called it terminal — "hand this to
+    another session" for work that does not exist.
+
+    `nextStep()` treats REVIEW plus a retro as the stopping point and never
+    looks back at the deliverable, and IN_PROGRESS -> REVIEW is a legal
+    transition, so nothing else catches it either. Process completed, nothing
+    produced — the shape this repo keeps meeting."""
+
+    def setUp(self):
+        self.q = Queue()
+        self.addCleanup(self.q.cleanup)
+
+    def _step(self, **kw):
+        self.q.task("Task_001_a", "REVIEW", **kw)
+        return step_of(self.q)
+
+    def test_review_without_output_asks_for_the_deliverable(self):
+        s = self._step(planning=PLAN_OK, retro=True)
+        self.assertEqual(s["missing"], "output")
+        self.assertIn("output.md", s["instruction"])
+
+    def test_a_stub_output_does_not_count_here_either(self):
+        s = self._step(planning=PLAN_OK, output="ok", retro=True)
+        self.assertEqual(s["missing"], "output")
+
+    def test_review_with_everything_is_still_terminal(self):
+        """The existing behaviour must not move: a complete package at REVIEW
+        hands over to another session, exactly once."""
+        s = self._step(planning=PLAN_OK, output=OUTPUT_OK, retro=True)
+        self.assertEqual(s["missing"], "")
+        self.assertRegex(s["instruction"], r"(另一個 session|fresh context|separate session)")
+
+
 if __name__ == "__main__":
     unittest.main()

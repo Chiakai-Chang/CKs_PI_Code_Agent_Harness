@@ -199,6 +199,20 @@ export function nextStep(queueDir: unknown): NextStep | null {
   }
 
   if (task.status === "REVIEW") {
+    // The deliverable, checked again here rather than trusted from the way in.
+    //
+    // Measured 2026-08-08 (baseline run 2): a task reached REVIEW with
+    // planning.md and retro.md and no output.md, and this function called it
+    // terminal — "hand it to another session" for work that does not exist.
+    // IN_PROGRESS -> REVIEW is a legal transition, so nothing upstream catches
+    // it either. Process completed, nothing produced.
+    const reviewOutput = read(at("output.md"));
+    if (reviewOutput === null || reviewOutput.trim().length < OUTPUT_MIN_CHARS) {
+      return say("output",
+        `[C.A.S.E.] ${task.name} 已在 REVIEW,但 output.md 不存在或形同空白 —— ` +
+        `沒有產出就沒有東西可以核可。先把成果寫進 output.md,對照 recipe.md 的 ` +
+        `Local Definition of Done 逐條交代。(for_agents.md §6 step 8)`);
+    }
     // §13a — the retrospective is mandatory before DONE.
     if (!existsSync(at("retro.md"))) {
       return say("retro",
