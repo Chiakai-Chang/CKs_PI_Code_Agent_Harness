@@ -427,6 +427,95 @@ class TestTheRefusalsActuallyCarryBlockTrue(unittest.TestCase):
         """ % (json.dumps(q.dir), json.dumps(os.path.join(q.task, "output.md").replace("\\", "/"))))
         self.assertIs(out["block"], True)
 
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestTheBudgetBelongsToThePhaseNotTheTool(unittest.TestCase):
+    """Measured 2026-08-08, the run after the turn-based ramp landed:
+
+        turn 1-3  web_search  refused, texts 第一次 / 第二次 / 第三次
+        turn 4    web_open    refused, text 第一次 AGAIN
+        turn 5    web_search  refused, 最後一次
+
+    The key was `${phase}:${toolName}`, so every research tool carried its own
+    four turns and rotating tools bought a fresh budget with the escalation
+    restarted. Four research tools is up to sixteen turns of refusals — which is
+    where the model got enough evidence to conclude the tools were simply
+    unavailable, and then stopped searching for the rest of the run even after
+    the phase opened.
+
+    The refusals are about the phase. `web_open` before claiming is the same
+    mistake as `web_search` before claiming, and telling the model "第一次" for
+    the second one is a lie about how long this has been going on."""
+
+    def setUp(self):
+        self.q = Queue(status="PENDING")
+        self.addCleanup(self.q.cleanup)
+
+    def _mixed(self, tools):
+        return run_js("""
+        const g = new m.PhaseGate();
+        const out = [];
+        for (const t of %s) {
+          const r = g.check(%s, t, { query: "x" });
+          out.push(r ? r.reason : null);
+          g.turnEnded();
+        }
+        process.stdout.write(JSON.stringify({ out }));
+        """ % (json.dumps(tools), json.dumps(self.q.queue_dir)))["out"]
+
+    def test_switching_tools_does_not_restart_the_escalation(self):
+        out = self._mixed(["web_search", "web_search", "web_open", "web_search"])
+        said = [r for r in out if r]
+        self.assertEqual(len(set(said)), len(said),
+                         "every refusal in one phase must say something new, "
+                         "whichever tool triggered it")
+
+    def test_the_budget_is_spent_across_tools_not_per_tool(self):
+        """Six turns rotating four tools. With a per-tool budget none of them
+        would have reached its limit and all six would be refused."""
+        out = self._mixed(["web_search", "web_open", "web_search",
+                           "web_open", "web_search", "web_open"])
+        self.assertIn(None, out, "the ramp must end for the phase, not per tool")
+        self.assertEqual(len([r for r in out if r]), 4)
+
+    def test_a_different_phase_keeps_its_own_budget(self):
+        """CLAIM and PLAN refuse different mistakes, so spending one must not
+        spend the other."""
+        q = Queue(status="IN_PROGRESS")
+        self.addCleanup(q.cleanup)
+        out = run_js("""
+        const g = new m.PhaseGate();
+        const claimQ = %s, planQ = %s;
+        for (let i = 0; i < 4; i++) { g.check(claimQ, "web_search", { query: "x" }); g.turnEnded(); }
+        const r = g.check(planQ, "write", { path: %s });
+        process.stdout.write(JSON.stringify({ planRefused: !!r }));
+        """ % (json.dumps(self.q.queue_dir), json.dumps(q.queue_dir),
+               json.dumps(os.path.join(q.task, "output.md").replace("\\", "/"))))
+        self.assertTrue(out["planRefused"])
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestThePlanRefusalEscalatesToo(unittest.TestCase):
+    """From the mutation sweep. `planFirst(seen > 0, name)` had its 0 shifted to
+    1 and nothing turned red — every PLAN test refused once and stopped, so the
+    second wording was never read.
+
+    It is the same lesson OmniHeal's layered 3-Strike encodes and the same one
+    the CLAIM texts already follow: a guard that repeats itself verbatim has
+    taught nothing, and the model that gave up on searching had seen exactly
+    that kind of repetition."""
+
+    def setUp(self):
+        self.q = Queue(status="IN_PROGRESS")
+        self.addCleanup(self.q.cleanup)
+
+    def test_the_second_plan_refusal_says_something_new(self):
+        out = gate(self.q.queue_dir, "write",
+                   {"path": self.q.task.replace("\\", "/") + "/output.md",
+                    "content": "findings"}, times=2)
+        first, second = out["reasons"][0], out["reasons"][1]
+        self.assertIsNotNone(first)
+        self.assertIsNotNone(second)
+        self.assertNotEqual(first, second)
+
 
 
 if __name__ == "__main__":

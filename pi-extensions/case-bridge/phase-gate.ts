@@ -224,7 +224,21 @@ export class PhaseGate {
     }
     if (phase === "open") return null;
 
-    const key = `${phase}:${toolName}`;
+    // Keyed by PHASE, not by phase-and-tool.
+    //
+    // It was `${phase}:${toolName}` until 2026-08-08, and the run right after
+    // the turn ramp landed showed what that bought: web_search refused through
+    // "第三次", then web_open arrived and got "第一次" again, then web_search
+    // returned for "最後一次". Rotating tools bought a fresh budget and
+    // restarted the escalation, so four research tools meant up to sixteen
+    // turns of refusals — which is how the model accumulated enough evidence
+    // to conclude the tools were unavailable and stopped searching for the
+    // whole run, even after the phase opened.
+    //
+    // The refusals are about the phase. `web_open` before claiming is the same
+    // mistake as `web_search` before claiming, and telling the model "第一次"
+    // for the second one misstates how long this has been going on.
+    const key = phase;
     const seen = this.refusals.get(key) ?? 0;
     if (seen >= MAX_REFUSAL_TURNS) return null;
 
