@@ -1,0 +1,241 @@
+"""A flag that should apply to one project applied to every project.
+
+Measured 2026-08-08. Re-measuring the advancer meant setting
+`enableCaseAdvancer` true in `pi-config/harness-config.json` and running
+restore — and that file is global, so for the three minutes of the measurement
+any other C.A.S.E. project the user opened would have been driven by the
+advancer too. Task_002's output.md listed exactly this limitation
+("無法讓旗標只對 fixture 生效") and it has been open since.
+
+`research/prime-agent` keeps continual-harness state local by default and only
+promotes durable cross-session lessons to global (refinement.ts:974). The
+direction is adopted; the location is not — theirs is per session, and a
+measurement runs in a different directory with a different session, so per
+project is what this needs.
+
+Two things make this dangerous to get wrong, and both are tested first:
+
+* `enableCaseAdvancer` is the flag that TRIGGERS TURNS. Reading it wrong in the
+  open direction is worse than any refusal misfiring, so "no local file behaves
+  exactly as before" comes before anything else here.
+* the local file comes from the project being worked on, which is not
+  necessarily the user's own code. A local file that could switch on
+  `enableDeepResearch`, or switch off a guard, turns config into an attack
+  surface — so the resolver reads one named flag and ignores the rest.
+"""
+
+import importlib.util
+import json
+import os
+import re
+import shutil
+import subprocess
+import tempfile
+import unittest
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MOD = os.path.join(ROOT, "pi-extensions", "case-bridge", "harness-scope.ts")
+
+
+def _node_major():
+    if not shutil.which("node"):
+        return 0
+    try:
+        out = subprocess.run(["node", "--version"], capture_output=True, text=True, timeout=30).stdout
+    except Exception:
+        return 0
+    m = re.match(r"v(\d+)", out.strip())
+    return int(m.group(1)) if m else 0
+
+
+NODE_OK = _node_major() >= 22
+
+
+def run_js(script):
+    driver = os.path.join(ROOT, "tests", ".tmp_scope_driver.mjs")
+    url = "file:///" + MOD.replace("\\", "/")
+    with open(driver, "w", encoding="utf-8") as f:
+        f.write("import * as m from %s;\n%s" % (json.dumps(url), script))
+    try:
+        p = subprocess.run(["node", driver], capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", cwd=ROOT, timeout=120)
+        if p.returncode != 0:
+            raise AssertionError("node driver failed:\n%s\n%s" % (p.stdout, p.stderr))
+        return json.loads(p.stdout)
+    finally:
+        if os.path.exists(driver):
+            os.remove(driver)
+
+
+class Fixture:
+    """A harness root and a project directory, kept apart on purpose."""
+
+    def __init__(self, global_flags=None, local_text=None):
+        self.root = tempfile.mkdtemp(prefix="scope-")
+        self.harness = os.path.join(self.root, "harness")
+        self.project = os.path.join(self.root, "project")
+        os.makedirs(os.path.join(self.harness, "pi-config"))
+        os.makedirs(self.project)
+        if global_flags is not None:
+            with open(os.path.join(self.harness, "pi-config", "harness-config.json"),
+                      "w", encoding="utf-8") as f:
+                json.dump(global_flags, f)
+        if local_text is not None:
+            with open(os.path.join(self.project, ".pi-harness.json"),
+                      "w", encoding="utf-8") as f:
+                f.write(local_text)
+
+    def resolve(self, name="enableCaseAdvancer", cwd=None):
+        return run_js("""
+        // `?? null` because JSON.stringify DROPS a key whose value is
+        // undefined, so the absent case arrived as a missing key rather than a
+        // value — a hole in the driver reading as a hole in the module.
+        process.stdout.write(JSON.stringify({ v: m.resolveFlag(%s, %s, %s) ?? null }));
+        """ % (json.dumps(name),
+               json.dumps(self.project if cwd is None else cwd),
+               json.dumps(self.harness.replace("\\", "/"))))["v"]
+
+    def cleanup(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestNoLocalFileChangesNothing(unittest.TestCase):
+    """First, and deliberately.
+
+    `enableCaseAdvancer` triggers turns. Every machine today has no local file,
+    so if this path drifts even slightly the flag could read true where it reads
+    false now, and the harness would start driving sessions nobody asked it to.
+    """
+
+    def test_global_true_stays_true(self):
+        fx = Fixture(global_flags={"enableCaseAdvancer": True})
+        self.addCleanup(fx.cleanup)
+        self.assertIs(fx.resolve(), True)
+
+    def test_global_false_stays_false(self):
+        fx = Fixture(global_flags={"enableCaseAdvancer": False})
+        self.addCleanup(fx.cleanup)
+        self.assertIs(fx.resolve(), False)
+
+    def test_a_flag_absent_from_global_is_undefined_not_true(self):
+        """The caller owns the default. Returning anything truthy here would
+        turn "not configured" into "switched on"."""
+        fx = Fixture(global_flags={"somethingElse": True})
+        self.addCleanup(fx.cleanup)
+        self.assertIsNone(fx.resolve())
+
+    def test_no_global_file_at_all(self):
+        fx = Fixture()
+        self.addCleanup(fx.cleanup)
+        self.assertIsNone(fx.resolve())
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestLocalWinsForThatProjectOnly(unittest.TestCase):
+    def test_local_overrides_global(self):
+        fx = Fixture(global_flags={"enableCaseAdvancer": False},
+                     local_text=json.dumps({"enableCaseAdvancer": True}))
+        self.addCleanup(fx.cleanup)
+        self.assertIs(fx.resolve(), True)
+
+    def test_another_directory_is_untouched(self):
+        """The whole point. A measurement in one project must not drive the
+        user's other projects — which is what happened on 2026-08-08."""
+        fx = Fixture(global_flags={"enableCaseAdvancer": False},
+                     local_text=json.dumps({"enableCaseAdvancer": True}))
+        self.addCleanup(fx.cleanup)
+        elsewhere = os.path.join(fx.root, "someone-elses-project")
+        os.makedirs(elsewhere)
+        self.assertIs(fx.resolve(cwd=elsewhere), False)
+
+    def test_a_local_file_without_the_key_falls_through(self):
+        fx = Fixture(global_flags={"enableCaseAdvancer": True},
+                     local_text=json.dumps({"unrelated": 1}))
+        self.addCleanup(fx.cleanup)
+        self.assertIs(fx.resolve(), True)
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestTheLocalFileIsATrustBoundary(unittest.TestCase):
+    """It arrives with the project being worked on, which is not necessarily
+    code the user wrote. A local file that could switch on deep research, or
+    switch a guard off, makes config an attack surface."""
+
+    def test_only_scoped_flags_are_readable_from_a_project(self):
+        for name in ("enableDeepResearch", "enableCaseBridge", "enableHookAdvisories",
+                     "skillTiers", "usableContextTokens"):
+            with self.subTest(name=name):
+                fx = Fixture(global_flags={name: False},
+                             local_text=json.dumps({name: True}))
+                self.addCleanup(fx.cleanup)
+                self.assertIs(fx.resolve(name=name), False,
+                              "a project must not be able to set %s" % name)
+
+    def test_the_scoped_set_is_small_and_named(self):
+        out = run_js("""
+        process.stdout.write(JSON.stringify({ names: [...m.PROJECT_SCOPED].sort() }));
+        """)
+        self.assertEqual(out["names"], ["enableCaseAdvancer"],
+                         "widen this deliberately, one flag at a time, never as a side effect")
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestItFailsOpenToGlobal(unittest.TestCase):
+    """Unreadable local state must mean "no local state", never "everything
+    off" — a broken file in someone's project should not disable the harness."""
+
+    def test_unparseable_local_file(self):
+        fx = Fixture(global_flags={"enableCaseAdvancer": True}, local_text="{ not json")
+        self.addCleanup(fx.cleanup)
+        self.assertIs(fx.resolve(), True)
+
+    def test_local_file_is_not_an_object(self):
+        """Four shapes, because the mutation sweep showed one was not enough:
+        both `&&` in the object test survived against the array case alone.
+
+        `null` is the sharp one. It parses as JSON, `typeof null` is "object",
+        and `key in null` throws — so a project shipping a file containing the
+        four characters `null` could take the resolver down."""
+        for text in ("[1,2,3]", "null", '"a string"', "42"):
+            with self.subTest(text=text):
+                fx = Fixture(global_flags={"enableCaseAdvancer": True}, local_text=text)
+                self.addCleanup(fx.cleanup)
+                self.assertIs(fx.resolve(), True)
+
+    def test_no_cwd_known(self):
+        fx = Fixture(global_flags={"enableCaseAdvancer": True},
+                     local_text=json.dumps({"enableCaseAdvancer": False}))
+        self.addCleanup(fx.cleanup)
+        for cwd in ("", None):
+            with self.subTest(cwd=cwd):
+                self.assertIs(fx.resolve(cwd=cwd or ""), True)
+
+    def test_no_harness_root_and_no_local(self):
+        out = run_js("""
+        process.stdout.write(JSON.stringify({ v: m.resolveFlag("enableCaseAdvancer", "", "") ?? null }));
+        """)
+        self.assertIsNone(out["v"])
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestTheBridgeUsesIt(unittest.TestCase):
+    def test_case_advancer_reads_through_the_resolver(self):
+        with open(os.path.join(ROOT, "pi-extensions", "case-bridge", "index.ts"),
+                  encoding="utf-8") as f:
+            src = f.read()
+        body = src.split("function caseAdvancerEnabled", 1)[1][:700]
+        self.assertIn("resolveFlag(", body,
+                      "the resolver nobody calls is a module, not a mechanism")
+
+    def test_the_other_flags_were_left_alone(self):
+        """Scope creep here means changing seven bridges at once, none of which
+        has a measured problem."""
+        with open(os.path.join(ROOT, "pi-extensions", "case-bridge", "index.ts"),
+                  encoding="utf-8") as f:
+            src = f.read()
+        self.assertEqual(src.count("resolveFlag("), 1)
+
+
+if __name__ == "__main__":
+    unittest.main()

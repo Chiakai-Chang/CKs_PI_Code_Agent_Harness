@@ -19,32 +19,41 @@
 
 所有開放項目卡在同一句話:**程式管得了「怎麼做」,管不了「要不要開始做」。**
 
-## 當前工作順序(2026-08-06 重排,理由見下)
+## 當前工作順序(2026-08-08 重寫)
 
-前一版的順序是「照疤痕修」。今天量到的三件事把順序整個推翻:
-
-* 推進器的三個缺陷是**地基**(事件位置、停滯判準、誰的狀態被改),不是參數;
-* 這三件我們自己的筆記早就寫過,而**沒有東西把筆記接到工作上**;
-* cwd 混淆吃掉 5 次 run 裡的 2 次 —— 它比推進器更上游。
-
-新順序:
+**上一版是 15 列、其中 11 列已完成,編號跑成 `0,1,2,2b,2d,2e,2c,3,2f,4,4a,4b,5`。**
+它變成了變更紀錄,讀的人看不出下一步 —— 一份看起來有在維護、實際已停止發揮作用的產物。
+完成的移到下一節,這一節只留「還沒做的」。
 
 | # | 做什麼 | 為什麼排在這 |
 |---|---|---|
-| 0 ✅ | prior-art 登記表 + CI 檢查 + RATIONALE 格式(取自 OmniHeal) | 不先修這個,下面每一項都會再重做一次 |
-| 1 ✅ | **先讀**:`auto-pi`、`loopy`,寫進 [RATIONALE](../docs/prior-art/RATIONALE.md) | 做對了:auto-pi 的階段門控直接改變了下面的順序,新增 Task_016 排在 Task_015 前面 |
-| 2 ✅ | **`Task_016_phase_tool_gate`**(REVIEW):階段工具白名單,在 `tool_call` 擋 | **閘會響、繞道被堵、但模型仍未認領** —— 擋阻移除錯的路,不供給對的路。見 [docs/case/task-016-phase-tool-gate.md](../docs/case/task-016-phase-tool-gate.md) |
-| 2b ✅ | `Task_015_advancer_settled_loop`(REVIEW) | **跑通了**:閘 + 推一起,任務自己走到 `REVIEW`,推進器只開口 4 次、零升級。換事件那一項以證據反轉(`agent_settled` 依合約接不到續跑) |
-| 2d ✅ | **repo↔installed 漂移檢查**(`scripts/verify-bridges.py`) | 2026-08-08:Task_003 的修正推上去了卻**沒安裝**,Pi 整天載入修正前版本,而 910 測試 + 四個檢查全綠。「Pi 跑的是安裝副本」以前**只有紀律**;現在有 missing / changed / extra 三種形狀,對真實安裝目錄證明過會紅 |
-| 2e ✅ | **Checker 核可批次**(使用者授權單軌) | 十個任務九個 `DONE`、`Task_003` 擋下。判定與三項副產發現見 [docs/case/2026-08-08-checker-pass.md](../docs/case/2026-08-08-checker-pass.md) |
-| 2c ✅ | **`Task_017_guard_mutation_check`**(REVIEW) | **機制成立且抓到真洞**:`harness-root.ts:40` 兩個 `||` 都沒被守住(已補測試,5/5 全殺);全掃描 34 個存活者,其中 `task-queue-guard.ts:217` 的 `block: true` 可改成 `false` 而測試全綠 —— 守衛繼續算、繼續給理由、就是不再擋。**但 Task_003 的解除條件未滿足**(那一行沒有變異點)。後續:negation-removal 運算子 + 31 個未分類存活者 |
-| ~~2c~~ | ~~`Task_017_guard_mutation_check`~~(原始理由,保留) | 全日復盤:B 類失敗(檢查無法失敗 / fixture 無法區分)今天兩次、更早兩次,而目前**只有紀律沒有機制**。**且 Task_003 已明確把兩個活下來的變異留給它抓,那是解除 Task_003 REVIEW 的條件。** 見 [docs/retro/2026-08-06-session-retrospective.md](../docs/retro/2026-08-06-session-retrospective.md) |
-| 3 ✅ | `Task_003_cwd_confusion`(DONE,二次核可) | 兩個活下來的破壞**原樣重現、都會紅**;窮舉變異 10/10 全殺。修法是把理由字串搬成純函式,不是把斷言寫緊。見 [docs/case/task-003-cwd-confusion.md](../docs/case/task-003-cwd-confusion.md) |
-| 2f ✅ | 變異檢查進 CI(`--cap 4`,實測 79 秒) | governance 測試擋下了「有記錄卻不在 CI 的 check」,而它是對的。進 CI 的前提是**先把取樣點上的存活者處理掉** —— 8 個減到 3 個,剩下的全部具名 |
-| 4 ⏸ | 重測完成:**4/4 走到 REVIEW、零升級、status 8 次寫入全走工具**(對照 2026-08-06 的 0/5 與三次 ESCALATED)。但 **`enableCaseAdvancer` 仍維持 `false`**,因為量到兩個**門檻定在錯單位**的缺陷:(a) 階段閘的退場數拒絕次數,而模型**一輪並行五個 `web_search`**,一輪就用光 4 次額度;(b) `nextStep()` 在 `REVIEW` + 有 retro 時直接判終端,**不回頭看 `output.md`** —— 一次 run 因此在沒有交付物的情況下被祝福為完成。 見 [docs/measurements/2026-08-08-advancer-remeasure.md](../docs/measurements/2026-08-08-advancer-remeasure.md) |
-| 4a ✅ | 兩個門檻都改了:退場以**輪**為單位(同一輪內同一段文案,跨輪才升級);`nextStep()` 在 `REVIEW` 回頭檢查 `output.md` | 順帶補上 phase-gate 兩處 `block: true` 物件字面值的測試 —— **同型第三次**(task-queue-guard、loop-detect、phase-gate) |
-| 4b | **重測**:驗開場那一擊現在會不會被擋 | 門檻改了卻沒在真實 run 響過,就是「沒響過的守衛」。這是談預設值的最後一步 |
-| 5 | 依 `docs/prior-art/REGISTER.md` 的優先序清掉其餘 25 個未審視來源 | 每清一個寫一則 RATIONALE 條目 |
+| **1** | **`Task_019_harness_scope`** —— local / global 分域,預設 local(取自 prime-agent) | **它是 4b 的前置**:目前量測要翻全域旗標 + 把佇列搬出 repo,期間會騷擾使用者其他專案。分域之後重測才便宜又安全 |
+| **2** | **4b 重測** —— 驗新的「輪制」退場會不會擋下開場那一擊 | 門檻改了卻沒在真實 run 響過,就是「沒響過的守衛」。**這是談 `enableCaseAdvancer` 預設值的最後一步,也是擁有者原始需求的驗收點** |
+| 3 | refinement 事件 append-only + `rollbackOf` 回滾(取自 prime-agent) | **在有回滾之前,不要讓 harness 自我改進** |
+| 4 | supplemental-only 提示層,base 不可變且真的擋(取自 prime-agent) | 會改變注入的形狀,所以排在分域與回滾之後 |
+| 5 | 讀 Continual Harness 論文(arXiv 2605.09998) | 確認上面三項有沒有前提沒抄到 |
+| 6 | 清掉 REGISTER 其餘 23 個未審視來源 | 每清一個寫一則 RATIONALE 條目 |
+| 7 | 變異掃描 `--all` 的既有存活者(CI 只覆蓋取樣點) | 品質債,不是活的繞道,所以排在後面 |
+
+**待核可(Path A:回報給使用者,由他一句話決定,不必開新 session)**
+`Task_013_write_forms_blind_spot` · `Task_017_guard_mutation_check` · `Task_018_path_a_human_review`
+
+## 已完成(2026-08-06 ~ 08)
+
+| 項目 | 結論 |
+|---|---|
+| prior-art 登記表 + CI 檢查 + RATIONALE | 三份清單交叉比對;prime-agent 那次連抓兩個缺失,機制有效 |
+| `Task_016_phase_tool_gate` | 閘會響、繞道被堵;但擋阻只能移除錯的路,不能供給對的路 |
+| `Task_015_advancer_settled_loop` | 閘 + 推一起才跑通;換事件那一項**以證據反轉** |
+| repo↔installed 漂移檢查 | Task_003 的修正推了卻沒安裝,Pi 整天跑舊版而四個檢查全綠。以前只有紀律 |
+| Checker 核可批次 | 十個任務九個 DONE、`Task_003` 擋下 —— [2026-08-08-checker-pass.md](../docs/case/2026-08-08-checker-pass.md) |
+| `Task_017_guard_mutation_check` | 機制成立且抓到真洞;`block: true` 物件字面值**同型出現四次** |
+| `Task_003_cwd_confusion` | 兩個破壞原樣重現都會紅;窮舉 10/10。**驗收要重現破壞,不是驗工具碰得到那一行** |
+| 變異檢查進 CI | `--cap 4` 實測 79 秒;進 CI 的前提是先清掉取樣點上的存活者 |
+| `Task_013_write_forms_blind_spot` | `sed -i` / `dd of=` 的後門補上;**變異掃描當場否決了作者自己的判斷** |
+| 推進器重測 | **4/4 走到 REVIEW、零升級**(對照 0/5 與三次 ESCALATED)。但兩個門檻定在錯單位 |
+| 4a 門檻修正 | 退場改以**輪**為單位;`nextStep()` 在 REVIEW 回頭檢查交付物 |
+| `Task_018_path_a_human_review` | **協定的 Path A 一直都在,是我們把它關掉了** —— [task-018](../docs/case/task-018-path-a-human-review.md) |
 
 **一條從 OmniHeal 借來、待評估的改進**:它的 3-Strike 是分層的
 (第 1 次換方式 → 第 2 次再換 → 第 3 次記錄並跳過)。

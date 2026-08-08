@@ -1,0 +1,87 @@
+/**
+ * A flag that belongs to one project, resolved without disturbing the others.
+ *
+ * `pi-config/harness-config.json` is global, and seven bridges read it from ten
+ * call sites. Measured 2026-08-08: re-measuring the advancer meant switching
+ * `enableCaseAdvancer` on globally and running restore, so for the three
+ * minutes of that measurement any other C.A.S.E. project the user opened would
+ * have been driven too. Task_002's output.md listed the limitation
+ * ("無法讓旗標只對 fixture 生效") and it stayed open.
+ *
+ * `research/prime-agent` keeps continual-harness state local by default and
+ * promotes only durable cross-session lessons to global (refinement.ts:974).
+ * The default direction is adopted; the location is not — theirs is per
+ * session, and a measurement runs in a different directory under a different
+ * session, so this is per project.
+ *
+ * Two properties matter more than the feature:
+ *
+ * 1. **No local file must behave exactly as before.** `enableCaseAdvancer`
+ *    triggers turns, and every machine today has no local file. Drift in the
+ *    open direction would start the harness driving sessions nobody asked for.
+ * 2. **The local file is a trust boundary.** It ships with the project being
+ *    worked on, which is not necessarily the user's own code, so exactly one
+ *    named flag is readable from there. A local file that could switch on deep
+ *    research or switch a guard off would make config an attack surface.
+ */
+
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
+/** The local file a project may carry. */
+export const LOCAL_CONFIG_NAME = ".pi-harness.json";
+
+/**
+ * Flags a project may set for itself.
+ *
+ * Deliberately one entry. Widening this is a decision taken one flag at a time
+ * with a reason, never a side effect of touching this file — the other
+ * nineteen have no measured problem, and switching seven bridges' behaviour at
+ * once leaves nobody able to say which one broke.
+ */
+export const PROJECT_SCOPED: ReadonlySet<string> = new Set(["enableCaseAdvancer"]);
+
+function readJsonObject(path: string): Record<string, unknown> | null {
+  try {
+    if (!existsSync(path)) return null;
+    const data = JSON.parse(readFileSync(path, "utf8"));
+    // An array parses as JSON and is not a config. Treating it as one would
+    // read `undefined` for every key, which is indistinguishable from "not
+    // configured" and hides the mistake.
+    return data && typeof data === "object" && !Array.isArray(data)
+      ? (data as Record<string, unknown>)
+      : null;
+  } catch {
+    // Unreadable local state means "no local state", never "everything off".
+    // A broken file in someone's project must not disable the harness.
+    return null;
+  }
+}
+
+/**
+ * The value of a flag for this project, or undefined when nothing sets it.
+ *
+ * Undefined rather than false on purpose: the caller owns the default, and
+ * turning "not configured" into "switched on" here would be the one mistake
+ * this module cannot afford.
+ */
+export function resolveFlag(
+  name: unknown,
+  cwd: unknown,
+  harnessRoot: unknown,
+): unknown {
+  const key = String(name ?? "");
+  if (!key) return undefined;
+
+  const project = String(cwd ?? "");
+  if (project && PROJECT_SCOPED.has(key)) {
+    const local = readJsonObject(join(project, LOCAL_CONFIG_NAME));
+    if (local && key in local) return local[key];
+  }
+
+  const root = String(harnessRoot ?? "");
+  if (!root) return undefined;
+  const global = readJsonObject(join(root, "pi-config", "harness-config.json"));
+  if (global && key in global) return global[key];
+  return undefined;
+}

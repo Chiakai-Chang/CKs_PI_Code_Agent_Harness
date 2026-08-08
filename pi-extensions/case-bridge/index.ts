@@ -14,6 +14,7 @@ import { TaskQueueGuard } from "./task-queue-guard.ts";
 import { ActionLogger } from "./action-log.ts";
 import { QueueAdvancer } from "./queue-advancer.ts";
 import { PhaseGate } from "./phase-gate.ts";
+import { resolveFlag } from "./harness-scope.ts";
 
 const MAX_INJECT_CHARS = 3000;
 
@@ -58,11 +59,17 @@ function harnessRoot(): string | null {
   }
 }
 
-function caseAdvancerEnabled(harnessRoot: string): boolean {
+/**
+ * Fails CLOSED, and now resolves per project.
+ *
+ * A project may switch this on for itself with `.pi-harness.json`; without one
+ * the global file decides exactly as before. Measuring used to require flipping
+ * the global flag, which drove every other C.A.S.E. project the user had open
+ * for the duration — see harness-scope.ts.
+ */
+function caseAdvancerEnabled(harnessRoot: string, cwd?: string): boolean {
   try {
-    const cfgPath = join(harnessRoot, "pi-config", "harness-config.json");
-    if (!existsSync(cfgPath)) return false;
-    return JSON.parse(readFileSync(cfgPath, "utf8"))["enableCaseAdvancer"] === true;
+    return resolveFlag("enableCaseAdvancer", cwd ?? "", harnessRoot) === true;
   } catch {
     return false;
   }
@@ -206,7 +213,7 @@ export default function (pi: ExtensionAPI) {
     phaseGate.turnEnded();
 
     const root = harnessRoot();
-    if (!root || !caseAdvancerEnabled(root)) return;
+    if (!root || !caseAdvancerEnabled(root, ctx.cwd)) return;
     if (!isCaseProject(ctx.cwd)) return;
 
     const spoke = Boolean(extractText((event as { message?: unknown }).message).trim());
