@@ -222,10 +222,27 @@ export function nextStep(queueDir: unknown): NextStep | null {
     }
     // §1 is non-negotiable and Path B still requires a fresh context, so this
     // session is not allowed to approve its own work. The step is to stop.
+    // Path A, the protocol's default for supervised runs: the AI reports and
+    // the human approves in plain language. This used to say "open a new
+    // session" — Path B's requirement, stated as if it were the only road —
+    // which handed the review work back to the person for_humans.md 步驟三
+    // says must not have to do it: "不需要手動修改任何 status.txt 檔案或逐項勾選".
     return say("",
-      `[C.A.S.E.] ${task.name} 已在 REVIEW 且復盤已寫。核可必須由**另一個 session** 進行 —— ` +
-      `§1 的雙軌驗證不可協商,Path B 的自主核可也明訂需要 fresh context。` +
-      `這一輪到此為止,請告訴使用者可以開新 session 當 Checker。`, true);
+      `[C.A.S.E.] ${task.name} 已在 REVIEW,復盤也寫了。**現在換你把結果講給使用者聽,不是叫他自己去看檔案。**
+` +
+      `1. 逐條列出 recipe.md 的 Local DoD,每一條標 ✅ / ❌,並附上你**實際跑過的指令與輸出**。
+` +
+      `2. **明講你驗不了的部分** —— 沒跑到的、只有推論的、刻意不做的,一項都不要藏。
+` +
+      `3. 然後給三個選項,讓他一句話就能回答:
+` +
+      `   A) 通過 → 你直接把 status.txt 改成 DONE
+` +
+      `   B) 哪裡要改 → 你寫進 feedback.md,狀態回 IN_PROGRESS
+` +
+      `   C) 想自己看細節 → 你把檔案路徑指給他
+` +
+      `使用者說「通過 / 沒問題 / OK」就是核可(§7 Path A),你不需要請他開新 session。`, true);
   }
 
   // DONE / ESCALATED / anything unrecognised: not this mechanism's business.

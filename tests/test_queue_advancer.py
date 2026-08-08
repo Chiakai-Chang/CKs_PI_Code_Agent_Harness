@@ -178,7 +178,20 @@ class TestTheLookupTable(unittest.TestCase):
         self.q.task("Task_001_a", "REVIEW", planning=PLAN_OK, output=OUTPUT_OK, retro=True)
         s = step_of(self.q)
         self.assertEqual(s["missing"], "")
-        self.assertRegex(s["instruction"], r"(另一個 session|fresh context|separate session)")
+        # Rewritten 2026-08-08. The old assertion demanded "另一個 session",
+        # which is Path B's requirement stated as if it were the only road.
+        # Section 7 makes Path A — the human approving in the chat — the
+        # DEFAULT for supervised runs, and Section 1 asks only that the Worker
+        # not approve its own work. Demanding a new session made Path A
+        # unexecutable and handed the review back to the person that
+        # for_humans.md 步驟三 says must not have to do it.
+        #
+        # What the test still protects is the same thing it always did: the
+        # advancer must never tell this session to close the task on its own
+        # word.
+        self.assertRegex(s["instruction"], r"(講給使用者|回報|使用者說)")
+        self.assertRegex(s["instruction"], r"Local DoD")
+        self.assertRegex(s["instruction"], r"A\)|B\)|C\)")
         self.assertNotRegex(s["instruction"], r"(直接核可|可以核可|approve it now)")
 
     def test_done_and_escalated_are_left_alone(self):
@@ -410,7 +423,7 @@ class TestAReviewWithNoDeliverable(unittest.TestCase):
         hands over to another session, exactly once."""
         s = self._step(planning=PLAN_OK, output=OUTPUT_OK, retro=True)
         self.assertEqual(s["missing"], "")
-        self.assertRegex(s["instruction"], r"(另一個 session|fresh context|separate session)")
+        self.assertRegex(s["instruction"], r"(講給使用者|回報)")
 
 
 if __name__ == "__main__":

@@ -1,13 +1,9 @@
 {
   "_comment": "Mutations that survive with an argument for why no test can tell the difference. A blank reason fails the run - see verdict() in scripts/check-guard-mutations.py. Verify each claim before adding one; an unverified entry is how a survivor list becomes a formality. Note that the object-literal form `block: true,` is NEVER equivalent - Pi reads the field - and belongs in a test, not here.",
-
   "bash-containment.ts:47:10:true->false": "Type declaration, not code: `export interface ContainmentBlock { block: true; }`. TypeScript types are erased before the module runs, so the mutant is byte-identical at runtime and no test can distinguish it. Verified by reading lines 46-49.",
-
   "loop-detect.ts:44:10:true->false": "Same shape as bash-containment.ts:47 - `block: true;` inside an interface declaration, erased at runtime. Note the semicolon: the object-literal form ends in a comma and IS a real hole, which is why loop-detect.ts:73 is a test and not an entry here.",
-
   "queue-advancer.ts:81:12:true->false": "`paused?: true;` - an optional property in a type declaration. The `?:` syntax exists only in types, so this cannot reach runtime.",
-
   "task-queue-guard.ts:106:10:true->false": "`export interface QueueBlock { block: true; }` - a type declaration, erased at runtime. Verified by reading lines 104-108. The two object-literal sites in this file (the tool-first refusal and the Section 1 dual-track refusal) are covered by tests asserting the field, not by entries here.",
-
-  "queue-advancer.ts:151:36:||->&&": "`if (typeof queueDir !== \"string\" || !queueDir) return null;` with && lets an empty string through, and the very next statement calls currentTask(queueDir) inside a try/catch that returns null on any throw. An empty path throws there, so both versions return null for every input - the observable behaviour is identical and no test can separate them. Verified by reading lines 150-158."
+  "queue-advancer.ts:151:36:||->&&": "`if (typeof queueDir !== \"string\" || !queueDir) return null;` with && lets an empty string through, and the very next statement calls currentTask(queueDir) inside a try/catch that returns null on any throw. An empty path throws there, so both versions return null for every input - the observable behaviour is identical and no test can separate them. Verified by reading lines 150-158.",
+  "approval.ts:71:13:||->&&": "`if (!text || text.length > MAX) return false;` with && lets an empty string through, and an empty string then matches neither approval pattern, so it returns false by the other door. Identical observable behaviour for every input - same shape as queue-advancer.ts:151. Verified by reading isHumanApproval end to end."
 }

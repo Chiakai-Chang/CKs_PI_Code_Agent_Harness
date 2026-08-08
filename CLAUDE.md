@@ -53,6 +53,14 @@ This harness runs **bridge extensions** that inject behavioral discipline into e
 * **The session JSONL is not the event stream.** It contains a `role: toolResult` record with `isError: true` for a blocked call — written by Pi for the log, never delivered to a handler. Visible in the transcript ≠ received by an extension.
 * **A turn that produced no text is not the end of a reply.** Pi ends a turn whenever the model stops, so a tool-only turn fires `turn_end` with empty text. Per-turn state cleared there is gone before the turn that actually speaks.
 
+## 🤝 C.A.S.E. 驗收走 Path A(不要叫使用者開新 session)
+協定 §7 明訂 **Path A(人在對話裡口頭核可)是監督式部署的預設**;§1 只禁止 Worker 自我核可,
+**沒有要求換 session** —— Path A 的 Checker 就是人。只有 Path B(無人值守)才要 fresh context。
+任務到 `REVIEW` 時:**逐條回報 Local DoD(附實際跑過的指令與輸出)、明講驗不了的部分、給三個選項**
+(通過 / 哪裡要改 / 想自己看細節),而不是叫使用者自己去讀 `output.md`。
+使用者說「通過 / 沒問題 / OK」即為核可,由 bridge 在 `before_agent_start` 讀真實輸入為憑 ——
+**模型的轉述一律不算**。
+
 ## 📚 Prior Art First (先查既有,再動手)
 **Before designing any new mechanism, open [docs/prior-art/REGISTER.md](docs/prior-art/REGISTER.md) and find the same capability in a source we already cloned.** Write "adopt / port / skip + why" per candidate into the task's `recipe.md > Input Sources`. Skipping this cost a full day on 2026-08-06: a queue advancer was built on `turn_end` with a counter over injections, and a five-run measurement rediscovered — by experiment — the two facts our own `docs/superpowers/pi-until-done-learnings/02-*.md` already stated in writing (`agent_settled` owns continuation; the spin guard keys on progress signals). `reference/pi-until-done` implements both.
 * **Cloned ≠ reviewed; reviewed ≠ remembered.** The register's 審視狀態 column is the difference, and `python scripts/check-prior-art.py` (in CI) keeps README's list, the manifest and the clones on disk from drifting apart.

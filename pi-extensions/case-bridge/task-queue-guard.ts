@@ -57,6 +57,8 @@ const ILLEGAL = new Set(["PENDING>DONE", "PENDING>REVIEW", "IN_PROGRESS>DONE"]);
 
 const TASK_DIR_RE = /^Task_(\d+)_/;
 const QUEUE_DIR = "02_Task_Queue";
+import { ApprovalRecord } from "./approval.ts";
+
 const WRITE_TOOLS = new Set(["write", "edit"]);
 
 /**
@@ -203,6 +205,16 @@ function openTasks(queueDir: string): string[] {
 }
 
 export class TaskQueueGuard {
+  /**
+   * The user's approval, seen by the bridge rather than reported by the model.
+   *
+   * Fed from `before_agent_start`, whose `prompt` is documented as "the raw
+   * user prompt text (after expansion)". Nothing the model writes reaches it:
+   * `blocked-claim` measured a run announcing "已執行完畢" for a call that had
+   * just been refused.
+   */
+  readonly humanApproved = new ApprovalRecord();
+
   /** Task directories this session moved to IN_PROGRESS — the Worker's own. */
   private startedHere = new Set<string>();
   private blocked = new Map<RuleName, number>();
@@ -292,16 +304,26 @@ export class TaskQueueGuard {
       // makes role separation non-negotiable. So this costs an unattended run a
       // session boundary per task, which is the protocol's price rather than
       // this guard's, and pi-skills/commands/case.md says so up front.
+      // Path A first: the protocol's DEFAULT for supervised deployments is a
+      // human approving in the chat, and there the Checker IS the person, so
+      // Section 1 is satisfied without a second session. This guard used to
+      // refuse regardless, which made Path A unexecutable and pushed the
+      // review work back onto the user — "a Worker must not self-approve" read
+      // as "must change session". The evidence is a real user prompt seen by
+      // the bridge at before_agent_start, never anything the model says.
+      if (this.startedHere.has(taskDir) && this.humanApproved.take()) return null;
       if (this.startedHere.has(taskDir) && this.refuse("self-approval")) {
         return {
           block: true,
           reason:
             `C.A.S.E. dual-track guard: this session moved ${taskName} to ` +
             `IN_PROGRESS, so it is the Worker and cannot also be the Checker. ` +
-            `Section 1 makes that non-negotiable, and Path B's autonomous ` +
-            `approval still requires a FRESH context. Leave it at REVIEW, start ` +
-            `a new session, and check output.md against recipe.md's Local DoD ` +
-            `there.`,
+            `Section 1 is satisfied either way — but somebody other than the ` +
+            `Worker has to say so. Two ways: report the result to the user and ` +
+            `let them approve in the chat (Path A, the protocol's default for ` +
+            `supervised runs), or leave it at REVIEW for a fresh session to ` +
+            `check output.md against recipe.md's Local DoD (Path B). What is ` +
+            `not allowed is closing it on your own word.`,
         };
       }
     }

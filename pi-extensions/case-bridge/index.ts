@@ -118,6 +118,7 @@ export default function (pi: ExtensionAPI) {
     // A new session is a new Worker: whoever moved a task to IN_PROGRESS last
     // time is not this session, and the dual-track rule must not carry over.
     queueGuard.reset();
+    queueGuard.humanApproved.reset();
     advancer.reset();
     if (!isCaseProject(ctx.cwd)) return;
     if (!caseBridgeEnabled()) return;
@@ -133,6 +134,16 @@ export default function (pi: ExtensionAPI) {
   // and its task never left PENDING — a mechanism speaking at `turn_end` cannot
   // catch that, which is what the same measurement concluded.
   const phaseGate = new PhaseGate();
+
+  // Path A's evidence, taken from what the user actually typed. The type
+  // declares `prompt` as "the raw user prompt text (after expansion)", so this
+  // is the bridge seeing the person speak rather than the model reporting that
+  // they did — a distinction `blocked-claim` had to be built to enforce once
+  // already.
+  pi.on("before_agent_start", async (event) => {
+    if (!caseBridgeEnabled()) return;
+    queueGuard.humanApproved.note((event as { prompt?: unknown }).prompt);
+  });
 
   pi.on("tool_call", async (event, ctx) => {
     if (!caseBridgeEnabled()) return;

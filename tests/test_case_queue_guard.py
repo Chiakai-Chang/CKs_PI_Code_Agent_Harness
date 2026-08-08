@@ -168,6 +168,21 @@ class TestIllegalTransitions(unittest.TestCase):
         self.assertTrue(out["blocked"])
         self.assertIn("PENDING", out["reason"])
 
+    def test_the_retro_refusal_actually_carries_block_true(self):
+        """Section 13a's guard, same shape as the other two closed today: the
+        object literal form is never an equivalent mutant, because Pi reads the
+        field. Without it the guard would keep detecting the missing retro,
+        keep quoting 13a, and let DONE through."""
+        d = self.fx.task("Task_001_A", "REVIEW")
+        out = run_js("""
+        const g = new m.TaskQueueGuard();
+        const r = g.check("write", { path: %s + "/status.txt", content: "DONE" }, "");
+        process.stdout.write(JSON.stringify({ block: r ? r.block : null,
+                                              reason: r ? r.reason : "" }));
+        """ % json.dumps(d))
+        self.assertIn("retro", out["reason"])
+        self.assertIs(out["block"], True)
+
     def test_the_dual_track_refusal_actually_carries_block_true(self):
         """Added 2026-08-08 from the mutation sweep.
 
