@@ -235,14 +235,78 @@ def poll_until_done(proc, session_dir: Path, task_dir: Path, limit_s: int, quiet
             print(f"    [{int(now - started):>4}s] {size:>7} bytes  status={read_status(task_dir)}")
         if now - last_change > quiet_s:
             print(f"    quiet for {quiet_s}s — stopping")
-            proc.terminate()
+            stop_tree(proc)
             return "quiet"
         if now - started > limit_s:
             print(f"    hit the {limit_s}s ceiling — stopping")
-            proc.terminate()
+            stop_tree(proc)
             return "ceiling"
         time.sleep(5)
     return "finished"
+
+
+
+def stop_tree(proc) -> None:
+    """Kill the process AND its children, then verify nothing survived.
+
+    `pi` resolves to `pi.CMD` on Windows, so the launch goes through a shell and
+    `proc.terminate()` reaches the cmd.exe wrapper only. The node process
+    underneath survives and keeps generating against the local model server.
+
+    Measured 2026-08-09, because the owner noticed the model was still busy
+    while nothing was running here: two orphaned `pi --print` processes from
+    runs this script had "terminated" the night before were still alive, still
+    holding slots on the server, and therefore still competing with every later
+    measurement. Two runs that reported "quiet for 180s" were racing orphans
+    they had themselves created.
+
+    The repo already carried this scar in another form: on Windows spawn()
+    hands back the launcher, so what has to be asserted is killability, not pid
+    equality.
+    """
+    if proc.poll() is not None:
+        return
+    if os.name == "nt":
+        # taskkill /T walks the tree; terminate() does not.
+        subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"],
+                       capture_output=True)
+    else:
+        proc.terminate()
+    try:
+        proc.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+
+
+def orphan_pids() -> list:
+    """Live `pi --print` processes, whoever started them.
+
+    Run before and after a measurement: one left over from earlier is not a
+    curiosity, it is another client on the same model server and every number
+    taken beside it is suspect.
+
+    PowerShell CIM rather than `wmic`. The first version used wmic, which does
+    not exist on this machine at all — so the guard could only ever return an
+    empty list and could never fire. That is the exact class
+    `check-guard-mutations` was built for, written the same day, by me.
+    """
+    if os.name != "nt":
+        return []
+    script = (
+        "Get-CimInstance Win32_Process -Filter \"Name='node.exe'\" | "
+        "Where-Object { $_.CommandLine -like '*pi-coding-agent*' -and "
+        "$_.CommandLine -like '*--print*' } | "
+        "ForEach-Object { $_.ProcessId }"
+    )
+    try:
+        out = subprocess.run(["powershell", "-NoProfile", "-Command", script],
+                             capture_output=True, text=True, errors="replace",
+                             timeout=60).stdout
+    except Exception:
+        # Unknowable is not the same as none: say so rather than report clean.
+        print("    WARNING: could not enumerate processes; orphan check did NOT run")
+        return []
+    return [int(t) for t in out.split() if t.isdigit()]
 
 
 def one_run(prompt_key: str, index: int, limit_s: int, quiet_s: int) -> dict:
@@ -261,10 +325,10 @@ def one_run(prompt_key: str, index: int, limit_s: int, quiet_s: int) -> dict:
         shell=exe.lower().endswith((".cmd", ".bat")),
     )
     how = poll_until_done(proc, session_dir, task, limit_s, quiet_s)
-    try:
-        proc.wait(timeout=30)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+    stop_tree(proc)
+    left = orphan_pids()
+    if left:
+        print(f"    WARNING: {len(left)} pi process(es) still alive after stop: {left}")
     counts = tally(session_dir) if session_dir.exists() else {}
     result = {"run": index, "prompt": prompt_key, "ended": how,
               "status": read_status(task),
@@ -363,6 +427,19 @@ def main() -> int:
 
     if not shutil.which("pi"):
         print("FAIL: `pi` is not on PATH")
+        return 2
+
+    # Refuse to measure beside another client of the same model server.
+    #
+    # 2026-08-09: two orphaned `pi --print` processes from the previous night
+    # were still holding slots, and the runs taken beside them reported "quiet
+    # for 180s" — a number produced by contention, not by the harness. A
+    # measurement with an unknown second consumer is not a measurement.
+    stale = orphan_pids()
+    if stale:
+        print(f"FAIL: {len(stale)} `pi --print` process(es) already running: {stale}")
+        print("Any number taken beside them is contended. Stop them first:")
+        print("  taskkill /PID <pid> /T /F")
         return 2
 
     results = [one_run(args.prompt, i + 1, args.limit, args.quiet) for i in range(args.runs)]
