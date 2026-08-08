@@ -184,6 +184,15 @@ def make_fixture(base: Path) -> Path:
     subprocess.run(["git", "init", "-q"], cwd=base, check=True)
     subprocess.run([sys.executable, str(BOOTSTRAP), str(base)],
                    check=True, capture_output=True)
+    # Scope the flag to THIS fixture instead of switching it on globally.
+    #
+    # Until 2026-08-08 a measurement meant editing pi-config/harness-config.json
+    # and running restore, which drove every other C.A.S.E. project the user had
+    # open for the duration. Task_019 added a per-project resolver; using it here
+    # is also the first live exercise of it, which is the difference between a
+    # mechanism that passes its unit tests and one that has fired.
+    (base / ".pi-harness.json").write_text(
+        json.dumps({"enableCaseAdvancer": True}, indent=2), encoding="utf-8")
     task = base / "02_Task_Queue" / "Task_001_probe"
     task.mkdir(parents=True, exist_ok=True)
     (task / "status.txt").write_text("PENDING", encoding="utf-8")
@@ -194,6 +203,9 @@ def make_fixture(base: Path) -> Path:
         "# Recipe\n\n## Objective\n\n回答使用者的問題。\n\n"
         "## Local Definition of Done\n\n- [ ] 回答寫進 output.md\n- [ ] retro.md 有四節\n",
         encoding="utf-8")
+    if not (base / ".pi-harness.json").exists():
+        raise SystemExit(f"FATAL: {base} has no .pi-harness.json — the advancer "
+                         f"would be off and the run would measure nothing.")
     # Assert the precondition instead of discovering it in the results. The
     # advancer checks exactly this, and a fixture that fails it produces a
     # clean page of zeroes that reads as a finding.
