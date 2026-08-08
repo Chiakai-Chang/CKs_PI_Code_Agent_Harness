@@ -160,15 +160,32 @@ def read_status(task_dir: Path) -> str:
         return "<missing>"
 
 
+BOOTSTRAP = ROOT / "external" / "Local-Agent-Workspace" / "scripts" / "bootstrap.py"
+
+
 def make_fixture(base: Path) -> Path:
-    """A C.A.S.E. project with one PENDING task, outside this repository.
+    """A real C.A.S.E. project with one PENDING task, outside this repository.
 
     Outside on purpose: the flag is global once restored, and a queue left
     inside the harness became a decoy that consumed an entire run.
+
+    Bootstrapped rather than hand-built, and that distinction is the whole
+    reason this function has a docstring. The first version created only
+    `02_Task_Queue/Task_001_probe/`, which looks like a C.A.S.E. project and is
+    not one: `isCaseProject()` asks for `CASE.md` or `00_Constitution`, so the
+    advancer returned before doing anything in all three runs. The phase gate
+    fired in the same runs because it keys on the queue directory alone — one
+    guard speaking and the other silent read like a bridge defect and was a
+    fixture defect.
+
+    Third time today that a hand-built fixture agreed with my expectations
+    instead of with the system.
     """
     subprocess.run(["git", "init", "-q"], cwd=base, check=True)
+    subprocess.run([sys.executable, str(BOOTSTRAP), str(base)],
+                   check=True, capture_output=True)
     task = base / "02_Task_Queue" / "Task_001_probe"
-    task.mkdir(parents=True)
+    task.mkdir(parents=True, exist_ok=True)
     (task / "status.txt").write_text("PENDING", encoding="utf-8")
     (task / "role.md").write_text(
         "# Role\n\nWorker. 回答使用者的問題,並照 C.A.S.E. 流程留下紀錄。\n",
@@ -177,6 +194,15 @@ def make_fixture(base: Path) -> Path:
         "# Recipe\n\n## Objective\n\n回答使用者的問題。\n\n"
         "## Local Definition of Done\n\n- [ ] 回答寫進 output.md\n- [ ] retro.md 有四節\n",
         encoding="utf-8")
+    # Assert the precondition instead of discovering it in the results. The
+    # advancer checks exactly this, and a fixture that fails it produces a
+    # clean page of zeroes that reads as a finding.
+    if not ((base / "CASE.md").exists() or (base / "00_Constitution").exists()):
+        raise SystemExit(
+            f"FATAL: {base} is not a C.A.S.E. project — no CASE.md and no "
+            f"00_Constitution, so isCaseProject() is false and the advancer "
+            f"will return before it does anything. Measuring here would report "
+            f"zero injections and mean nothing.")
     return task
 
 
