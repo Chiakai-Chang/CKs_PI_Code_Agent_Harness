@@ -15,6 +15,7 @@ import { ActionLogger } from "./action-log.ts";
 import { QueueAdvancer } from "./queue-advancer.ts";
 import { PhaseGate } from "./phase-gate.ts";
 import { resolveFlag } from "./harness-scope.ts";
+import { PhaseNotice } from "./phase-notice.ts";
 
 const MAX_INJECT_CHARS = 3000;
 
@@ -126,6 +127,7 @@ export default function (pi: ExtensionAPI) {
     // time is not this session, and the dual-track rule must not carry over.
     queueGuard.reset();
     queueGuard.humanApproved.reset();
+    phaseNotice.reset();
     advancer.reset();
     if (!isCaseProject(ctx.cwd)) return;
     if (!caseBridgeEnabled()) return;
@@ -141,6 +143,7 @@ export default function (pi: ExtensionAPI) {
   // and its task never left PENDING — a mechanism speaking at `turn_end` cannot
   // catch that, which is what the same measurement concluded.
   const phaseGate = new PhaseGate();
+  const phaseNotice = new PhaseNotice();
 
   // Path A's evidence, taken from what the user actually typed. The type
   // declares `prompt` as "the raw user prompt text (after expansion)", so this
@@ -177,6 +180,19 @@ export default function (pi: ExtensionAPI) {
   pi.on("tool_result", async (event, ctx) => {
     if (!caseBridgeEnabled()) return;
     actionLog.record(ctx.cwd, event.toolName, event.input, event.isError === true);
+    // Say when the door opened. The gate closing it was the only thing the
+    // model ever heard: twenty refusals, zero permissions, and it stopped
+    // searching for the rest of the run (4b, 2026-08-08). This rides the
+    // result of the claim itself — the moment the statement becomes true, on
+    // one of the two channels measured to reach the model. Appended, never
+    // replacing: a handler returning a bare block was dropped in silence once
+    // while eleven tests stayed green.
+    const opened = phaseNotice.afterToolResult(
+      join(ctx.cwd ?? "", "02_Task_Queue"), event.toolName, event.input,
+      event.isError === true);
+    if (opened) {
+      return { content: [...(event.content ?? []), { type: "text", text: opened }] };
+    }
   });
 
   // At the end of a turn: work out the next step and drive it.

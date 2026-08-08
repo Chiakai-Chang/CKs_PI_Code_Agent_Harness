@@ -62,6 +62,7 @@ GUARD_MODULES = {
     "pi-extensions/case-bridge/action-log.ts": ["test_case_action_log"],
     "pi-extensions/case-bridge/approval.ts": ["test_human_approval"],
     "pi-extensions/case-bridge/harness-scope.ts": ["test_harness_scope"],
+    "pi-extensions/case-bridge/phase-notice.ts": ["test_phase_opened_notice"],
     "pi-extensions/yes-hooks-bridge/bash-containment.ts": ["test_bash_containment"],
     "pi-extensions/yes-hooks-bridge/blocked-claim.ts": ["test_blocked_claim", "test_blocked_claim_channel", "test_blocked_claim_vocabulary"],
     "pi-extensions/yes-hooks-bridge/research-depth.ts": ["test_research_depth", "test_research_depth_bash"],
