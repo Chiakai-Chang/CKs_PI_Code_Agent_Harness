@@ -37,6 +37,7 @@
 | pi-until-done | reference-clone(**README 未列**) | reference/pi-until-done | 已審視(實作層) | docs/superpowers/pi-until-done-learnings/ · docs/prior-art/2026-08-06-pi-until-done-loop-reference.md | compaction 生存套件、Verifiability Block、hook 紀律文件;**待移植**:`agent_settled` 續跑、加權 progress signal、自動化失敗不動任務狀態、終端步驟不計時 | turn budget 對話框、YAML/widget UI、mise 綁定;**原本排除的 judge / Ralph loop 已被 Task_010/011/001 的工作事實推翻,重新列為待決** | 2026-08-06 |
 | oh-my-pi | reference-clone | reference/oh-my-pi | 已審視 | docs/superpowers/oh-my-pi-learnings/ | hashline edit 概念、context discovery 觀念 | 整套 natives/bash runtime | 2026-08-06 |
 | camofox-browser | reference-clone | reference/camofox-browser | 已審視 | docs/core/ | `stealth-web-bridge` 的 `web_search`/`web_open` | — | 2026-07-12 |
+| prime-agent | research-clone(**pi-mono 的 fork,非 Pi 擴充**) | research/prime-agent | 已審視(實作層) | docs/prior-art/2026-08-08-prime-agent-review.md | **待移植**:supplemental-only 提示層(base 不可改,有真實拒絕)、refinement 事件 append-only + rollback、local/global 分域且預設 local | 整套 RLM/IPython runtime、換底座(它釘 pi-coding-agent ^0.7.1,我們跑 0.83)、**「evidence-backed」的自陳式證據**(`evidence: proposal.rationale`,未驗證) | 2026-08-08 |
 | market-research | reference-clone | reference/market-research | 未審視 | — | — | — | — |
 | pi-browser-harness | reference-clone | research/pi-browser-harness | 未審視 | — | 蒸餾為 `deep-research-guide`、`browser-automation-guide`(**僅散文,無實作層紀錄**) | — | — |
 | metaharness | reference-clone | research/metaharness | 未審視 | — | 蒸餾為 `harness-factory-guide`(同上) | — | — |

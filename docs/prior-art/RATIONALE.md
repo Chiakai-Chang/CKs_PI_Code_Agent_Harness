@@ -207,3 +207,25 @@ VERIFY 階段:read/bash/lsp only —— 驗證者不准自己改東西
 | 4 | harness-engineering | grilling 一問一答門控 —— 對應「不先釐清就動手」 |
 | 5 | pi-browser-harness | 研究型 session 的實作(本專案最痛的場景) |
 | 6 | pi-superagents / pi-tool-repair-layer / 其餘 | 依需要 |
+
+## 2026-08-08 — prime-agent(Prime Intellect)
+
+**來源**:`research/prime-agent`(shallow,592 MB)· https://github.com/PrimeIntellect-ai/prime-agent
+**研究目的**:擁有者指出它也是基於 Pi 的研究型 harness,問能否強化本專案。
+
+**核心發現**:**它不是 Pi 的擴充,是 pi-mono 的 fork**(自帶 `packages/coding-agent`,
+釘 `pi-coding-agent ^0.7.1`,我們跑 0.83)。所以問題不是「能不能裝」,是「哪些設計可以移植」。
+
+**採用項目(待移植,尚未動工)**
+* **local / global 分域,預設 local** —— 直接對應我們「量測時全域旗標會騷擾其他專案」的已知問題。
+* **refinement 事件 append-only + `rollbackOf` 回滾**;`refinement.ts:396` 的韌性做法可直接抄。
+* **supplemental-only 提示層,base 由 `validateEdit()` 真的擋下**(`refinement.ts:672`)。
+
+**放棄項目**
+* 整套 RLM / 常駐 IPython runtime —— 換執行模型,不是加功能。
+* 換底座到它的 fork —— `reference/oh-my-pi` 的疤:對著舊型別找缺陷會找到不存在的問題。
+* daemon / agent 互傳 / autonomous mode —— 迴圈都還沒關好,先加自主性只會放大問題。
+* **它的「evidence-backed」** —— `evidence: proposal.rationale`(`:787`),值就是模型自己寫的理由,
+  沒有核對。名字叫 evidence,行為是 opinion。移植時證據必須綁真實產物,這是我們該做得比它嚴的地方。
+
+**完整記錄**:[2026-08-08-prime-agent-review.md](2026-08-08-prime-agent-review.md)
