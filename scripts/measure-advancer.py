@@ -321,7 +321,11 @@ def one_run(prompt_key: str, index: int, limit_s: int, quiet_s: int) -> dict:
     exe = shutil.which("pi")
     proc = subprocess.Popen(
         [exe, "--print", "--session-dir", str(session_dir), PROMPTS[prompt_key]],
-        cwd=str(base), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        # Kept, not discarded. Two runs produced zero turns and zero tool calls
+        # and the reason was unavailable because both streams went to DEVNULL —
+        # an instrument that hides the failure it is measuring. 2026-08-09.
+        cwd=str(base), stdout=open(base / "pi-stdout.log", "wb"),
+        stderr=open(base / "pi-stderr.log", "wb"),
         shell=exe.lower().endswith((".cmd", ".bat")),
     )
     how = poll_until_done(proc, session_dir, task, limit_s, quiet_s)
