@@ -98,6 +98,28 @@ class TestTheRunnerRefusesContendedMeasurements(unittest.TestCase):
                       "of the same server is not a measurement")
         self.assertIn("return 2", body.split("orphan_pids()", 1)[1][:400])
 
+class TestTheTimeoutsComeFromMeasuredGaps(unittest.TestCase):
+    """The quiet default was 180s while a completing run's p95 gap was 190s and
+    its max was 237s, so it could only ever cut runs short — and the two "0
+    claims" results it produced were the instrument answering, not the model.
+
+    A timeout picked by feel is this repo's oldest recurring mistake in a new
+    costume: it measures the observer's patience."""
+
+    def test_quiet_is_above_the_observed_maximum_gap(self):
+        import argparse, io, contextlib
+        src = open(os.path.join(ROOT, "scripts", "measure-advancer.py"),
+                   encoding="utf-8").read()
+        self.assertRegex(src, r'"--quiet".*default=(600|[7-9]\d\d|\d{4,})',
+                         "quiet must clear the 237s max gap measured on a run "
+                         "that actually completed a claim")
+
+    def test_the_limit_clears_the_only_run_that_got_anywhere(self):
+        src = open(os.path.join(ROOT, "scripts", "measure-advancer.py"),
+                   encoding="utf-8").read()
+        self.assertRegex(src, r'"--limit".*default=(2400|[3-9]\d{3}|\d{5,})')
+
+
 
 if __name__ == "__main__":
     unittest.main()

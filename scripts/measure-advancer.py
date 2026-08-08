@@ -412,8 +412,15 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Measure the C.A.S.E. advancer on real runs.")
     ap.add_argument("--runs", type=int, default=1)
     ap.add_argument("--prompt", choices=sorted(PROMPTS), default="baseline")
-    ap.add_argument("--limit", type=int, default=900, help="seconds per run before giving up")
-    ap.add_argument("--quiet", type=int, default=180, help="seconds of no file growth before giving up")
+    # Both defaults come from the gap distribution of a run that COMPLETED a
+    # claim and 22 searches (session 019fdf..., 74 records): median gap 1s, p95
+    # 190s, max 237s. The old quiet default of 180s sat below both the p95 and
+    # the max, so it was guaranteed to cut legitimate runs short — and it did,
+    # twice, producing "0 claims" that were the instrument's answer rather than
+    # the model's. 600s is ~2.5x the observed max. The old 900s limit was below
+    # the length of the only run that got anywhere.
+    ap.add_argument("--limit", type=int, default=2400, help="seconds per run before giving up")
+    ap.add_argument("--quiet", type=int, default=600, help="seconds of no file growth before giving up")
     ap.add_argument("--out", help="write the results as JSON here")
     ap.add_argument("--self-check", action="store_true", help="prove the counters can fail")
     args = ap.parse_args()
