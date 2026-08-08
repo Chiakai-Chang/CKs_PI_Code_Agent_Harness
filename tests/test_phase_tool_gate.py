@@ -516,6 +516,31 @@ class TestThePlanRefusalEscalatesToo(unittest.TestCase):
         self.assertIsNotNone(second)
         self.assertNotEqual(first, second)
 
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestTheBudgetCanBeTightenedPerProject(unittest.TestCase):
+    """So an experiment lives in its fixture instead of in shipped code. The
+    2026-08-09 budget attempt edited the constant and depended on remembering
+    to revert it; it was reverted, and remembering is still not a mechanism."""
+
+    def _refusals(self, local=None, turns=10):
+        q = Queue(status="PENDING")
+        self.addCleanup(q.cleanup)
+        if local is not None:
+            with open(os.path.join(q.root, ".pi-harness.json"), "w", encoding="utf-8") as f:
+                json.dump(local, f)
+        out = gate(q.queue_dir, "web_search", {"query": "x"}, times=turns)
+        return len([r for r in out["reasons"] if r])
+
+    def test_the_default_stands_when_the_project_says_nothing(self):
+        self.assertEqual(self._refusals(), 4)
+
+    def test_a_project_may_raise_it(self):
+        self.assertEqual(self._refusals({"caseClaimRefusalTurns": 8}), 8)
+
+    def test_a_project_may_not_lower_it(self):
+        """Setting 1 would switch the gate off through the config door."""
+        self.assertEqual(self._refusals({"caseClaimRefusalTurns": 1}), 4)
+
 
 
 if __name__ == "__main__":

@@ -163,7 +163,7 @@ def read_status(task_dir: Path) -> str:
 BOOTSTRAP = ROOT / "external" / "Local-Agent-Workspace" / "scripts" / "bootstrap.py"
 
 
-def make_fixture(base: Path) -> Path:
+def make_fixture(base: Path, claim_turns: int = 0) -> Path:
     """A real C.A.S.E. project with one PENDING task, outside this repository.
 
     Outside on purpose: the flag is global once restored, and a queue left
@@ -191,8 +191,14 @@ def make_fixture(base: Path) -> Path:
     # open for the duration. Task_019 added a per-project resolver; using it here
     # is also the first live exercise of it, which is the difference between a
     # mechanism that passes its unit tests and one that has fired.
+    local = {"enableCaseAdvancer": True}
+    if claim_turns:
+        # The experiment lives here, not in a shipped constant. resolveFlag
+        # refuses anything below the default or above 12, so this can only
+        # tighten the gate.
+        local["caseClaimRefusalTurns"] = claim_turns
     (base / ".pi-harness.json").write_text(
-        json.dumps({"enableCaseAdvancer": True}, indent=2), encoding="utf-8")
+        json.dumps(local, indent=2), encoding="utf-8")
     task = base / "02_Task_Queue" / "Task_001_probe"
     task.mkdir(parents=True, exist_ok=True)
     (task / "status.txt").write_text("PENDING", encoding="utf-8")
@@ -227,22 +233,35 @@ def poll_until_done(proc, session_dir: Path, task_dir: Path, limit_s: int, quiet
     """
     started = time.time()
     last_size, last_change = -1, time.time()
+    # Time from launch to the FIRST byte of session, recorded on every run.
+    #
+    # The quiet threshold was derived from gaps INSIDE a running session
+    # (median 1s, p95 190s, max 237s) and then applied to the opening, where
+    # nothing is written until the first response — a parameter tuned against
+    # the wrong distribution, which looks evidence-based and still cuts runs
+    # off. This is the distribution that governs the opening, and collecting it
+    # as a by-product means never having to spend a run measuring it.
+    first_record_at = None
     while proc.poll() is None:
         size = sum(p.stat().st_size for p in session_dir.rglob("*.jsonl")) if session_dir.exists() else 0
         now = time.time()
         if size != last_size:
+            if last_size <= 0 and size > 0 and first_record_at is None:
+                first_record_at = now - started
+                print(f"    first record after {first_record_at:.0f}s")
             last_size, last_change = size, now
             print(f"    [{int(now - started):>4}s] {size:>7} bytes  status={read_status(task_dir)}")
         if now - last_change > quiet_s:
-            print(f"    quiet for {quiet_s}s — stopping")
+            where = "before the first record" if first_record_at is None else "mid-run"
+            print(f"    quiet for {quiet_s}s {where} — stopping")
             stop_tree(proc)
-            return "quiet"
+            return ("quiet-startup" if first_record_at is None else "quiet"), first_record_at
         if now - started > limit_s:
             print(f"    hit the {limit_s}s ceiling — stopping")
             stop_tree(proc)
-            return "ceiling"
+            return "ceiling", first_record_at
         time.sleep(5)
-    return "finished"
+    return "finished", first_record_at
 
 
 
@@ -309,9 +328,9 @@ def orphan_pids() -> list:
     return [int(t) for t in out.split() if t.isdigit()]
 
 
-def one_run(prompt_key: str, index: int, limit_s: int, quiet_s: int) -> dict:
+def one_run(prompt_key: str, index: int, limit_s: int, quiet_s: int, claim_turns: int = 0) -> dict:
     base = Path(tempfile.mkdtemp(prefix=f"advancer-{prompt_key}-{index}-"))
-    task = make_fixture(base)
+    task = make_fixture(base, claim_turns)
     session_dir = base / ".sess"
     print(f"\n=== run {index} ({prompt_key})  {base}")
     # The resolved path, not the bare name: on Windows `pi` is `pi.CMD`, which
@@ -328,13 +347,14 @@ def one_run(prompt_key: str, index: int, limit_s: int, quiet_s: int) -> dict:
         stderr=open(base / "pi-stderr.log", "wb"),
         shell=exe.lower().endswith((".cmd", ".bat")),
     )
-    how = poll_until_done(proc, session_dir, task, limit_s, quiet_s)
+    how, first_record_s = poll_until_done(proc, session_dir, task, limit_s, quiet_s)
     stop_tree(proc)
     left = orphan_pids()
     if left:
         print(f"    WARNING: {len(left)} pi process(es) still alive after stop: {left}")
     counts = tally(session_dir) if session_dir.exists() else {}
     result = {"run": index, "prompt": prompt_key, "ended": how,
+              "first_record_s": (round(first_record_s) if first_record_s else None),
               "status": read_status(task),
               "files": sorted(p.name for p in task.iterdir()),
               "dir": str(base), **counts}
@@ -426,6 +446,8 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=2400, help="seconds per run before giving up")
     ap.add_argument("--quiet", type=int, default=600, help="seconds of no file growth before giving up")
     ap.add_argument("--out", help="write the results as JSON here")
+    ap.add_argument("--claim-turns", type=int, default=0,
+                    help="tighten the CLAIM exit ramp for the fixture only (4-12)")
     ap.add_argument("--self-check", action="store_true", help="prove the counters can fail")
     args = ap.parse_args()
 
@@ -453,7 +475,8 @@ def main() -> int:
         print("  taskkill /PID <pid> /T /F")
         return 2
 
-    results = [one_run(args.prompt, i + 1, args.limit, args.quiet) for i in range(args.runs)]
+    results = [one_run(args.prompt, i + 1, args.limit, args.quiet, args.claim_turns)
+               for i in range(args.runs)]
     if args.out:
         Path(args.out).write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"\nwrote {args.out}")

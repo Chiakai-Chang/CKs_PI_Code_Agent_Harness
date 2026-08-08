@@ -39,7 +39,38 @@ export const LOCAL_CONFIG_NAME = ".pi-harness.json";
  * nineteen have no measured problem, and switching seven bridges' behaviour at
  * once leaves nobody able to say which one broke.
  */
-export const PROJECT_SCOPED: ReadonlySet<string> = new Set(["enableCaseAdvancer"]);
+export const PROJECT_SCOPED: ReadonlySet<string> = new Set([
+  "enableCaseAdvancer",
+  // Lets an experiment raise the CLAIM exit ramp inside its own fixture
+  // instead of editing a shipped constant. The 2026-08-09 budget experiment
+  // edited the constant and relied on remembering to revert it; remembering is
+  // not a mechanism.
+  "caseClaimRefusalTurns",
+]);
+
+/**
+ * Numeric settings a project may set, and the band it may set them within.
+ *
+ * The direction is the whole safeguard. The file arrives with the project
+ * being worked on, so a project that could set `caseClaimRefusalTurns` to 1
+ * would make the gate stand aside after a single turn — switching a guard off
+ * through the config door. Tighter is allowed, looser is not, and the upper
+ * bound exists because a gate that never lets go locks a model that cannot
+ * work out how to claim, which is the failure the exit ramp prevents.
+ */
+const NUMERIC_BOUNDS: Record<string, { min: number; max: number }> = {
+  caseClaimRefusalTurns: { min: 4, max: 12 },
+};
+
+function withinBounds(key: string, value: unknown): boolean {
+  const bounds = NUMERIC_BOUNDS[key];
+  if (!bounds) return true;
+  // `typeof true === "boolean"`, and a numeric string is not a number: a
+  // project supplying "8" is supplying text, and coercing it here would be the
+  // config layer guessing.
+  if (typeof value !== "number" || !Number.isInteger(value)) return false;
+  return value >= bounds.min && value <= bounds.max;
+}
 
 function readJsonObject(path: string): Record<string, unknown> | null {
   try {
@@ -76,7 +107,7 @@ export function resolveFlag(
   const project = String(cwd ?? "");
   if (project && PROJECT_SCOPED.has(key)) {
     const local = readJsonObject(join(project, LOCAL_CONFIG_NAME));
-    if (local && key in local) return local[key];
+    if (local && key in local && withinBounds(key, local[key])) return local[key];
   }
 
   const root = String(harnessRoot ?? "");

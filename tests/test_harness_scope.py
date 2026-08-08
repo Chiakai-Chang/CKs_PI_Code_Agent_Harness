@@ -176,7 +176,7 @@ class TestTheLocalFileIsATrustBoundary(unittest.TestCase):
         out = run_js("""
         process.stdout.write(JSON.stringify({ names: [...m.PROJECT_SCOPED].sort() }));
         """)
-        self.assertEqual(out["names"], ["enableCaseAdvancer"],
+        self.assertEqual(out["names"], ["caseClaimRefusalTurns", "enableCaseAdvancer"],
                          "widen this deliberately, one flag at a time, never as a side effect")
 
 
@@ -235,6 +235,46 @@ class TestTheBridgeUsesIt(unittest.TestCase):
                   encoding="utf-8") as f:
             src = f.read()
         self.assertEqual(src.count("resolveFlag("), 1)
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestAProjectMayTightenButNeverLoosen(unittest.TestCase):
+    """`caseClaimRefusalTurns` exists so an experiment can raise the CLAIM exit
+    ramp inside its own fixture instead of editing a shipped constant. The last
+    attempt edited the constant, and remembering to revert it is not a
+    mechanism.
+
+    But the file arrives with the project, so the direction has to be
+    constrained: a project that could set 1 would make the gate stand aside
+    after a single turn, which is switching the guard off through the config
+    door. Tighter is allowed, looser is not."""
+
+    def _turns(self, value):
+        fx = Fixture(global_flags={"enableCaseAdvancer": False},
+                     local_text=json.dumps({"caseClaimRefusalTurns": value}))
+        self.addCleanup(fx.cleanup)
+        return fx.resolve(name="caseClaimRefusalTurns")
+
+    def test_a_stricter_value_is_honoured(self):
+        self.assertEqual(self._turns(8), 8)
+
+    def test_a_looser_value_is_refused(self):
+        """Below the shipped default is a weakening, whatever the project says."""
+        for v in (0, 1, 3, -5):
+            with self.subTest(v=v):
+                self.assertIsNone(self._turns(v))
+
+    def test_an_absurd_value_is_refused(self):
+        """A gate that never lets go locks a model that cannot work out how to
+        claim, which is the failure the exit ramp exists to prevent."""
+        for v in (13, 1000, 99999):
+            with self.subTest(v=v):
+                self.assertIsNone(self._turns(v))
+
+    def test_a_non_number_is_refused(self):
+        for v in ("8", True, None, [8]):
+            with self.subTest(v=v):
+                self.assertIsNone(self._turns(v))
+
 
 
 if __name__ == "__main__":

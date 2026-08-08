@@ -27,9 +27,10 @@
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { bashWriteTargets } from "./task-queue-guard.ts";
+import { resolveFlag } from "./harness-scope.ts";
 
 /** Tools that reach the network for research. */
 const RESEARCH_TOOLS = new Set(["web_search", "web_open", "web_snapshot", "deep_research"]);
@@ -67,6 +68,24 @@ const PLAN_WRITABLE = new Set(["status.txt", "planning.md", "feedback.md"]);
  * absorbing two refusals was cheaper than complying.
  */
 const MAX_REFUSAL_TURNS = 4;
+
+/**
+ * The budget for this project: the shipped default unless the project asked
+ * for a stricter one.
+ *
+ * `resolveFlag` refuses anything below the default or above 12, so a project
+ * can only tighten. Reading it here rather than importing a constant is what
+ * lets an experiment live in its fixture instead of in shipped code — the
+ * 2026-08-09 attempt edited the constant and depended on remembering to put it
+ * back.
+ */
+function refusalTurns(queueDir: string): number {
+  // No global fallback on purpose: this setting exists only as a per-project
+  // tightening, so an empty harness root is correct and the shipped default
+  // stands when the project says nothing.
+  const v = resolveFlag("caseClaimRefusalTurns", dirname(queueDir), "");
+  return typeof v === "number" ? v : MAX_REFUSAL_TURNS;
+}
 
 export type Phase = "claim" | "plan" | "open";
 
@@ -240,7 +259,7 @@ export class PhaseGate {
     // for the second one misstates how long this has been going on.
     const key = phase;
     const seen = this.refusals.get(key) ?? 0;
-    if (seen >= MAX_REFUSAL_TURNS) return null;
+    if (seen >= refusalTurns(queueDir)) return null;
 
     if (phase === "claim") {
       // Read-only until the task is claimed — auto-pi's PLAN shape, applied
