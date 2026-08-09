@@ -340,3 +340,40 @@ VERIFY 階段:read/bash/lsp only —— 驗證者不准自己改東西
 
 **完整記錄**:[2026-08-09-the-last-harness-review.md](2026-08-09-the-last-harness-review.md)
 
+## 2026-08-09 — awesome-codex-plugins(評估後**決定不 clone**)
+
+**來源**:https://github.com/hashgraph-online/awesome-codex-plugins(300+ 條目的策展合輯)
+**評估目的**:擁有者詢問是否有值得 clone 回來參考的。
+
+### 出處性質(照程序先查)
+
+* **目標 runtime 是 Codex CLI / Codex 桌面 / IDE 擴充,不是 Pi。**
+  格式是 `.codex-plugin/plugin.json` + `SKILL.md` + 選配 `mcp.json`。
+  **只有 `SKILL.md` 的內容概念上可攜;清單格式不可攜。**
+* 收錄門檻宣稱是「HOL Plugin Scanner ≥80/130、無 critical/high、CI 必須跑掃描」。
+  **但該 scanner 的規則在外掛層並未公開** —— 分數如何組成、查哪些類別、
+  靜態分析或 LLM 判斷,README 都沒寫,要往上游 `hol-guard` 找。
+  **所以「通過掃描」目前不是可依賴的證據**,與 prime-agent 的 `evidence: proposal.rationale` 同類。
+
+### 決定:**不 clone**
+
+三個理由,依重要性:
+
+1. **本 repo 剛寫下的停止規則。** 第一層四個來源審視完,**待移植清單 7 項、一項未做**。
+   再引入來源會讓「讀」繼續超過「做」。
+2. **對我們而言,300+ 個技能是風險而非機會。** 我們已量到:ECC 的 277 個技能 = 每回合 27.5k token;
+   122 個 catalog 技能因為只有名稱而**詞彙上到不了**。
+   合輯裡的 `claude-skills`(223 個技能)正是同一個形狀的放大版。
+3. **Runtime 不同**,可攜的只有散文層,而散文層我們已經有超過需要的量。
+
+### 記下觸發條件(而不是拒絕)
+
+* **`hol-guard`(上游)** —— **若**我們開始接受來自不受信任來源的第三方技能或 MCP,
+  「外掛准入掃描」就是要移植的形狀。目前我們只 vendor 已知 repo,尚不需要。
+* **`marketplace.json`** —— 該合輯提供機器可讀的清單。**若**日後要做廣度掃描,
+  入口是那份 JSON,而不是 clone 300 個 repo。
+* `spec-driven-plugin` —— 與 C.A.S.E. 同型。我們已審視四個同型流程
+  (harness-engineering、ultimate-pi、auto-pi、Local-Agent-Workspace),邊際價值低。
+
+**沒有東西被 clone,所以登記表不新增列** —— 登記表追蹤的是磁碟上的東西。
+
