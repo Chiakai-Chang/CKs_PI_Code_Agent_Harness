@@ -70,6 +70,7 @@ GUARD_MODULES = {
     "pi-extensions/yes-hooks-bridge/loop-detect.ts": ["test_cycle_guard"],
     "pi-extensions/yes-hooks-bridge/compaction-echo.ts": ["test_compaction_echo"],
     "pi-extensions/task-shape-bridge/goal-restate.ts": ["test_goal_restate"],
+    "pi-extensions/case-bridge/task-context.ts": ["test_task_context"],
 }
 
 Mutation = namedtuple("Mutation", "offset kind original mutated")

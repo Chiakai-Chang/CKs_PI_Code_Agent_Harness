@@ -15,7 +15,8 @@ import { ActionLogger } from "./action-log.ts";
 import { QueueAdvancer } from "./queue-advancer.ts";
 import { PhaseGate, useScopeSnapshot } from "./phase-gate.ts";
 import { ScopeSnapshot } from "./harness-scope.ts";
-import { PhaseNotice } from "./phase-notice.ts";
+import { PhaseNotice, claimedTaskDir } from "./phase-notice.ts";
+import { localConstitution } from "./task-context.ts";
 
 const MAX_INJECT_CHARS = 3000;
 
@@ -137,6 +138,7 @@ export default function (pi: ExtensionAPI) {
     queueGuard.reset();
     queueGuard.humanApproved.reset();
     phaseNotice.reset();
+    taskContextSent.clear();
     advancer.reset();
     if (!isCaseProject(ctx.cwd)) return;
     if (!caseBridgeEnabled()) return;
@@ -153,6 +155,10 @@ export default function (pi: ExtensionAPI) {
   // catch that, which is what the same measurement concluded.
   const phaseGate = new PhaseGate();
   const phaseNotice = new PhaseNotice();
+  // Task directories whose local constitution has already been delivered.
+  // Once per task, not once per session: a queue run claims several, and
+  // each one has different rules.
+  const taskContextSent = new Set<string>();
 
   // Path A's evidence, taken from what the user actually typed. The type
   // declares `prompt` as "the raw user prompt text (after expansion)", so this
@@ -203,12 +209,47 @@ export default function (pi: ExtensionAPI) {
     // one of the two channels measured to reach the model. Appended, never
     // replacing: a handler returning a bare block was dropped in silence once
     // while eleven tests stayed green.
-    const opened = phaseNotice.afterToolResult(
-      join(ctx.cwd ?? "", "02_Task_Queue"), event.toolName, event.input,
-      event.isError === true);
-    if (opened) {
-      return { content: [...(event.content ?? []), { type: "text", text: opened }] };
+    const queueDir = join(ctx.cwd ?? "", "02_Task_Queue");
+    const blocks: string[] = [];
+
+    // The task's own constitution, at the only moment it can arrive.
+    //
+    // `role.md` and the recipe's Local DoD exist in every task package and
+    // nothing in this harness has ever loaded them — `phase-gate.ts` suggests
+    // the model go read them, and a suggestion loses to the moment of action
+    // every time it has been measured here. They cannot arrive later either:
+    // moving to the next task uses a custom message, so `before_agent_start`
+    // never re-fires and every task in a queue run shares one prompt cycle.
+    const claimed = claimedTaskDir(queueDir, event.toolName, event.input,
+                                   event.isError === true);
+    if (claimed && !taskContextSent.has(claimed)) {
+      const local = localConstitution(claimed);
+      if (local) {
+        taskContextSent.add(claimed);
+        blocks.push(local.text);
+        ctx.ui.notify(`📜 已載入任務專屬憲法(${local.sources.join(" + ")})`, "info");
+      }
     }
+
+    // Say when the door opened. The gate closing it was the only thing the
+    // model ever heard: twenty refusals, zero permissions, and it stopped
+    // searching for the rest of the run (4b, 2026-08-08). This rides the
+    // result of the claim itself — the moment the statement becomes true, on
+    // one of the two channels measured to reach the model. Appended, never
+    // replacing: a handler returning a bare block was dropped in silence once
+    // while eleven tests stayed green.
+    const opened = phaseNotice.afterToolResult(
+      queueDir, event.toolName, event.input, event.isError === true);
+    if (opened) blocks.push(opened);
+
+    if (!blocks.length) return;
+    // One return for both, because returning on the first would starve the
+    // second in silence — the same collection the task-shape bridge needed
+    // when its two riders started sharing this channel.
+    return {
+      content: [...(event.content ?? []),
+                ...blocks.map((text) => ({ type: "text" as const, text }))],
+    };
   });
 
   // At the end of a turn: work out the next step and drive it.

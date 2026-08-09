@@ -246,9 +246,17 @@ class TestTheBridgeDeliversIt(unittest.TestCase):
     result of the claim itself — which is also the moment it is true."""
 
     def _handler(self):
+        """The whole handler, not a fixed slice of its first 1200 characters.
+
+        The slice silently stopped covering the assertions the day a second
+        rider joined this channel: the notice moved past character 1200 and two
+        tests failed while the code was correct. A window that shrinks as the
+        handler grows is a check that quietly stops checking."""
         with open(os.path.join(ROOT, "pi-extensions", "case-bridge", "index.ts"),
                   encoding="utf-8") as f:
-            return f.read().split('pi.on("tool_result"', 1)[1][:1200]
+            after = f.read().split('pi.on("tool_result"', 1)[1]
+        # Up to the next handler registration, so this stays scoped to one.
+        return after.split("pi.on(", 1)[0]
 
     def test_it_returns_a_content_array(self):
         body = self._handler()

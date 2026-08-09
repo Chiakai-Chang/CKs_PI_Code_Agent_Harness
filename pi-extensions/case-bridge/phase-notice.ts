@@ -67,6 +67,44 @@ const OPENED =
   "剛才擋你的是「還沒認領就開工」,不是搜尋本身。現在請盡量搜、盡量查證," +
   "不要用記憶作答。";
 
+/**
+ * The task directory a successful call just moved into IN_PROGRESS, or null.
+ *
+ * Extracted from `PhaseNotice.afterToolResult` when the task-local constitution
+ * needed the same moment. Two detectors for one event would drift apart the way
+ * `uninstall.py` and `restore.py` did — one managed five bridges while the other
+ * managed eleven, and seven kept loading forever.
+ */
+export function claimedTaskDir(
+  queueDir: unknown,
+  toolName: unknown,
+  input: unknown,
+  isError: unknown,
+): string | null {
+  // A refused call claimed nothing, so nothing opened.
+  if (isError === true) return null;
+  const queue = String(queueDir ?? "");
+  if (!queue || !existsSync(queue)) return null;
+
+  for (const target of writeTargets(String(toolName ?? ""), input)) {
+    let abs: string;
+    try {
+      abs = resolve(target);
+    } catch {
+      continue;
+    }
+    if (basename(abs).toLowerCase() !== "status.txt") continue;
+    const taskDir = dirname(abs);
+    if (resolve(dirname(taskDir)) !== resolve(queue)) continue;
+    // Read the file rather than trusting the arguments: `bash` writes carry no
+    // extractable content, and the point is what the task IS now, not what the
+    // call said it would be.
+    if (statusOf(taskDir) !== "IN_PROGRESS") continue;
+    return taskDir;
+  }
+  return null;
+}
+
 export class PhaseNotice {
   /** Task directories already told. Once is the whole design. */
   private told = new Set<string>();
@@ -84,30 +122,11 @@ export class PhaseNotice {
     input: unknown,
     isError: unknown,
   ): string | null {
-    // A refused call claimed nothing, so nothing opened.
-    if (isError === true) return null;
-    const queue = String(queueDir ?? "");
-    if (!queue || !existsSync(queue)) return null;
-
-    for (const target of writeTargets(String(toolName ?? ""), input)) {
-      let abs: string;
-      try {
-        abs = resolve(target);
-      } catch {
-        continue;
-      }
-      if (basename(abs).toLowerCase() !== "status.txt") continue;
-      const taskDir = dirname(abs);
-      if (resolve(dirname(taskDir)) !== resolve(queue)) continue;
-      if (this.told.has(taskDir)) return null;
-      // Read the file rather than trusting the arguments: `bash` writes carry
-      // no extractable content, and the point is what the task IS now, not
-      // what the call said it would be.
-      if (statusOf(taskDir) !== "IN_PROGRESS") continue;
-      this.told.add(taskDir);
-      return OPENED;
-    }
-    return null;
+    const taskDir = claimedTaskDir(queueDir, toolName, input, isError);
+    if (!taskDir) return null;
+    if (this.told.has(taskDir)) return null;
+    this.told.add(taskDir);
+    return OPENED;
   }
 
   reset(): void {

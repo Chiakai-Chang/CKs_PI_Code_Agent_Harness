@@ -166,6 +166,17 @@
       現在多疊一個未驗證有效的機制,只是把同一筆帳欠兩次,
       而「機制已實作」正是 `global_dod.md` 明列的「不算完成」。
 
+- [ ] `Task_023_task_local_constitution`(**擁有者指定,插在 Task_020 前面**):
+      認領任務時注入該任務的 `role.md` + `recipe.md` 的 Objective 與 Local DoD。
+      協定每個任務包裡本來就有 `role.md`,而**全 repo 沒有一處載入它** ——
+      只有 `phase-gate.ts:214` 建議模型自己去讀,而建議不會被照做。
+      換任務用的是 custom message,不開新 prompt cycle,所以小憲法永遠不會重新出現。
+      **驗證是二元的**(session 裡有沒有 role.md 的內容),不需要 Task_019 卡了三輪的那種對照組。
+      見 [任務小憲法](../docs/case/2026-08-10-task-local-constitution.md)。
+- [ ] `Task_024_restate_the_task_not_the_prompt`:把 Task_019 的內容源從
+      「整段原始使用者請求」換成「當前任務的 Local DoD」。機制不動,只換內容。
+      依賴 Task_023 的讀取器。
+
 - [ ] `Task_020_handoff_capsule`:實作協定 §16 的 `[H]`
       (`session_summary` / `active_pivot_point` / `pending_blockers`)。
       grep `pi-extensions/` 對這四個詞**零命中** —— 沒有東西寫它、讀它或要求它。
