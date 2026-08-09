@@ -353,7 +353,15 @@ def one_run(prompt_key: str, index: int, limit_s: int, quiet_s: int, claim_turns
     if left:
         print(f"    WARNING: {len(left)} pi process(es) still alive after stop: {left}")
     counts = tally(session_dir) if session_dir.exists() else {}
-    result = {"run": index, "prompt": prompt_key, "ended": how,
+    # The configuration this run used, recorded WITH the run so variance is
+    # never computed across two different experiments. Attempts 2 and 3 of the
+    # CLAIM budget ran against different guards; averaging them would be the
+    # mistake the analysis exists to prevent.
+    try:
+        run_config = json.loads((base / ".pi-harness.json").read_text(encoding="utf-8"))
+    except Exception:
+        run_config = {}
+    result = {"run": index, "prompt": prompt_key, "ended": how, "config": run_config,
               "first_record_s": (round(first_record_s) if first_record_s else None),
               "status": read_status(task),
               "files": sorted(p.name for p in task.iterdir()),
@@ -475,6 +483,77 @@ def report_status() -> int:
     return 0
 
 
+
+# --- how many runs before a difference means anything ---------------------
+
+MIN_RELIABLE_N = 3
+
+
+def required_n(sd: float, delta: float):
+    """Runs per condition needed to separate two conditions `delta` apart.
+
+    From metaharness ADR-138 (Accepted (measured)): the standard error has to
+    be under delta/2, so n >= (sd / (delta/2))**2. Their worked example —
+    sd 0.45 against delta 0.5 — comes out at the four to five they concluded,
+    while the experiment that produced it had been running at n=1.
+
+    Returns None for delta 0: "how many runs to detect no difference" has no
+    answer, and returning one would invite quoting it.
+    """
+    if not delta:
+        return None
+    import math
+    n = math.ceil((float(sd) / (float(delta) / 2.0)) ** 2)
+    return max(1, n)
+
+
+def _config_key(config) -> str:
+    """Configurations compared by content, not by spelling.
+
+    Key order in a JSON object is not a difference between two runs; code
+    changes between them are, which is why this groups at all — attempts 2 and
+    3 of the CLAIM budget ran against different guards and averaging them
+    would be the mistake this exists to prevent.
+    """
+    if config is None:
+        # Not the same as `{}`. Result files written before this field existed
+        # have no configuration recorded, and pooling them with a run that
+        # genuinely had none averaged an 8-turn experiment with a 4-turn one —
+        # this analysis committing the mistake it exists to prevent.
+        return "<unknown: no config recorded with this run>"
+    return json.dumps(config, sort_keys=True, ensure_ascii=False)
+
+
+def variance_report(rows, metrics):
+    """Per configuration, per metric: n, mean, sd, and whether to trust it."""
+    import math
+    groups = {}
+    for row in rows:
+        groups.setdefault(_config_key(row.get("config")), []).append(row)
+
+    out = []
+    for key, members in sorted(groups.items()):
+        stats = {}
+        for metric in metrics:
+            values = [r[metric] for r in members
+                      if isinstance(r.get(metric), (int, float))]
+            n = len(values)
+            mean = sum(values) / n if n else None
+            if n >= 2:
+                var = sum((v - mean) ** 2 for v in values) / n
+                sd = math.sqrt(var)
+            else:
+                sd = None
+            stats[metric] = {
+                "n": n, "mean": mean, "sd": sd,
+                # An sd from two runs is a number, not an estimate. Printing it
+                # unlabelled is how n=2 became a verdict in the first place.
+                "unreliable": n < MIN_RELIABLE_N,
+            }
+        out.append({"config": key, "runs": len(members), "metrics": stats})
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Measure the C.A.S.E. advancer on real runs.")
     ap.add_argument("--runs", type=int, default=1)
@@ -491,10 +570,36 @@ def main() -> int:
     ap.add_argument("--out", help="write the results as JSON here")
     ap.add_argument("--claim-turns", type=int, default=0,
                     help="tighten the CLAIM exit ramp for the fixture only (4-12)")
+    ap.add_argument("--variance", nargs="+", metavar="RESULTS.json",
+                    help="group past runs by configuration and report n, sd and required n")
+    ap.add_argument("--delta", type=float, default=1.0,
+                    help="the difference you want to be able to detect (--variance)")
     ap.add_argument("--status", action="store_true",
                     help="report what is running right now, and whether it is mine")
     ap.add_argument("--self-check", action="store_true", help="prove the counters can fail")
     args = ap.parse_args()
+
+    if args.variance:
+        rows = []
+        for path in args.variance:
+            with open(path, encoding="utf-8") as f:
+                rows.extend(json.load(f))
+        metrics = ["tool_calls", "blocked", "advance_injections",
+                   "status_writes_tool", "assistant_turns"]
+        for group in variance_report(rows, metrics):
+            print("")
+            print(f"config {group['config']}   runs={group['runs']}")
+            for name, st in group["metrics"].items():
+                if not st["n"]:
+                    continue
+                sd = "n/a" if st["sd"] is None else f"{st['sd']:.2f}"
+                need = required_n(st["sd"], args.delta) if st["sd"] is not None else None
+                flag = "  UNRELIABLE (n<3)" if st["unreliable"] else ""
+                print(f"  {name:<22} n={st['n']} mean={st['mean']:.2f} sd={sd}"
+                      f" need_n(Δ={args.delta})={need}{flag}")
+        print("")
+        print("sd from fewer than three runs is a number, not an estimate.")
+        return 0
 
     if args.status:
         return report_status()
