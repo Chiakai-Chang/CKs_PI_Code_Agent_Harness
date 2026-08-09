@@ -280,3 +280,34 @@ VERIFY 階段:read/bash/lsp only —— 驗證者不准自己改東西
 
 **完整記錄**:[2026-08-09-cited-but-unreviewed.md](2026-08-09-cited-but-unreviewed.md)
 
+## 2026-08-09 — harness-engineering
+
+**來源**:`research/harness-engineering`(116 MB)· `vinicius91carvalho/harness-engineering`
+**出處性質**:**已出貨**(semver 發布、安裝腳本指向 release tag 而非 `main`),
+與 metaharness 那種以 `Proposed` 為主的 ADR 集不同性質。
+
+**核心發現**:它的 ADR-0001 一句話讓我去打開一個從沒看過的檔案 ——
+> 防止「一個不完整的佇列僅因為它所有的旗標都為真,就宣告成功」。
+
+依此檢查 `01_Roadmap/global_dod.md`,發現三重問題:**沒人讀、還是未填樣板、
+而唯一填了的第 1 條正是那個謬誤**(「所有任務 DONE」)。已依實測紀錄改寫成七條帶數字的標準。
+
+**採用項目**
+* ADR-0001 專案目標即完成權威 → 已改寫 `global_dod.md`(機制缺口:仍無人讀,列為後續)
+* **待移植** ADR-0014 證據產物不可變:create-only、覆寫即硬失敗、以 digest 引用。
+  我們的 `docs/measurements/` 是可任意改寫的普通檔案 —— 我今天就事後追加過下注文件。
+  與 prime-agent 的 refinement journal 同族,**一起設計而非各做一半**。
+
+**放棄項目**
+* plugin marketplace 與多 host 路由 —— 我們是單一 host、單一本機模型。
+* `roles.json` 依階段路由到有序模型候選 —— 同上,且我們只有一個模型可用。
+* Supervisor / lease / fence / beacon 車隊治理 —— 我們一次跑一個 run,
+  而且剛被兩個孤兒行程教過:先把單機行程樹管好再談車隊。
+* 常駐背景 worker —— 同上。
+* **記下觸發條件**:ADR-0018 的 fail-closed + 持久 Input Request,
+  若出現「因缺少某能力而反覆產出不可驗證的結論」,再移植。
+
+**這次最該記住的**:審視外部來源的收益,有一部分是**它逼你檢查自己有什麼**。
+
+**完整記錄**:[2026-08-09-harness-engineering-review.md](2026-08-09-harness-engineering-review.md)
+
