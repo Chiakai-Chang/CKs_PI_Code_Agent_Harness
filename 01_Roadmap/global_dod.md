@@ -1,11 +1,41 @@
 # Global Definition of Done (Global DoD)
 
-The entire project is considered completed and shippable only when:
+> **2026-08-09 起改寫。** 在此之前這份檔案是**未填寫的樣板**(第 2–4 條全是佔位符),
+> 而且**沒有任何 bridge 或腳本讀它** —— 一份沒人讀的驗收標準,就是我們自己禁止的殭屍產物。
+>
+> 改寫依據:`research/harness-engineering` ADR-0001「Project Goal is the completion authority」——
+> 它防的正是「一個不完整的佇列僅因為所有旗標為真就宣告成功」。
+> **原本的第 1 條就是那個謬誤。**
 
-1. All task queues in `02_Task_Queue/` are marked as `DONE` and validated by Checkers.
-2. [Project-specific criterion 2 — e.g., "The application builds with zero warnings."]
-3. [Project-specific criterion 3 — e.g., "All tests pass with no failures."]
-4. [Project-specific criterion 4 — e.g., "Documentation is up to date."]
+## 這個專案要達成的目標(取自擁有者原話)
+
+> 「每次專注做一件事,做完復盤,有發現就增加 task queue」
+> 「他多搜幾次是好的阿?越多越好不是?**我抱怨的是他沒有先規劃就開始**」
+
+## 驗收標準 —— 每一條都必須有實測數字,不接受「旗標為真」
+
+| # | 標準 | 目前狀態(2026-08-09) |
+|---|---|---|
+| 1 | **先規劃再開始**:研究型 run 在認領前的**成功**研究呼叫為 0 | ✅ 2/2(各擋 14 次)。**樣本不足,見第 6 條** |
+| 2 | **不因此少查證**:認領後的研究呼叫 > 0,且交付物不自陳「未驗證」 | ✅ 16 與 20 次 |
+| 3 | **切分與留檔**:任務包產出 `planning.md`、`output.md`、`retro.md`、`action_log.jsonl` | ✅ 2/2 完整 |
+| 4 | **迴圈收斂**:研究型 run 走到 `REVIEW` | ✅ 4/4(跨兩種設定) |
+| 5 | **人類極簡驗收**:到 `REVIEW` 時 AI 逐條回報 DoD 並給選項,使用者一句話結案 | ⚠️ 機制已實作並單元驗證,**尚未在真實 session 走完整條鏈** |
+| 6 | **判定建立在噪音底線之上**:已量測本機模型的 run 間變異,且樣本數滿足 `n ≳ (sd/(Δ/2))²` | ❌ **未量測**。目前所有結論都建立在 n=2 上 |
+| 7 | **對使用者實際可用**:`enableCaseAdvancer` 的預設值有實測依據 | ❌ 預設仍為 `false`;僅研究型情境有出貨設定的資料 |
+
+## 明確不算完成的事
+
+* **所有任務 `DONE`**。原本的第 1 條就是這個,而它是 ADR-0001 點名的謬誤 ——
+  20 個任務全綠,不代表擁有者的需求被滿足。**上表每一條都要有數字。**
+* **單元測試全綠**。本 repo 的疤:910 條測試綠、四個檢查綠,而 Pi 整天跑的是未安裝的舊版本。
+* **機制已實作**。沒在真實 session 響過的守衛是未驗證的守衛。
+
+## 已知的機制缺口
+
+**沒有任何東西讀這份檔案。** 上表現在是人工維護的。
+把它接上檢查是後續工作,不在本次範圍 —— 但**「沒人讀的驗收標準」這件事本身已經被記錄**,
+不再是無人知曉的狀態。
 
 ---
-*Edit this file to define the final acceptance criteria. Layer 3 agents must NOT modify this file.*
+*Layer 3 agents must NOT modify this file.*
