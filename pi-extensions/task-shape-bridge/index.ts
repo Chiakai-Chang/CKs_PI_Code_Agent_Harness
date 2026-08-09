@@ -42,23 +42,34 @@ const HARNESS_ROOT = pkg["pi-harness"]?.root || join(dirname(pkgPath), "../..");
 const HEADER = "[task-shape] routing note (not command output):";
 
 /**
- * On by default and fails open, unlike `enableEccGateGuard`.
+ * A harness-config boolean, defaulting to on and failing open.
  *
- * The difference is deliberate: that one blocks, this one only adds a sentence.
- * A guard that has never run should not go live by accident; a note can.
+ * Both flags read through here are on by default, unlike `enableEccGateGuard`.
+ * The difference is deliberate: that one blocks, these only add a sentence. A
+ * guard that has never run should not go live by accident; a note can.
  */
-function routerEnabled(harnessRoot: string): boolean {
+function flagOn(harnessRoot: string, key: string): boolean {
   try {
     const cfgPath = join(harnessRoot, "pi-config", "harness-config.json");
     if (!existsSync(cfgPath)) return true;
-    return JSON.parse(readFileSync(cfgPath, "utf8"))["enableTaskShapeRouter"] !== false;
+    return JSON.parse(readFileSync(cfgPath, "utf8"))[key] !== false;
   } catch {
     return true;
   }
 }
 
 export default function (pi: ExtensionAPI) {
-  const enabled = routerEnabled(HARNESS_ROOT);
+  const enabled = flagOn(HARNESS_ROOT, "enableTaskShapeRouter");
+  /**
+   * Separate from the router flag so the restatement can be measured alone.
+   *
+   * This exists because of the measurement, not in spite of it: an A/B that
+   * switches `enableTaskShapeRouter` turns off the routing note as well, and
+   * would attribute both effects to one cause. The requirement surfaced while
+   * designing the drift scenario, which is the argument for designing the
+   * measurement before believing the mechanism.
+   */
+  const restateOn = enabled && flagOn(HARNESS_ROOT, "enableGoalRestate");
 
   // Armed by a multi-step request, spent on the first broad tool call, and
   // reset per session — Pi calls the default export once per process but fires
@@ -100,7 +111,7 @@ export default function (pi: ExtensionAPI) {
       // Armed before the plan check below returns: a project that already has a
       // plan still forgets its goal by step 18 — that is the failure this
       // addresses, and it is independent of whether a plan file exists.
-      restate.begin(event.prompt, shape.multiStep === true);
+      if (restateOn) restate.begin(event.prompt, shape.multiStep === true);
       if (!shape.multiStep) return;
       // A project that already has a plan does not need to be told to make one.
       if (hasAnyPlan(ctx.cwd)) return;
@@ -153,7 +164,7 @@ export default function (pi: ExtensionAPI) {
     }
     // `isError` is declared on ToolResultEventBase and is not optional, so it
     // needs no cast and no fallback.
-    const goal = enabled ? restate.afterToolResult(event.isError) : null;
+    const goal = restateOn ? restate.afterToolResult(event.isError) : null;
     if (goal) blocks.push(goal);
     if (!blocks.length) return;
     const existing = Array.isArray(event.content) ? [...event.content] : [];

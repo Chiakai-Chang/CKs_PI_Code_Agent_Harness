@@ -20,6 +20,8 @@
   "enableEccGateGuard": false,
   "_enableTaskShapeRouter": "Multi-step requests that open with web_search/bash get a short routine naming planning-with-files and brainstorming. Measured baseline before this existed: multi-step-methodology 0/3. Advises, never blocks; on by default and fails open, unlike enableEccGateGuard which blocks and fails closed.",
   "enableTaskShapeRouter": true,
+  "_enableGoalRestate": "Mid-run goal restatement (task-shape-bridge/goal-restate.ts): after 12 successful tool results in one prompt cycle, the user's own request is appended to a tool result, capped at 2 per cycle. Separate from enableTaskShapeRouter so the two can be measured apart — an A/B on the router flag would move both. On by default: it adds text and never blocks. Delivery proven live in session 019fe72a; effectiveness is NOT yet measured, see docs/measurements/2026-08-09-task019-preregistration.md.",
+  "enableGoalRestate": true,
   "planningBridgeMaxChars": 600,
   "enableUniversalTagTransformer": true,
   "enableSelfHealingLoopGuard": true,
