@@ -138,6 +138,49 @@ def clones_on_disk(root):
     return out
 
 
+
+# Bookkeeping about sources is not a citation of them. These four files exist to
+# LIST every source, reviewed or not, so a mention here means nothing.
+CITATION_EXEMPT = {
+    "docs/prior-art/REGISTER.md",
+    "docs/prior-art/RATIONALE.md",
+    "README.md",
+    "external-manifest.json",
+}
+
+CITATION_GLOBS = ("scripts/*.py", "pi-extensions/*/*.ts", "tests/*.py",
+                  "docs/case/*.md", "docs/measurements/*.md", "CLAUDE.md")
+
+
+def citing_files(root, alias):
+    """Files in OUR code or notes that name a source as a reason for something.
+
+    Built after the same mistake twice: `metaharness` ADR-010 was quoted as the
+    authority for reversing a decision, and `pi-tool-repair-layer` supplied the
+    tiering in check-guard-mutations — both while the register said 未審視.
+    Citing a source is using it, and using it without reading it is how a
+    proposal gets promoted to a decision (which is exactly what happened with
+    ADR-010's Proposed status).
+    """
+    import glob as _glob
+    hits = []
+    needle = "research/%s" % alias
+    alt = "reference/%s" % alias
+    for pattern in CITATION_GLOBS:
+        for path in _glob.glob(os.path.join(root, pattern)):
+            rel = os.path.relpath(path, root).replace(os.sep, "/")
+            if rel in CITATION_EXEMPT:
+                continue
+            try:
+                with open(path, encoding="utf-8", errors="replace") as f:
+                    body = f.read()
+            except OSError:
+                continue
+            if needle in body or alt in body:
+                hits.append(rel)
+    return sorted(hits)
+
+
 def check(root):
     failures = []
     notes = []
@@ -201,6 +244,20 @@ def check(root):
                  % (len(rows), len(reviewed), len(unreviewed)))
     if unreviewed:
         notes.append("unreviewed (未審視): " + ", ".join(unreviewed))
+
+    # A source we cite is a source we have used. Using one the register calls
+    # 未審視 is how a Proposed ADR became "the reason we built this".
+    for row in rows:
+        if "已審視" in row.get("status", ""):
+            continue
+        for alias in aliases(row):
+            where = citing_files(root, alias)
+            if where:
+                failures.append(
+                    "%s is cited as a reason in %s but the register still says "
+                    "未審視. Citing it is using it — review it, or stop leaning "
+                    "on it." % (alias, ", ".join(where)))
+                break
 
     return failures, notes
 
