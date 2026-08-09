@@ -81,14 +81,21 @@ export function shorten(prompt: string, max = MAX_GOAL_CHARS): string {
  * It ends on a question rather than an instruction on purpose — an instruction
  * here is another rule among many, and this repo has measured three times over
  * that added rules get skipped while a demand for an answer does not. The count
- * is included because "you are 12 steps in" is the part the model cannot observe
+ * is included because how far in it is, is the part the model cannot observe
  * about itself.
+ *
+ * It says RESULTS, not calls, and the distinction came out of the first live run
+ * rather than out of design. Session 019fe72a fired on the 12th result while the
+ * model had already issued 14 calls — turns emit tool calls in batches (2/4/4/4/
+ * 4/1/1 there), so the two numbers diverge. Telling a model "you have made 12
+ * calls" when it can see 14 puts a false statement inside the one message whose
+ * whole job is to be the reliable account of where it is.
  */
 export function restatement(goal: string, acts: number): string {
   return (
     `${HEADER}\n` +
     `使用者這一輪原本要的是:「${goal}」\n` +
-    `你到目前為止已經呼叫了 ${acts} 次工具。` +
+    `到目前為止已經有 ${acts} 次工具結果回來(批次發出的呼叫數可能更多)。` +
     `在繼續之前,請先確認你現在做的事仍然在回答上面這句話 —— ` +
     `如果已經偏開,現在說出來並修正方向,不要等到最後才發現。`
   );

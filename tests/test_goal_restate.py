@@ -135,9 +135,18 @@ class TestContent(unittest.TestCase):
                       "the restatement does not contain the request it restates")
 
     def test_reports_the_step_count(self):
-        """"You are 12 calls in" is the part the model cannot observe itself."""
+        """How far in it is, is the part the model cannot observe itself."""
         out = drive(GOAL, True, [False] * 12)
         self.assertIn("12", [o for o in out if o][0])
+
+    def test_counts_results_not_calls(self):
+        """Session 019fe72a fired on the 12th result while the model had issued
+        14 calls — turns emit tool calls in batches. A message whose job is to be
+        the reliable account of where the run is must not contain a number the
+        model can see is wrong."""
+        text = [o for o in drive(GOAL, True, [False] * 12) if o][0]
+        self.assertIn("工具結果", text)
+        self.assertNotIn("呼叫了 12 次工具", text)
 
     def test_labelled_so_it_is_not_read_as_tool_output(self):
         out = drive(GOAL, True, [False] * 12)
