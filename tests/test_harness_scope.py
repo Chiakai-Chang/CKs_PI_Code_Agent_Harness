@@ -270,6 +270,22 @@ class TestAProjectMayTightenButNeverLoosen(unittest.TestCase):
             with self.subTest(v=v):
                 self.assertIsNone(self._turns(v))
 
+    def test_the_band_edges_themselves(self):
+        """From the mutation sweep: `min: 4` could be shifted to 5 and `max: 12`
+        to 13 with nothing turning red, because the tests only used values well
+        inside and well outside. The edges are the contract."""
+        self.assertEqual(self._turns(4), 4, "the shipped default must be settable")
+        self.assertEqual(self._turns(12), 12)
+
+    def test_a_fraction_is_refused(self):
+        """Also from the sweep. `typeof v !== "number" || !Number.isInteger(v)`
+        flipped to `&&` lets 4.5 through, because a float clears the typeof test
+        and the integer test is then never reached on its own. A fractional
+        number of turns is not a number of turns."""
+        for v in (4.5, 8.1, 11.9):
+            with self.subTest(v=v):
+                self.assertIsNone(self._turns(v))
+
     def test_a_non_number_is_refused(self):
         for v in ("8", True, None, [8]):
             with self.subTest(v=v):

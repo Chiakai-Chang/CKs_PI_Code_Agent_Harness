@@ -244,14 +244,27 @@ class TestIllegalTransitions(unittest.TestCase):
         """ % json.dumps(d))
         self.assertFalse(out["blocked"])
 
-    def test_an_unrecognised_token_is_not_guessed_at(self):
+    def test_an_unrecognised_token_is_refused(self):
+        """REVERSED 2026-08-09, and the old assertion is quoted here rather than
+        deleted: it said "an unknown token is the verifier's business, not this
+        guard's" and expected the write to pass.
+
+        There is no verifier in this loop, and a live run showed the cost. It
+        claimed its task, wrote COMPLETE, then an empty string, and both were
+        allowed; from then on every nextStep() read a status it could not parse,
+        fell back to "claim this task", and repeated that while the model
+        carried on believing it had finished. The run never reached REVIEW.
+
+        A deliberate, written-down deferral outlived the situation that
+        justified it — the other half of the scar that says undocumented
+        rejections get rebuilt."""
         d = self.fx.task("Task_001_A", "PENDING")
         out = run_js("""
         const g = new m.TaskQueueGuard();
         const r = g.check("write", { path: %s + "/status.txt", content: "FINISHED" }, "");
-        process.stdout.write(JSON.stringify({ blocked: !!r }));
+        process.stdout.write(JSON.stringify({ blocked: !!r, block: r ? r.block : null }));
         """ % json.dumps(d))
-        self.assertFalse(out["blocked"], "an unknown token is the verifier's business, not this guard's")
+        self.assertIs(out["block"], True)
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
@@ -429,6 +442,124 @@ class TestItCannotTrapTheRun(unittest.TestCase):
         process.stdout.write(JSON.stringify({ threw }));
         """)
         self.assertFalse(out["threw"])
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestAnInvalidStatusStopsTheMachine(unittest.TestCase):
+    """Measured 2026-08-09, run 2 of the CLAIM budget experiment:
+
+        INJECT  把 status.txt 改成 IN_PROGRESS
+        WRITE   status.txt <- 'IN_PROGRESS'     claimed
+        WRITE   status.txt <- 'COMPLETE'        allowed
+        INJECT  請認領                            the advancer no longer understands
+        WRITE   status.txt <- ''                allowed
+        INJECT  x2                               the same sentence again
+
+    `checkTransition` returned null for anything outside VALID_STATUSES with
+    the comment "the verifier's business" — it checked transitions BETWEEN
+    valid states and never checked that the value was a state. One invalid
+    write stops the machine: every later nextStep() reads a status it cannot
+    parse, falls back to "claim this task", and repeats while the model
+    believes it has finished. That run never reached REVIEW.
+
+    The deferral was deliberate and written down, and there is no verifier in
+    this loop. The recorded scar is that undocumented rejections get rebuilt;
+    this is the other half, where a documented one outlives its reason.
+
+    The contract is tighter than "one of five". It is: refuse exactly what
+    `readStatus` would later fail to read. Lowercase parses as JSON-ish text
+    and fails that read, so it has to be refused too, or the machine stops in
+    the same way by a politer route."""
+
+    def setUp(self):
+        self.fx = QueueFixture()
+        self.addCleanup(self.fx.cleanup)
+
+    def _write(self, content, status="IN_PROGRESS"):
+        d = self.fx.task("Task_001_A", status)
+        return run_js("""
+        const g = new m.TaskQueueGuard();
+        const r = g.check("write", { path: %s + "/status.txt", content: %s }, "");
+        process.stdout.write(JSON.stringify({ blocked: !!r, block: r ? r.block : null,
+                                              reason: r ? r.reason : "" }));
+        """ % (json.dumps(d), json.dumps(content)))
+
+    def test_the_exact_value_that_broke_the_run(self):
+        out = self._write("COMPLETE")
+        self.assertIs(out["block"], True)
+
+    def test_an_empty_status_is_refused(self):
+        self.assertIs(self._write("")["block"], True)
+
+    def test_lowercase_is_refused_because_readStatus_cannot_read_it(self):
+        for text in ("in_progress", "Review", "done"):
+            with self.subTest(text=text):
+                self.assertIs(self._write(text)["block"], True)
+
+    def test_the_refusal_names_the_values_that_work(self):
+        """Refusing removes the wrong path and supplies nothing unless it is
+        told to — today's recurring lesson, applied here."""
+        reason = self._write("COMPLETE")["reason"]
+        for name in ("PENDING", "IN_PROGRESS", "REVIEW", "DONE", "ESCALATED"):
+            self.assertIn(name, reason)
+        self.assertIn("COMPLETE", reason, "say what was written, not just what is allowed")
+
+    def test_whitespace_around_a_valid_status_is_fine(self):
+        # chr() rather than escapes: tenth backslash lost to the heredoc
+        # in this stretch, and a trailing newline is exactly what is being
+        # tested, so it cannot be written as an escape that might vanish.
+        NL, CR = chr(10), chr(13)
+        # REVIEW and DONE both come from IN_PROGRESS via legal transitions?
+        # No — IN_PROGRESS>DONE is in ILLEGAL, so a DONE case here would be
+        # measuring the transition rule instead of the whitespace handling.
+        # Fixture corrected rather than the expectation.
+        for text in ("IN_PROGRESS" + NL, "  REVIEW  ", "REVIEW" + CR + NL):
+            with self.subTest(text=repr(text)):
+                self.assertFalse(self._write(text, status="IN_PROGRESS")["blocked"],
+                                 "a trailing newline is how files end")
+
+    def test_a_write_with_no_extractable_content_still_fails_open(self):
+        """`bash` writes carry no parseable content and this repo refuses to
+        half-parse them (Task_004). A write whose content cannot be read must
+        keep passing, or the fix would block the paths it never covered."""
+        d = self.fx.task("Task_001_A", "IN_PROGRESS")
+        out = run_js("""
+        const g = new m.TaskQueueGuard();
+        const r = g.check("write", { path: %s + "/status.txt" }, "");
+        process.stdout.write(JSON.stringify({ blocked: !!r }));
+        """ % json.dumps(d))
+        self.assertFalse(out["blocked"])
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestARuleRetires(unittest.TestCase):
+    """From the mutation sweep: `return false` in the retirement path could be
+    flipped to `return true` with nothing turning red, which would mean a rule
+    that never stands aside.
+
+    The protocol allows the exception explicitly (for_agents.md: unless the
+    higher-level tool is entirely unavailable), and this repo's own measurement
+    is blunter — a wall with no door gets the guard switched off, and a guard
+    that is off protects nothing."""
+
+    def setUp(self):
+        self.fx = QueueFixture()
+        self.addCleanup(self.fx.cleanup)
+
+    def test_the_same_rule_stands_aside_after_its_limit(self):
+        d = self.fx.task("Task_001_A", "PENDING", retro=True)
+        out = run_js("""
+        const g = new m.TaskQueueGuard();
+        const verdicts = [];
+        for (let i = 0; i < m.MAX_BLOCKS_PER_RULE + 2; i++) {
+          const r = g.check("write", { path: %s + "/status.txt", content: "DONE" }, "");
+          verdicts.push(r ? "blocked" : "allowed");
+        }
+        process.stdout.write(JSON.stringify({ verdicts, limit: m.MAX_BLOCKS_PER_RULE }));
+        """ % json.dumps(d))
+        self.assertEqual(out["verdicts"][0], "blocked")
+        self.assertIn("allowed", out["verdicts"],
+                      "a rule that never retires is a wall with no door")
+        self.assertEqual(out["verdicts"].count("blocked"), out["limit"])
+
 
 
 if __name__ == "__main__":

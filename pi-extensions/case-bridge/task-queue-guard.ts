@@ -151,18 +151,27 @@ export interface QueueBlock {
 type RuleName = "transition" | "one-at-a-time" | "self-approval" | "retro" | "boundary" | "tool-first";
 
 /** The text a write or edit is about to put on disk. */
-function outgoingText(input: unknown): string {
+/**
+ * The text a write would put on disk, or null when none can be read.
+ *
+ * null and "" have to be different answers. `bash` writes carry no parseable
+ * content and this repo refuses to half-parse them (Task_004: partial parsing
+ * is worse than none), so unreadable must keep passing — while an empty string
+ * is a real value the model chose, and it broke a run.
+ */
+function outgoingText(input: unknown): string | null {
   const src = (input ?? {}) as Record<string, unknown>;
   const parts: string[] = [];
-  if (typeof src.content === "string") parts.push(src.content);
+  let found = false;
+  if (typeof src.content === "string") { parts.push(src.content); found = true; }
   const edits = src.edits;
   if (Array.isArray(edits)) {
     for (const e of edits) {
       const t = (e as Record<string, unknown> | null)?.newText;
-      if (typeof t === "string") parts.push(t);
+      if (typeof t === "string") { parts.push(t); found = true; }
     }
   }
-  return parts.join("\n");
+  return found ? parts.join("\n") : null;
 }
 
 /**
@@ -250,15 +259,50 @@ export class TaskQueueGuard {
     const taskName = basename(taskDir);
 
     if (basename(resolve(target)) === "status.txt") {
-      return this.checkTransition(taskDir, queueDir, taskName, outgoingText(input).trim());
+      return this.checkTransition(taskDir, queueDir, taskName, outgoingText(input));
     }
     return this.checkBoundary(queueDir, taskName);
   }
 
   private checkTransition(
-    taskDir: string, queueDir: string, taskName: string, next: string,
+    taskDir: string, queueDir: string, taskName: string, written: string | null,
   ): QueueBlock | null {
-    if (!VALID_STATUSES.includes(next)) return null;   // the verifier's business
+    // Unreadable content keeps passing: `bash` writes carry none, and this repo
+    // refuses to half-parse them.
+    if (written === null) return null;
+    const next = written.trim();
+
+    // REVERSAL, recorded rather than quietly deleted. This line used to read
+    //     if (!VALID_STATUSES.includes(next)) return null;  // the verifier's business
+    // so the guard checked transitions BETWEEN valid states and never checked
+    // that the value was a state at all.
+    //
+    // Measured 2026-08-09: a run claimed its task, then wrote COMPLETE, then an
+    // empty string, and both were allowed. One invalid write stops the machine —
+    // every later nextStep() reads a status it cannot parse, falls back to
+    // "claim this task", and repeats it while the model believes it has
+    // finished. That run never reached REVIEW.
+    //
+    // The deferral was deliberate and there is no verifier in this loop. The
+    // scar on record is that undocumented rejections get rebuilt; this is the
+    // other half, where a documented one outlives its reason.
+    //
+    // The contract is tighter than "one of five": refuse exactly what
+    // `readStatus` would later fail to read, which is why lowercase is refused
+    // too — it would stop the machine the same way by a politer route.
+    if (!VALID_STATUSES.includes(next) && this.refuse("status-value")) {
+      return {
+        block: true,
+        reason:
+          `C.A.S.E. status guard: ${taskName}/status.txt would be set to ` +
+          `"${next.slice(0, 40)}", which is not a status. The state machine ` +
+          `reads this file every turn, so an unrecognised value stops it — the ` +
+          `advancer falls back to "claim this task" and repeats that while you ` +
+          `carry on. Exactly one of these, upper case: ` +
+          `${VALID_STATUSES.join(", ")}.`,
+      };
+    }
+    if (!VALID_STATUSES.includes(next)) return null;
     const current = readStatus(taskDir);
     if (!current) return null;                         // nothing to compare
 
