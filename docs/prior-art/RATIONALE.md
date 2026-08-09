@@ -229,3 +229,28 @@ VERIFY 階段:read/bash/lsp only —— 驗證者不准自己改東西
   沒有核對。名字叫 evidence,行為是 opinion。移植時證據必須綁真實產物,這是我們該做得比它嚴的地方。
 
 **完整記錄**:[2026-08-08-prime-agent-review.md](2026-08-08-prime-agent-review.md)
+
+## 2026-08-09 — metaharness(`ruvnet/agent-harness-generator` ADR 集)
+
+**來源**:`research/metaharness`(1.9 GB,223 個 ADR)
+**研究目的**:第一層未審視來源的第一個;同時查證我先前對它 ADR-010 的引用。
+
+**核心發現**:**我的引用高估了一級。** ADR-010 的狀態是 `Proposed` 而非 `Accepted`;
+引文逐字正確、反轉條件確實存在,但那是提案不是決定。
+223 個 ADR 裡 `Accepted` 系列僅約 42 個 —— **「這個 repo 說過 X」在這裡不是安全的話。**
+
+**採用項目**
+* **量測噪音底線再解讀差異**(ADR-138,`Accepted (measured)`):`n ≳ (sd/(Δ/2))²`。
+  **直接指出我的方法缺口** —— 我用 n=2 對二元結果下判定,從未量過本機模型的 run 間變異。
+  已排進 roadmap 成為所有條件比較的前置。
+* **狀態詞彙區分 `Accepted` 與 `Accepted (measured)`**:我們的 `docs/case/` 沒有欄位說明
+  「這個決定有沒有證據」,只能靠讀者追連結。低成本高價值。
+
+**放棄項目**
+* Darwin Mode 整套演化機制(ADR-093~152)—— 遺傳演算法、SWE-bench 語料、模型路由:
+  規模與目的都與我們不同(單機、單模型、一個真實使用者的日常流程)。
+* 223 個 ADR 的文件密度 —— 我們的 roadmap 一天漂一次,再加一層編號文件只會讓沒人讀的東西變多。
+* 三環測試分層(ADR-010)—— 已有實測驅動的等價物。
+
+**完整記錄**:[2026-08-09-metaharness-review.md](2026-08-09-metaharness-review.md)
+

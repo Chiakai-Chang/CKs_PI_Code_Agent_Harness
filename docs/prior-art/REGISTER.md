@@ -40,7 +40,7 @@
 | prime-agent | research-clone(**pi-mono 的 fork,非 Pi 擴充**) | research/prime-agent | 已審視(實作層) | docs/prior-art/2026-08-08-prime-agent-review.md | **待移植**:supplemental-only 提示層(base 不可改,有真實拒絕)、refinement 事件 append-only + rollback、local/global 分域且預設 local | 整套 RLM/IPython runtime、換底座(它釘 pi-coding-agent ^0.7.1,我們跑 0.83)、**「evidence-backed」的自陳式證據**(`evidence: proposal.rationale`,未驗證) | 2026-08-08 |
 | market-research | reference-clone | reference/market-research | 未審視 | — | — | — | — |
 | pi-browser-harness | reference-clone | research/pi-browser-harness | 未審視 | — | 蒸餾為 `deep-research-guide`、`browser-automation-guide`(**僅散文,無實作層紀錄**) | — | — |
-| metaharness | reference-clone | research/metaharness | 未審視 | — | 蒸餾為 `harness-factory-guide`(同上) | — | — |
+| metaharness | reference-clone | research/metaharness | 已審視(實作層) | docs/prior-art/2026-08-09-metaharness-review.md | **待移植**:量測噪音底線再解讀差異(ADR-138 的 `n ≳ (sd/(Δ/2))²`);ADR 狀態詞彙區分 `Accepted` 與 `Accepted (measured)`；蒸餾為 `harness-factory-guide`(同上) | Darwin Mode 整套演化機制(規模與目的不同)、223 個 ADR 的文件密度、三環測試分層(已有等價物)。**另更正**:我先前引用其 ADR-010 當根據時,未察覺其狀態是 `Proposed` 而非 `Accepted` | 2026-08-09 |
 | harness-engineering | reference-clone | research/harness-engineering | 未審視 | — | 蒸餾為 `grilling-protocol`(同上) | — | — |
 | the-last-harness | reference-clone | research/the-last-harness | 未審視 | — | 蒸餾為 `contrarian-review`(同上) | — | — |
 | ultimate-pi | reference-clone | research/ultimate-pi | 未審視 | — | 蒸餾為 `adversary-review`(同上) | — | — |
