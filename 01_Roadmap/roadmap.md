@@ -144,6 +144,28 @@
       (b) `Local Definition of Done` 沒有區分單元證據與**交付證據**,
       而 Task_011 證明了兩者可以差一整天。
 
+## Phase 2c:反漂移 —— 協定有、我們沒有的三件事
+
+**這一節存在的理由:** 2026-08-09 對照 C.A.S.E. 才發現,所有帶著「目標」的注入都掛在
+`before_agent_start`,而它每則使用者訊息只跑一次。實測 session `019fe60f` 是
+**1 則使用者訊息 / 16 輪 assistant**,目標在第 16 輪時已經是 15 輪之前的事。
+中途會發言的通道全部在說「這一步准不准」,沒有一個在說「你原本要做什麼」。
+完整證據見 [docs/case/2026-08-09-anti-drift-gap-analysis.md](../docs/case/2026-08-09-anti-drift-gap-analysis.md)。
+
+- [ ] `Task_019_goal_restatement`(**先做,最便宜**):把目標重述掛到 `tool_result`
+      —— 唯一實測證明送得到模型、且中途會發言的通道。**動工前先寫下量測方法**,
+      因為每輪注入的樣板文字會被學會略過(`gates-create-their-own-failure-mode`)。
+- [ ] `Task_020_handoff_capsule`:實作協定 §16 的 `[H]`
+      (`session_summary` / `active_pivot_point` / `pending_blockers`)。
+      grep `pi-extensions/` 對這四個詞**零命中** —— 沒有東西寫它、讀它或要求它。
+      我們有 `compact-continuation-bridge` 卻沒接上協定為同一問題設計的資料結構。
+      形式應為拒絕(沒有 `[H]` 就擋下交付物寫入),不是建議。
+- [ ] `Task_021_learnings_injection`:`[T]` 反重複。`ecc-hooks-bridge` **寫得進**
+      learnings,**沒有東西讀回來注入**。排最後,因為多數專案的 `learnings.md` 目前是空的。
+
+**同時記錄的兩項降級:** `[R]` Plan Self-Review 只檢查標題存在,`[V]` 只檢查
+`output.md` ≥200 字 —— 兩者檢查的都是形狀不是內容,完全漂移也能通過。
+
 ## Phase 3:剩下的可達性缺口
 
 - [ ] `Task_006_layer1_reachability`:README 的 Layer 1(`grilling-protocol` /

@@ -26,6 +26,7 @@ jobs:
           python -m py_compile scripts/setup.py
           python -m py_compile scripts/restore.py
           python -m py_compile scripts/uninstall.py
+          python -m py_compile scripts/report-task-shapes.py
 
       - name: Run tests (unittest, zero-dependency)
         run: |

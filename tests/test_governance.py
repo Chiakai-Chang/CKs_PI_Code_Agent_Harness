@@ -239,6 +239,12 @@ class TestDocumentedChecksRunInCI(unittest.TestCase):
         # earned that check the hard way: the first version's counters were
         # structurally incapable of returning anything but zero, twice.
         documented.discard("scripts/measure-advancer.py")
+        # report-task-shapes reports; it asserts nothing. Its input is
+        # ~/.pi/agent/sessions, which does not exist on a CI runner, so wiring it
+        # in would print "no sessions" and exit 0 on every run — a check
+        # structurally incapable of failing, which this repo counts as worse than
+        # no check. It has no unit tests either; CI guards only that it compiles.
+        documented.discard("scripts/report-task-shapes.py")
         missing = [c for c in sorted(documented) if c not in self.ci]
         self.assertEqual(missing, [], "documented checks absent from CI: %s" % missing)
 
