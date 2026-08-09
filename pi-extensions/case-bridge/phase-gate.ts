@@ -30,7 +30,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import { bashWriteTargets } from "./task-queue-guard.ts";
-import { resolveFlag } from "./harness-scope.ts";
+import { ScopeSnapshot, resolveFlag } from "./harness-scope.ts";
 
 /** Tools that reach the network for research. */
 const RESEARCH_TOOLS = new Set(["web_search", "web_open", "web_snapshot", "deep_research"]);
@@ -79,11 +79,22 @@ const MAX_REFUSAL_TURNS = 8;   // measured 2026-08-09; see the bet document
  * 2026-08-09 attempt edited the constant and depended on remembering to put it
  * back.
  */
+/** Set by the bridge at session_start so the gate reads the same snapshot. */
+let sharedScope: ScopeSnapshot | null = null;
+
+export function useScopeSnapshot(s: ScopeSnapshot | null): void {
+  sharedScope = s;
+}
+
 function refusalTurns(queueDir: string): number {
   // No global fallback on purpose: this setting exists only as a per-project
   // tightening, so an empty harness root is correct and the shipped default
   // stands when the project says nothing.
-  const v = resolveFlag("caseClaimRefusalTurns", dirname(queueDir), "");
+  // Prefer the session snapshot when one has been taken; fall back to reading
+  // for the unit tests, which construct a gate without a session.
+  const snap = sharedScope?.get("caseClaimRefusalTurns");
+  const v = snap !== undefined ? snap
+    : resolveFlag("caseClaimRefusalTurns", dirname(queueDir), "");
   return typeof v === "number" ? v : MAX_REFUSAL_TURNS;
 }
 

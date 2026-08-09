@@ -55,7 +55,10 @@ def run_js(script):
     driver = os.path.join(ROOT, "tests", ".tmp_scope_driver.mjs")
     url = "file:///" + MOD.replace("\\", "/")
     with open(driver, "w", encoding="utf-8") as f:
-        f.write("import * as m from %s;\n%s" % (json.dumps(url), script))
+        # `fs` is imported for the snapshot tests, which edit the config file
+        # mid-script to prove a running session does not notice.
+        f.write("import * as m from %s;\nimport fs from 'node:fs';\n%s"
+                % (json.dumps(url), script))
     try:
         p = subprocess.run(["node", driver], capture_output=True, text=True,
                            encoding="utf-8", errors="replace", cwd=ROOT, timeout=120)
@@ -220,13 +223,28 @@ class TestItFailsOpenToGlobal(unittest.TestCase):
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
 class TestTheBridgeUsesIt(unittest.TestCase):
-    def test_case_advancer_reads_through_the_resolver(self):
+    def test_case_advancer_reads_the_session_snapshot(self):
+        """Changed 2026-08-09 with the contract. It used to demand a direct
+        `resolveFlag` call, which was right when every read hit the file; the
+        flag is now answered from the snapshot taken at session_start, so a
+        mid-run edit cannot move a running session."""
         with open(os.path.join(ROOT, "pi-extensions", "case-bridge", "index.ts"),
                   encoding="utf-8") as f:
             src = f.read()
         body = src.split("function caseAdvancerEnabled", 1)[1][:700]
-        self.assertIn("resolveFlag(", body,
-                      "the resolver nobody calls is a module, not a mechanism")
+        self.assertIn('scope.get("enableCaseAdvancer")', body)
+        self.assertNotIn("resolveFlag(", body,
+                         "reading the file here would reintroduce the drift")
+
+    def test_the_snapshot_is_taken_at_a_session_boundary(self):
+        """Once, at session_start — the property the whole change exists for."""
+        with open(os.path.join(ROOT, "pi-extensions", "case-bridge", "index.ts"),
+                  encoding="utf-8") as f:
+            src = f.read()
+        self.assertEqual(src.count("scope.take("), 1, "one boundary, not several")
+        started = src.split('pi.on("session_start"', 1)
+        self.assertEqual(len(started), 2)
+        self.assertIn("scope.take(", started[1][:600])
 
     def test_the_other_flags_were_left_alone(self):
         """Scope creep here means changing seven bridges at once, none of which
@@ -234,7 +252,7 @@ class TestTheBridgeUsesIt(unittest.TestCase):
         with open(os.path.join(ROOT, "pi-extensions", "case-bridge", "index.ts"),
                   encoding="utf-8") as f:
             src = f.read()
-        self.assertEqual(src.count("resolveFlag("), 1)
+        self.assertEqual(src.count('scope.get("'), 1)
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
 class TestAProjectMayTightenButNeverLoosen(unittest.TestCase):
@@ -290,6 +308,101 @@ class TestAProjectMayTightenButNeverLoosen(unittest.TestCase):
         for v in ("8", True, None, [8]):
             with self.subTest(v=v):
                 self.assertIsNone(self._turns(v))
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestASnapshotHoldsForTheSession(unittest.TestCase):
+    """Taken from the-last-harness, which snapshots its experimental flags at
+    session start or an explicit reload, so toggling one does not change a
+    running session.
+
+    Ours read the file on every call. A measurement whose configuration is
+    edited mid-run therefore changes behaviour with nothing in the record
+    showing it, and "which configuration did this run use" is not a question
+    the transcript can answer. That lands directly on this week's weakest
+    point: three separate measurement rounds were invalidated by the
+    environment rather than the harness."""
+
+    def _snap(self, first, then):
+        fx = Fixture(global_flags={"enableCaseAdvancer": False},
+                     local_text=json.dumps(first))
+        self.addCleanup(fx.cleanup)
+        return run_js("""
+        const s = new m.ScopeSnapshot();
+        s.take(%s, %s);
+        const before = s.get("enableCaseAdvancer");
+        %s
+        const after = s.get("enableCaseAdvancer");
+        process.stdout.write(JSON.stringify({ before, after,
+                                              digest: s.digest().length }));
+        """ % (json.dumps(fx.project), json.dumps(fx.harness.replace("\\", "/")),
+               ("""
+        fs.writeFileSync(%s, %s);
+        """ % (json.dumps(os.path.join(fx.project, ".pi-harness.json").replace("\\", "/")),
+               json.dumps(json.dumps(then)))) if then is not None else ""))
+
+    def test_a_mid_session_edit_does_not_change_the_running_session(self):
+        out = self._snap({"enableCaseAdvancer": True}, {"enableCaseAdvancer": False})
+        self.assertIs(out["before"], True)
+        self.assertIs(out["after"], True, "the snapshot is the session's answer")
+
+    def test_the_snapshot_reflects_the_file_at_the_moment_it_was_taken(self):
+        self.assertIs(self._snap({"enableCaseAdvancer": False}, None)["before"], False)
+
+    def test_it_has_a_digest_so_a_run_can_say_what_it_used(self):
+        """Half the value is behavioural and half is legible: without something
+        identifying the configuration, a reproducible run is still an
+        unattributable one."""
+        self.assertGreater(self._snap({"enableCaseAdvancer": True}, None)["digest"], 8)
+
+    def test_the_digest_is_pinned_and_distinguishes_configurations(self):
+        """The sweep could shift the hash constants with nothing red, because
+        only the digest's LENGTH was asserted. A digest nobody compares is a
+        label, not an identifier."""
+        out = run_js("""
+        const a = new m.ScopeSnapshot(), b = new m.ScopeSnapshot();
+        a.take("", "");
+        b.take("", "");
+        const empty = a.digest();
+        const same = b.digest();
+        process.stdout.write(JSON.stringify({ empty, same }));
+        """)
+        self.assertEqual(out["empty"], out["same"], "same configuration, same digest")
+        # Pinned to the MEASURED value, not the one I assumed. My first guess
+        # was scope:00000000:0 on the reasoning that an empty config hashes to
+        # zero; it hashes the string "[]", which does not.
+        self.assertEqual(out["empty"], "scope:00000b62:0",
+                         "an empty configuration has one spelling, and it is pinned")
+
+    def test_reset_puts_it_back_to_untaken(self):
+        """From the mutation sweep: the `taken = false` initialiser could be
+        flipped to true with nothing turning red, which would make a snapshot
+        that was never read answer with values instead of undefined. The
+        existing untaken test could not see it because an unread snapshot is
+        also an empty one — `get` returns undefined either way. Taking a real
+        snapshot first and then resetting is what separates them."""
+        fx = Fixture(global_flags={"enableCaseAdvancer": False},
+                     local_text=json.dumps({"enableCaseAdvancer": True}))
+        self.addCleanup(fx.cleanup)
+        out = run_js("""
+        const s = new m.ScopeSnapshot();
+        s.take(%s, %s);
+        const before = s.get("enableCaseAdvancer");
+        s.reset();
+        process.stdout.write(JSON.stringify({ before,
+                                              after: s.get("enableCaseAdvancer") ?? null }));
+        """ % (json.dumps(fx.project), json.dumps(fx.harness.replace("\\", "/"))))
+        self.assertIs(out["before"], True)
+        self.assertIsNone(out["after"], "a reset snapshot must answer undefined")
+
+    def test_an_untaken_snapshot_answers_undefined_not_a_default(self):
+        """Answering `false` before session_start would make a missing snapshot
+        indistinguishable from a flag that is off — and this flag triggers
+        turns."""
+        out = run_js("""
+        const s = new m.ScopeSnapshot();
+        process.stdout.write(JSON.stringify({ v: s.get("enableCaseAdvancer") ?? null }));
+        """)
+        self.assertIsNone(out["v"])
 
 
 

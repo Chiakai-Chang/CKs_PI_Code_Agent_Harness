@@ -13,8 +13,8 @@ import { join, dirname } from "node:path";
 import { TaskQueueGuard } from "./task-queue-guard.ts";
 import { ActionLogger } from "./action-log.ts";
 import { QueueAdvancer } from "./queue-advancer.ts";
-import { PhaseGate } from "./phase-gate.ts";
-import { resolveFlag } from "./harness-scope.ts";
+import { PhaseGate, useScopeSnapshot } from "./phase-gate.ts";
+import { ScopeSnapshot } from "./harness-scope.ts";
 import { PhaseNotice } from "./phase-notice.ts";
 
 const MAX_INJECT_CHARS = 3000;
@@ -68,9 +68,15 @@ function harnessRoot(): string | null {
  * the global flag, which drove every other C.A.S.E. project the user had open
  * for the duration — see harness-scope.ts.
  */
-function caseAdvancerEnabled(harnessRoot: string, cwd?: string): boolean {
+const scope = new ScopeSnapshot();
+
+function caseAdvancerEnabled(_harnessRoot: string, _cwd?: string): boolean {
+  // The session's snapshot, not the file. Editing `.pi-harness.json` mid-run
+  // used to change behaviour immediately and left nothing in the record saying
+  // which configuration a run had used — and three measurement rounds this
+  // week were already invalidated by the environment rather than the harness.
   try {
-    return resolveFlag("enableCaseAdvancer", cwd ?? "", harnessRoot) === true;
+    return scope.get("enableCaseAdvancer") === true;
   } catch {
     return false;
   }
@@ -125,6 +131,9 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", async (_event, ctx) => {
     // A new session is a new Worker: whoever moved a task to IN_PROGRESS last
     // time is not this session, and the dual-track rule must not carry over.
+    // A session boundary is where the configuration is read, once.
+    scope.take(ctx.cwd, harnessRoot() ?? "");
+    useScopeSnapshot(scope);
     queueGuard.reset();
     queueGuard.humanApproved.reset();
     phaseNotice.reset();

@@ -116,3 +116,59 @@ export function resolveFlag(
   if (global && key in global) return global[key];
   return undefined;
 }
+
+/**
+ * The scoped flags as they stood when the session began.
+ *
+ * Taken from the-last-harness, which snapshots its experimental flags at
+ * session start or an explicit reload so that toggling one does not change a
+ * running session. Ours read the file on every call, which has two costs and
+ * the second is the expensive one:
+ *
+ *  1. editing `.pi-harness.json` mid-run changes behaviour immediately;
+ *  2. "which configuration did this run use" is not a question the record can
+ *     answer afterwards.
+ *
+ * Three measurement rounds this week were invalidated by the environment
+ * rather than the harness, so a run that cannot state its own configuration is
+ * a run whose numbers have to be argued about.
+ */
+export class ScopeSnapshot {
+  // No `taken` flag: the mutation sweep showed it could be initialised either
+  // way with nothing observable, because an unread snapshot and a reset one are
+  // both empty maps and `get` returns undefined from both. A field whose value
+  // cannot change any answer is weight, not state.
+  private values = new Map<string, unknown>();
+
+  /** Read every project-scoped flag once, at a session boundary. */
+  take(cwd: unknown, harnessRoot: unknown): void {
+    this.values.clear();
+    for (const key of PROJECT_SCOPED) {
+      const v = resolveFlag(key, cwd, harnessRoot);
+      if (v !== undefined) this.values.set(key, v);
+    }
+  }
+
+  /**
+   * The session's answer, or undefined when no snapshot has been taken.
+   *
+   * Undefined rather than a default on purpose: answering `false` before
+   * `session_start` would make "not yet read" indistinguishable from "switched
+   * off", and the flag this mostly guards is the one that triggers turns.
+   */
+  get(key: string): unknown {
+    return this.values.get(key);
+  }
+
+  /** A short, stable identifier for the configuration this session is running. */
+  digest(): string {
+    const body = JSON.stringify([...this.values.entries()].sort());
+    let h = 0;
+    for (let i = 0; i < body.length; i++) h = (Math.imul(31, h) + body.charCodeAt(i)) | 0;
+    return `scope:${(h >>> 0).toString(16).padStart(8, "0")}:${this.values.size}`;
+  }
+
+  reset(): void {
+    this.values.clear();
+  }
+}

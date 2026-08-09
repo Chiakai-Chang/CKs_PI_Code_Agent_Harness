@@ -42,6 +42,10 @@
 
 | 項目 | 結論 |
 |---|---|
+| prior-art 第一層四個來源審視完 | metaharness / harness-engineering / the-last-harness / ultimate-pi;20/37 已審視。**每一次都同時查出我們自己的問題** |
+| 引用檢查(cited-but-unreviewed) | CI 現在會擋「引用了卻標未審視」的來源;一開就抓到兩個,而且是兩種不同的債 |
+| `global_dod.md` 改寫 | 原本是**無人讀取的未填樣板**,唯一填的一條正是 ADR-0001 點名的謬誤 |
+| 旗標在 `session_start` 快照(取自 the-last-harness) | 量測跑到一半改設定不再影響執行中的 session;附 digest 讓 run 能說出自己用了什麼設定 |
 | `Task_019_harness_scope` | local/global 分域,預設 local;實驗設定從此活在 fixture,repo 不再被改 |
 | 階段轉換通知 | **實測送達**:認領前成功搜尋 0、認領後 22。4b 的代價沒有重演 |
 | 擋阻額度改以**階段**為鍵 | 換工具不再換到新預算;`web_open` 不再收到「第一次」 |
