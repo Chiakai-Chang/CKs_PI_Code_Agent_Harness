@@ -32,6 +32,7 @@ import { join, dirname } from "node:path";
 
 import { classifyRequest, buildRoutine, buildSystemPromptNote, isBroadTool } from "./shape.ts";
 import { hasAnyPlan } from "./plan.ts";
+import { GoalRestate } from "./goal-restate.ts";
 
 const pkgPath = require.resolve("./package.json");
 const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
@@ -80,16 +81,26 @@ export default function (pi: ExtensionAPI) {
    */
   const MAX_DELIVERIES = 2;
 
+  // Mid-run goal restatement. Separate state from the routing note above: the
+  // note is spent on the first broad tool call, this one arms for the whole
+  // cycle and fires deep into it. See goal-restate.ts for why it exists.
+  const restate = new GoalRestate();
+
   pi.on("session_start", async () => {
     armed = null;
     pending = null;
     delivered = 0;
+    restate.reset();
   });
 
   pi.on("before_agent_start", (event, ctx) => {
     if (!enabled) return;
     try {
       const shape = classifyRequest(event.prompt);
+      // Armed before the plan check below returns: a project that already has a
+      // plan still forgets its goal by step 18 — that is the failure this
+      // addresses, and it is independent of whether a plan file exists.
+      restate.begin(event.prompt, shape.multiStep === true);
       if (!shape.multiStep) return;
       // A project that already has a plan does not need to be told to make one.
       if (hasAnyPlan(ctx.cwd)) return;
@@ -108,7 +119,10 @@ export default function (pi: ExtensionAPI) {
       const note = buildSystemPromptNote(shape, { interactive: ctx.hasUI !== false });
       if (note) return { systemPrompt: `${event.systemPrompt ?? ""}\n\n${note}` };
     } catch {
-      // Classification must never break a turn.
+      // Classification must never break a turn. Disarm rather than leave the
+      // previous cycle's goal in place — a stale restatement quoting a request
+      // the user has already moved on from is worse than none.
+      restate.reset();
     }
   });
 
@@ -128,10 +142,23 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("tool_result", async (event) => {
-    if (!pending) return;
-    const text = `${HEADER}\n${pending}`;
-    pending = null;
+    // Both riders share one channel, so they are collected into one return.
+    // Returning early on the first would have silently starved the second, and
+    // an injection that never reaches the model is this repo's most repeated
+    // defect.
+    const blocks: string[] = [];
+    if (pending) {
+      blocks.push(`${HEADER}\n${pending}`);
+      pending = null;
+    }
+    // `isError` is declared on ToolResultEventBase and is not optional, so it
+    // needs no cast and no fallback.
+    const goal = enabled ? restate.afterToolResult(event.isError) : null;
+    if (goal) blocks.push(goal);
+    if (!blocks.length) return;
     const existing = Array.isArray(event.content) ? [...event.content] : [];
-    return { content: [...existing, { type: "text" as const, text }] };
+    return {
+      content: [...existing, ...blocks.map((text) => ({ type: "text" as const, text }))],
+    };
   });
 }

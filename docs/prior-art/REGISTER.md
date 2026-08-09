@@ -51,7 +51,7 @@
 | Huiyu-Pi | reference-clone | research/Huiyu-Pi | 未審視 | — | 蒸餾為 `minimal-prompt-guide`(同上) | — | — |
 | auto-pi | reference-clone | research/auto-pi | 已審視 | docs/prior-art/RATIONALE.md | **階段工具白名單(`tool_call` 擋)**、操作綁技能、RED guard、純邏輯與 runtime 分離 | install.sh/mise/jq 依賴、六個預設 workflow 與 palette、1557 行單檔形狀、全自主模式 | 2026-08-06 |
 | oh-my-pi-audreyt | reference-clone | research/oh-my-pi-audreyt | 未審視 | — | 蒸餾為 `ide-intelligence-guide`(同上) | — | — |
-| oh-my-pi-can1357 | reference-clone | research/oh-my-pi-can1357 | 未審視 | — | 同上 | — | — |
+| oh-my-pi-can1357 | reference-clone | research/oh-my-pi-can1357 | 已審視(窄範圍:中途提醒機制) | docs/prior-art/2026-08-09-oh-my-pi-can1357-review.md | **已移植**:mid-run nudge 的四個設計決定(數動作不數輪次、每 cycle 硬上限 2、prompt cycle 歸零、注入當下才求值)進 `task-shape-bridge/goal-restate.ts`;**待評估**:`buildPostCompactionEagerNudges()`(壓縮後重注入,做 Task_020 `[H]` 前必讀)、stop-time reminder ladder(與 queue advancer 同位,要一起決定) | `todo` 工具本身(會變成第三套狀態,我們已有 planning.md 與 C.A.S.E. 任務包)、`eager-todo` 的 forced 分支(與 routing note 職責重疊)、它的載具 `appendMessage`(核心 fork 才有,extension 沒有) | 2026-08-09 |
 | claude-reflect | distillation-source | (無 clone) | 已審視 | docs/core/ | 本地移植為 `hello-reflect` | — | 2026-07-07 |
 | ecc | submodule | external/ecc | 已審視 | README.md 的 `eccSkillModules` 段 | 依 module 精選 65 技能(全量 277 個 = 27.5k tokens) | 全量註冊 | 2026-07-28 |
 | planning-with-files | submodule | external/planning-with-files | 已審視 | pi-extensions/planning-with-files-bridge/ | Verifiability Block 注入 | — | 2026-08-06 |
