@@ -161,7 +161,14 @@ export default function (pi: ExtensionAPI) {
   // already.
   pi.on("before_agent_start", async (event) => {
     if (!caseBridgeEnabled()) return;
-    queueGuard.humanApproved.note((event as { prompt?: unknown }).prompt);
+    const prompt = (event as { prompt?: unknown }).prompt;
+    queueGuard.humanApproved.note(prompt);
+
+    // A duplicate classifier lived here for one commit. `task-shape-bridge`
+    // already classified request shape at this same event, in any project, and
+    // already injected a routing note — it had simply never fired on Chinese
+    // prompts because its separator set lacked the fullwidth comma. Prior Art
+    // First applied to our own repository, and I skipped it.
   });
 
   pi.on("tool_call", async (event, ctx) => {

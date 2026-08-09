@@ -30,9 +30,16 @@ const RESEARCH_VERBS = [
  * The optional trailing conjunction is what makes "X, Y, and Z" three things
  * rather than four: without it the Oxford comma and the `and` after it are two
  * separate matches, and every list came out one item too long.
+ *
+ * The FULLWIDTH COMMA was missing until 2026-08-09, and it is the separator
+ * Chinese actually uses. The prompt that exposed it — session 019fe60f, sixteen
+ * turns of real research — contains five of them, zero ASCII commas and zero
+ * ideographic commas, so it counted 2 deliverables and classified as
+ * single-step. This classifier was very nearly blind to the language its owner
+ * writes in.
  */
 const CONJUNCTIONS =
-  /(?:,|、|;|；)\s*(?:and\b|plus\b|as well as\b|以及|還有)?|\band\b|\bplus\b|\bas well as\b|以及|還有|跟|與/gi;
+  /(?:,|，|、|;|；)\s*(?:and\b|plus\b|as well as\b|以及|還有)?|\band\b|\bplus\b|\bas well as\b|以及|還有|跟|與/gi;
 
 /** Phrases that say "there is more than one of these" outright. */
 const EXPLICIT_MULTI = [
@@ -83,7 +90,15 @@ export function classifyRequest(prompt: string | null | undefined): RequestShape
   // like a list.
   const deliverables = countDeliverables(text);
 
-  if (deliverables >= 3 && (hasResearchVerb || explicitlyPlural || deliverables >= 4)) {
+  // `deliverables >= 4` used to be sufficient on its own. Adding the fullwidth
+  // comma to the separator set made that shortcut wrong: English commas often
+  // separate deliverables, Chinese ones mostly separate clauses inside a single
+  // sentence, so counting alone promoted
+  // "我想洗車，洗車店離我家只有50公尺，你覺得我該走過去，還是開車去？" to multi-step.
+  // Measured over 106 real prompts from this machine: keeping the shortcut gave
+  // 35% multi-step and caught the car-wash question; removing it gives 17% and
+  // still catches session 019fe60f, the request this work started from.
+  if (deliverables >= 3 && (hasResearchVerb || explicitlyPlural)) {
     return {
       multiStep: true,
       deliverables,

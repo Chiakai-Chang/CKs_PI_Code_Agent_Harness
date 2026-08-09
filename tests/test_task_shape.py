@@ -195,8 +195,7 @@ class TestRoutineHandedToTheModel(unittest.TestCase):
         self.assertEqual(self._routine("What is the latest version of Zig?"), "")
 
 
-if __name__ == "__main__":
-    unittest.main()
+
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
@@ -293,3 +292,45 @@ class TestNonInteractiveRunsMustNotStallOnQuestions(unittest.TestCase):
                     % (json.dumps("What is the latest version of Zig?"),
                        "true" if interactive else "false"))["t"]
                 self.assertEqual(out, "")
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestChinesePunctuationIsSeparatorsToo(unittest.TestCase):
+    """The classifier was nearly blind to the language its owner writes in.
+
+    Session 019fe60f ran sixteen turns of real research and this bridge stayed
+    silent, because the separator set held `,` `、` `;` `；` and not the
+    FULLWIDTH COMMA. That prompt contains five of them, no ASCII commas and no
+    ideographic commas, so it counted two deliverables and classified as
+    single-step.
+
+    Adding the character is half the fix. Chinese commas mostly separate clauses
+    inside one sentence rather than deliverables, so the `deliverables >= 4`
+    shortcut — sufficient on its own before — began promoting a question about
+    whether to walk to the car wash. Measured over 106 real first-prompts from
+    this machine: with the shortcut 35% multi-step including the car wash,
+    without it 17% and still catching 019fe60f."""
+
+    def test_the_request_this_work_started_from(self):
+        prompt = ("請分析了解最近比較重要的社會事件，找出是否有關連，循線找出脈絡，"
+                  "若有關聯則進一步找出可能是誰在推動，目的是什麼，真相是什麼，"
+                  "請MECE的分析哪些利害關係人會受影響，該怎麼應對比較好，"
+                  "並復盤這些建議是否合適、有無遺漏或可更完善之處")
+        shape = classify(prompt)
+        self.assertTrue(shape["multiStep"])
+        self.assertGreaterEqual(shape["deliverables"], 5)
+
+    def test_a_chatty_question_with_commas_is_not_multi_step(self):
+        """Verbatim from the same history. Four clauses, three fullwidth commas,
+        one question — and no research verb, which is what now keeps it out."""
+        shape = classify("我想洗車，洗車店離我家只有50公尺，你覺得我該走過去，還是開車去？")
+        self.assertFalse(shape["multiStep"])
+
+    def test_a_chinese_research_request_with_several_asks(self):
+        shape = classify("請盤點哪些啟動腳本失效，並附上證據，說明每個檔案是否真的存在，"
+                         "最後整理成一份清單")
+        self.assertTrue(shape["multiStep"])
+
+
+
+if __name__ == "__main__":
+    unittest.main()
