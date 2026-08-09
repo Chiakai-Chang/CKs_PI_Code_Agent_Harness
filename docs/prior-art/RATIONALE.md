@@ -311,3 +311,32 @@ VERIFY 階段:read/bash/lsp only —— 驗證者不准自己改東西
 
 **完整記錄**:[2026-08-09-harness-engineering-review.md](2026-08-09-harness-engineering-review.md)
 
+## 2026-08-09 — the-last-harness
+
+**來源**:`research/the-last-harness`(218 MB)· `diegopetrucci/the-last-harness`
+**出處性質**:已出貨且活躍(CI、Releases 下載計數),並有一份專門定義「怎樣才算驗證過」的 `VALIDATING.md`。
+**與我們最可比** —— 同樣建在 Pi 之上。
+
+**核心發現**:它的第二條主張是對我們現狀的批評 ——
+> 你不該當保姆:若你需要手動呼叫工具、下指令,**harness 已經辜負你了**。
+> 你不該發現自己在想「啊,我忘了觸發 `/review`」。
+
+今天符合這個定義的有三次,**其中一次是我自己忘了用剛做好的 Path A**(Task_020 卡在 REVIEW)。
+
+**採用項目(待移植)**
+* **旗標在 `session_start` 快照,不即時讀取。** 我們的 `resolveFlag` 每次呼叫都讀檔,
+  所以量測跑到一半改設定會當場改變行為、而紀錄看不出來;「這次 run 用哪個設定」現在無法事後回答。
+  **直接打在我們最弱的地方(量測可信度),成本低。**
+* **待評估**:封閉的子代理/動作允許清單。tlh 把 `contrarian`、`oracle` 放進執行期封閉清單,
+  而我們量過同名的 Layer 1 技能全躺在 catalog 層、詞彙上到不了。
+  要移植的是「角色是封閉集合、由政策指派」這個形狀,不是照抄子代理機制。
+* **長期標準**:「使用者忘了觸發某件事」= harness 的失敗,不是使用者的疏忽。
+
+**放棄項目**
+* architect → 自動接手的整套編排 —— 假設多個可靠子代理與充足 token 預算;
+  我們是單一本機模型,連並行五個 tool call 都會把守衛額度用光。
+* 使用者自訂 embedded subagents —— 內建角色都還沒有。
+* `/experimental` 指令族 —— 形狀記下,現在不做:旗標只有一個半,做 UX 是為不存在的規模建設施。
+
+**完整記錄**:[2026-08-09-the-last-harness-review.md](2026-08-09-the-last-harness-review.md)
+
