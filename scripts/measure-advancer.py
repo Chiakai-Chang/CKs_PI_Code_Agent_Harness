@@ -432,6 +432,49 @@ def self_check() -> int:
     return 0
 
 
+
+def report_status() -> int:
+    """What is running right now, and whether anyone still owns it.
+
+    Asked for after the third time a live model with a silent shell caused
+    confusion. Two situations look identical from outside — a measurement I
+    launched detached, and a process leaked by one I thought I had stopped —
+    and until now only a hand-written PowerShell query could tell them apart.
+    The owner should not have to be the detector.
+    """
+    pids = orphan_pids()
+    if not pids:
+        print("no `pi --print` running.")
+        return 0
+    for pid in pids:
+        script = ("Get-CimInstance Win32_Process -Filter 'ProcessId=%d' | "
+                  "ForEach-Object { $_.ParentProcessId }" % pid)
+        out = subprocess.run(["powershell", "-NoProfile", "-Command", script],
+                             capture_output=True, text=True, errors="replace").stdout
+        parent = next((int(t) for t in out.split() if t.isdigit()), None)
+        alive = False
+        if parent:
+            chk = subprocess.run(
+                ["powershell", "-NoProfile", "-Command",
+                 "Get-Process -Id %d -ErrorAction SilentlyContinue | "
+                 "ForEach-Object { $_.Id }" % parent],
+                capture_output=True, text=True, errors="replace").stdout
+            alive = str(parent) in chk
+        owner = f"parent {parent} alive — a running measurement" if alive else                 "PARENT DEAD — an orphan, stop it: taskkill /PID %d /T /F" % pid
+        print(f"pi pid {pid}: {owner}")
+    # Progress of the newest fixture, so "is it working" has an answer too.
+    import glob
+    dirs = sorted(glob.glob(os.path.join(tempfile.gettempdir(), "advancer-*")),
+                  key=os.path.getmtime)
+    if dirs:
+        newest = Path(dirs[-1])
+        size = sum(p.stat().st_size for p in (newest / ".sess").rglob("*.jsonl"))             if (newest / ".sess").exists() else 0
+        task = newest / "02_Task_Queue" / "Task_001_probe"
+        print(f"newest fixture {newest.name}: session {size} bytes, "
+              f"status={read_status(task)}")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Measure the C.A.S.E. advancer on real runs.")
     ap.add_argument("--runs", type=int, default=1)
@@ -448,8 +491,13 @@ def main() -> int:
     ap.add_argument("--out", help="write the results as JSON here")
     ap.add_argument("--claim-turns", type=int, default=0,
                     help="tighten the CLAIM exit ramp for the fixture only (4-12)")
+    ap.add_argument("--status", action="store_true",
+                    help="report what is running right now, and whether it is mine")
     ap.add_argument("--self-check", action="store_true", help="prove the counters can fail")
     args = ap.parse_args()
+
+    if args.status:
+        return report_status()
 
     if args.self_check:
         return self_check()
