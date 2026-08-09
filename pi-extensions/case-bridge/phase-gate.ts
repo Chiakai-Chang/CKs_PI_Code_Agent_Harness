@@ -199,9 +199,11 @@ const CLAIM_FIRST =
   "問題是還沒認領就開工。先用 `write` 把該任務的 status.txt 改成 IN_PROGRESS,一次寫入的事。";
 
 const CLAIM_THIRD =
-  "C.A.S.E. 階段閘(CLAIM,第三次):具體到可以照做 —— " +
-  "`write` 到 `02_Task_Queue/<任務資料夾>/status.txt`,內容就是 `IN_PROGRESS` 六個字,沒有別的。" +
-  "在那之前,讀取與 grep 完全不受限,你可以先把 recipe.md 讀完再決定。";
+  "C.A.S.E. 階段閘(CLAIM,第三次):如果你已經在寫 status.txt 卻還是被擋," +
+  "**先檢查你寫的是哪一個目錄下的 02_Task_Queue** —— 路徑要相對於你這次的工作目錄," +
+  "不是任何技能 `<location>` 指到的地方。" +
+  "確認之後,`write` 到 `02_Task_Queue/<任務資料夾>/status.txt`,內容就是 `IN_PROGRESS`,沒有別的。" +
+  "在那之前,讀取與 grep 完全不受限。";
 
 const CLAIM_FOURTH =
   "C.A.S.E. 階段閘(CLAIM,最後一次):這是我最後一次擋。" +
@@ -213,13 +215,13 @@ const CLAIM_SECOND =
   "C.A.S.E. 階段閘(CLAIM,第二次):換個做法 —— " +
   "如果你不確定要認領哪一個,先 `read` 那個任務的 recipe.md 與 role.md(讀取不受限);" +
   "如果這個佇列不是你要做的事,就別動它,直接回答使用者。" +
-  "要動它,就先 `write` status.txt = IN_PROGRESS。下一次我不會再擋。";
+  "要動它,就先 `write` status.txt = IN_PROGRESS。";
 
 function planFirst(second: boolean, file: string): string {
   return second
     ? `C.A.S.E. 階段閘(PLAN,第二次):換個做法 —— 把你現在要寫進 ${file} 的東西,` +
         "先以「步驟 + 要動的檔案 + 驗證方式」的形式寫進 planning.md,並加一段 `## Self-Review` " +
-        "逐條對照 recipe.md 的 Local DoD。寫完之後這道閘就不會再出現。下一次我不會再擋。"
+        "逐條對照 recipe.md 的 Local DoD。寫完之後這道閘就不會再出現。"
     : `C.A.S.E. 階段閘(PLAN):任務已認領,但 planning.md 還沒有 \`## Self-Review\`,` +
         `所以現在不能寫 ${file}。**研究工具不受限** —— 規劃本來就需要查。` +
         "先寫 planning.md(步驟、要動的檔案、驗證方式 + `## Self-Review`),再產出。";

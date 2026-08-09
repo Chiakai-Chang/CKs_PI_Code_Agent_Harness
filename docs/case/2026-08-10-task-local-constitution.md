@@ -116,3 +116,69 @@ pi.sendMessage({ customType: "case-advance", ... },
 * `docs/case/2026-08-09-anti-drift-gap-analysis.md` —— 為什麼中途沒有東西重述目標
 * `docs/measurements/2026-08-09-task019-preregistration.md` —— 三次測不到的完整紀錄
 * `01_Roadmap/roadmap.md` —— Phase 2c
+
+---
+
+# 實測結果(2026-08-10)
+
+## 第一次:觸發 0 次,而原因不在新功能
+
+Session `019fe880`,33 次工具呼叫,`status.txt` 全程 `PENDING`。
+模型從第一次呼叫就跑到 harness 安裝目錄而不是自己的 cwd,認領從未成功,
+所以掛在認領那一刻的注入自然一次也沒響。
+
+查下去發現的是守衛互撞,已另立文件:
+[四個守衛同時開口](2026-08-10-guards-collide.md)。
+
+## 第二次:送達已證明
+
+Session `019fe8a0`,提示裡把 cwd 講死之後,任務走到 `REVIEW`,`output.md` 788 bytes。
+
+```
+tool calls: 28   errored results: 9
+TASK-CONSTITUTION BLOCKS DELIVERED: 1
+```
+
+注入區塊逐字出現在 `role: "toolResult"` 的紀錄裡:
+
+```
+[C.A.S.E.] 任務專屬憲法(不是指令輸出) —— 以下規則只適用於你剛認領的這個任務…
+**你在這個任務裡的角色**
+You are a Meticulous Inventory Auditor. 你只做清點與紀錄,不做任何修改,也不評論品質。
+**這個任務的目標**
+清點 src/ 底下所有模組並記錄數量。
+**這個任務的驗收標準(Local DoD)**
+- [ ] output.md 內含模組總數
+- [ ] output.md 逐一列出模組檔名
+```
+
+而 `output.md` 裡出現了 `**稽核員角色**:Meticulous Inventory Auditor`、
+一節 `## 完成標準對照` 逐條打勾,以及一節 `## 驗證指令`。
+
+## 但這個 run **不能**歸因
+
+工具呼叫序列顯示:
+
+```
+ 8 read: 02_Task_Queue/Task_001_Inventory/recipe.md
+ 9 read: 02_Task_Queue/Task_001_Inventory/role.md
+11 write: 02_Task_Queue/Task_001_Inventory/status.txt   ← 認領,注入在這裡
+```
+
+**模型在認領之前就自己讀了 role.md 與 recipe.md。**
+所以交付物裡的角色與 DoD 對照,無法斷定來自注入。
+
+**而且這個混淆是我們自己造成的:** 階段閘的第二階逐字寫著
+「先 `read` 那個任務的 recipe.md 與 role.md(讀取不受限)」——
+守衛把模型推去讀,然後注入又送一份。
+
+## 由此得到的設計結論
+
+**注入的價值最高的時候,正是模型不會自己去讀的時候。**
+在階段閘會響的專案裡,兩者重疊;在階段閘不響(例如任務已經是 IN_PROGRESS、
+或推進器換下一個任務)的路徑上,注入是唯一的來源 —— 而那正是原本的缺口:
+換任務不開新 prompt cycle,小憲法永遠不會重新出現。
+
+**現況:送達已證明,行為影響未歸因(n=1,且有已知混淆)。**
+下一次量測要把階段閘那一階的「去讀 role.md」拿掉當作對照,或直接量推進器換任務的路徑。
+

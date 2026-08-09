@@ -562,3 +562,55 @@ class TestTheBudgetCanBeTightenedPerProject(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestNoRefusalPromisesWhatItCannotKeep(unittest.TestCase):
+    """A guard that says "I will not block next time" and then blocks seven more
+    times is training the model to ignore every guard here.
+
+    Measured 2026-08-10, session 019fe880: the second rung said 下一次我不會再擋
+    and the gate refused seven more times after it. An earlier fix had removed
+    the same false promise from the FOURTH rung and left it in the second — one
+    instance of a class repaired, another left standing.
+
+    Only the rung that really is the last may claim to be the last, and that one
+    is chosen by index in `refuse()`, not by its own text."""
+
+    def setUp(self):
+        with open(os.path.join(ROOT, "pi-extensions", "case-bridge",
+                               "phase-gate.ts"), encoding="utf-8") as f:
+            self.src = f.read()
+
+    def test_no_rung_promises_it_will_stop_blocking(self):
+        self.assertNotIn("下一次我不會再擋", self.src)
+
+    def test_only_one_text_calls_itself_the_last(self):
+        """Two rungs both claiming finality is the same lie as promising to stop.
+
+        Counts RUNGS that make the claim, not occurrences of the phrase: the
+        last rung says it twice on purpose, once in its label and once in its
+        sentence, and counting occurrences made this test fail on correct code."""
+        claiming = []
+        for name in ("FIRST", "SECOND", "THIRD", "FOURTH"):
+            body = self.src.split("const CLAIM_%s =" % name, 1)[1].split(";", 1)[0]
+            if "最後一次" in body:
+                claiming.append(name)
+        self.assertEqual(claiming, ["FOURTH"],
+                         "these rungs claim to be the last: %s" % claiming)
+
+    def test_the_ladder_texts_are_all_different(self):
+        """Six verbatim repeats taught nothing six times. Each rung must say
+        something the one before it did not."""
+        texts = []
+        for name in ("FIRST", "SECOND", "THIRD", "FOURTH"):
+            marker = "const CLAIM_%s =" % name
+            self.assertIn(marker, self.src, "missing rung %s" % name)
+            body = self.src.split(marker, 1)[1].split(";", 1)[0]
+            texts.append(" ".join(body.split()))
+        self.assertEqual(len(set(texts)), 4, "two rungs are identical")
+
+    def test_a_rung_names_the_working_directory(self):
+        """The live failure was a path resolved against the harness install, and
+        the gate kept repeating an instruction the model was already following.
+        One rung has to say the thing that was actually wrong."""
+        self.assertIn("工作目錄", self.src)
