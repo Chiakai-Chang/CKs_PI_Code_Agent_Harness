@@ -152,9 +152,14 @@
 中途會發言的通道全部在說「這一步准不准」,沒有一個在說「你原本要做什麼」。
 完整證據見 [docs/case/2026-08-09-anti-drift-gap-analysis.md](../docs/case/2026-08-09-anti-drift-gap-analysis.md)。
 
-- [ ] `Task_019_goal_restatement`(**先做,最便宜**):把目標重述掛到 `tool_result`
-      —— 唯一實測證明送得到模型、且中途會發言的通道。**動工前先寫下量測方法**,
-      因為每輪注入的樣板文字會被學會略過(`gates-create-their-own-failure-mode`)。
+- [x] `Task_019_goal_restatement`(**送達已證明,有效未證明**):
+      `task-shape-bridge/goal-restate.ts`。門檻 12(對 219 個真實 cycle 校準)、
+      每 cycle 上限 2、cycle 邊界歸零。設計移植自 `research/oh-my-pi-can1357` 的
+      mid-run todo nudge。真實 run `019fe72a`:20 次工具呼叫、命中 1 次、
+      落在 `role: "toolResult"` 紀錄裡,五項內容斷言全過,交付物照常產出。
+      **但那個 run 沒有漂移,所以主要指標沒被測到** ——
+      下一步需要會漂移的情境,不是重跑。見
+      [預先登記與結果](../docs/measurements/2026-08-09-task019-preregistration.md)。
 - [ ] `Task_020_handoff_capsule`:實作協定 §16 的 `[H]`
       (`session_summary` / `active_pivot_point` / `pending_blockers`)。
       grep `pi-extensions/` 對這四個詞**零命中** —— 沒有東西寫它、讀它或要求它。
