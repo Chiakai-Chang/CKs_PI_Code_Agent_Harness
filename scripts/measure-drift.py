@@ -39,6 +39,7 @@ NOT in CI: it runs the local model, several minutes per run.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -94,6 +95,39 @@ def build_workspace(root: Path) -> Path:
     return root
 
 
+INSTALLED_PKG = (Path(os.path.expanduser("~")) / ".pi" / "agent" / "extensions"
+                 / "task-shape-bridge" / "package.json")
+
+
+def assert_flag_is_live() -> None:
+    """Refuse to measure unless the installed bridge reads THIS repo's config.
+
+    The bridge resolves its config through the `pi-harness.root` field injected
+    into its installed package.json, so on this machine flipping the repo file is
+    enough and no reinstall is needed. That is a fact about the install, not a
+    guarantee — if the root ever points elsewhere, every arm of the A/B would run
+    against whatever config lives there and the experiment would produce clean,
+    confident, meaningless numbers. So it is checked rather than assumed.
+
+    The first version called `setup.py --mode restore` on every flip instead. It
+    was slow, and its output decoding blew up in a reader thread under cp950 —
+    the restore still ran but its result became invisible, which is the
+    instrument-hides-its-own-failure shape this repo keeps meeting.
+    """
+    if not INSTALLED_PKG.exists():
+        raise SystemExit(f"task-shape-bridge is not installed at {INSTALLED_PKG};"
+                         " run `python scripts/setup.py --mode restore` first")
+    root = (json.loads(INSTALLED_PKG.read_text(encoding="utf-8"))
+            .get("pi-harness", {}).get("root", ""))
+    live = Path(str(root).replace("\\", "/")) / "pi-config" / "harness-config.json"
+    if live.resolve() != CONFIG.resolve():
+        raise SystemExit(
+            "the installed bridge reads its config from\n"
+            f"    {live}\n"
+            f"but this script would be flipping\n    {CONFIG}\n"
+            "Reinstall so the two agree, or the A/B measures nothing.")
+
+
 def set_flag(value: bool) -> bool:
     """Flip `enableGoalRestate`, returning the previous value."""
     data = json.loads(CONFIG.read_text(encoding="utf-8"))
@@ -101,10 +135,6 @@ def set_flag(value: bool) -> bool:
     data["enableGoalRestate"] = value
     CONFIG.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n",
                       encoding="utf-8")
-    # Pi loads the INSTALLED copy of the config, not this one.
-    subprocess.run([sys.executable, str(ROOT / "scripts" / "setup.py"),
-                    "--mode", "restore"],
-                   capture_output=True, text=True, cwd=str(ROOT), timeout=600)
     return bool(before)
 
 
@@ -123,19 +153,54 @@ def stop_tree(proc: subprocess.Popen) -> None:
         pass
 
 
+def advancer():
+    """Reuse `measure-advancer.py`'s launcher knowledge instead of rebuilding it.
+
+    That script already carries three scars this one would otherwise repeat: the
+    `pi.CMD` launch, the orphaned-child sweep, and logs that must not go to
+    DEVNULL. Importing by path because the filename has a dash in it.
+    """
+    spec = importlib.util.spec_from_file_location(
+        "measure_advancer", ROOT / "scripts" / "measure-advancer.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def run_once(workspace: Path, limit: int) -> dict:
     started = time.time()
+    # The resolved path, not the bare name: on Windows `pi` is `pi.CMD`, which
+    # `shutil.which` finds and `CreateProcess` refuses. The first version of this
+    # script passed ["pi", ...] straight to Popen and every run died with
+    # FileNotFoundError before a model was ever reached.
+    exe = shutil.which("pi")
+    if not exe:
+        raise SystemExit("pi is not on PATH")
     proc = subprocess.Popen(
-        ["pi", "--print", REQUEST],
-        cwd=str(workspace), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        text=True, encoding="utf-8", errors="replace")
+        [exe, "--print", REQUEST],
+        cwd=str(workspace),
+        # Kept, never DEVNULL. Two advancer runs produced zero turns with the
+        # reason unavailable because both streams were discarded — an instrument
+        # that hides the failure it is measuring.
+        stdout=open(workspace / "pi-stdout.log", "wb"),
+        stderr=open(workspace / "pi-stderr.log", "wb"),
+        shell=exe.lower().endswith((".cmd", ".bat")),
+    )
     timed_out = False
     try:
-        proc.communicate(timeout=limit)
+        proc.wait(timeout=limit)
     except subprocess.TimeoutExpired:
         timed_out = True
-        stop_tree(proc)
-    return {"seconds": round(time.time() - started, 1), "timed_out": timed_out}
+    stop_tree(proc)
+    left = []
+    try:
+        left = advancer().orphan_pids()
+    except Exception:
+        pass
+    if left:
+        print(f"    WARNING: {len(left)} pi process(es) still alive: {left}")
+    return {"seconds": round(time.time() - started, 1), "timed_out": timed_out,
+            "orphans": len(left)}
 
 
 def session_for(workspace: Path):
@@ -253,6 +318,7 @@ def main() -> int:
         Path(os.environ.get("TEMP", "/tmp")) / "drift-measure"
     base.mkdir(parents=True, exist_ok=True)
 
+    assert_flag_is_live()
     arms = ["on", "off"] if args.arm == "both" else [args.arm]
     rows: list[dict] = []
     restore_to = json.loads(CONFIG.read_text(encoding="utf-8")).get(

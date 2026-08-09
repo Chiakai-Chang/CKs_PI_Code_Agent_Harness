@@ -245,6 +245,13 @@ class TestDocumentedChecksRunInCI(unittest.TestCase):
         # structurally incapable of failing, which this repo counts as worse than
         # no check. It has no unit tests either; CI guards only that it compiles.
         documented.discard("scripts/report-task-shapes.py")
+        # measure-drift launches Pi against the local model twice per data point
+        # and flips a shipped config flag while it runs; CI has neither the model
+        # nor any business mutating pi-config. Its scorer — the part that can be
+        # wrong in a way that matters — is covered by tests/test_measure_drift.py,
+        # which CI does run, and it refuses to start when the installed bridge
+        # reads a different config than the one it would flip.
+        documented.discard("scripts/measure-drift.py")
         missing = [c for c in sorted(documented) if c not in self.ci]
         self.assertEqual(missing, [], "documented checks absent from CI: %s" % missing)
 

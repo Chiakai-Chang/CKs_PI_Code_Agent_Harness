@@ -160,6 +160,12 @@
       **但那個 run 沒有漂移,所以主要指標沒被測到** ——
       下一步需要會漂移的情境,不是重跑。見
       [預先登記與結果](../docs/measurements/2026-08-09-task019-preregistration.md)。
+- [ ] `Task_022_drift_ab`(**擋在 Task_020 前面**):跑 `scripts/measure-drift.py` 的 A/B,
+      把 Task_019 的主要指標從「未測到」變成有數字。情境與計分器已建好並自我驗證過
+      (12 條測試),`enableGoalRestate` 旗標已分離。**先做這個再做 Task_020** ——
+      現在多疊一個未驗證有效的機制,只是把同一筆帳欠兩次,
+      而「機制已實作」正是 `global_dod.md` 明列的「不算完成」。
+
 - [ ] `Task_020_handoff_capsule`:實作協定 §16 的 `[H]`
       (`session_summary` / `active_pivot_point` / `pending_blockers`)。
       grep `pi-extensions/` 對這四個詞**零命中** —— 沒有東西寫它、讀它或要求它。
