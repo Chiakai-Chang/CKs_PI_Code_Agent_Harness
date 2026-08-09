@@ -198,12 +198,43 @@ const CLAIM_FIRST =
   "**問題不是搜尋** —— 搜幾次都可以,而且認領之後研究工具全開。" +
   "問題是還沒認領就開工。先用 `write` 把該任務的 status.txt 改成 IN_PROGRESS,一次寫入的事。";
 
-const CLAIM_THIRD =
-  "C.A.S.E. 階段閘(CLAIM,第三次):如果你已經在寫 status.txt 卻還是被擋," +
-  "**先檢查你寫的是哪一個目錄下的 02_Task_Queue** —— 路徑要相對於你這次的工作目錄," +
-  "不是任何技能 `<location>` 指到的地方。" +
-  "確認之後,`write` 到 `02_Task_Queue/<任務資料夾>/status.txt`,內容就是 `IN_PROGRESS`,沒有別的。" +
-  "在那之前,讀取與 grep 完全不受限。";
+/**
+ * The rung that stops describing and starts showing.
+ *
+ * Turns 3 through 7 of an eight-turn budget all landed on this rung, and it was
+ * byte-identical every time — five refusals that taught nothing, measured in
+ * session 019fe880. The repo's own rule, from OmniHeal's layered 3-Strike, is
+ * that a guard repeating itself verbatim has taught nothing.
+ *
+ * Padding the ladder with more prose would have been the obvious fix and the
+ * wrong one. What that run actually lacked was data: the model was guessing at
+ * paths, writing into the harness install instead of its own workspace, while
+ * the gate — which has the queue directory in its hand and can list it — kept
+ * reciting `02_Task_Queue/<任務資料夾>/status.txt` as if the shape of the path
+ * were the problem.
+ *
+ * So this prints what it can see: the absolute queue path, the tasks in it, and
+ * the exact file to write. It also counts, so consecutive refusals differ and
+ * the model can see the cost accumulating rather than meeting the same wall.
+ */
+function claimThird(queueDir: string, seen: number, budget: number): string {
+  const pending = tasks(queueDir).filter((t) => t.status === "PENDING");
+  const shown = pending.slice(0, 5);
+  const listing = shown.length
+    ? shown.map((t) => `  - ${t.name}  ->  ${join(t.dir, "status.txt")}`).join("\n")
+    : "  (這個佇列裡沒有 PENDING 任務)";
+  const more = pending.length > shown.length
+    ? `\n  …另外還有 ${pending.length - shown.length} 個` : "";
+  return (
+    `C.A.S.E. 階段閘(CLAIM,第 ${seen + 1} 次,共 ${budget} 次):` +
+    "不再重複同一句話,直接給你我看得到的東西。\n" +
+    `我讀的佇列是:${queueDir}\n` +
+    "裡面等待認領的任務,以及要寫的檔案:\n" + listing + more + "\n" +
+    "如果你剛才寫的路徑不在上面這份清單裡,那就是路徑錯了 —— " +
+    "上面那些是絕對路徑,直接用。內容就是 `IN_PROGRESS`,沒有別的。" +
+    "在那之前,讀取與 grep 完全不受限。"
+  );
+}
 
 const CLAIM_FOURTH =
   "C.A.S.E. 階段閘(CLAIM,最後一次):這是我最後一次擋。" +
@@ -227,7 +258,13 @@ function planFirst(second: boolean, file: string): string {
         "先寫 planning.md(步驟、要動的檔案、驗證方式 + `## Self-Review`),再產出。";
 }
 
-const CLAIM_REASONS = [CLAIM_FIRST, CLAIM_SECOND, CLAIM_THIRD, CLAIM_FOURTH];
+/**
+ * The ladder. Rung 2 is a function because it reads the queue; the others are
+ * fixed text. Kept as one array so `refuse()` still picks by index and the
+ * 'last rung is the last' rule has a single place to live.
+ */
+const CLAIM_REASONS: Array<string | ((q: string, seen: number, budget: number) => string)> =
+  [CLAIM_FIRST, CLAIM_SECOND, claimThird, CLAIM_FOURTH];
 
 export class PhaseGate {
   private refusals = new Map<string, number>();
@@ -295,7 +332,13 @@ export class PhaseGate {
       // promise is worse than teaching nothing.
       const last = CLAIM_REASONS.length - 1;
       const idx = seen >= refusalTurns(queueDir) - 1 ? last : Math.min(seen, last - 1);
-      return { block: true, reason: CLAIM_REASONS[idx] };
+      const rung = CLAIM_REASONS[idx];
+      return {
+        block: true,
+        reason: typeof rung === "function"
+          ? rung(queueDir, seen, refusalTurns(queueDir))
+          : rung,
+      };
     }
 
     // PLAN: research is wide open; deliverables wait for the plan.

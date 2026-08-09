@@ -564,6 +564,7 @@ if __name__ == "__main__":
     unittest.main()
 
 
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
 class TestNoRefusalPromisesWhatItCannotKeep(unittest.TestCase):
     """A guard that says "I will not block next time" and then blocks seven more
     times is training the model to ignore every guard here.
@@ -573,44 +574,130 @@ class TestNoRefusalPromisesWhatItCannotKeep(unittest.TestCase):
     the same false promise from the FOURTH rung and left it in the second — one
     instance of a class repaired, another left standing.
 
-    Only the rung that really is the last may claim to be the last, and that one
-    is chosen by index in `refuse()`, not by its own text."""
+    The same run also landed on rung 3 for turns 3 through 7, byte-identical
+    every time. These tests are behavioural rather than textual for that reason:
+    what matters is what a sequence of refusals actually says, not how the
+    strings are spelled in the source."""
 
     def setUp(self):
-        with open(os.path.join(ROOT, "pi-extensions", "case-bridge",
-                               "phase-gate.ts"), encoding="utf-8") as f:
+        self.q = Queue(status="PENDING", name="Task_001_Inventory")
+        self.addCleanup(self.q.cleanup)
+        with open(MOD, encoding="utf-8") as f:
             self.src = f.read()
+
+    def ladder(self, turns=8):
+        """The refusal text of each turn of a full budget, in order."""
+        out = gate(self.q.queue_dir, "web_search", {"query": "x"}, times=turns)
+        return [r for r in out["reasons"] if r]
 
     def test_no_rung_promises_it_will_stop_blocking(self):
         self.assertNotIn("下一次我不會再擋", self.src)
 
-    def test_only_one_text_calls_itself_the_last(self):
-        """Two rungs both claiming finality is the same lie as promising to stop.
+    def test_only_the_final_refusal_calls_itself_the_last(self):
+        texts = self.ladder()
+        claiming = [i for i, t in enumerate(texts) if "最後一次" in t]
+        self.assertEqual(claiming, [len(texts) - 1],
+                         "refusals %s claim to be the last, of %d"
+                         % (claiming, len(texts)))
 
-        Counts RUNGS that make the claim, not occurrences of the phrase: the
-        last rung says it twice on purpose, once in its label and once in its
-        sentence, and counting occurrences made this test fail on correct code."""
-        claiming = []
-        for name in ("FIRST", "SECOND", "THIRD", "FOURTH"):
-            body = self.src.split("const CLAIM_%s =" % name, 1)[1].split(";", 1)[0]
-            if "最後一次" in body:
-                claiming.append(name)
-        self.assertEqual(claiming, ["FOURTH"],
-                         "these rungs claim to be the last: %s" % claiming)
+    def test_no_two_consecutive_refusals_are_identical(self):
+        """Five verbatim repeats taught nothing five times. The rung that used
+        to repeat now prints the queue it can see, and counts, so consecutive
+        refusals differ by their own content."""
+        texts = self.ladder()
+        dupes = [i for i in range(1, len(texts)) if texts[i] == texts[i - 1]]
+        self.assertEqual(dupes, [], "refusals %s repeat the one before them" % dupes)
 
-    def test_the_ladder_texts_are_all_different(self):
-        """Six verbatim repeats taught nothing six times. Each rung must say
-        something the one before it did not."""
-        texts = []
-        for name in ("FIRST", "SECOND", "THIRD", "FOURTH"):
-            marker = "const CLAIM_%s =" % name
-            self.assertIn(marker, self.src, "missing rung %s" % name)
-            body = self.src.split(marker, 1)[1].split(";", 1)[0]
-            texts.append(" ".join(body.split()))
-        self.assertEqual(len(set(texts)), 4, "two rungs are identical")
+    def test_the_middle_rungs_show_the_real_queue_path(self):
+        """The live failure was a path resolved against the harness install
+        while the gate recited a path SHAPE. It has the queue directory in hand;
+        printing it is the thing that run actually lacked."""
+        named = [t for t in self.ladder()
+                 if "Task_001_Inventory" in t and "status.txt" in t]
+        self.assertTrue(named, "no refusal named the actual task and file to write")
 
-    def test_a_rung_names_the_working_directory(self):
-        """The live failure was a path resolved against the harness install, and
-        the gate kept repeating an instruction the model was already following.
-        One rung has to say the thing that was actually wrong."""
-        self.assertIn("工作目錄", self.src)
+    def test_the_first_refusal_stays_short(self):
+        """The listing belongs to the rung that repeats, not to the opening one:
+        a wall of paths on the first refusal buries the one sentence explaining
+        what the gate is about."""
+        self.assertNotIn("Task_001_Inventory", self.ladder()[0])
+
+    def test_a_long_queue_is_truncated_and_says_so(self):
+        """The listing is capped so one refusal does not become a directory
+        dump, and the cap has to be visible: a silently clipped list reads as a
+        complete one, and "my task is not in the list" is then a wrong
+        conclusion the model would act on."""
+        for i in range(2, 9):                      # 8 PENDING tasks in total
+            extra = os.path.join(self.q.dir, "Task_%03d_extra" % i)
+            os.makedirs(extra)
+            with open(os.path.join(extra, "status.txt"), "w", encoding="utf-8") as f:
+                f.write("PENDING")
+        listing = [t for t in self.ladder() if "Task_" in t][0]
+        shown = listing.count("status.txt")
+        self.assertEqual(shown, 5, "expected 5 tasks listed, got %d" % shown)
+        self.assertIn("另外還有 3 個", listing)
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestFailsOpenOnWhatItCannotRecognise(unittest.TestCase):
+    """The module's own docstring promises "fails open on anything it does not
+    recognise", and nothing tested that promise.
+
+    The mutation sweep found it: three guard clauses could be inverted with no
+    test noticing, and checking them by hand showed they were not equivalent —
+    they were unreached. A precondition that only ever sees well-formed input is
+    a precondition nobody has verified, and the surrounding code is one caller
+    away from depending on it."""
+
+    def setUp(self):
+        self.q = Queue(status="PENDING")
+        self.addCleanup(self.q.cleanup)
+
+    def phase(self, value):
+        return run_js("process.stdout.write(JSON.stringify(m.phaseOf(%s)));"
+                      % json.dumps(value))
+
+    def test_a_non_string_queue_is_open(self):
+        for bad in (None, 5, {}, []):
+            with self.subTest(value=bad):
+                self.assertEqual(self.phase(bad), "open")
+
+    def test_an_empty_or_missing_queue_is_open(self):
+        self.assertEqual(self.phase(""), "open")
+        self.assertEqual(self.phase("/definitely/missing/queue"), "open")
+
+    def test_check_refuses_nothing_for_a_non_string_queue(self):
+        for bad in (None, 5, {}, []):
+            with self.subTest(value=bad):
+                out = run_js("""
+                const g = new m.PhaseGate();
+                process.stdout.write(JSON.stringify(
+                  g.check(%s, "web_search", { query: "x" })));
+                """ % json.dumps(bad))
+                self.assertIsNone(out)
+
+    def test_a_write_with_a_non_string_path_is_not_treated_as_a_write(self):
+        """`{ path: 5 }` must not become a write target. Reading it as one would
+        have the gate refuse a call whose destination it cannot even name."""
+        for bad in (5, None, "", {}):
+            with self.subTest(path=bad):
+                out = gate(self.q.queue_dir, "write", {"path": bad, "content": "x"})
+                self.assertIsNone(out["reasons"][0])
+
+    def test_a_deliverable_written_to_the_wrong_root_is_still_recognised(self):
+        """The task is identified by its folder name as well as by its full
+        path, and the second half of that test is what covers today's actual
+        failure: a model resolving paths against the harness install writes to
+        `.../02_Task_Queue/Task_001_probe/output.md` under a DIFFERENT root. The
+        prefix no longer matches; the task name still does.
+
+        Without it the gate would say nothing about a deliverable being written
+        before a plan, purely because the path had the wrong drive on it."""
+        q = Queue(status="IN_PROGRESS")
+        self.addCleanup(q.cleanup)
+        elsewhere = "D:/some/other/checkout/02_Task_Queue/Task_001_probe/output.md"
+        out = gate(q.queue_dir, "write", {"path": elsewhere, "content": "findings"})
+        self.assertIsNotNone(out["reasons"][0],
+                             "a wrong-root deliverable was not recognised")
+        self.assertIn("planning.md", out["reasons"][0])
+
