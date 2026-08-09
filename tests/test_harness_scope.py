@@ -255,11 +255,11 @@ class TestAProjectMayTightenButNeverLoosen(unittest.TestCase):
         return fx.resolve(name="caseClaimRefusalTurns")
 
     def test_a_stricter_value_is_honoured(self):
-        self.assertEqual(self._turns(8), 8)
+        self.assertEqual(self._turns(10), 10)
 
     def test_a_looser_value_is_refused(self):
         """Below the shipped default is a weakening, whatever the project says."""
-        for v in (0, 1, 3, -5):
+        for v in (0, 1, 3, 7, -5):
             with self.subTest(v=v):
                 self.assertIsNone(self._turns(v))
 
@@ -274,7 +274,7 @@ class TestAProjectMayTightenButNeverLoosen(unittest.TestCase):
         """From the mutation sweep: `min: 4` could be shifted to 5 and `max: 12`
         to 13 with nothing turning red, because the tests only used values well
         inside and well outside. The edges are the contract."""
-        self.assertEqual(self._turns(4), 4, "the shipped default must be settable")
+        self.assertEqual(self._turns(8), 8, "the shipped default must be settable")
         self.assertEqual(self._turns(12), 12)
 
     def test_a_fraction_is_refused(self):
@@ -282,7 +282,7 @@ class TestAProjectMayTightenButNeverLoosen(unittest.TestCase):
         flipped to `&&` lets 4.5 through, because a float clears the typeof test
         and the integer test is then never reached on its own. A fractional
         number of turns is not a number of turns."""
-        for v in (4.5, 8.1, 11.9):
+        for v in (8.5, 9.1, 11.9):
             with self.subTest(v=v):
                 self.assertIsNone(self._turns(v))
 

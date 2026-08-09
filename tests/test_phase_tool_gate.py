@@ -213,7 +213,7 @@ class TestItStandsAsideButOffersAnotherWayFirst(unittest.TestCase):
         refusals were cheaper to absorb than one write, so the count moved to
         four; the property that matters — it does retire — is asserted here and
         the cost argument in TestWhatTheFirstLiveRunShowed."""
-        out = gate(self.q.queue_dir, "web_search", {"query": "x"}, times=6)
+        out = gate(self.q.queue_dir, "web_search", {"query": "x"}, times=12)
         self.assertIsNone(out["reasons"][-1], "a gate that cannot retire deadlocks")
 
 
@@ -253,11 +253,19 @@ class TestWhatTheFirstLiveRunShowed(unittest.TestCase):
         """Two refusals was cheaper to absorb than one write. Four, each saying
         something new, is not — and it still retires, because a guard that can
         deadlock an unfamiliar project gets switched off."""
-        out = gate(self.q.queue_dir, "web_search", {"query": "x"}, times=6)
+        out = gate(self.q.queue_dir, "web_search", {"query": "x"}, times=12)
         refused = [r for r in out["reasons"] if r]
-        self.assertGreaterEqual(len(refused), 4)
-        self.assertEqual(len(set(refused)), len(refused),
-                         "every refusal must say something the previous did not")
+        self.assertGreaterEqual(len(refused), 8)
+        # Distinctness is asserted over the texts that carry NEW information —
+        # the first three escalate, the middle repeats the third, and the last
+        # is reserved for the turn that really is last. Demanding all eight be
+        # different would demand eight things to say; demanding none repeat a
+        # false promise is the property that matters.
+        self.assertEqual(refused.count(refused[-1]), 1,
+                         "the text that announces it is the last block must be "
+                         "used once, on the turn that really is last")
+        self.assertGreaterEqual(len(set(refused)), 4,
+                                "the escalation must still say new things")
         self.assertIsNone(out["reasons"][-1], "it must still retire")
 
 
@@ -365,7 +373,7 @@ class TestTheExitRampCountsTurnsNotCalls(unittest.TestCase):
     def test_it_still_gets_out_of_the_way(self):
         """Bounded is the point. After MAX_REFUSAL_TURNS turns of refusing the
         same rule, the model is not learning and the wall has to come down."""
-        rows = self._burst(turns=8, per_turn=2)
+        rows = self._burst(turns=14, per_turn=2)
         self.assertTrue(any(all(c is None for c in row) for row in rows),
                         "the ramp must still end")
 
@@ -465,17 +473,24 @@ class TestTheBudgetBelongsToThePhaseNotTheTool(unittest.TestCase):
     def test_switching_tools_does_not_restart_the_escalation(self):
         out = self._mixed(["web_search", "web_search", "web_open", "web_search"])
         said = [r for r in out if r]
-        self.assertEqual(len(set(said)), len(said),
-                         "every refusal in one phase must say something new, "
-                         "whichever tool triggered it")
+        # The property is "no restart", not "all different". Since the budget
+        # became eight while there are four texts, the middle turns repeat the
+        # third — that is holding position, not starting over. What must never
+        # happen is the opening text returning, which is what a per-tool budget
+        # did: web_open arrived and was told "第一次" after web_search had
+        # already been refused three times.
+        self.assertEqual(said.count(said[0]), 1,
+                         "the opening refusal must never be said twice — that is "
+                         "the escalation restarting")
+        self.assertGreaterEqual(len(set(said)), 3,
+                                "switching tools must not stall the escalation either")
 
     def test_the_budget_is_spent_across_tools_not_per_tool(self):
         """Six turns rotating four tools. With a per-tool budget none of them
         would have reached its limit and all six would be refused."""
-        out = self._mixed(["web_search", "web_open", "web_search",
-                           "web_open", "web_search", "web_open"])
+        out = self._mixed(["web_search", "web_open"] * 6)
         self.assertIn(None, out, "the ramp must end for the phase, not per tool")
-        self.assertEqual(len([r for r in out if r]), 4)
+        self.assertEqual(len([r for r in out if r]), 8)
 
     def test_a_different_phase_keeps_its_own_budget(self):
         """CLAIM and PLAN refuse different mistakes, so spending one must not
@@ -522,7 +537,7 @@ class TestTheBudgetCanBeTightenedPerProject(unittest.TestCase):
     2026-08-09 budget attempt edited the constant and depended on remembering
     to revert it; it was reverted, and remembering is still not a mechanism."""
 
-    def _refusals(self, local=None, turns=10):
+    def _refusals(self, local=None, turns=14):
         q = Queue(status="PENDING")
         self.addCleanup(q.cleanup)
         if local is not None:
@@ -532,14 +547,16 @@ class TestTheBudgetCanBeTightenedPerProject(unittest.TestCase):
         return len([r for r in out["reasons"] if r])
 
     def test_the_default_stands_when_the_project_says_nothing(self):
-        self.assertEqual(self._refusals(), 4)
+        """8 since 2026-08-09: measured 2/2 runs reaching REVIEW with zero
+        successful searches before claiming and research resuming after."""
+        self.assertEqual(self._refusals(), 8)
 
     def test_a_project_may_raise_it(self):
-        self.assertEqual(self._refusals({"caseClaimRefusalTurns": 8}), 8)
+        self.assertEqual(self._refusals({"caseClaimRefusalTurns": 12}), 12)
 
     def test_a_project_may_not_lower_it(self):
         """Setting 1 would switch the gate off through the config door."""
-        self.assertEqual(self._refusals({"caseClaimRefusalTurns": 1}), 4)
+        self.assertEqual(self._refusals({"caseClaimRefusalTurns": 1}), 8)
 
 
 

@@ -67,7 +67,7 @@ const PLAN_WRITABLE = new Set(["status.txt", "planning.md", "feedback.md"]);
  * unit wrong from the other side: the exit was two, claiming cost one write, so
  * absorbing two refusals was cheaper than complying.
  */
-const MAX_REFUSAL_TURNS = 4;
+const MAX_REFUSAL_TURNS = 8;   // measured 2026-08-09; see the bet document
 
 /**
  * The budget for this project: the shipped default unless the project asked
@@ -271,7 +271,18 @@ export class PhaseGate {
       const onlyStatus = writes.length > 0 && writes.every((t) => leaf(t) === "status.txt");
       if (!RESEARCH_TOOLS.has(toolName) && (!writes.length || onlyStatus)) return null;
       this.refusedThisTurn.add(key);
-      return { block: true, reason: CLAIM_REASONS[Math.min(seen, CLAIM_REASONS.length - 1)] };
+      // The "last time" text is reserved for the turn that really is the last.
+      //
+      // With four texts and a four-turn budget these coincided. Raising the
+      // budget to eight (measured 2026-08-09) made turns 5-8 all repeat the
+      // fourth text, which says "這是我最後一次擋" and was then followed by four
+      // more blocks — the guard telling the model something untrue, four times.
+      // The repo's own rule, taken from OmniHeal's layered 3-Strike, is that a
+      // guard repeating itself verbatim has taught nothing; repeating a false
+      // promise is worse than teaching nothing.
+      const last = CLAIM_REASONS.length - 1;
+      const idx = seen >= refusalTurns(queueDir) - 1 ? last : Math.min(seen, last - 1);
+      return { block: true, reason: CLAIM_REASONS[idx] };
     }
 
     // PLAN: research is wide open; deliverables wait for the plan.

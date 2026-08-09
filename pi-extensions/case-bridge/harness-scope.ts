@@ -59,7 +59,7 @@ export const PROJECT_SCOPED: ReadonlySet<string> = new Set([
  * work out how to claim, which is the failure the exit ramp prevents.
  */
 const NUMERIC_BOUNDS: Record<string, { min: number; max: number }> = {
-  caseClaimRefusalTurns: { min: 4, max: 12 },
+  caseClaimRefusalTurns: { min: 8, max: 12 },   // min tracks the shipped default
 };
 
 function withinBounds(key: string, value: unknown): boolean {

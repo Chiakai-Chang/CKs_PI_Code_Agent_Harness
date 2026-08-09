@@ -250,8 +250,8 @@ class TestIllegalTransitions(unittest.TestCase):
         guard's" and expected the write to pass.
 
         There is no verifier in this loop, and a live run showed the cost. It
-        claimed its task, wrote COMPLETE, then an empty string, and both were
-        allowed; from then on every nextStep() read a status it could not parse,
+        claimed its task and then wrote COMPLETE, which was allowed; from then
+        on every nextStep() read a status it could not parse,
         fell back to "claim this task", and repeated that while the model
         carried on believing it had finished. The run never reached REVIEW.
 
@@ -457,7 +457,9 @@ class TestAnInvalidStatusStopsTheMachine(unittest.TestCase):
     `checkTransition` returned null for anything outside VALID_STATUSES with
     the comment "the verifier's business" — it checked transitions BETWEEN
     valid states and never checked that the value was a state. One invalid
-    write stops the machine: every later nextStep() reads a status it cannot
+    write stops the machine (the trace above says an empty write too; that was
+    a misread of my analysis script, which counted a `read` of status.txt as a
+    write — COMPLETE alone did it): every later nextStep() reads a status it cannot
     parse, falls back to "claim this task", and repeats while the model
     believes it has finished. That run never reached REVIEW.
 
