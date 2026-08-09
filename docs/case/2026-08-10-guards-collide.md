@@ -103,3 +103,76 @@ sequence:
 **而真實 run 觸發次數為 0**。差別是這次病因當場診斷得出來,而且不在新功能身上。
 
 重跑時把 cwd 在提示裡講死,先讓認領成功,才能驗證注入。
+
+---
+
+# 追查之後:9 次階段閘拒絕裡,大部分根本是誤擋
+
+回頭看第一個 run 的觸發點,差別不在指令做什麼,而在有沒有 `2>/dev/null`:
+
+```
+1  ls "D:/..."                                → ECC gate
+2  ls "D:/.../02_Task_Queue/" 2>/dev/null …   → 階段閘
+3  find "D:/..." -type f -o -type d 2>/dev/null → 階段閘
+4  ls -la "D:/..."                            → 沒有被擋
+```
+
+實測抽取器:
+
+```
+"ls 02_Task_Queue/ 2>/dev/null"  ->  ["/dev/null"]
+"ls -la 02_Task_Queue/"          ->  []
+```
+
+**`2>/dev/null` 被抽成寫入目標 `/dev/null`。** 它不是 `status.txt`,
+於是 CLAIM 階段判定「你在寫非狀態檔」並拒絕。
+
+`bash-containment.ts` 從一開始就有 `isScratch`;
+`case-bridge/task-queue-guard.ts` 的抽取器(階段閘、佇列守衛、認領偵測共用)沒有。
+**同一個疏漏,兩個地方,只有一個被補過。**
+
+## 順著查下去,containment 有同一個疏漏的鏡像 —— 而且更嚴重
+
+兩個抽取器都先收集重導向,然後**把重導向的 token 留在運算元裡**。實測:
+
+```
+cp secret.txt D:/elsewhere/out.txt              -> BLOCKED
+cp secret.txt D:/elsewhere/out.txt 2>/dev/null  -> *** ALLOWED ***
+mv a.txt D:/elsewhere/b.txt 2>/dev/null         -> *** ALLOWED ***
+```
+
+`cp` 的目的地取「最後一個運算元」,而最後一個運算元變成了 `2>/dev/null`,
+**真正的目的地從此沒有被看過**。
+
+**在 `cp`/`mv` 後面加 `2>/dev/null`,就能把檔案複製到專案外而不被目錄圍堵發現。**
+而 `2>/dev/null` 是日常慣用寫法 —— 這條路踩得到,不必刻意。
+
+## 一個疏漏,兩個方向相反的後果
+
+| | 階段閘 | 目錄圍堵 |
+|---|---|---|
+| 症狀 | **誤擋**無害的 `ls … 2>/dev/null` | **漏放**逃出專案的 `cp … 2>/dev/null` |
+| 後果 | 9 次拒絕淹掉唯一有用的那一則 | 圍堵守衛的核心職責被繞過 |
+
+## 已修
+
+兩個抽取器都加上 `stripRedirections()`(處理黏在一起的 `2>/dev/null` 與分開的 `> out.txt`),
+並在抽取層丟棄 `/dev/` 目標。兩者現在對所有測試輸入**逐字相同**。
+
+證據(全部寫這段時實跑):
+
+* 逃逸已封:`cp s.txt D:/elsewhere/o.txt 2>/dev/null` → BLOCKED
+* 沒有誤擋:專案內的 `cp a.txt sub/b.txt 2>/dev/null` → 允許;`echo x > /tmp/t.log` → 允許
+* 三個蓄意破壞全部變紅
+* `python -m unittest discover -s tests` → **Ran 1177 tests, OK**
+* `verify-bridges.py` → 13 bridges,0 failures
+
+## 剩下沒動的
+
+第 2 項(階梯用完重複同一句)與第 3 項(誰先開口的順序)仍未處理。
+但**這次的修正把第 3 項的急迫性降低了不少** —— 9 次階段閘拒絕裡,
+大部分本來就不該發生。順序問題還在,只是規模小得多。
+
+**教訓:守衛互撞看起來像優先權問題,查下去是一個抽取器的錯。
+先問「這些拒絕本來就該發生嗎」,再問「誰該先講話」。**
+

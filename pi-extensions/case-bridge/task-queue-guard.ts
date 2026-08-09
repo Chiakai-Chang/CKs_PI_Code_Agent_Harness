@@ -110,7 +110,12 @@ export function bashWriteTargets(command: unknown): string[] {
     const tokens = seg.trim().match(/"[^"]*"|'[^']*'|[^\s]+/g);
     if (!tokens || tokens.length < 2) continue;
     const cmd = unquote(tokens[0]).split("/").pop() || "";
-    const rest = tokens.slice(1).map(unquote);
+    // Redirections are already handled above; leaving them among the operands
+    // made `cp a b 2>/dev/null` report its destination as "2>/dev/null" instead
+    // of "b" — the guard then checked a path that does not exist and refused a
+    // copy it had no opinion about. Found while fixing the discard filter, which
+    // is the same omission one layer up.
+    const rest = stripRedirections(tokens.slice(1).map(unquote));
     const args = rest.filter((t) => !t.startsWith("-"));
     if (cmd === "dd") {
       for (const t of rest) if (t.startsWith("of=")) out.push(t.slice(3));
@@ -137,7 +142,50 @@ export function bashWriteTargets(command: unknown): string[] {
     if (DEST_LAST.has(cmd)) out.push(args[args.length - 1]);
     else if (DEST_ALL.has(cmd)) out.push(...args);
   }
-  return out.filter(Boolean);
+  return out.filter(Boolean).filter((t) => !isDiscard(t));
+}
+
+/**
+ * A destination that discards, which is not a write anyone should guard.
+ *
+ * `2>/dev/null` was extracted as a write to `/dev/null`, and the phase gate has
+ * no scratch filter, so it read every `ls … 2>/dev/null` as "writing a file that
+ * is not status.txt" and refused it during CLAIM. Measured 2026-08-10 in session
+ * 019fe880: of the model's first three calls, two carried `2>/dev/null` and both
+ * were refused; the one without it was allowed. Nine of that run's sixteen
+ * refusals came from this gate, while the single refusal that actually explained
+ * the failure — a path resolved against the harness install — was drowned in
+ * them.
+ *
+ * `bash-containment.ts` has had `isScratch` since it shipped. This extractor,
+ * used by the phase gate, the queue guard and the claim detector, never got one.
+ * The same omission in two places is why it took a live run to find: every unit
+ * test fed it a real path.
+ */
+/**
+ * Operands with the redirections removed.
+ *
+ * Handles both spellings: `2>/dev/null` glued into one token, and `> out.txt`
+ * split across two. The second form has to consume the token after it, or the
+ * filename becomes an operand of the command.
+ */
+function stripRedirections(tokens: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (/^\d?>>?$/.test(t) || /^\d?<$/.test(t)) {
+      i++;                       // the target rides with the operator
+      continue;
+    }
+    if (/^\d?>>?[^&]/.test(t) || /^\d?>>?&\d/.test(t)) continue;
+    out.push(t);
+  }
+  return out;
+}
+
+function isDiscard(target: string): boolean {
+  const p = target.replace(/\\/g, "/").toLowerCase();
+  return p === "/dev/null" || p === "nul" || p.startsWith("/dev/");
 }
 
 /** How many times one rule may refuse before it gives up for the session. */

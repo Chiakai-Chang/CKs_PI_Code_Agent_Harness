@@ -112,6 +112,38 @@ function unquote(token: string): string {
   return token.replace(/^["']|["']$/g, "");
 }
 
+/**
+ * Operands with the redirections removed.
+ *
+ * Without this, `cp secret.txt D:/elsewhere/out.txt 2>/dev/null` reported its
+ * destination as `2>/dev/null` — the last operand — and never looked at
+ * `D:/elsewhere/out.txt`. The copy out of the project was allowed. Verified
+ * 2026-08-10: the same command without the redirection is blocked, and with it
+ * is not.
+ *
+ * `2>/dev/null` is ordinary shell hygiene, so this was reachable by accident and
+ * not only on purpose. It surfaced while fixing the same omission in
+ * `case-bridge/task-queue-guard.ts`, where the missing discard filter was
+ * refusing innocent `ls … 2>/dev/null` calls — one omission, opposite failures,
+ * two extractors.
+ *
+ * Handles both spellings: glued (`2>/dev/null`) and split (`> out.txt`), the
+ * second of which must consume the token after it.
+ */
+function stripRedirections(tokens: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (/^\d?>>?$/.test(t) || /^\d?<$/.test(t)) {
+      i++;                       // the target rides with the operator
+      continue;
+    }
+    if (/^\d?>>?[^&]/.test(t) || /^\d?>>?&\d/.test(t)) continue;
+    out.push(t);
+  }
+  return out;
+}
+
 export function isScratch(abs: string, raw?: string): boolean {
   const p = norm(abs);
   // The raw token matters as much as the resolved path: on Windows,
@@ -190,7 +222,10 @@ export function writeTargets(command: string): string[] {
     const tokens = seg.trim().match(/"[^"]*"|'[^']*'|[^\s]+/g);
     if (!tokens || tokens.length < 2) continue;
     const cmd = unquote(tokens[0]).split("/").pop() || "";
-    const rest = tokens.slice(1).map(unquote);
+    // Redirections were already collected above. Leaving them among the operands
+    // let a trailing `2>/dev/null` stand in as a `cp`/`mv` destination and hide
+    // the real one.
+    const rest = stripRedirections(tokens.slice(1).map(unquote));
     const args = rest.filter((t) => !t.startsWith("-"));
     if (cmd === "dd") {
       // `of=` is the output; `if=` is the input and must not be confused for it.
@@ -206,7 +241,11 @@ export function writeTargets(command: string): string[] {
     else if (DEST_ALL.has(cmd)) out.push(...args);
   }
 
-  return out.filter(Boolean);
+  // Discards dropped at extraction, not only at evaluation. `isScratch`
+  // already ignored /dev/null downstream, so this changes no decision — it
+  // keeps this extractor byte-identical to case-bridge's, which a test
+  // asserts, and that parity is what stops the two drifting apart again.
+  return out.filter(Boolean).filter((t) => !norm(t).startsWith("/dev/"));
 }
 
 /** Whether a target lands outside the project and is not scratch. */

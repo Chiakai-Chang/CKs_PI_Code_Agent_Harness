@@ -280,3 +280,50 @@ class TestScratchAndFailOpenBoundaries(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+class TestRedirectionDoesNotHideADestination(unittest.TestCase):
+    """Appending `2>/dev/null` to a copy used to make the destination invisible.
+
+    Measured 2026-08-10: `cp secret.txt D:/elsewhere/out.txt` was blocked, and
+    the identical command with `2>/dev/null` appended was ALLOWED — the last
+    operand was the redirection, so the real destination was never examined.
+    `2>/dev/null` is ordinary shell hygiene, so this was reachable by accident
+    and not only on purpose.
+
+    It surfaced while fixing the mirror-image defect in case-bridge, where the
+    same missing handling made the phase gate refuse innocent `ls … 2>/dev/null`
+    calls. One omission, two extractors, opposite failures."""
+
+    CWD = "D:/project"
+
+    def blocked(self, cmd):
+        out = run_js("""
+        process.stdout.write(JSON.stringify(
+          m.bashContainmentBlock(%s, %s) !== null));
+        """ % (json.dumps(cmd), json.dumps(self.CWD)))
+        return out
+
+    def test_a_copy_out_of_the_project_is_blocked(self):
+        self.assertTrue(self.blocked("cp secret.txt D:/elsewhere/out.txt"))
+
+    def test_the_same_copy_with_a_discard_is_still_blocked(self):
+        self.assertTrue(self.blocked("cp secret.txt D:/elsewhere/out.txt 2>/dev/null"),
+                        "a trailing redirection hid the destination")
+
+    def test_a_move_out_of_the_project_with_a_discard_is_blocked(self):
+        self.assertTrue(self.blocked("mv a.txt D:/elsewhere/b.txt 2>/dev/null"))
+
+    def test_a_copy_inside_the_project_is_still_allowed(self):
+        """The fix must not turn ordinary work into a refusal — a guard that
+        refuses real work gets switched off, and then it protects nothing."""
+        self.assertFalse(self.blocked("cp a.txt sub/b.txt 2>/dev/null"))
+
+    def test_writing_to_dev_null_is_still_allowed(self):
+        self.assertFalse(self.blocked("echo x > /dev/null"))
+
+    def test_a_split_redirection_still_yields_its_target(self):
+        """`> out.txt` as two tokens: the filename must not become an operand."""
+        self.assertTrue(self.blocked("ls > D:/elsewhere/out.txt"))
+

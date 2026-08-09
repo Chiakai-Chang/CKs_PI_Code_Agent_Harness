@@ -249,6 +249,18 @@ class TestTheTwoExtractorsAgree(unittest.TestCase):
         'grep -r foo .',
         'echo "a > b"',
         'some-cmd 2>&1',
+        # Redirections among the operands. Both extractors got these wrong in
+        # opposite directions until 2026-08-10: the queue guard read
+        # `2>/dev/null` as a write and refused innocent `ls` calls, while
+        # containment let `2>/dev/null` stand in as a cp destination and
+        # stopped seeing the real one.
+        'ls 02_Task_Queue/ 2>/dev/null',
+        'find . -type f 2>/dev/null',
+        'cp a.txt b/c.txt 2>/dev/null',
+        'mv a.txt b/c.txt 2>/dev/null',
+        'ls > out.txt 2>/dev/null',
+        'mkdir -p a/b 2>/dev/null',
+        'echo x > /dev/null',
         'eval "$(cat script.sh)"',
         # Task_013. Added to BOTH copies in the same change, because parity is
         # silent when both sides are wrong: every one of these returned [] on
