@@ -724,10 +724,23 @@ class TestItYieldsToTheGuardWithTheBetterComplaint(unittest.TestCase):
     def setUp(self):
         self.q = Queue(status="PENDING")
         self.addCleanup(self.q.cleanup)
+        # A path that really is outside on THIS platform.
+        #
+        # The first version hard-coded `D:/some/other/checkout/...`. On Linux
+        # that is a RELATIVE path, so it resolved inside the project, nothing
+        # escaped, and the gate was right to refuse — the tests failed in CI
+        # while the code was correct. "Green on my machine" is the first rule in
+        # CLAUDE.md and this broke it in the most literal way available.
+        # Absolute on both platforms and scratch on neither: a temp dir would be
+        # `/tmp/...` on Linux, which containment deliberately ALLOWS, so it would
+        # not stand for "another project". Nothing is created — the gate only
+        # does path arithmetic.
+        self.outside = os.path.abspath(os.sep + "elsewhere-not-this-project"
+                                       ).replace("\\", "/")
 
     def test_claim_phase_yields_on_a_write_to_another_project(self):
         out = gate(self.q.queue_dir, "write",
-                   {"path": "D:/some/other/checkout/wiki/module-index.md",
+                   {"path": self.outside + "/wiki/module-index.md",
                     "content": "x"})
         self.assertIsNone(out["reasons"][0],
                           "the gate answered a complaint that is not its own")
@@ -736,13 +749,14 @@ class TestItYieldsToTheGuardWithTheBetterComplaint(unittest.TestCase):
         q = Queue(status="IN_PROGRESS")
         self.addCleanup(q.cleanup)
         out = gate(q.queue_dir, "write",
-                   {"path": "D:/some/other/checkout/02_Task_Queue/"
-                            "Task_001_probe/output.md", "content": "x"})
+                   {"path": self.outside + "/02_Task_Queue/Task_001_probe/output.md",
+                    "content": "x"})
         self.assertIsNone(out["reasons"][0])
 
     def test_a_bash_write_to_another_project_also_yields(self):
         out = gate(self.q.queue_dir, "bash",
-                   {"command": 'mkdir -p /d/other/wiki && echo x > /d/other/wiki/a.md'})
+                   {"command": 'mkdir -p "%s/wiki" && echo x > "%s/wiki/a.md"'
+                                % (self.outside, self.outside)})
         self.assertIsNone(out["reasons"][0])
 
     def test_a_write_inside_the_project_is_still_refused(self):
@@ -758,7 +772,8 @@ class TestItYieldsToTheGuardWithTheBetterComplaint(unittest.TestCase):
         when EVERY write escapes does someone else have the better one."""
         inside = self.q.task.replace("\\", "/") + "/output.md"
         out = gate(self.q.queue_dir, "bash",
-                   {"command": 'echo a > "%s" && echo b > /d/other/x.md' % inside})
+                   {"command": 'echo a > "%s" && echo b > "%s/x.md"'
+                                % (inside, self.outside)})
         self.assertIsNotNone(out["reasons"][0])
 
     def test_research_tools_are_unaffected(self):
