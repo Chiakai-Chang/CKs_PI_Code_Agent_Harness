@@ -344,6 +344,12 @@ def one_run(prompt_key: str, index: int, limit_s: int, quiet_s: int, claim_turns
         # and the reason was unavailable because both streams went to DEVNULL —
         # an instrument that hides the failure it is measuring. 2026-08-09.
         cwd=str(base), stdout=open(base / "pi-stdout.log", "wb"),
+        # stdin MUST be closed, not inherited. Measured 2026-08-10: `pi --print`
+        # launched with an inherited stdin (a shell heredoc that had already been
+        # consumed) blocked forever — 25 minutes, zero bytes of output, an empty
+        # session directory. The identical command with `< /dev/null` answered in
+        # seconds. Two runs were written off as "transient" before it was probed.
+        stdin=subprocess.DEVNULL,
         stderr=open(base / "pi-stderr.log", "wb"),
         shell=exe.lower().endswith((".cmd", ".bat")),
     )

@@ -295,6 +295,12 @@ def run_once(workspace: Path, limit: int, request: str) -> dict:
     proc = subprocess.Popen(
         [exe, "--print", request],
         cwd=str(workspace),
+        # stdin MUST be closed, not inherited. Measured 2026-08-10: `pi --print`
+        # launched with an inherited stdin (a shell heredoc that had already been
+        # consumed) blocked forever — 25 minutes, zero bytes of output, an empty
+        # session directory. The identical command with `< /dev/null` answered in
+        # seconds. Two runs were written off as "transient" before it was probed.
+        stdin=subprocess.DEVNULL,
         # Kept, never DEVNULL. Two advancer runs produced zero turns with the
         # reason unavailable because both streams were discarded — an instrument
         # that hides the failure it is measuring.

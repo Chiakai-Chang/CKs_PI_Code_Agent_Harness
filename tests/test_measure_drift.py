@@ -288,3 +288,48 @@ class TestScenarioTable(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPiIsLaunchedWithStdinClosed(unittest.TestCase):
+    """`pi --print` blocks forever on an inherited stdin.
+
+    Measured 2026-08-10, twice before it was probed: a run launched from a shell
+    invocation that had just consumed a heredoc produced 25 minutes of nothing —
+    zero bytes of output, an empty session directory, exit 124. The identical
+    command with `< /dev/null` answered in seconds:
+
+        stdin inherited   -> EXIT=124, 0 bytes
+        stdin /dev/null   -> EXIT=0,  45 bytes, "ok"
+
+    Both hangs were written off as transient before the difference was tested,
+    which is the cost of guessing at a cause instead of probing it. A measurement
+    runner that can hang produces zeros indistinguishable from a real result, so
+    the redirection is asserted rather than remembered."""
+
+    def launch_args(self, script):
+        """The argument list of the first subprocess.Popen call.
+
+        Sliced by balancing parentheses, not by the first `)`: the first version
+        cut at `str(workspace)` and reported the redirection missing while it was
+        two lines further down."""
+        src = (ROOT / "scripts" / script).read_text(encoding="utf-8")
+        after = src.split("subprocess.Popen(", 1)[1]
+        depth, end = 1, len(after)
+        for i, ch in enumerate(after):
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+                if depth == 0:
+                    end = i
+                    break
+        return after[:end]
+
+    def test_measure_drift_closes_stdin(self):
+        self.assertIn("stdin=subprocess.DEVNULL",
+                      self.launch_args("measure-drift.py"))
+
+    def test_measure_advancer_closes_stdin(self):
+        self.assertIn("stdin=subprocess.DEVNULL",
+                      self.launch_args("measure-advancer.py"))
+
