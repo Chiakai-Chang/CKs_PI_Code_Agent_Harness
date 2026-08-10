@@ -449,3 +449,107 @@ class TestTheRouterYieldsInCaseProjects(unittest.TestCase):
         for owned_by_shape in ("classifyRequest", "deliverables >="):
             self.assertNotIn(owned_by_shape, plan)
 
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestTheDodArtifactCheck(unittest.TestCase):
+    """A task reached REVIEW with nothing in it while every guard passed.
+
+    Session 019febe9, in order: `write output.md` refused by the phase gate (not
+    claimed yet), `status.txt = DONE` refused by the transition guard, IN_PROGRESS
+    allowed, `DONE` refused again, `REVIEW` allowed. Final state REVIEW with no
+    output.md and no planning.md — and the refused call had carried the complete
+    report, which was never written again.
+
+    It tried twice for DONE, was refused twice, and took the legal road. The legal
+    road asked for no artifacts. REVIEW is what summons a human under Path A, so
+    this is the difference between accepting work and accepting an empty folder."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.task = self.tmp / "Task_001"
+        self.task.mkdir()
+
+    def recipe(self, dod):
+        (self.task / "recipe.md").write_text(
+            "## Objective" + chr(10) + "x" + chr(10) * 2 +
+            "## Local Definition of Done (DoD)" + chr(10) + dod + chr(10),
+            encoding="utf-8")
+
+    def missing(self):
+        return run_js(
+            "import {existsSync} from 'node:fs';" + chr(10) +
+            "process.stdout.write(JSON.stringify("
+            "m.missingDodArtifacts(%s, %s, existsSync)));"
+            % (json.dumps(str(self.task)), json.dumps(str(self.tmp))))
+
+    def test_a_named_file_that_does_not_exist_is_reported(self):
+        self.recipe("- [ ] output.md 列出每個模組的 retries 值")
+        self.assertEqual(self.missing(), ["output.md"])
+
+    def test_the_same_file_named_twice_is_reported_once(self):
+        self.recipe("- [ ] output.md 列出數值" + chr(10) + "- [ ] output.md 指出差異")
+        self.assertEqual(self.missing(), ["output.md"])
+
+    def test_once_written_it_passes(self):
+        self.recipe("- [ ] output.md 列出每個模組的 retries 值")
+        (self.task / "output.md").write_text("x", encoding="utf-8")
+        self.assertEqual(self.missing(), [])
+
+    def test_a_dod_that_names_no_file_asks_for_nothing(self):
+        """"run the tests" is not an artifact. Turning every DoD line into a
+        required file would refuse tasks that owe no document."""
+        self.recipe("- [ ] 跑 python -m unittest 並貼上輸出")
+        self.assertEqual(self.missing(), [])
+
+    def test_a_package_with_no_recipe_is_not_held_to_one(self):
+        """Fails open. A task that never said what it owes cannot be judged."""
+        self.assertEqual(self.missing(), [])
+
+    def test_a_file_that_exists_elsewhere_in_the_workspace_passes(self):
+        """A DoD may cite an input it did not create."""
+        self.recipe("- [ ] 讀 roadmap.md 後更新 notes.md")
+        (self.tmp / "roadmap.md").write_text("x", encoding="utf-8")
+        self.assertEqual(self.missing(), ["notes.md"])
+
+    def test_a_chinese_dod_heading_is_recognised(self):
+        """A project writing its recipes in Chinese heads the section 驗收. The
+        mutation sweep survived removing that fallback — checking only the
+        English spelling and shipping is how the skill catalogue ended up
+        unreadable to half the projects that had one."""
+        (self.task / "recipe.md").write_text(
+            "## 目標" + chr(10) + "調查" + chr(10) * 2 +
+            "## 驗收" + chr(10) + "- [ ] report.md 列出結果" + chr(10),
+            encoding="utf-8")
+        self.assertEqual(self.missing(), ["report.md"])
+
+    def test_the_package_s_own_files_are_never_demanded(self):
+        """status.txt is the file being written at that moment; recipe and role
+        are inputs. Demanding them would refuse every REVIEW."""
+        self.recipe("- [ ] status.txt 設為 REVIEW" + chr(10) + "- [ ] 依 role.md 的角色行事")
+        self.assertEqual(self.missing(), [])
+
+
+class TestTheDodGuardIsWired(unittest.TestCase):
+    def setUp(self):
+        self.src = (ROOT / "pi-extensions" / "case-bridge"
+                    / "task-queue-guard.ts").read_text(encoding="utf-8")
+
+    def test_the_guard_calls_it_on_the_way_into_review(self):
+        """Anchored on the CALL, not on the first occurrence of the name — that
+        one is the import at the top of the file, and splitting there made this
+        test fail while the wiring was correct."""
+        self.assertIn("missingDodArtifacts(", self.src)
+        review = self.src.split('next === "REVIEW"', 1)[1]
+        self.assertIn("missingDodArtifacts(", review.split('next === "DONE"', 1)[0])
+
+    def test_it_fires_before_the_done_rules(self):
+        """REVIEW comes first in the protocol, so its check must too — placing it
+        after the DONE block would never run for a REVIEW write."""
+        self.assertLess(self.src.index('next === "REVIEW"'),
+                        self.src.index('next === "DONE"'))
+
+    def test_it_fails_open_on_an_unparsable_recipe(self):
+        block = self.src.split('next === "REVIEW"', 1)[1].split('next === "DONE"', 1)[0]
+        self.assertIn("catch", block)
+

@@ -160,6 +160,59 @@ export function localConstitution(taskDir: unknown): TaskConstitution | null {
   };
 }
 
+/** Extensions a Local DoD names when it means "produce this file". */
+const ARTIFACT = /\b([A-Za-z0-9_.-]+\.(?:md|txt|json|jsonl|csv|ya?ml))\b/g;
+
+/**
+ * Files the Local DoD asks for that do not exist yet.
+ *
+ * The gap this closes, measured 2026-08-10 in session 019febe9. Every guard did
+ * its job and the composition still let a task reach REVIEW with nothing in it:
+ *
+ *     write output.md            -> refused (phase gate: not claimed yet)
+ *     status.txt = DONE          -> refused (transition: PENDING>DONE skips)
+ *     status.txt = IN_PROGRESS   -> allowed
+ *     status.txt = DONE          -> refused (transition: IN_PROGRESS>DONE skips)
+ *     status.txt = REVIEW        -> allowed
+ *
+ * Final state REVIEW, with no output.md and no planning.md. The run had actually
+ * written the report — the refused call carried a complete retries table — and
+ * after claiming it never wrote it again. It tried twice to jump to DONE, was
+ * refused both times, and took the legal road instead. A threshold defines the
+ * shape of the evasion, and the legal road asked for no artifacts at all.
+ *
+ * REVIEW is the state that summons a human under Path A, so this is the
+ * difference between asking someone to accept work and asking them to accept an
+ * empty folder.
+ *
+ * Deliberately narrow. Only names with a document extension count — a DoD line
+ * saying "run the tests" asks for no file and must not be turned into one — and
+ * a name that exists anywhere in the workspace passes, because a DoD may cite an
+ * input it did not create. Fails open on a missing or unparsable recipe: a task
+ * package that never said what it owes cannot be held to it.
+ */
+export function missingDodArtifacts(
+  taskDir: unknown,
+  cwd: unknown,
+  exists: (p: string) => boolean,
+): string[] {
+  const dir = String(taskDir ?? "");
+  if (!dir) return [];
+  const dod = section(readIfPresent(dir, "recipe.md"), "local definition of done")
+    || section(readIfPresent(dir, "recipe.md"), "definition of done")
+    || section(readIfPresent(dir, "recipe.md"), "驗收");
+  // No early return for an empty DoD: `"".matchAll` yields nothing and the
+  // function returns [] two lines later. The mutation sweep survived deleting
+  // the guard, which is what unreachable means.
+  const wanted = new Set<string>();
+  for (const m of dod.matchAll(ARTIFACT)) wanted.add(m[1]);
+  // status.txt is the thing being written right now, and recipe/role are inputs.
+  for (const own of ["status.txt", "recipe.md", "role.md"]) wanted.delete(own);
+  const roots = [dir, String(cwd ?? "")].filter(Boolean);
+  return [...wanted].filter(
+    (name) => !roots.some((r) => exists(join(r, name))));
+}
+
 /**
  * Signals that pick which methodology to name. NOT a request classifier.
  *

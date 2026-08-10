@@ -31,6 +31,7 @@
  */
 
 import { readFileSync, existsSync, readdirSync } from "node:fs";
+import { missingDodArtifacts } from "./task-context.ts";
 import { basename, dirname, join, resolve, sep } from "node:path";
 
 export const VALID_STATUSES = ["PENDING", "IN_PROGRESS", "REVIEW", "DONE", "ESCALATED"];
@@ -375,6 +376,30 @@ export class TaskQueueGuard {
             `IN_PROGRESS. A queue worked two tasks at once is a queue in name ` +
             `only — the reason to have one is that each piece gets finished ` +
             `before the next begins. Close it (REVIEW) or escalate it first.`,
+        };
+      }
+    }
+
+    if (next === "REVIEW" && current !== "REVIEW") {
+      // The composition gap: every other rule here passed and the task still
+      // arrived at REVIEW empty. See task-context.ts::missingDodArtifacts —
+      // REVIEW is what summons a human under Path A, so an empty one asks
+      // someone to accept an empty folder.
+      let missing: string[] = [];
+      try {
+        missing = missingDodArtifacts(taskDir, _cwd, existsSync);
+      } catch {
+        missing = [];                      // unparsable recipe: not this guard's call
+      }
+      if (missing.length && this.refuse("dod-artifacts")) {
+        return {
+          block: true,
+          reason:
+            `C.A.S.E. 驗收物守衛:${taskName} 要進 REVIEW,但 recipe.md 的 Local DoD ` +
+            `點名的檔案還不存在:${missing.join("、")}。` +
+            `REVIEW 是叫人來驗收的狀態 —— 現在讓人來,他會看到一個空資料夾。` +
+            `先把那些檔案寫出來,再改狀態。` +
+            `(如果那一條 DoD 其實不需要產出檔案,就改 recipe.md 把它寫清楚。)`,
         };
       }
     }
