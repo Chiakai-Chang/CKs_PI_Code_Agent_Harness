@@ -252,6 +252,12 @@ class TestDocumentedChecksRunInCI(unittest.TestCase):
         # which CI does run, and it refuses to start when the installed bridge
         # reads a different config than the one it would flip.
         documented.discard("scripts/measure-drift.py")
+        # mine-session reads a session log from ~/.pi and reports; it asserts
+        # nothing and there are no sessions on a CI runner, so wiring it in
+        # would print a header and exit 0 every time. Its extraction — the
+        # part that can be wrong in a way that hides a defect — is covered by
+        # tests/test_mine_session.py against a captured fixture, which CI runs.
+        documented.discard("scripts/mine-session.py")
         missing = [c for c in sorted(documented) if c not in self.ci]
         self.assertEqual(missing, [], "documented checks absent from CI: %s" % missing)
 
