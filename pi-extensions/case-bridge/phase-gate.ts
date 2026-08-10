@@ -27,7 +27,7 @@
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 import { bashWriteTargets } from "./task-queue-guard.ts";
 import { ScopeSnapshot, resolveFlag } from "./harness-scope.ts";
@@ -177,6 +177,49 @@ function taskOf(queueDir: string, target: string): Task | null {
   return null;
 }
 
+/**
+ * Whether every write in this call lands outside the project this gate guards.
+ *
+ * When it does, the gate stands down and lets the directory-containment guard
+ * speak instead. Measured 2026-08-10, session 019fe912: a run resolved "this
+ * project" as the harness install, worked there for 25 tool calls, and tried
+ * three times to write into it. The phase gate blocked all three — so nothing
+ * was written, by luck — and the model was told "claim a task first" three
+ * times. Containment, which knows the target is in another project entirely and
+ * hands back the corrected path, never got to speak: only one handler may block
+ * a `tool_call`, and whoever refuses first is the only voice the model hears.
+ *
+ * "Claim a task first" is a true statement and the wrong one. The run followed
+ * it, inside the wrong project, until it ran out.
+ *
+ * This reverses a test written the day before — `a deliverable written to the
+ * wrong root is still recognised` — which asserted the opposite on the strength
+ * of a mutation survivor. That reasoning was about `taskOf` matching by folder
+ * name, and that half is still needed for RELATIVE paths, which is what it is
+ * now tested with. Nothing is let through by standing down: containment refuses
+ * exactly the calls this now declines to refuse, with a message that names the
+ * real problem.
+ */
+function allWritesEscapeProject(queueDir: string, targets: string[]): boolean {
+  if (!targets.length) return false;
+  let root: string;
+  try {
+    root = resolve(dirname(queueDir)).replace(/\\/g, "/").toLowerCase();
+  } catch {
+    return false;
+  }
+  if (!root) return false;
+  return targets.every((t) => {
+    let abs: string;
+    try {
+      abs = resolve(dirname(queueDir), t).replace(/\\/g, "/").toLowerCase();
+    } catch {
+      return false;
+    }
+    return abs !== root && !abs.startsWith(root + "/");
+  });
+}
+
 /** Paths a call would write, whichever tool it uses. */
 function writeTargets(toolName: string, input: unknown): string[] {
   const src = (input ?? {}) as Record<string, unknown>;
@@ -320,6 +363,8 @@ export class PhaseGate {
       const writes = writeTargets(toolName, input);
       const onlyStatus = writes.length > 0 && writes.every((t) => leaf(t) === "status.txt");
       if (!RESEARCH_TOOLS.has(toolName) && (!writes.length || onlyStatus)) return null;
+      // Someone else has the better complaint. See allWritesEscapeProject.
+      if (allWritesEscapeProject(queueDir, writes)) return null;
       this.refusedThisTurn.add(key);
       // The "last time" text is reserved for the turn that really is the last.
       //
@@ -344,6 +389,7 @@ export class PhaseGate {
     // PLAN: research is wide open; deliverables wait for the plan.
     const targets = writeTargets(toolName, input);
     if (!targets.length) return null;
+    if (allWritesEscapeProject(queueDir, targets)) return null;
     for (const target of targets) {
       const task = taskOf(queueDir, target);
       if (!task) continue;

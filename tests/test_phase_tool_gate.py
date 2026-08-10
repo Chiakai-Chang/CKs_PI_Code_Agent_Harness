@@ -684,20 +684,85 @@ class TestFailsOpenOnWhatItCannotRecognise(unittest.TestCase):
                 out = gate(self.q.queue_dir, "write", {"path": bad, "content": "x"})
                 self.assertIsNone(out["reasons"][0])
 
-    def test_a_deliverable_written_to_the_wrong_root_is_still_recognised(self):
-        """The task is identified by its folder name as well as by its full
-        path, and the second half of that test is what covers today's actual
-        failure: a model resolving paths against the harness install writes to
-        `.../02_Task_Queue/Task_001_probe/output.md` under a DIFFERENT root. The
-        prefix no longer matches; the task name still does.
+    def test_a_task_named_by_a_relative_path_is_recognised(self):
+        """The task is identified by its folder name as well as by its full path.
 
-        Without it the gate would say nothing about a deliverable being written
-        before a plan, purely because the path had the wrong drive on it."""
+        This replaces `test_a_deliverable_written_to_the_wrong_root_is_still
+        _recognised`, written 2026-08-10 on the strength of a mutation survivor,
+        which asserted that a deliverable under a DIFFERENT root must still be
+        refused here. Session 019fe912 showed that to be exactly backwards: the
+        gate refusing those calls is what kept the containment guard — the one
+        that knows the run is in the wrong project — from ever speaking.
+
+        The folder-name half of taskOf is still needed, and this is what it is
+        actually for: a relative path shares no absolute prefix with the queue."""
         q = Queue(status="IN_PROGRESS")
         self.addCleanup(q.cleanup)
-        elsewhere = "D:/some/other/checkout/02_Task_Queue/Task_001_probe/output.md"
-        out = gate(q.queue_dir, "write", {"path": elsewhere, "content": "findings"})
+        out = gate(q.queue_dir, "write",
+                   {"path": "02_Task_Queue/Task_001_probe/output.md",
+                    "content": "findings"})
         self.assertIsNotNone(out["reasons"][0],
-                             "a wrong-root deliverable was not recognised")
+                             "a relative deliverable path was not recognised")
         self.assertIn("planning.md", out["reasons"][0])
 
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestItYieldsToTheGuardWithTheBetterComplaint(unittest.TestCase):
+    """Only one handler may block a `tool_call`, so whoever refuses first is the
+    only voice the model hears.
+
+    Session 019fe912: a run resolved "this project" as the harness install,
+    worked there for 25 calls, and tried three times to write into it. The phase
+    gate blocked all three and said "claim a task first" — true, and the wrong
+    thing to say. Containment, which knows the target is in another project and
+    hands back the corrected path, never got a turn. The run followed the advice
+    it was given, inside the wrong project, until it ran out.
+
+    Standing down lets nothing through: containment refuses exactly the calls
+    declined here."""
+
+    def setUp(self):
+        self.q = Queue(status="PENDING")
+        self.addCleanup(self.q.cleanup)
+
+    def test_claim_phase_yields_on_a_write_to_another_project(self):
+        out = gate(self.q.queue_dir, "write",
+                   {"path": "D:/some/other/checkout/wiki/module-index.md",
+                    "content": "x"})
+        self.assertIsNone(out["reasons"][0],
+                          "the gate answered a complaint that is not its own")
+
+    def test_plan_phase_yields_on_a_write_to_another_project(self):
+        q = Queue(status="IN_PROGRESS")
+        self.addCleanup(q.cleanup)
+        out = gate(q.queue_dir, "write",
+                   {"path": "D:/some/other/checkout/02_Task_Queue/"
+                            "Task_001_probe/output.md", "content": "x"})
+        self.assertIsNone(out["reasons"][0])
+
+    def test_a_bash_write_to_another_project_also_yields(self):
+        out = gate(self.q.queue_dir, "bash",
+                   {"command": 'mkdir -p /d/other/wiki && echo x > /d/other/wiki/a.md'})
+        self.assertIsNone(out["reasons"][0])
+
+    def test_a_write_inside_the_project_is_still_refused(self):
+        """The yield is narrow. A deliverable in this project during CLAIM is
+        still the gate's own business."""
+        out = gate(self.q.queue_dir, "write",
+                   {"path": self.q.task.replace("\\", "/") + "/output.md",
+                    "content": "x"})
+        self.assertIsNotNone(out["reasons"][0])
+
+    def test_a_mixed_call_is_still_refused(self):
+        """One target inside the project is enough to keep the complaint. Only
+        when EVERY write escapes does someone else have the better one."""
+        inside = self.q.task.replace("\\", "/") + "/output.md"
+        out = gate(self.q.queue_dir, "bash",
+                   {"command": 'echo a > "%s" && echo b > /d/other/x.md' % inside})
+        self.assertIsNotNone(out["reasons"][0])
+
+    def test_research_tools_are_unaffected(self):
+        """The yield is about write targets. A premature search has no target
+        and is still the gate's business."""
+        out = gate(self.q.queue_dir, "web_search", {"query": "x"})
+        self.assertIsNotNone(out["reasons"][0])

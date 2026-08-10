@@ -247,3 +247,93 @@ C.A.S.E. 階段閘(CLAIM,第 3 次,共 8 次):不再重複同一句話,直接給
 證據(寫這段時實跑):`Ran 1184 tests, OK`;`verify-bridges.py` 13 bridges 0 failures;
 `check-guard-mutations.py --only phase-gate --all` 4 survivors,全部有論證。
 
+---
+
+# 第 3 項已修:階段閘在別人有更好的抱怨時讓位
+
+## 觸發它的真實 run
+
+Session `019fe912`,提示是刻意含糊的「請幫我盤點**這個專案**的 src/ 模組並產出報告」——
+不指名任務、不指名 cwd。
+
+模型把「這個專案」解讀成 **harness 安裝目錄**,在裡面工作了 25 次呼叫
+(讀 `pi-skills/`、`pi-extensions/`),然後三次嘗試寫入
+`D:/MyProject/CKs_PI_Code_Agent_Harness/wiki/`。
+
+```
+tool calls: 25   errored results: 5
+phase-gate refusals: 3   distinct texts: 2
+TASK-CONSTITUTION BLOCKS: 0
+status.txt: PENDING      output.md: MISSING
+```
+
+**repo 沒有被污染 —— 但擋下來的是階段閘,不是目錄圍堵。**
+五個錯誤裡:兩個 ENOENT,三個階段閘。**containment 一次都沒有開口。**
+
+## 為什麼這是最糟的一種擋法
+
+一個 `tool_call` 只有一個守衛擋得成,**先開口的就是唯一被聽見的**。
+
+階段閘說的是「**先去認領任務**」—— 這句話**是真的**,而且是錯的那一句。
+containment 知道的是「你在另一個專案裡,正確路徑是這個」,而它被跳過了。
+
+**模型照著它收到的那句話做,在錯的專案裡,直到跑完。**
+
+## 修法:局部讓位,不動載入順序
+
+```ts
+if (allWritesEscapeProject(queueDir, writes)) return null;
+```
+
+**當這次呼叫的每一個寫入目標都落在它守護的專案之外,階段閘不擋。**
+不改 bridge 載入順序 —— 那是全域且脆弱的。
+
+**讓位沒有放行任何東西:** containment 拒絕的正好就是這裡不再拒絕的那些呼叫。實測:
+
+```
+write D:/some/other/checkout/wiki/module-index.md   -> escapes cwd: true
+write D:/some/other/.../Task_001_probe/output.md    -> escapes cwd: true
+bash  mkdir -p /d/other/wiki && echo x > …/a.md     -> BLOCKED
+harness-root 重導提示仍然提供正確路徑            -> true
+```
+
+範圍很窄:**只要有一個目標在專案內就照擋**(`every`,不是 `some`),
+研究工具不受影響(它們沒有寫入目標)。四個蓄意破壞全部變紅。
+
+## 推翻了昨天自己寫的一條測試
+
+`test_a_deliverable_written_to_the_wrong_root_is_still_recognised`
+是 2026-08-10 早些時候寫的,依據是一個變異存活者,斷言**錯誤根目錄的交付物仍要被階段閘認出並拒絕**。
+
+**今天的 run 證明那正好相反** —— 階段閘擋下那些呼叫,正是 containment 從未開口的原因。
+
+已換成 `test_a_task_named_by_a_relative_path_is_recognised`:
+`taskOf` 用資料夾名稱比對的那一半仍然需要,而它真正的用途是**相對路徑**
+(相對路徑與佇列沒有共同的絕對前綴)。舊測試的理由被逐字引用在新測試的 docstring 裡。
+
+## 順帶發現:allowlist 條目會過期
+
+變異掃描報出 `phase-gate.ts:330:38`,而那**就是先前已列入 allowlist 的 `287:38`** ——
+我在上面插了程式碼,行號位移,**條目就靜默失配,存活者看起來像新的**。
+
+危險在於:下一個人可能會重新論證它,或者更糟 —— 去「修」一段其實不可達的程式碼。
+已在 allowlist 的 `_comment` 裡寫明這個性質。
+
+## 三項全部完成
+
+| | 狀態 |
+|---|---|
+| 1. 假承諾「下一次我不會再擋」 | ✅ |
+| 2. 階梯逐字重複五次 | ✅ |
+| 3. 誰先開口 | ✅(局部讓位) |
+
+## 仍未驗證的
+
+**新的第 2 階(帶佇列資料那一則)在真實 run 裡從未觸發過** ——
+`019fe912` 只累積 3 次拒絕,而它要第 3 次以上才出現。
+諷刺的是那一階會印出「我讀的佇列是:`…/gate-live/02_Task_Queue`」,
+**正好會戳破那個 run 的誤解**。
+
+證據(寫這段時實跑):`Ran 1192 tests, OK`;`verify-bridges.py` 13 bridges 0 failures;
+`check-guard-mutations.py --only phase-gate --all` 7 survivors,全部有論證。
+
