@@ -62,6 +62,19 @@
 * **成敗判準**:走到 REVIEW **且** Local DoD 的檔案存在。
   失敗也是結果 —— 但這次失敗的原因不會是路徑
 
+**實驗場地(2026-08-11 建立):`D:/MyProject/PiTaskLab`**
+
+* **路徑刻意不含 harness 字樣** —— 這是先前四次失效的成因,已驗證
+* 憲法 + Roadmap + 一個任務包(`Task_001_ConfigDrift`)
+* 種子資料 8 個 JSON,**標準答案先算好**寫在 gitignored 的 `.ground-truth.json`:
+  `timeout` 偏離 = svc-03、svc-06;`retries` 偏離 = svc-04、svc-08。
+  **不是事後看模型寫什麼再判斷**
+* 任務包的 Local DoD **六條全部可機械判定**(檔案存在、四個標題、格式、data/ 未被修改)
+* **提示不提 cwd、不提任務名稱** —— 「請處理 02_Task_Queue 裡待辦的任務」
+
+**配置紀錄(Harness-Bench 配置層原則):**
+`harness commit 66628da` / `model GRM-3.2-Sky-ONYX-balanced.gguf`
+
 ### ⚪ T-A2 — 校準參數移出出貨程式碼
 * **為什麼**:`MAX_REFUSAL_TURNS=8`、重述門檻 `12`、清單上限 `5` 都是對**這一個模型**
   校準的,卻寫在協定執行碼裡。Harness-Bench:能力是 **model–harness 配對**的屬性
