@@ -75,9 +75,36 @@ export interface RequestShape {
  *
  * Length alone decides nothing: one thing said slowly is still one thing.
  */
+/**
+ * Length in Latin-equivalent characters.
+ *
+ * The floor below exists to stop a greeting being routed, and it was calibrated
+ * on English. A CJK character carries roughly twice the content of a Latin one,
+ * so "研究並比較三個競品的定價與功能差異,並整理成表格" — research, compare,
+ * three competitors, pricing, features, and a table — is 24 characters and was
+ * discarded before any signal was looked at.
+ *
+ * Measured 2026-08-10 over real session history: 62 opening prompts contain CJK
+ * and 6 of them (10%) fall under the raw floor. The bias is silent, because the
+ * function returns the same shape as a genuine single-step request.
+ *
+ * Found by adding this module's sibling to the mutation sweep, which is the
+ * finding T1 was for: 33 of 48 pure modules had never been swept, and coverage
+ * of the sweep — not the wording of assertions — is what surfaces this class.
+ */
+export function weightedLength(text: string): number {
+  let n = 0;
+  for (const ch of text) {
+    // CJK ideographs, plus the kana and Hangul blocks that behave the same way.
+    n += /[぀-ヿ㐀-䶿一-鿿가-힯豈-﫿]/.test(ch)
+      ? 2 : 1;
+  }
+  return n;
+}
+
 export function classifyRequest(prompt: string | null | undefined): RequestShape {
   const text = String(prompt || "").trim();
-  if (text.length < 25) {
+  if (weightedLength(text) < 25) {
     return { multiStep: false, deliverables: 0, reason: "" };
   }
 

@@ -553,3 +553,56 @@ class TestTheDodGuardIsWired(unittest.TestCase):
         block = self.src.split('next === "REVIEW"', 1)[1].split('next === "DONE"', 1)[0]
         self.assertIn("catch", block)
 
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestIsCaseProject(unittest.TestCase):
+    """The predicate that decides whether the task-shape router stands down.
+
+    Added 2026-08-10 after measuring mutation-sweep coverage: 33 of 48 pure
+    modules were never swept, and `plan.ts` — edited that same day — was one of
+    them. Adding it to the sweep produced ten survivors immediately. Every weak
+    check found that day came from the sweep and none from reading assertion
+    styles, so coverage of the sweep is the lever."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def call(self):
+        url = "file:///" + str(ROOT / "pi-extensions" / "task-shape-bridge"
+                               / "plan.ts").replace("\\", "/")
+        driver = ROOT / "tests" / ".tmp_plan_driver.mjs"
+        driver.write_text(
+            "import {isCaseProject} from %s;" % json.dumps(url) + chr(10) +
+            "process.stdout.write(JSON.stringify(isCaseProject(%s)));"
+            % json.dumps(str(self.tmp)), encoding="utf-8")
+        try:
+            p = subprocess.run(["node", str(driver)], capture_output=True,
+                               text=True, encoding="utf-8", errors="replace",
+                               cwd=str(ROOT), timeout=120)
+            if p.returncode != 0:
+                raise AssertionError(p.stderr)
+            return json.loads(p.stdout)
+        finally:
+            if driver.exists():
+                driver.unlink()
+
+    def test_an_empty_directory_is_not_a_case_project(self):
+        self.assertFalse(self.call())
+
+    def test_case_md_alone_is_enough(self):
+        (self.tmp / "CASE.md").write_text("x", encoding="utf-8")
+        self.assertTrue(self.call())
+
+    def test_a_constitution_directory_alone_is_enough(self):
+        """The `||` matters: a queue project bootstrapped from the protocol has
+        00_Constitution and no CASE.md. Flipping it to `&&` would demand both and
+        the router would keep firing in exactly the projects it must not."""
+        (self.tmp / "00_Constitution").mkdir()
+        self.assertTrue(self.call())
+
+    def test_both_present_is_still_a_case_project(self):
+        (self.tmp / "CASE.md").write_text("x", encoding="utf-8")
+        (self.tmp / "00_Constitution").mkdir()
+        self.assertTrue(self.call())
+

@@ -71,6 +71,14 @@ GUARD_MODULES = {
     "pi-extensions/yes-hooks-bridge/compaction-echo.ts": ["test_compaction_echo"],
     "pi-extensions/task-shape-bridge/goal-restate.ts": ["test_goal_restate"],
     "pi-extensions/case-bridge/task-context.ts": ["test_task_context"],
+    # Added 2026-08-10 after measuring coverage: 33 of 48 pure modules were
+    # never swept, and these two sit directly in the decision path this week's
+    # work depends on — `shape.ts` decides multi-step, `plan.ts` decides whether
+    # the router stands down in a C.A.S.E. project. Every weak assertion found
+    # today was found by this sweep and none by reading assertion styles, so
+    # coverage of the sweep is the lever, not the wording of the tests.
+    "pi-extensions/task-shape-bridge/shape.ts": ["test_task_shape"],
+    "pi-extensions/task-shape-bridge/plan.ts": ["test_plan_module"],
 }
 
 Mutation = namedtuple("Mutation", "offset kind original mutated")

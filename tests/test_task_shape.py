@@ -26,6 +26,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -334,3 +335,42 @@ class TestChinesePunctuationIsSeparatorsToo(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestTheClassifierBoundaries(unittest.TestCase):
+    """Sites the mutation sweep reached only after coverage was measured.
+
+    `shape.ts` was in the sweep, but these three had no test: the 25-character
+    floor, the zeroed deliverable count below it, and the research-verb branch
+    that reports at least two deliverables. Each decides whether a run gets a
+    routine at all."""
+
+    def test_a_prompt_just_under_the_floor_is_single_step(self):
+        """24 characters. The floor exists so a greeting is never routed."""
+        out = classify("x" * 24)
+        self.assertFalse(out["multiStep"])
+        self.assertEqual(out["deliverables"], 0,
+                         "below the floor nothing has been counted yet")
+
+    def test_the_floor_itself_is_examined(self):
+        """25 characters: long enough to look at. It still needs real signals to
+        be multi-step, so this asserts it was CLASSIFIED, not that it fired."""
+        out = classify("研究並比較三個競品的定價與功能差異,並整理成表格")
+        self.assertTrue(out["multiStep"])
+
+    def test_a_research_verb_alone_is_not_enough(self):
+        """The `&&` matters: a research verb with nothing plural is one lookup."""
+        self.assertFalse(classify(
+            "研究一下這個函式的效能瓶頸在哪裡,大概講一下就好")["multiStep"])
+
+    def test_a_plural_noun_alone_is_not_enough(self):
+        self.assertFalse(classify(
+            "把這些檔案的結尾空白都清掉,不用做別的事情謝謝")["multiStep"])
+
+    def test_research_plus_plural_reports_at_least_two_deliverables(self):
+        out = classify("請研究這幾家競品的定價策略,整理給我看,謝謝你")
+        self.assertTrue(out["multiStep"])
+        self.assertGreaterEqual(out["deliverables"], 2,
+                                "a research request naming several things is "
+                                "never a one-deliverable job")

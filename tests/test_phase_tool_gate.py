@@ -119,6 +119,22 @@ def gate(queue_dir, tool, input_obj, times=1):
            json.dumps(queue_dir)))
 
 
+def assert_refused_by(case, reason, phase):
+    """A refusal exists AND it is the one this test means.
+
+    `assertIsNotNone(reason)` passes for ANY refusal, including the wrong guard's
+    or the wrong phase's. Three checks-that-cannot-fail turned up in one day
+    (2026-08-10) and this is their shape: asserting that something was blocked
+    without asserting why. MECE Round 12 ranked fixing it above new features.
+
+    The gate's two phases are distinguishable in the text it emits, so the test
+    can say which one it expects instead of accepting either."""
+    case.assertIsNotNone(reason, "expected a %s refusal, got none" % phase)
+    marker = "階段閘(%s" % phase
+    case.assertIn(marker, reason,
+                  "expected a %s refusal, got: %s" % (phase, reason[:90]))
+
+
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
 class TestClaimPhase(unittest.TestCase):
     """PENDING means nobody has taken the task. One write fixes that."""
@@ -181,7 +197,7 @@ class TestPlanPhase(unittest.TestCase):
     def test_bash_written_deliverables_count_too(self):
         cmd = 'cat > "%s/output.md" << EOF\nfindings\nEOF' % self.q.task.replace("\\", "/")
         out = gate(self.q.queue_dir, "bash", {"command": cmd})
-        self.assertIsNotNone(out["reasons"][0])
+        assert_refused_by(self, out["reasons"][0], "PLAN")
 
     def test_a_plan_with_self_review_opens_everything(self):
         self.q.write("planning.md", "# plan\n\n## Self-Review\nchecked")
@@ -203,8 +219,8 @@ class TestItStandsAsideButOffersAnotherWayFirst(unittest.TestCase):
 
     def test_the_second_refusal_is_not_the_first_one_repeated(self):
         out = gate(self.q.queue_dir, "web_search", {"query": "x"}, times=2)
-        self.assertIsNotNone(out["reasons"][0])
-        self.assertIsNotNone(out["reasons"][1])
+        assert_refused_by(self, out["reasons"][0], "CLAIM")
+        assert_refused_by(self, out["reasons"][1], "CLAIM")
         self.assertNotEqual(out["reasons"][0], out["reasons"][1],
                             "the second refusal must offer another way, not repeat")
 
@@ -527,8 +543,8 @@ class TestThePlanRefusalEscalatesToo(unittest.TestCase):
                    {"path": self.q.task.replace("\\", "/") + "/output.md",
                     "content": "findings"}, times=2)
         first, second = out["reasons"][0], out["reasons"][1]
-        self.assertIsNotNone(first)
-        self.assertIsNotNone(second)
+        assert_refused_by(self, first, "PLAN")
+        assert_refused_by(self, second, "PLAN")
         self.assertNotEqual(first, second)
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
@@ -765,7 +781,7 @@ class TestItYieldsToTheGuardWithTheBetterComplaint(unittest.TestCase):
         out = gate(self.q.queue_dir, "write",
                    {"path": self.q.task.replace("\\", "/") + "/output.md",
                     "content": "x"})
-        self.assertIsNotNone(out["reasons"][0])
+        assert_refused_by(self, out["reasons"][0], "CLAIM")
 
     def test_a_mixed_call_is_still_refused(self):
         """One target inside the project is enough to keep the complaint. Only
@@ -774,13 +790,13 @@ class TestItYieldsToTheGuardWithTheBetterComplaint(unittest.TestCase):
         out = gate(self.q.queue_dir, "bash",
                    {"command": 'echo a > "%s" && echo b > "%s/x.md"'
                                 % (inside, self.outside)})
-        self.assertIsNotNone(out["reasons"][0])
+        assert_refused_by(self, out["reasons"][0], "CLAIM")
 
     def test_research_tools_are_unaffected(self):
         """The yield is about write targets. A premature search has no target
         and is still the gate's business."""
         out = gate(self.q.queue_dir, "web_search", {"query": "x"})
-        self.assertIsNotNone(out["reasons"][0])
+        assert_refused_by(self, out["reasons"][0], "CLAIM")
 
     def test_a_windows_drive_path_escapes_on_every_platform(self):
         """The two guards must agree about what "absolute" means.
