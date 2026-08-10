@@ -349,14 +349,50 @@ class TestTheEscalationIsWired(unittest.TestCase):
         self.src = (open(os.path.join(ROOT, "pi-extensions", "yes-hooks-bridge",
                                       "index.ts"), encoding="utf-8").read())
 
-    def test_the_guard_passes_an_advancing_counter(self):
-        call = self.src.split("containmentRefusal(", 1)[1].split("))", 1)[0]
-        self.assertIn("containmentRefusals++", call,
-                      "the refusal count is passed but never advances")
+    def test_one_escalation_path_serves_both_guards(self):
+        """T2 run 1 (session 019fedc9) fired two containment refusals and showed
+        the listing in neither: refusal 1 came from containmentGuard, which
+        counted, and refusal 2 from bashContainmentBlock — a different function
+        with its own text and no counter. The run spent all 24 calls inside the
+        harness queue without ever seeing the listing meant to redirect it, so it
+        measured nothing.
 
-    def test_it_passes_a_listing_reader(self):
-        call = self.src.split("containmentRefusal(", 1)[1].split("))", 1)[0]
-        self.assertIn("workspaceListing", call)
+        Two copies of one idea is what allowed that. There is now one."""
+        self.assertIn("function withWorkspaceListing", self.src)
+        self.assertEqual(self.src.count("containmentRefusals++"), 1,
+                         "the counter must advance in exactly one place")
+
+    def body_after(self, marker, end=None):
+        """From a marker to the next top-level declaration.
+
+        NOT a fixed character window. A 900-character slice missed the call it
+        was looking for by 676 characters and failed while the wiring was
+        correct — the third time in one day that a test bound to a fixed slice
+        went red over nothing."""
+        after = self.src.split(marker, 1)[1]
+        boundary = end if end is not None else chr(10) + "function "
+        body = after.split(boundary, 1)[0]
+        # Comments stripped before matching. A deliberate break that removed the
+        # CALL survived because the function name still appeared in the comment
+        # explaining why the call was there — the fourth time in one day that an
+        # assertion over source text was satisfied by prose.
+        return chr(10).join(l for l in body.split(chr(10))
+                            if not l.strip().startswith("//"))
+
+    def test_both_containment_paths_route_through_it(self):
+        self.assertIn("withWorkspaceListing(",
+                      self.body_after("function containmentGuard"),
+                      "the write/edit path does not escalate")
+        self.assertIn("withWorkspaceListing(",
+                      self.body_after("const escaped = bashContainmentBlock(",
+                                      "return bashGuard"),
+                      "the bash path does not escalate")
+
+    def test_it_reads_the_listing_at_refusal_time(self):
+        """A listing cached at session_start would miss everything the run
+        itself created."""
+        fn = self.src.split("function withWorkspaceListing", 1)[1][:600]
+        self.assertIn("workspaceListing(cwd", fn)
 
     def test_the_counter_resets_each_session(self):
         """Carried over, the listing would appear on the first refusal of the

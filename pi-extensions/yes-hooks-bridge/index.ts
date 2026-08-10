@@ -405,6 +405,31 @@ function repeatCallGuard(event: ToolCallEvent, ctx: ExtensionContext, pi: Extens
  */
 let containmentRefusals = 0;
 
+/**
+ * Append the workspace listing once this guard has already said its piece.
+ *
+ * One counter for both containment paths — write/edit and bash — because the
+ * model does not care which of our functions refused it, only how many times it
+ * has been told the same thing.
+ */
+function withWorkspaceListing(reason: string, cwd: string): string {
+  const seen = containmentRefusals++;
+  if (seen < 1 || !cwd) return reason;
+  let shown: string | null = null;
+  try {
+    shown = workspaceListing(cwd, (d) => readdirSync(d),
+      (p) => { try { return statSync(p).isDirectory(); } catch { return false; } });
+  } catch {
+    shown = null;
+  }
+  return shown
+    ? `${reason}
+
+同樣的理由已經擋你第 ${seen + 1} 次了,所以這次不重複講,直接給你看:
+${shown}`
+    : reason;
+}
+
 function containmentGuard(event: ToolCallEvent, ctx: ExtensionContext) {
   const input = event.input as { path?: unknown; file_path?: unknown };
   const raw = typeof input?.path === "string" ? input.path
@@ -429,14 +454,11 @@ function containmentGuard(event: ToolCallEvent, ctx: ExtensionContext) {
     // times against a refusal that named the mistake and nothing else. Nothing
     // is formatted here, because a string assertion over this file is the only
     // kind available and one of those already let a break through.
-    reason: containmentRefusal(
-      event.toolName, target, cwd, harnessRoot(), containmentRefusals++,
-      // Read at refusal time, not at startup: the workspace the model needs
-      // to see is the one it has now, and a listing cached at session_start
-      // would miss everything the run itself created.
-      () => workspaceListing(cwd,
-        (d) => readdirSync(d),
-        (p) => { try { return statSync(p).isDirectory(); } catch { return false; } })),
+    // Both containment paths append the escalation through one function. Having
+    // two copies of the idea is what let the bash path ship without it — see
+    // withWorkspaceListing.
+    reason: withWorkspaceListing(
+      containmentRefusal(event.toolName, target, cwd, harnessRoot()), cwd),
   };
 }
 
@@ -1509,7 +1531,22 @@ export default function (pi: ExtensionAPI) {
         String((event.input as { command?: unknown })?.command ?? ""), String(ctx.cwd ?? ""));
       if (escaped) {
         ctx.ui.notify("🚧 已擋下寫到專案外的 bash 指令", "warning");
-        return escaped;
+        // The escalation belongs to BOTH containment paths, not just write/edit.
+        //
+        // Measured in T2 run 1 (session 019fedc9): two containment refusals
+        // fired and the workspace listing appeared in neither, because refusal 1
+        // came from containmentGuard — which counts — and refusal 2 came from
+        // here, a different function with its own text and no counter. The run
+        // spent all 24 calls inside the harness queue and never saw the listing
+        // that exists to redirect it. The mechanism under test could not fire,
+        // so that run measured nothing.
+        //
+        // Same omission-in-two-places shape as the `2>/dev/null` bug, this time
+        // in the refusal text rather than the extractor.
+        return {
+          ...escaped,
+          reason: withWorkspaceListing(escaped.reason, String(ctx.cwd ?? "")),
+        };
       }
       return bashGuard(event, ctx);
     }
