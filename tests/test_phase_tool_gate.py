@@ -781,3 +781,35 @@ class TestItYieldsToTheGuardWithTheBetterComplaint(unittest.TestCase):
         and is still the gate's business."""
         out = gate(self.q.queue_dir, "web_search", {"query": "x"})
         self.assertIsNotNone(out["reasons"][0])
+
+    def test_a_windows_drive_path_escapes_on_every_platform(self):
+        """The two guards must agree about what "absolute" means.
+
+        `bash-containment.escapesCwd` has always tested `/^[A-Za-z]:[\/]/`, so a
+        `D:/...` target reads as absolute even off Windows. This one did not, so
+        on Linux the same path resolved INSIDE the project and the gate said "not
+        escaping" while containment said the opposite. CI caught it as a red test
+        on 2026-08-10 and the first fix only corrected the fixture — the
+        disagreement in the production code survived that round.
+
+        Written with a literal drive letter on purpose: the point is the path
+        that is absolute on one platform and not the other.
+
+        HONEST LIMIT: this test cannot fail on Windows. There `isAbsolute("D:/x")`
+        is already true, so deleting the drive-letter test changes nothing local.
+        Its teeth are in CI, on Linux — which is also where the defect lived. A
+        deliberate break was attempted here and could not be made to turn red;
+        that is recorded rather than glossed, because "I broke it and it went
+        red" is the evidence this repo runs on and it is not available here."""
+        out = gate(self.q.queue_dir, "write",
+                   {"path": "D:/definitely-another-checkout/wiki/x.md",
+                    "content": "x"})
+        self.assertIsNone(out["reasons"][0],
+                          "a drive-letter path was treated as inside the project")
+
+    def test_a_posix_absolute_path_escapes_on_every_platform(self):
+        out = gate(self.q.queue_dir, "write",
+                   {"path": "/definitely-another-checkout/wiki/x.md",
+                    "content": "x"})
+        self.assertIsNone(out["reasons"][0])
+

@@ -27,7 +27,7 @@
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 
 import { bashWriteTargets } from "./task-queue-guard.ts";
 import { ScopeSnapshot, resolveFlag } from "./harness-scope.ts";
@@ -212,7 +212,16 @@ function allWritesEscapeProject(queueDir: string, targets: string[]): boolean {
   return targets.every((t) => {
     let abs: string;
     try {
-      abs = resolve(dirname(queueDir), t).replace(/\\/g, "/").toLowerCase();
+      // A Windows drive letter is absolute even when this process is not on
+      // Windows. Without the second test, `D:/other/x` resolves INSIDE the
+      // project on Linux and this reports "not escaping" — while
+      // bash-containment's escapesCwd, which HAS this test, reports the
+      // opposite. Two guards disagreeing about the same path is how one ends up
+      // covering a case nobody realises is uncovered. CI surfaced it as a red
+      // test on 2026-08-10 and the first fix only touched the fixture.
+      abs = (isAbsolute(t) || /^[A-Za-z]:[\\/]/.test(t)
+        ? resolve(t)
+        : resolve(dirname(queueDir), t)).replace(/\\/g, "/").toLowerCase();
     } catch {
       return false;
     }
