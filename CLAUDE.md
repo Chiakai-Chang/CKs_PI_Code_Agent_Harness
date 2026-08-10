@@ -25,6 +25,13 @@
 * Measure this machine's usable context and write the gitignored local override (slow — runs the local model and the `pi` binary; NOT in CI): `python scripts/calibrate-context.py [--ladder] [--write]`
 * Dump the system prompt Pi actually sends, for prompt-budget work: `PI_HARNESS_DUMP_PROMPT=<file> pi --print "..."` (off unless the variable names a file).
 
+## 🧭 Where the work stands
+**Read [PROGRESS.md](PROGRESS.md) first.** It is the single ledger: what is being worked on now, what is done and
+verified, what is done but NOT proven, what has not started, and the learnings from each session with links to the
+detailed documents. `01_Roadmap/roadmap.md` holds the plan, but its checkboxes have gone stale before — PROGRESS.md's
+status section is written from evidence and is guarded by `tests/test_progress_ledger.py`, which fails when a finding
+document exists and nothing links to it.
+
 ## 📌 CRITICAL Guidelines & Philosophy (Must Read First)
 Before planning any optimizations, refactoring, or modifications to this repository, you **MUST** read and fully comprehend the following documentation to align with our engineering guidelines:
 1. **[Core Concepts](docs/core/CORE_CONCEPTS.md)**: Understand the actual layout, integrated submodules, and CASE-aligned environment governance.

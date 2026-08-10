@@ -73,9 +73,9 @@
 
 ## Phase 1:把流程的持有權拿回來
 
-- [ ] `Task_001_queue_advancer`:佇列推進器 —— turn_end 讀佇列狀態,查 CASE 轉換表得出下一步,
+- [x] `Task_001_queue_advancer`(**已實作,預設關**;見 docs/case/task-001-queue-advancer.md):佇列推進器 —— turn_end 讀佇列狀態,查 CASE 轉換表得出下一步,
       注入並觸發下一輪。預設關閉。
-- [ ] `Task_002_advancer_measurement`(佇列狀態 `REVIEW`;§1 不許做這件工作的 session 核可它自己):在真實專案量遵循率 = 狀態前進次數 / 推進次數。
+- [x] `Task_002_advancer_measurement`(佇列狀態 `REVIEW`;§1 不許做這件工作的 session 核可它自己):在真實專案量遵循率 = 狀態前進次數 / 推進次數。
       **魔鬼代言人已下注:第一次不會是 1.0。先說,再量。**
       → **注贏了:0/3。** 但機制成立(3 次推進 + 1 次升級,分毫不差),0 的原因是模型在
       錯的目錄作業,與推進器無關。見
@@ -85,7 +85,7 @@
 
 ## Phase 2:依量測結果決定下一步
 
-- [ ] `Task_003_cwd_confusion`:**降級已撤銷 —— 2026-08-06 的 advancer 判定量測顯示
+- [x] `Task_003_cwd_confusion`:**降級已撤銷 —— 2026-08-06 的 advancer 判定量測顯示
       它吃掉 5 次 run 裡的 2 次(擋阻 11 次與 72 次,狀態一次都沒離開 PENDING)。
       這是目前最大的單一失敗來源,最高優先。** 原本的降級理由如下,保留以示對照:
       ~~降級為效率問題。~~ 乾淨重測顯示模型前 16 步在錯的目錄,
@@ -94,19 +94,19 @@
       **修法已依實測修正**:dump 出的 prompt 顯示 Pi **本來就宣告了** cwd(1 次,89% 深度),
       而 harness 的絕對路徑出現 28 次(多數是 `<available_skills>` 的 `<location>`)。
       問題是訊噪比,不是沒講 —— 所以不再往建議通道加話,改在**擋阻理由**裡糾正世界觀。
-- [ ] `Task_004_case_guard_bash`:**最高優先。** 2026-08-06 的乾淨重測顯示五條 C.A.S.E.
+- [x] `Task_004_case_guard_bash`:**最高優先。** 2026-08-06 的乾淨重測顯示五條 C.A.S.E.
       守衛全部被 `bash printf > status.txt` 繞過 —— 包括「Worker 不得自我核可」這條
       §1 不可協商的公理。守衛只看 `write`/`edit`。協定 SKILL.md:122 與 for_agents.md:424
       **本來就禁止** shell 重導向改檔,所以這是強制既有規則,不是新增。
       → REVIEW,結論見 [docs/case/task-004-case-guard-bash.md](../docs/case/task-004-case-guard-bash.md)。
-- [ ] `Task_005_research_depth_bash`:**第三個同型洞。** `research-depth.ts:84` 同樣只認
+- [x] `Task_005_research_depth_bash`:**第三個同型洞。** `research-depth.ts:84` 同樣只認
       `write`/`edit`。後果:產出閘看不到 bash 寫的檔會誤擋;**引用閘完全繞得過** ——
       而它正是唯一被實測證明改變行為的守衛(檔案內網址 0/0/0 → 10/15/0)。
       不是推測:乾淨重測的紀錄裡模型用 `cat > output.md << EOF` 寫檔。
       → REVIEW,結論見 [docs/case/task-005-research-depth-bash.md](../docs/case/task-005-research-depth-bash.md)。
-- [ ] `Task_010_blocked_claim_vocabulary`:矯正器的動詞表漏掉真實說法(第三句)。
+- [x] `Task_010_blocked_claim_vocabulary`:矯正器的動詞表漏掉真實說法(第三句)。
       → REVIEW,結論見 [docs/case/task-010-blocked-claim-vocabulary.md](../docs/case/task-010-blocked-claim-vocabulary.md)。
-- [ ] `Task_011_blocked_claim_channel`:**被擋的呼叫不發 `tool_result`**,所以這個守衛
+- [x] `Task_011_blocked_claim_channel`:**被擋的呼叫不發 `tool_result`**,所以這個守衛
       從來沒響過;改用 `tool_execution_start`/`end` 配對,並修好輪次邊界。
       → REVIEW,**已在真實 session 拿到交付證明**(模型收到注入後自己查檔並更正)。
       結論見 [docs/case/task-011-blocked-claim-channel.md](../docs/case/task-011-blocked-claim-channel.md)。
@@ -116,7 +116,7 @@
       數的是注入次數而非停滯,終點步驟必然被判卡住;而研究型 run 顯示推進器在 `turn_end`
       根本追不上「一上來就搜」。見
       [docs/measurements/2026-08-06-advancer-verdict.md](../docs/measurements/2026-08-06-advancer-verdict.md)。
-- [ ] `Task_015_advancer_settled_loop`:**不是調計數器,是換地基。** 依
+- [x] `Task_015_advancer_settled_loop`(**已換地基**;見 docs/case/task-015-advancer-settled-loop.md):**不是調計數器,是換地基。** 依
       [docs/prior-art/2026-08-06-pi-until-done-loop-reference.md](../docs/prior-art/2026-08-06-pi-until-done-loop-reference.md)
       的四項對照移植:(1) 續跑改掛 `agent_settled`;(2) 停滯判準改為加權 progress
       signal `=== 0`;(3) **自動化放棄時暫停自己,不去寫 `status.txt`** ——
@@ -160,13 +160,13 @@
       **但那個 run 沒有漂移,所以主要指標沒被測到** ——
       下一步需要會漂移的情境,不是重跑。見
       [預先登記與結果](../docs/measurements/2026-08-09-task019-preregistration.md)。
-- [ ] `Task_022_drift_ab`(**擋在 Task_020 前面**):跑 `scripts/measure-drift.py` 的 A/B,
+- [x] `Task_022_drift_ab`(**已跑,結論為「測不到」**:7 個 run、三種情境都造不出會漂移的對照組;不是待辦,是已知結果)(**擋在 Task_020 前面**):跑 `scripts/measure-drift.py` 的 A/B,
       把 Task_019 的主要指標從「未測到」變成有數字。情境與計分器已建好並自我驗證過
       (12 條測試),`enableGoalRestate` 旗標已分離。**先做這個再做 Task_020** ——
       現在多疊一個未驗證有效的機制,只是把同一筆帳欠兩次,
       而「機制已實作」正是 `global_dod.md` 明列的「不算完成」。
 
-- [ ] `Task_023_task_local_constitution`(**擁有者指定,插在 Task_020 前面**):
+- [x] `Task_023_task_local_constitution`(**已實作,送達已證明,行為影響未歸因**;見 docs/case/2026-08-10-task-local-constitution.md)(**擁有者指定,插在 Task_020 前面**):
       認領任務時注入該任務的 `role.md` + `recipe.md` 的 Objective 與 Local DoD。
       協定每個任務包裡本來就有 `role.md`,而**全 repo 沒有一處載入它** ——
       只有 `phase-gate.ts:214` 建議模型自己去讀,而建議不會被照做。
@@ -176,6 +176,15 @@
 - [ ] `Task_024_restate_the_task_not_the_prompt`:把 Task_019 的內容源從
       「整段原始使用者請求」換成「當前任務的 Local DoD」。機制不動,只換內容。
       依賴 Task_023 的讀取器。
+
+- [ ] `Task_025_task_level_methodology`(**擁有者 2026-08-10 指出的缺口,三項**):
+      (a) 路由器分類的是 `event.prompt`(使用者訊息),不是任務的 `recipe.md` ——
+      佇列 run 的使用者訊息是「繼續」,多步的工作寫在 recipe 裡,路由器沒讀過;
+      (b) `hasAnyPlan` 找 `task_plan.md`,而 C.A.S.E. 任務寫的是任務包裡的 `planning.md` ——
+      兩套計畫系統互不認識,根目錄一份 task_plan.md 會抑制整個佇列的路由提示;
+      (c) 任務層完全沒有方法論路由 —— 階段閘給的是**範本**不是**方法**,
+      沒有任何注入說「除錯用 systematic-debugging、新工作先 brainstorming」。
+      詳見 [PROGRESS.md 方法論缺口](../PROGRESS.md)。
 
 - [ ] `Task_020_handoff_capsule`:實作協定 §16 的 `[H]`
       (`session_summary` / `active_pivot_point` / `pending_blockers`)。

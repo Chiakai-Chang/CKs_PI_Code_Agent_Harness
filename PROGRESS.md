@@ -1,0 +1,160 @@
+# 總控:進度、收穫、脈絡
+
+> **這份文件的用途:** 每次工作結束後在這裡留一筆 —— 做了什麼、學到什麼、詳細文件在哪。
+> 它是唯一需要從頭讀的檔案;其餘文件都從這裡連出去。
+>
+> **它被檢查所守著:** `tests/test_progress_ledger.py` 要求 `docs/case/` 與
+> `docs/measurements/` 底下每一份文件都被本檔連到。沒人讀的紀錄是這個 repo 反覆踩到的坑
+> (`global_dod.md` 曾經是一份沒人讀的未填範本),所以這份索引由測試維持,不靠記得。
+
+---
+
+## 現在在做什麼
+
+**上一段工作(2026-08-09 ~ 08-10):反漂移與守衛品質。**
+起因是擁有者的問題:「跑到第 18 步還記得我原本要完成什麼?」
+
+**下一步(待擁有者確認):**
+1. `scripts/mine-session.py` —— 把「深讀一份 session log」的固定清單做成工具
+2. 批次處理 Task_020 / 021 / 024(三項都是注入類機制)
+3. 補上任務層的方法論路由(見下方「方法論缺口」)
+
+---
+
+## 方法:為什麼改成「批次改 + 深挖一份 log」
+
+2026-08-10 統計本段工作的實際產出:
+
+| 方法 | 花費 | 產出 |
+|---|---|---|
+| A/B 實驗(漂移 v1、v2) | 7 個真實 run + 3 次情境設計 | **0 個結論** |
+| 深讀 session log | 4 份 | **6 個真實缺陷** |
+| 變異掃描 | 4 個模組 | 4 個缺陷 + 1 段死碼 |
+| 蓄意破壞 | ~20 次 | 驗證了每一個守衛 |
+
+**關鍵區分:控制變因只有「量效果」需要,「找缺陷」不需要。**
+`cp a b 2>/dev/null` 讓目的地消失,這是不是缺陷跟同時改了幾件事無關。
+我們大部分工作是找缺陷,卻一直付量效果的價錢。
+
+---
+
+## 方法論缺口(2026-08-10 查證,尚未修)
+
+擁有者問:subagent 領 local 任務時,有沒有 planning 與 superpowers 方法在執行?
+**答案是沒有,而且是三個獨立缺口。**
+
+| # | 缺口 | 證據 |
+|---|---|---|
+| 1 | **路由器分類的是使用者訊息,不是任務** | `task-shape-bridge/index.ts:110` 是 `classifyRequest(event.prompt)`。佇列 run 的使用者訊息是「繼續」,而多步的工作寫在 `recipe.md` 裡,路由器從來沒讀過它 |
+| 2 | **兩套計畫系統互不認識** | `plan.ts:55` 的 `hasAnyPlan` 找的是 `task_plan.md`;C.A.S.E. 任務寫的是任務包裡的 `planning.md`。專案根目錄有一份 `task_plan.md`,佇列裡每個任務的路由提示就全被抑制 |
+| 3 | **任務層完全沒有方法論路由** | 階段閘的 PLAN 拒絕說的是「寫 planning.md(步驟、檔案、驗證方式 + Self-Review)」—— 那是**範本**,不是**方法**。沒有任何注入說「除錯用 systematic-debugging、新工作先 brainstorming」,而那是 `CLAUDE.md` 與 `AGENTS.md §10` 的規定 |
+
+**關於 subagent:** 目前**沒有**每個任務開一個子行程的機制。
+若要做,子行程有自己的 user prompt,`before_agent_start` 會重跑 ——
+**缺口 1 會自動被修掉**,因為子行程的提示就是任務描述。
+但 Pi 自己的 subagent 範例用 `--no-session`,那會廢掉本 repo 的驗證紀律,必須改用 `--session-dir`。
+
+---
+
+## 進度真實狀態(2026-08-10 逐條查證)
+
+> **注意:`01_Roadmap/roadmap.md` 的勾選框是壞的** —— 18 個 `- [ ]` 裡約 8 個內文已寫
+> `DONE` / `REVIEW`,只是從來沒打勾。要看真實狀態請看這一節。
+
+### 已完成並驗證
+| 項目 | 證據 |
+|---|---|
+| 目錄圍堵(write/edit/bash) | [Task_004](docs/case/task-004-case-guard-bash.md)、[Task_013](docs/case/task-013-write-forms.md) |
+| cwd 混淆重導提示 | [Task_003](docs/case/task-003-cwd-confusion.md) |
+| 研究深度守衛 | [Task_005](docs/case/task-005-research-depth-bash.md) |
+| 被擋呼叫的矯正器 | [Task_010](docs/case/task-010-blocked-claim-vocabulary.md)、[Task_011](docs/case/task-011-blocked-claim-channel.md) |
+| 階段閘 + 階段開放通知 | [Task_016](docs/case/task-016-phase-tool-gate.md) |
+| Path A 人類驗收 | [Task_018](docs/case/task-018-path-a-human-review.md) |
+| 推進器 settled 迴圈 | [Task_015](docs/case/task-015-advancer-settled-loop.md) |
+| 佇列推進器 | [Task_001](docs/case/task-001-queue-advancer.md) |
+| Checker pass | [2026-08-08](docs/case/2026-08-08-checker-pass.md) |
+| 推進器預設值建議 | [2026-08-09](docs/case/2026-08-09-advancer-default-recommendation.md) |
+
+### 做了但沒有結論
+| 項目 | 狀態 |
+|---|---|
+| `Task_019` 目標重述 | **送達已證明,有效性三次量測都測不到** — [預先登記與三次結果](docs/measurements/2026-08-09-task019-preregistration.md) |
+| `Task_023` 任務小憲法 | **送達已證明,行為影響未歸因**(模型在認領前自己讀了 role.md)— [文件](docs/case/2026-08-10-task-local-constitution.md) |
+| `Task_022` 漂移 A/B | 7 個 run,**三次情境都造不出會漂移的對照組** |
+
+### 尚未開始(9 項,2026-08-10 修好勾選框後的實數)
+`Task_012` 守衛形狀稽核 / `Task_014` 上游回饋 / `Task_020` Handoff Capsule /
+`Task_021` learnings 注入 / `Task_024` 重述換內容源 / **`Task_025` 任務層方法論(上節三缺口)** /
+`Task_006` Layer 1 可達性 / `Task_007` catalog 分級 / `Task_009` 舊議題重評
+
+> 勾選框已於 2026-08-10 逐條核對修正:6 項內文寫著 DONE/REVIEW 卻沒打勾,已補;
+> `Task_001` / `Task_015` 補上完成註記;`Task_022`(結論為「測不到」)與
+> `Task_023`(送達已證明、影響未歸因)改為已完成並註明真實狀態 ——
+> **「已跑出否定結果」不是待辦。**
+
+### 其他缺口
+* **Global DoD:3 條 ❌、1 條 ⚠️** — [global_dod.md](01_Roadmap/global_dod.md)。
+  第 6 條(噪音底線未量測)是所有 A/B 結論的前提,至今未做
+* **Prior art:37 個來源,16 個未審視** — [REGISTER.md](docs/prior-art/REGISTER.md)
+* **新的第 2 階拒絕(帶佇列資料)在真實 run 從未觸發過**
+
+---
+
+## 工作紀錄
+
+### 2026-08-10 — 守衛品質三修 + 儀器缺陷
+**做了什麼:** 守衛互撞三項全修;`2>/dev/null` 解析缺陷兩處;`pi --print` stdin 卡死。
+
+**收穫:**
+* **`2>/dev/null` 讓兩個抽取器同時壞掉,方向相反** —— 階段閘誤擋無害的 `ls`,
+  目錄圍堵放行逃出專案的 `cp`。同一個疏漏,只補過一個地方。
+  [文件](docs/case/2026-08-10-guards-collide.md)
+* **守衛互撞看起來像優先權問題,查下去是解析器的錯。**
+  先問「這些拒絕本來就該發生嗎」,再問「誰該先講話」
+* **一個 tool_call 只有一個守衛擋得成,先開口的就是唯一被聽見的。**
+  階段閘說「先認領任務」(真的,而且是錯的那句),containment 知道「你在別的專案」卻被跳過
+* **`pi --print` 會卡在讀 stdin** —— 兩次 25 分鐘空白被我說成「暫時性」,
+  實際是可重現的:`< /dev/null` 就好。**卡住和真實的零長得一模一樣**
+* **修法不是多寫幾段話** —— 階段閘手上有佇列絕對路徑,卻背誦路徑的形狀。缺的是資料
+* **allowlist 條目會過期** —— 用行號當鍵,上面插程式碼就靜默失配,存活者看起來像新的
+* **測試綁在實作拼法上會假性變紅** —— 比對常數名稱、切固定字元數,兩者都咬過我
+
+### 2026-08-09 — 反漂移缺口分析
+**做了什麼:** 對照 C.A.S.E. 找出反漂移缺口;`Task_019` 目標重述;`Task_023` 任務小憲法。
+
+**收穫:**
+* **`before_agent_start` 每則使用者訊息只跑一次,不是每輪** ——
+  實測 1 則訊息 / 16 輪。`CLAUDE.md` 寫錯了好幾週
+  [文件](docs/case/2026-08-09-anti-drift-gap-analysis.md)
+* **換任務用的是 custom message,不開新 prompt cycle** ——
+  所以憲法、Roadmap、小憲法都不會因為換任務而重新出現
+  [文件](docs/case/2026-08-10-task-local-constitution.md)
+* **每個機制都在回答「這一步准不准」,而漂移問的是「我還在做對的事嗎」**
+* **乾淨的 run 無法驗證反漂移機制** —— 沒有病人就證明不了藥
+* **不能用「給更多資料」把任務變長** —— 40 個檔案被一個 for-loop 吃掉,3 次呼叫做完
+* **同一提示同一臂:42 vs 4 次工具呼叫** —— 一個數量級的變異,小樣本 A/B 無意義
+
+---
+
+## 相關索引
+
+* [反漂移缺口分析](docs/case/2026-08-09-anti-drift-gap-analysis.md)
+* [任務小憲法](docs/case/2026-08-10-task-local-constitution.md)
+* [守衛互撞](docs/case/2026-08-10-guards-collide.md)
+* [Task_019 預先登記與結果](docs/measurements/2026-08-09-task019-preregistration.md)
+* [oh-my-pi-can1357 審視](docs/prior-art/2026-08-09-oh-my-pi-can1357-review.md)
+* [Global DoD](01_Roadmap/global_dod.md) ・ [Roadmap](01_Roadmap/roadmap.md)
+
+## 其餘紀錄(由 tests/test_progress_ledger.py 維持齊全)
+
+* [佇列推進器:拿掉誘餌之後的重測](docs/measurements/2026-08-06-advancer-clean-rerun.md)
+* [佇列推進器:三個 bash 洞補完後的重測與判定](docs/measurements/2026-08-06-advancer-verdict.md)
+* [深度閘與產出閘:第一次實測開火](docs/measurements/2026-08-06-depth-and-artifact-gates-live.md)
+* [佇列推進器:第一次真實量測](docs/measurements/2026-08-06-queue-advancer-first-run.md)
+* [2026-08-08 4b 重測:閘擋住了開場那一擊,而模型從此不再搜尋](docs/measurements/2026-08-08-4b-turn-ramp.md)
+* [2026-08-08 推進器重測:迴圈接起來了,而開場那一擊仍然穿過去](docs/measurements/2026-08-08-advancer-remeasure.md)
+* [2026-08-09 CLAIM 額度實驗:先下注,再量](docs/measurements/2026-08-09-claim-budget-bet.md)
+* [2026-08-09 乾淨重測:迴圈第一次在研究型 run 收斂,而先規劃只成立一半](docs/measurements/2026-08-09-clean-research-runs.md)
+* [2026-08-09 階段轉換通知:響了,而且模型恢復搜尋](docs/measurements/2026-08-09-phase-notice-live.md)
+* [Measurements](docs/measurements/README.md)
+* [技能可達性全掃](docs/measurements/skill-reachability.md)
