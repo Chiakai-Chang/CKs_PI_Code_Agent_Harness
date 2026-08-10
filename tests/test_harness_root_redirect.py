@@ -223,3 +223,144 @@ class TestTheBridgeUsesIt(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestTheSecondRefusalShowsInsteadOfDescribing(unittest.TestCase):
+    """Four of five runs resolved "this project" as the harness install.
+
+    The redirect hint fired twice with the corrected absolute path and was
+    ignored both times, while the same refusal repeated verbatim three times in
+    one run. A guard repeating itself has taught nothing — the CLAIM gate learned
+    that on 2026-08-10, and the run after its third rung started printing the
+    real queue was the first to return to its own cwd unaided.
+
+    The model is not confused. Pi's system prompt names the harness root 28 times
+    as skill `<location>` and the cwd once, and on a developer machine that path
+    holds a real 02_Task_Queue. It picked the better-evidenced workspace. So the
+    second refusal supplies the missing half of the evidence."""
+
+    TREE = {
+        "C:/work/p": ["00_Constitution", "01_Roadmap", "02_Task_Queue", "src", ".hidden"],
+        "C:/work/p/02_Task_Queue": ["Task_001_ConfigSurvey", "Task_002_Other", "notes"],
+    }
+
+    def refusal(self, seen):
+        return run_js("""
+        const tree = %s;
+        const entries = (d) => tree[d] ?? [];
+        const isDir = (p) => Boolean(tree[p]);
+        process.stdout.write(JSON.stringify(m.containmentRefusal(
+          "write", "D:/harness/wiki/a.md", "C:/work/p", "D:/harness", %d,
+          () => m.workspaceListing("C:/work/p", entries, isDir))));
+        """ % (json.dumps(self.TREE), seen))
+
+    def test_the_first_refusal_does_not_dump_a_listing(self):
+        """The short form gets its chance. A wall of paths on the first refusal
+        buries the one sentence that explains what happened."""
+        out = self.refusal(0)
+        self.assertNotIn("Task_001_ConfigSurvey", out)
+        self.assertIn("harness 的安裝位置", out)
+
+    def test_the_second_refusal_names_the_tasks_in_the_workspace(self):
+        out = self.refusal(1)
+        self.assertIn("Task_001_ConfigSurvey", out)
+        self.assertIn("02_Task_Queue", out)
+
+    def test_it_counts_so_the_repetition_is_visible(self):
+        self.assertIn("第 2 次", self.refusal(1))
+        self.assertIn("第 3 次", self.refusal(2))
+
+    def test_hidden_entries_are_left_out(self):
+        self.assertNotIn(".hidden", self.refusal(1))
+
+    def test_only_task_folders_are_listed_from_the_queue(self):
+        """`notes` sits in the queue directory and is not a task."""
+        out = self.refusal(1)
+        self.assertIn("Task_002_Other", out)
+        self.assertNotIn("notes", out)
+
+    def test_an_unreadable_workspace_degrades_to_the_short_form(self):
+        """Failing open matters more here than the listing: a guard that throws
+        while refusing turns a refusal into a crash."""
+        out = run_js("""
+        process.stdout.write(JSON.stringify(m.containmentRefusal(
+          "write", "D:/harness/x", "C:/work/p", "D:/harness", 3,
+          () => { throw new Error("boom"); })));
+        """)
+        self.assertIn("Directory containment", out)
+        self.assertNotIn("第 4 次", out)
+
+    def test_the_listing_starts_at_the_first_entry(self):
+        """`slice(1, …)` drops the first name silently, and the first name is
+        often the one that matters — 00_Constitution sorts first."""
+        self.assertIn("00_Constitution", self.refusal(1))
+
+    def test_the_top_level_listing_is_capped_at_twelve(self):
+        out = run_js("""
+        const many = Array.from({length: 30}, (_, i) => "dir" + i);
+        const text = m.workspaceListing("C:/w", () => many, () => true);
+        process.stdout.write(JSON.stringify(
+          (text.match(/^  - /gm) || []).length));
+        """)
+        self.assertEqual(out, 12)
+
+    def test_the_task_listing_is_capped_at_six(self):
+        out = run_js("""
+        const tasks = Array.from({length: 20}, (_, i) => "Task_0" + i + "_x");
+        const entries = (d) => d.endsWith("02_Task_Queue") ? tasks : ["02_Task_Queue"];
+        const text = m.workspaceListing("C:/w", entries, () => true);
+        process.stdout.write(JSON.stringify(
+          (text.split("這裡面有:")[1] || "").split("、").length));
+        """)
+        self.assertEqual(out, 6)
+
+    def test_the_default_is_the_short_form(self):
+        """`seen` defaults to 0, so a caller that forgets it gets the first-refusal
+        behaviour rather than dumping a listing on every refusal."""
+        # A listing IS supplied and `seen` is omitted. The first version passed
+        # neither, so the escalation was suppressed by the missing listing rather
+        # than by the default, and changing the default to 1 changed nothing the
+        # test could see.
+        out = run_js("""
+        process.stdout.write(JSON.stringify(m.containmentRefusal(
+          "write", "D:/harness/x", "C:/work/p", "D:/harness",
+          undefined, () => "LISTING")));
+        """)
+        self.assertNotIn("直接給你看", out)
+        self.assertNotIn("LISTING", out)
+
+    def test_the_listing_alone_is_null_for_an_empty_workspace(self):
+        out = run_js("""
+        process.stdout.write(JSON.stringify(
+          m.workspaceListing("C:/empty", () => [], () => false)));
+        """)
+        self.assertIsNone(out)
+
+
+class TestTheEscalationIsWired(unittest.TestCase):
+    """A pure function nobody advances is a mechanism that never escalates.
+
+    Replacing `containmentRefusals++` with `0` left every test above green,
+    because they all call the pure function directly. The counter lives in the
+    bridge and only a source check reaches it."""
+
+    def setUp(self):
+        self.src = (open(os.path.join(ROOT, "pi-extensions", "yes-hooks-bridge",
+                                      "index.ts"), encoding="utf-8").read())
+
+    def test_the_guard_passes_an_advancing_counter(self):
+        call = self.src.split("containmentRefusal(", 1)[1].split("))", 1)[0]
+        self.assertIn("containmentRefusals++", call,
+                      "the refusal count is passed but never advances")
+
+    def test_it_passes_a_listing_reader(self):
+        call = self.src.split("containmentRefusal(", 1)[1].split("))", 1)[0]
+        self.assertIn("workspaceListing", call)
+
+    def test_the_counter_resets_each_session(self):
+        """Carried over, the listing would appear on the first refusal of the
+        next session, before the short form has had its chance."""
+        start = self.src.split('pi.on("session_start"', 1)[1].split("});", 1)[0]
+        self.assertIn("containmentRefusals = 0", start)
+

@@ -59,7 +59,13 @@ class TestContainmentGuard(unittest.TestCase):
         # through (Task_003). What this file must still show is that it
         # delegates; what the text says is asserted against the running function
         # in tests/test_harness_root_redirect.py.
-        self.assertIn("containmentRefusal(event.toolName, target, cwd, harnessRoot())", c)
+        # Structural, not verbatim: this asserted the exact argument list and
+        # broke when an escalation counter was added, while the wiring was
+        # correct. A test bound to the spelling of a call fails on every
+        # honest change to it.
+        call = c.split("containmentRefusal(", 1)[1]
+        for arg in ("event.toolName", "target", "cwd", "harnessRoot()"):
+            self.assertIn(arg, call[:400], "containmentRefusal lost %s" % arg)
         self.assertIn("outside the project root",
                       read(os.path.join(os.path.dirname(self.IDX), "harness-root.ts")))
 

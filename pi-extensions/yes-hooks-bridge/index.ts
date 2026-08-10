@@ -70,7 +70,7 @@ import { CycleDetector, SAME_QUERY_LIMIT } from "./loop-detect.ts";
 import { ResearchDepthGuard } from "./research-depth.ts";
 import { bashContainmentBlock } from "./bash-containment.ts";
 import { BlockedClaimTracker } from "./blocked-claim.ts";
-import { containmentRefusal } from "./harness-root.ts";
+import { containmentRefusal, workspaceListing } from "./harness-root.ts";
 import { compactionEcho } from "./compaction-echo.ts";
 
 function harnessRoot(): string {
@@ -399,6 +399,12 @@ function repeatCallGuard(event: ToolCallEvent, ctx: ExtensionContext, pi: Extens
   };
 }
 
+/**
+ * Refusals this session, so the second one can stop describing and start
+ * showing. Reset at session_start alongside the other per-session state.
+ */
+let containmentRefusals = 0;
+
 function containmentGuard(event: ToolCallEvent, ctx: ExtensionContext) {
   const input = event.input as { path?: unknown; file_path?: unknown };
   const raw = typeof input?.path === "string" ? input.path
@@ -423,7 +429,14 @@ function containmentGuard(event: ToolCallEvent, ctx: ExtensionContext) {
     // times against a refusal that named the mistake and nothing else. Nothing
     // is formatted here, because a string assertion over this file is the only
     // kind available and one of those already let a break through.
-    reason: containmentRefusal(event.toolName, target, cwd, harnessRoot()),
+    reason: containmentRefusal(
+      event.toolName, target, cwd, harnessRoot(), containmentRefusals++,
+      // Read at refusal time, not at startup: the workspace the model needs
+      // to see is the one it has now, and a listing cached at session_start
+      // would miss everything the run itself created.
+      () => workspaceListing(cwd,
+        (d) => readdirSync(d),
+        (p) => { try { return statSync(p).isDirectory(); } catch { return false; } })),
   };
 }
 
@@ -1418,6 +1431,10 @@ export default function (pi: ExtensionAPI) {
   pi.on("session_start", async () => {
     cycleDetector.reset();
     researchDepth.reset();
+    // Per-session, like the other two. A count carried between sessions would
+    // show the listing on the first refusal of the next one, before the short
+    // form has had its chance.
+    containmentRefusals = 0;
   });
 
   pi.on("before_agent_start", (event, _ctx) => {

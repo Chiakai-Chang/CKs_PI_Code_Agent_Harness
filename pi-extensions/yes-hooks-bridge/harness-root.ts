@@ -54,6 +54,69 @@ export function harnessRootHint(
 }
 
 /**
+ * What the workspace actually holds, for a refusal that has said its piece once.
+ *
+ * Measured across five runs on 2026-08-09/10: four resolved "this project" as
+ * the harness install. The redirect hint above fired twice with the corrected
+ * absolute path and was ignored both times, and the same refusal repeated
+ * verbatim three and two times in one run. A guard repeating itself has taught
+ * nothing.
+ *
+ * The model is not confused; it is reasoning from evidence. Pi's system prompt
+ * names the harness root 28 times as skill `<location>` and the cwd once, and on
+ * a developer machine that path really does contain a full `02_Task_Queue`. It
+ * picked the better-evidenced of two candidate workspaces.
+ *
+ * So the second refusal stops describing the mistake and shows the other half of
+ * the evidence: what is in the working directory, by name. This is the fix that
+ * worked for the CLAIM gate's third rung — the run after it landed was the first
+ * to return to its own cwd unaided.
+ *
+ * Falsifiable prediction, written before the runs that test it: across three
+ * runs of the same scenario, claims inside the harness queue should fall and
+ * claims inside the workspace queue should rise. If all three are unchanged,
+ * this is the fourth failed attempt to fix behaviour by adding words, and the
+ * next move is structural rather than textual.
+ */
+export function workspaceListing(
+  cwd: unknown,
+  entries: (dir: string) => string[],
+  isDir: (p: string) => boolean,
+): string | null {
+  const c = norm(cwd as string);
+  if (!c) return null;
+  let top: string[];
+  try {
+    top = entries(c).filter((n) => !n.startsWith(".")).slice(0, 12);
+  } catch {
+    return null;
+  }
+  if (!top.length) return null;
+  const lines: string[] = [`你這次的工作目錄是 ${c},裡面有:`];
+  for (const name of top) {
+    let tasks: string[] = [];
+    if (name === "02_Task_Queue") {
+      try {
+        tasks = entries(`${c}/${name}`).filter((n) => /^Task_\d+/.test(n)).slice(0, 6);
+      } catch {
+        tasks = [];
+      }
+    }
+    let suffix = "";
+    try {
+      suffix = isDir(`${c}/${name}`) ? "/" : "";
+    } catch {
+      suffix = "";
+    }
+    lines.push(tasks.length
+      ? `  - ${name}${suffix}  ← 這裡面有:${tasks.join("、")}`
+      : `  - ${name}${suffix}`);
+  }
+  lines.push("**你要處理的東西在上面這份清單裡,不在 harness 的安裝目錄。**");
+  return lines.join("\n");
+}
+
+/**
  * The whole refusal for a write that landed outside the project root.
  *
  * This lives here rather than being formatted inline in `index.ts` because of
@@ -73,11 +136,34 @@ export function containmentRefusal(
   target: unknown,
   cwd: unknown,
   harnessRoot: unknown,
+  /** How many times this guard has already refused this session. */
+  seen = 0,
+  /** Directory listing, injected so this stays a pure, testable function. */
+  listing?: () => string | null,
 ): string {
   const base =
     `Directory containment: ${String(toolName)} target "${String(target)}" is ` +
     `outside the project root (${String(cwd)}). Write inside the project you ` +
     `were launched in. If you truly need to touch another directory, ask the user.`;
   const hint = harnessRootHint(target, cwd, harnessRoot);
-  return hint ? `${base}\n\n${hint}` : base;
+  const parts = [base];
+  if (hint) parts.push(hint);
+  // From the second refusal on, stop restating the mistake and show what the
+  // workspace holds. The first refusal has already said everything description
+  // can say, and it was measured being ignored twice with the corrected path in
+  // hand — while the same text repeated three times in one run. See
+  // workspaceListing for the evidence and the falsifiable prediction.
+  if (seen >= 1 && listing) {
+    let shown: string | null = null;
+    try {
+      shown = listing();
+    } catch {
+      shown = null;
+    }
+    if (shown) {
+      parts.push(
+        `同樣的理由已經擋你第 ${seen + 1} 次了,所以這次不重複講,直接給你看:\n${shown}`);
+    }
+  }
+  return parts.join("\n\n");
 }
