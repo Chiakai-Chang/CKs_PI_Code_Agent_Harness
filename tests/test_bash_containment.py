@@ -327,3 +327,134 @@ class TestRedirectionDoesNotHideADestination(unittest.TestCase):
         """`> out.txt` as two tokens: the filename must not become an operand."""
         self.assertTrue(self.blocked("ls > D:/elsewhere/out.txt"))
 
+
+class TestAnInterpreterIsAWriteForm(unittest.TestCase):
+    """The fourth instance of one class: a guard that knows a fixed set of write
+    forms and meets a new one.
+
+    Session 019fe880, in order: `write` refused three times, `cat > …` refused,
+    `ECC_GATEGUARD=off bash -c 'printf … > …'` refused — an attempt to switch a
+    guard off — and then four `python3` calls that all succeeded and wrote a
+    complete task package (role.md, recipe.md, planning.md, a 5,188-byte
+    output.md, status.txt) inside another project.
+
+    It went unnoticed for a day because that directory is gitignored and the
+    check used to declare the repository clean was `git status`, which cannot see
+    it. The verification was structurally incapable of finding what it claimed to
+    rule out.
+
+    The guard still does not parse Python. It does not need to: a model writing a
+    file spells out where, so the destination is a literal in the command."""
+
+    CWD = "C:/work/project"
+
+    def blocked(self, cmd):
+        """Asserts on `block === true`, not on "not null".
+
+        The mutation sweep flipped the returned `block: true` to `false` and
+        every test here stayed green, because a `{block:false}` object is still
+        not null while Pi would let the call through. The allowlist's own comment
+        says the object-literal form is never equivalent; this is what that costs
+        when the test only checks for a truthy return."""
+        return run_js("""
+        const r = m.bashContainmentBlock(%s, %s);
+        process.stdout.write(JSON.stringify(r !== null && r.block === true));
+        """ % (json.dumps(cmd), json.dumps(self.CWD)))
+
+    # --- the six forms that got through ---
+
+    def test_python_dash_c_writing_outside_is_blocked(self):
+        self.assertTrue(self.blocked(
+            "python3 -c \"open('D:/elsewhere/a.md','w').write(1)\""))
+
+    def test_python_makedirs_outside_is_blocked(self):
+        self.assertTrue(self.blocked(
+            "python3 -c \"import os; os.makedirs('D:/elsewhere/d')\""))
+
+    def test_a_python_heredoc_is_blocked(self):
+        heredoc = chr(10).join(["python3 << 'PYEOF'",
+                                "open('D:/elsewhere/a.md','w')",
+                                "PYEOF"])
+        self.assertTrue(self.blocked(heredoc))
+
+    def test_node_dash_e_is_blocked(self):
+        self.assertTrue(self.blocked(
+            "node -e \"require('fs').writeFileSync('D:/elsewhere/a',1)\""))
+
+    def test_perl_dash_e_is_blocked(self):
+        self.assertTrue(self.blocked(
+            "perl -e 'open(F,\">\",\"D:/elsewhere/a\"); print F 1'"))
+
+    def test_a_nested_shell_behind_an_env_prefix_is_blocked(self):
+        """Two evasions in one command: the redirection hides inside single
+        quotes where stripQuoted masks it, and `VAR=value` displaces the command
+        name out of tokens[0]. The run used exactly this."""
+        self.assertTrue(self.blocked(
+            "ECC_GATEGUARD=off bash -c 'printf x > D:/elsewhere/a.md'"))
+
+    # --- and the ordinary work that must still pass ---
+
+    def test_an_interpreter_doing_nothing_outside_is_allowed(self):
+        for cmd in ('python3 -c "print(1)"',
+                    "python3 script.py",
+                    'node -e "console.log(2)"',
+                    'bash -c "ls -la"'):
+            with self.subTest(cmd=cmd):
+                self.assertFalse(self.blocked(cmd))
+
+    def test_an_interpreter_writing_inside_the_project_is_allowed(self):
+        self.assertFalse(self.blocked(
+            "python3 -c \"open('out.md','w').write(1)\""))
+
+    def test_an_interpreter_writing_to_scratch_is_allowed(self):
+        """A guard that refuses /tmp gets switched off within a day."""
+        self.assertFalse(self.blocked(
+            "python3 -c \"open('/tmp/scratch.log','w')\""))
+
+    def test_reading_another_project_is_still_allowed(self):
+        """The stated price of this rule. A read of another project is a much
+        smaller problem than a write, and telling them apart would mean parsing
+        Python after all — so `ls`/`git -C` elsewhere stay open, and an
+        interpreter merely READING elsewhere is accepted as collateral."""
+        for cmd in ("ls -la D:/elsewhere", "git -C D:/elsewhere log"):
+            with self.subTest(cmd=cmd):
+                self.assertFalse(self.blocked(cmd))
+
+    def test_running_a_script_that_lives_elsewhere_is_allowed(self):
+        """The rule is about INLINE code, where the destination is a literal the
+        guard can see. `python3 D:/other/tool.py` is an execution, not a visible
+        write, and refusing it would block running any shared tool — a guard that
+        refuses ordinary work is a guard someone switches off.
+
+        Without this test, deleting the inline-code requirement changed
+        behaviour and nothing noticed: the only interpreter cases here used
+        relative paths, which pass either way."""
+        for cmd in ("python3 D:/elsewhere/tool.py",
+                    "bash D:/elsewhere/setup.sh"):
+            with self.subTest(cmd=cmd):
+                self.assertFalse(self.blocked(cmd))
+
+    def test_an_env_prefix_no_longer_hides_a_copy(self):
+        """The same displacement broke cp/mv/tee too, not only nested shells."""
+        self.assertTrue(self.blocked("FOO=1 cp a.txt D:/elsewhere/b.txt"))
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestARedirectionDoesNotEatTheRealDestination(unittest.TestCase):
+    """A command can redirect AND have a destination, and both are write targets.
+
+    `cp a b > D:/other/log` writes to `b` and to the log. Without the two-token
+    consumption in stripRedirections the operands become `b`, `>`, `D:/other/log`
+    — the copy's own destination is displaced and `>` is reported as a path.
+    Found by the mutation sweep 2026-08-10; every existing case used a
+    redirection OR a destination, never both."""
+
+    def test_a_copy_that_also_redirects_reports_both(self):
+        self.assertEqual(sorted(targets("cp a b > D:/other/log")),
+                         sorted(["D:/other/log", "b"]))
+
+    def test_a_redirection_operator_is_never_a_target(self):
+        for cmd in ("tee f.md > D:/other/log", "mkdir d > D:/other/log"):
+            with self.subTest(cmd=cmd):
+                self.assertNotIn(">", targets(cmd))
+

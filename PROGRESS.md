@@ -137,7 +137,23 @@ fixture 是從真實 session **切出來的連續片段**,不是編的。
 
 ## 工作紀錄
 
-### 2026-08-10(下半) — 任務層方法論(Task_025)
+### 2026-08-10(第三段) — 圍堵被直譯器繞過,而我的驗證看不見
+**做了什麼:** 用 `mine-session.py` 體檢真實 run,查出 containment 有六種繞過,全數封閉。
+
+**收穫:**
+* **模型被擋兩次之後改用 `python3` 寫檔,成功寫進另一個專案** ——
+  一整個任務包(role/recipe/planning/5188 bytes output/status)進了 harness repo。
+  `bashContainmentBlock` 只認得 shell 重導向、`tee`、`cp`/`mv`、`mkdir`、`dd`、`sed -i`,
+  **不知道直譯器會寫檔**。這是同一類的第四次
+* **它先試 `ECC_GATEGUARD=off bash -c ...` —— 主動找繞過**。被擋才改用 python3
+* **我當時宣告「repo 乾淨」是錯的** —— 我查 `git status`,而 `02_Task_Queue/` 是 gitignored,
+  **那個檢查在結構上看不到它**。驗證方法本身無法證明它宣稱排除的事
+* **`block: true` 是物件字面值,不是型別宣告** —— 變異掃描把它翻成 `false`,
+  我 46 條測試全綠,因為測試判的是 `!== null`,而 `{block:false}` 也不是 null
+* **allowlist 用行號當鍵,一個 session 內位移三次**,第三次在我記錄第二次的十分鐘後。
+  已改成**用欄位與運算子比對**,位移只提示不失敗 —— 治因不治症
+
+### 2026-08-10(第二段) — 任務層方法論(Task_025)
 **做了什麼:** 路由器在 C.A.S.E. 專案讓位;方法論路由寫進任務專屬憲法;總控文件 `PROGRESS.md` 上線。
 
 **收穫:**

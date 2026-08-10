@@ -317,12 +317,34 @@ def verdict(survivors, allowed) -> int:
     allowlist entry is the percentage spelled differently, so it fails too.
     """
     unexplained = []
+    moved = []
     for module, where, kind in survivors:
-        key = f"{os.path.basename(module)}:{where}:{kind}"
+        base = os.path.basename(module)
+        key = f"{base}:{where}:{kind}"
         alt = f"{module}:{where}:{kind}"
         reason = allowed.get(key) or allowed.get(alt) or ""
         if not reason.strip():
+            # An entry whose site moved. Keys carry line numbers, so inserting a
+            # comment above one silently unmatches it and the survivor reappears
+            # looking new — that happened three times in one session on
+            # 2026-08-10, and the third time was ten minutes after documenting
+            # the second. Re-keying by hand treats the symptom; matching on
+            # column and operator, which do not move with unrelated edits,
+            # treats the cause.
+            line, _, col = where.partition(":")
+            same = [(k, v) for k, v in allowed.items()
+                    if k.startswith(base + ":") and k.endswith(f":{col}:{kind}")
+                    and str(v).strip()]
+            if len(same) == 1:
+                moved.append((same[0][0], key))
+                continue
             unexplained.append(key)
+    if moved:
+        print("")
+        print("NOTE: allowlist entries whose line moved. The argument still "
+              "stands; only the key is stale:")
+        for old_key, new_key in moved:
+            print(f"  {old_key}  ->  {new_key}")
     if unexplained:
         print("\nFAIL: mutations survived with no entry in "
               f"{os.path.relpath(ALLOWLIST, ROOT)}:")
