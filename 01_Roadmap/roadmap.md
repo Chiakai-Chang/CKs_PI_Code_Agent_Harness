@@ -177,7 +177,7 @@
       「整段原始使用者請求」換成「當前任務的 Local DoD」。機制不動,只換內容。
       依賴 Task_023 的讀取器。
 
-- [ ] `Task_025_task_level_methodology`(**擁有者 2026-08-10 指出的缺口,三項**):
+- [x] `Task_025_task_level_methodology`(**已修 2026-08-10**;路由器在 C.A.S.E. 專案讓位 + 方法論寫進任務專屬憲法):
       (a) 路由器分類的是 `event.prompt`(使用者訊息),不是任務的 `recipe.md` ——
       佇列 run 的使用者訊息是「繼續」,多步的工作寫在 recipe 裡,路由器沒讀過;
       (b) `hasAnyPlan` 找 `task_plan.md`,而 C.A.S.E. 任務寫的是任務包裡的 `planning.md` ——

@@ -154,7 +154,56 @@ export function localConstitution(taskDir: unknown): TaskConstitution | null {
     "驗不了的部分要明講,不要用「應該可以」帶過。";
 
   return {
-    text: clip([header, ...parts, footer].join("\n\n"), MAX_TASK_CONTEXT_CHARS),
+    text: clip([header, ...parts, methodology(objective), footer].join("\n\n"),
+               MAX_TASK_CONTEXT_CHARS),
     sources,
   };
+}
+
+/**
+ * Signals that pick which methodology to name. NOT a request classifier.
+ *
+ * `task-shape-bridge/shape.ts` classifies request shape and is deliberately not
+ * reused here: bridges install as sibling directories with no dependency
+ * between them, and this repo has already paid for duplicating that classifier
+ * once. These are a handful of literal words matched against one task's
+ * Objective, used only to decide which of three skill names to put first. When
+ * none match, the planning line still goes out — that is the part the phase gate
+ * enforces, and it is never conditional.
+ */
+const DEBUG_WORDS = /(?:除錯|偵錯|修[復正]|bug|失敗|錯誤|debug|fix|broken|regression)/i;
+const RESEARCH_WORDS = /(?:研究|調查|盤點|比較|評估|審視|survey|research|compare|evaluate|audit)/i;
+const BUILD_WORDS = /(?:實作|開發|新增|建立|implement|build|add|create|refactor)/i;
+
+/**
+ * The methodology line for this task.
+ *
+ * The gap this closes, found 2026-08-10: the harness routes methodology from the
+ * USER's message, at `before_agent_start`, once per prompt. A queue run's user
+ * message is "繼續"; the multi-step work is described in the task's recipe.md,
+ * which nothing read. So Global had planning and methodology routing while a
+ * claimed task had only a template — the phase gate says "write planning.md with
+ * steps, files and a verification method", which is a FORM, not a METHOD.
+ *
+ * Kept to two sentences. It rides a tool result alongside the role and the DoD,
+ * and a paragraph of process advice there competes with the task itself.
+ */
+export function methodology(objective: string): string {
+  const text = String(objective ?? "");
+  const skills: string[] = [];
+  if (DEBUG_WORDS.test(text)) skills.push("`systematic-debugging`");
+  if (RESEARCH_WORDS.test(text)) skills.push("`brainstorming`(先把要查什麼問清楚)");
+  if (BUILD_WORDS.test(text)) skills.push("`test-driven-development`");
+  const named = skills.length
+    ? `這個任務的形狀適合先載入 ${skills.join(" 或 ")};`
+    : "動手前先想清楚用什麼方法(除錯用 `systematic-debugging`," +
+      "新做的東西先 `brainstorming`,實作用 `test-driven-development`);";
+  return (
+    "**做法**\n" + named +
+    "**方法先於動手,不要跳過**。" +
+    "然後把步驟、要動的檔案、驗證方式寫進這個任務資料夾的 `planning.md`," +
+    "並加一節 `## Self-Review` 逐條對照上面的 Local DoD —— " +
+    "**在那之前階段閘不會讓你寫交付物**。" +
+    "計畫寫在任務包裡,不是 `task_plan.md`。"
+  );
 }

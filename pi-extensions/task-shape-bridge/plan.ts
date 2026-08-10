@@ -55,6 +55,34 @@ export function hasAnyPlan(cwd: string): boolean {
   return fileExists(resolvePlanDir(cwd), "task_plan.md");
 }
 
+/**
+ * Whether this project runs the C.A.S.E. protocol, in which case the routine
+ * this bridge hands out is the wrong advice.
+ *
+ * The routine says "load planning-with-files and write task_plan.md". A C.A.S.E.
+ * project plans inside the task package — `planning.md` with a `## Self-Review`,
+ * which its own phase gate refuses deliverables without. Two planning systems
+ * that cannot see each other was measured on 2026-08-10: `hasAnyPlan` looks for
+ * `task_plan.md` and finds none in a queue project, so the routine fires and
+ * points at an artifact nothing there will ever read; conversely one stray
+ * `task_plan.md` at a project root suppresses the routine for every task in the
+ * queue.
+ *
+ * So this bridge stands down and the task-local constitution carries the task's
+ * own planning and methodology instead — the same shape as the phase gate
+ * yielding to directory containment: whoever has the more specific complaint
+ * speaks, and only one of them can.
+ *
+ * The two-file test is duplicated from `case-bridge/index.ts` rather than
+ * imported: bridges install as sibling directories with no dependency between
+ * them, and reaching across would break this one whenever the other is
+ * uninstalled. It is a filesystem predicate, not logic — the classifier itself
+ * is NOT duplicated, which is the mistake this repo already made once.
+ */
+export function isCaseProject(cwd: string): boolean {
+  return fileExists(cwd, "CASE.md") || fileExists(cwd, "00_Constitution");
+}
+
 /** Command separators that start a fresh command word. */
 const SEGMENT_SPLIT = /(?:&&|\|\||[;|\n])/;
 

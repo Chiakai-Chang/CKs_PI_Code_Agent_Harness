@@ -31,7 +31,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 
 import { classifyRequest, buildRoutine, buildSystemPromptNote, isBroadTool } from "./shape.ts";
-import { hasAnyPlan } from "./plan.ts";
+import { hasAnyPlan, isCaseProject } from "./plan.ts";
 import { GoalRestate } from "./goal-restate.ts";
 
 const pkgPath = require.resolve("./package.json");
@@ -113,6 +113,11 @@ export default function (pi: ExtensionAPI) {
       // addresses, and it is independent of whether a plan file exists.
       if (restateOn) restate.begin(event.prompt, shape.multiStep === true);
       if (!shape.multiStep) return;
+      // A C.A.S.E. project plans inside the task package and has a gate that
+      // enforces it. The routine below would point at task_plan.md, which
+      // nothing there reads. Stand down and let the task-local constitution
+      // carry the planning and the methodology — see plan.ts::isCaseProject.
+      if (isCaseProject(ctx.cwd)) return;
       // A project that already has a plan does not need to be told to make one.
       if (hasAnyPlan(ctx.cwd)) return;
       armed = buildRoutine(shape);

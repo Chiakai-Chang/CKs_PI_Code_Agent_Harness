@@ -332,3 +332,120 @@ class TestWiring(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestTaskLevelMethodology(unittest.TestCase):
+    """Global had planning and methodology routing; a claimed task had a form.
+
+    Found 2026-08-10 when the owner asked whether a task taken from the queue
+    executes with planning and the superpowers methodology. It did not. The
+    router classifies the USER's message at `before_agent_start` — a queue run's
+    user message is "繼續", while the multi-step work is described in the task's
+    recipe.md, which nothing read. The phase gate's PLAN refusal says "write
+    planning.md with steps, files and a verification method", which is a FORM,
+    not a METHOD: it never names systematic-debugging or brainstorming.
+
+    So the methodology line rides the task constitution, at the claim, on the
+    channel already proven to deliver."""
+
+    def line(self, objective):
+        return run_js("process.stdout.write(JSON.stringify(m.methodology(%s)));"
+                      % json.dumps(objective))
+
+    ROUTED = "這個任務的形狀適合先載入"
+
+    def assertRoutedTo(self, objective, skill):
+        """Routed, not merely mentioned.
+
+        The first version asserted only that the skill name appeared, and the
+        fallback line names ALL THREE — so deleting the routing rule left the
+        test green. A check that cannot tell the two apart is not checking."""
+        out = self.line(objective)
+        self.assertIn(self.ROUTED, out,
+                      "fell through to the generic rule instead of routing")
+        head = out.split(self.ROUTED, 1)[1].split("**方法先於動手", 1)[0]
+        self.assertIn(skill, head, "routed to something else: %r" % head)
+
+    def test_a_bug_task_names_systematic_debugging(self):
+        self.assertRoutedTo("修復冷啟動的 ENOENT 錯誤", "systematic-debugging")
+
+    def test_a_research_task_names_brainstorming(self):
+        self.assertRoutedTo("研究三個競品的定價並比較", "brainstorming")
+
+    def test_an_implementation_task_names_tdd(self):
+        self.assertRoutedTo("實作一個新的佇列推進器", "test-driven-development")
+
+    def test_an_unmatched_task_does_not_claim_to_have_routed(self):
+        """The counterpart: the generic line must not pretend it picked one."""
+        self.assertNotIn(self.ROUTED, self.line("清點 src/ 底下所有模組並記錄數量"))
+
+    def test_an_unmatched_task_still_gets_the_routing_rule(self):
+        """Naming nothing would be worse than naming everything: the model would
+        read silence as "no method needed". When no signal matches, the full
+        routing rule goes out instead."""
+        out = self.line("清點 src/ 底下所有模組並記錄數量")
+        for skill in ("systematic-debugging", "brainstorming",
+                      "test-driven-development"):
+            self.assertIn(skill, out)
+
+    def test_the_planning_requirement_is_never_conditional(self):
+        """The phase gate refuses deliverables without planning.md + Self-Review
+        whatever the task looks like, so this half must not depend on a keyword."""
+        for objective in ("修復錯誤", "研究競品", "實作功能", "清點檔案", ""):
+            with self.subTest(objective=objective):
+                out = self.line(objective)
+                self.assertIn("planning.md", out)
+                self.assertIn("Self-Review", out)
+
+    def test_it_names_the_right_plan_file(self):
+        """The router's own routine says `task_plan.md`, which nothing in a
+        C.A.S.E. project reads. Pointing a claimed task at the wrong artifact is
+        the confusion this whole change exists to end."""
+        out = self.line("研究競品")
+        self.assertIn("task_plan.md", out)
+        self.assertIn("不是", out)
+
+    def test_it_reaches_the_injected_block(self):
+        """A pure function nobody calls is this repo's most repeated defect."""
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, True)
+        task = tmp / "Task_001_probe"
+        task.mkdir()
+        (task / "recipe.md").write_text(
+            "## Objective" + chr(10) + "修復冷啟動的 ENOENT 錯誤" + chr(10),
+            encoding="utf-8")
+        self.assertIn("systematic-debugging", load(task)["text"])
+
+
+class TestTheRouterYieldsInCaseProjects(unittest.TestCase):
+    """Two planning systems that could not see each other.
+
+    `hasAnyPlan` looks for `task_plan.md`; a C.A.S.E. task writes `planning.md`
+    inside its package. So the routine fired in queue projects and pointed at an
+    artifact nothing there reads, while one stray task_plan.md at a project root
+    suppressed it for every task in the queue. The router now stands down in a
+    C.A.S.E. project — the same shape as the phase gate yielding to containment:
+    whoever has the more specific complaint speaks, and only one of them can."""
+
+    def setUp(self):
+        self.src = (ROOT / "pi-extensions" / "task-shape-bridge"
+                    / "index.ts").read_text(encoding="utf-8")
+
+    def test_the_router_checks_for_a_case_project(self):
+        self.assertIn("isCaseProject(ctx.cwd)", self.src)
+
+    def test_it_yields_before_arming_the_routine(self):
+        """Standing down after `armed = buildRoutine(...)` would still deliver."""
+        head = self.src.split("armed = buildRoutine", 1)[0]
+        self.assertIn("isCaseProject(ctx.cwd)) return", head)
+
+    def test_the_classifier_is_not_duplicated(self):
+        """The predicate is two filesystem checks; the classifier is not copied.
+        Duplicating `shape.ts` cost this repo a commit already."""
+        plan = (ROOT / "pi-extensions" / "task-shape-bridge"
+                / "plan.ts").read_text(encoding="utf-8")
+        self.assertIn("export function isCaseProject", plan)
+        for owned_by_shape in ("classifyRequest", "deliverables >="):
+            self.assertNotIn(owned_by_shape, plan)
+
