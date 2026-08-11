@@ -487,3 +487,104 @@ class TestARedirectionDoesNotEatTheRealDestination(unittest.TestCase):
             with self.subTest(cmd=cmd):
                 self.assertNotIn(">", targets(cmd))
 
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestACdOutOfTheProjectIsTheTell(unittest.TestCase):
+    """Run 10, 2026-08-12, call 23, from a session whose workspace was elsewhere:
+
+        cd "<harness repo>" && node "external/mece-autopilot/scripts/…" --init "…"
+
+    It created `wiki/` and `skills/` inside the harness repo. Every existing rule
+    was blind: no redirection, no copy destination, no inline code — the path
+    that gets written lives inside the script file, where this guard cannot look
+    and must not guess. The `cd` is what is left to go on.
+
+    The easier form of the same hole was open too: after `cd D:/other`, a
+    relative `> notes.md` was resolved against the SESSION's cwd and judged to be
+    inside the project.
+
+    The pre-registered failure condition for this fix: refusing a read. This repo
+    has one guard permanently switched off for misfiring, so `cd /tmp && ls` and
+    `cd ../other && git log` must keep working."""
+
+    CWD = "D:/MyProject/TruthProbeVerify"
+
+    def blocked(self, cmd):
+        return run_js(
+            """
+        const r = m.bashContainmentBlock(%s, %s);
+        process.stdout.write(JSON.stringify(r !== null && r.block === true));
+        """ % (json.dumps(cmd), json.dumps(self.CWD)))
+
+    def reason(self, cmd):
+        return run_js(
+            """
+        const r = m.bashContainmentBlock(%s, %s);
+        process.stdout.write(JSON.stringify(r === null ? null : r.reason));
+        """ % (json.dumps(cmd), json.dumps(self.CWD)))
+
+    # --- the crossing ---
+
+    def test_the_exact_command_from_run_10(self):
+        self.assertTrue(self.blocked(
+            'cd "D:/MyProject/CKs_PI_Code_Agent_Harness" && '
+            'node "external/mece-autopilot/scripts/mece-autopilot-orchestrator.js" --init "x"'))
+
+    def test_a_relative_redirect_after_cd_is_not_inside_this_project(self):
+        self.assertTrue(self.blocked("cd D:/other-project && echo x > notes.md"))
+
+    def test_a_relative_mkdir_after_cd(self):
+        self.assertTrue(self.blocked("cd D:/other-project && mkdir -p wiki/rounds"))
+
+    def test_a_write_git_subcommand_after_cd(self):
+        self.assertTrue(self.blocked("cd D:/other-project && git checkout -- ."))
+
+    def test_a_python_script_file_after_cd(self):
+        """The script file is the point: there is no literal path to extract."""
+        self.assertTrue(self.blocked("cd D:/other-project && python3 tools/build.py"))
+
+    def test_a_relative_cd_that_climbs_out(self):
+        self.assertTrue(self.blocked("cd ../other-project && node build.js"))
+
+    # --- and the reads that must keep working ---
+
+    def test_reads_elsewhere_are_still_allowed(self):
+        for cmd in ("cd D:/other-project && ls -la",
+                    "cd D:/other-project && git log --oneline -5",
+                    "cd D:/other-project && cat README.md",
+                    "cd D:/other-project && grep -r foo .",
+                    "cd D:/other-project && find . -name '*.md'",
+                    "cd D:/other-project && git status"):
+            with self.subTest(cmd=cmd):
+                self.assertFalse(self.blocked(cmd))
+
+    def test_scratch_is_still_allowed(self):
+        for cmd in ("cd /tmp && ls", "cd /tmp && node build.js",
+                    "cd /tmp && echo x > out.txt"):
+            with self.subTest(cmd=cmd):
+                self.assertFalse(self.blocked(cmd))
+
+    def test_staying_inside_the_project_is_allowed(self):
+        for cmd in ('cd "D:/MyProject/TruthProbeVerify" && node build.js',
+                    "cd sub/dir && python3 tool.py",
+                    "node build.js"):
+            with self.subTest(cmd=cmd):
+                self.assertFalse(self.blocked(cmd))
+
+    def test_cd_with_no_argument_or_a_dash_says_nothing(self):
+        """`cd` alone goes home and `cd -` goes back; neither is a path this
+        guard can resolve, and guessing is worse than silence."""
+        for cmd in ("cd && node build.js", "cd - && node build.js",
+                    "cd ~ && node build.js"):
+            with self.subTest(cmd=cmd):
+                self.assertFalse(self.blocked(cmd))
+
+    def test_the_refusal_says_reading_is_fine(self):
+        """A refusal that only says no teaches the model the capability is gone.
+        This one has to name the road that is still open."""
+        text = self.reason("cd D:/other-project && node build.js")
+        self.assertIsNotNone(text)
+        self.assertIn("cd", text)
+        for word in ("ls", "git log", "cat"):
+            self.assertIn(word, text)

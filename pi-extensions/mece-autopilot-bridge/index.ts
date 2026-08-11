@@ -8,6 +8,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { buildNotice } from "./notice.ts";
 
 function fileExists(dir: string, name: string): boolean {
   return existsSync(join(dir, name));
@@ -33,14 +34,7 @@ export default function (pi: ExtensionAPI) {
 
     const ORCHESTRATOR_SCRIPT = join(HARNESS_ROOT, "external/mece-autopilot/scripts/mece-autopilot-orchestrator.js").replace(/\\/g, "/");
 
-    const parts: string[] = [
-      `[MECE-Autopilot] MECE-Autopilot reasoning engine is available in this harness.`,
-      `- To initialize a new MECE roundtable discussion for a decision: node "${ORCHESTRATOR_SCRIPT}" --init "<problem_description>"`,
-      `- To verify current step and progress to next expert/round: node "${ORCHESTRATOR_SCRIPT}" --step`,
-      `- To view current discussion status: node "${ORCHESTRATOR_SCRIPT}" --status`,
-      `- To reset state: node "${ORCHESTRATOR_SCRIPT}" --reset`,
-      `If MECE-Autopilot is active (check if wiki/.mece_state.json exists), follow the active instructions in wiki/next_task.md.`
-    ];
+    const parts: string[] = buildNotice(ORCHESTRATOR_SCRIPT);
 
     return {
       systemPrompt: (event.systemPrompt ?? "") + "\n\n" + parts.join("\n"),

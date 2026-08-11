@@ -364,6 +364,130 @@ export function escapesCwd(target: string, cwd: string): boolean {
  * Fails open on an unreadable command or an unknown cwd — a shell command it
  * cannot parse is a command it has no business refusing.
  */
+/**
+ * Commands that cannot write, so running them somewhere else is not a crossing.
+ *
+ * Deliberately an allowlist of READS. The set of things that write is unbounded
+ * — six rounds of enumerating it is what produced this file — while the set of
+ * things a run legitimately does in another directory is small and boring:
+ * look at it. `cd /tmp && ls` and `cd ../other && git log` must keep working,
+ * because this repo already has one guard permanently switched off for
+ * misfiring, and that is the failure mode that costs the most.
+ */
+const READ_ONLY = new Set([
+  "ls", "cat", "head", "tail", "less", "more", "wc", "stat", "file", "tree",
+  "du", "df", "pwd", "echo", "printf", "which", "type", "basename", "dirname",
+  "grep", "egrep", "fgrep", "rg", "ag", "find", "fd", "diff", "cmp", "md5sum",
+  "sha256sum", "sort", "uniq", "cut", "awk", "sed", "date", "env", "true",
+]);
+
+/** `git` subcommands that only read. `git checkout` is not one of them. */
+const GIT_READ_ONLY = new Set([
+  "log", "status", "show", "diff", "branch", "remote", "config", "ls-files",
+  "rev-parse", "describe", "blame", "shortlog", "cat-file", "tag",
+]);
+
+/** The first real word of a segment, skipping `VAR=value` prefixes. */
+function headOf(segment: string): string[] {
+  const tokens = segment.trim().match(/"[^"]*"|'[^']*'|[^\s]+/g) ?? [];
+  let i = 0;
+  while (i < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i])) i++;
+  return tokens.slice(i).map(unquote);
+}
+
+/**
+ * Whether a DIRECTORY is scratch.
+ *
+ * `isScratch` answers for a path that names a file: its prefixes carry trailing
+ * slashes, so `/tmp/run.log` is scratch and a bare `/tmp` is not. Asking about
+ * the directory itself needs a child, and inventing one here reuses the audited
+ * predicate instead of loosening it — a second, slightly different definition of
+ * "scratch" is exactly the drift this repo keeps paying for.
+ */
+function isScratchDir(abs: string, raw: string): boolean {
+  const child = (p: string) => `${p.replace(/[\\/]+$/, "")}/x`;
+  return isScratch(child(abs), raw ? child(raw) : "");
+}
+
+/** The directory a `cd` segment moves to, or null when it is not a `cd`. */
+function cdTargetOf(segment: string): string | null {
+  const words = headOf(segment);
+  if (words[0] !== "cd") return null;
+  // `cd` with no argument goes home, and `cd -` goes back. Neither is a path
+  // this guard can resolve, and guessing would be worse than saying nothing.
+  const arg = words[1];
+  if (!arg || arg === "-" || arg.startsWith("~")) return null;
+  return arg;
+}
+
+/**
+ * Whether a segment could write, given that it runs in someone else's project.
+ *
+ * `sed` and `awk` are in the read allowlist and can both write with the right
+ * flags, so those two are checked for their in-place forms rather than trusted.
+ */
+function couldWrite(segment: string): boolean {
+  const words = headOf(segment);
+  if (!words.length) return false;
+  const cmd = (words[0].split(/[\\/]/).pop() ?? "").replace(/\.exe$/i, "");
+  if (cmd === "git") return !GIT_READ_ONLY.has(words[1] ?? "");
+  if (cmd === "sed" || cmd === "perl") {
+    return words.slice(1).some((w) => /^-[a-zA-Z]*i/.test(w) || w === "--in-place");
+  }
+  if (cmd === "awk") return segment.includes(">");
+  if (!READ_ONLY.has(cmd)) return true;
+  // A read command with a redirection is a write.
+  return /(^|[^0-9<>&])>>?[^&]/.test(stripQuoted(segment));
+}
+
+/**
+ * A `cd` out of the project, followed by something that could write.
+ *
+ * Measured 2026-08-12, run 10, call 23:
+ *
+ *     cd "<harness repo>" && node "external/mece-autopilot/scripts/…" --init "…"
+ *
+ * from a session whose workspace was elsewhere. It created `wiki/` and
+ * `skills/` inside the harness repo, and every existing rule was blind to it:
+ * there is no redirection, no copy destination, and no inline code — the path
+ * that gets written is inside the script file, where this guard cannot look and
+ * should not guess.
+ *
+ * So the `cd` is the tell, and it is also the more common form of the same hole:
+ * after `cd D:/other-project`, `echo x > notes.md` is a relative path that the
+ * old rule resolved against the SESSION's cwd and judged to be inside.
+ *
+ * Reads are unaffected by design — see READ_ONLY.
+ */
+function relocatedWrite(command: string, cwd: string): string | null {
+  const masked = stripQuoted(command);
+  let dir = cwd;
+  // The raw token as written, kept beside the resolved path. `isScratch` needs
+  // it: on Windows `resolve("/tmp")` becomes `D:/tmp`, and the leading slash —
+  // the only thing that says "scratch" — is gone by then. Losing it turned
+  // `cd /tmp && node build.js` into a refusal, which is the pre-registered
+  // failure condition for this entire change.
+  let raw = "";
+  for (const seg of segmentsOf(command, masked)) {
+    const target = cdTargetOf(seg);
+    if (target !== null) {
+      try {
+        dir = isAbsolute(target) || /^[A-Za-z]:[\\/]/.test(target)
+          ? resolve(target) : resolve(dir, target);
+        raw = target;
+      } catch {
+        return null;                       // unparsable: this guard says nothing
+      }
+      continue;
+    }
+    if (!seg.trim()) continue;
+    if (isScratchDir(dir, raw)) continue;
+    if (!escapesCwd(dir, cwd)) continue;   // still inside the project
+    if (couldWrite(seg)) return dir;
+  }
+  return null;
+}
+
 export function bashContainmentBlock(command: string, cwd: string): ContainmentBlock | null {
   if (typeof cwd !== "string" || !cwd) return null;
   let escaping: string[];
@@ -377,7 +501,31 @@ export function bashContainmentBlock(command: string, cwd: string): ContainmentB
   } catch {
     return null;
   }
-  if (!escaping.length) return null;
+  if (!escaping.length) {
+    // Nothing visible escapes. The command may still have moved somewhere else
+    // first — see relocatedWrite, and run 10 call 23, where `cd <other repo> &&
+    // node <script>` left files in a project the session had never been in.
+    let relocated: string | null = null;
+    try {
+      relocated = relocatedWrite(command, cwd);
+    } catch {
+      return null;
+    }
+    if (!relocated) return null;
+    return {
+      block: true,
+      reason:
+        `Directory containment (bash): this command runs in ${relocated}, ` +
+        `outside the project root (${cwd}), and could write there. What it ` +
+        `writes is inside the program it runs, where this guard cannot look — ` +
+        `so the \`cd\` is what it goes on. A live run took exactly this route ` +
+        `and created two directories in another repository. ` +
+        `**Reading elsewhere is fine** (\`cd … && ls\`, \`git log\`, \`cat\`, ` +
+        `\`grep\`): this refuses only a relocated command that could write. Run ` +
+        `it from the project you were launched in, give it absolute paths inside ` +
+        `that project, or ask the user first.`,
+    };
+  }
   return {
     block: true,
     reason:
