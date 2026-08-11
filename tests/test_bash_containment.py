@@ -402,6 +402,35 @@ class TestAnInterpreterIsAWriteForm(unittest.TestCase):
             with self.subTest(cmd=cmd):
                 self.assertFalse(self.blocked(cmd))
 
+    def test_a_relative_glob_is_not_an_absolute_path(self):
+        """Run 5 of T-A1 (2026-08-11), refused twice, verbatim both times:
+
+            cd "<project>" && python3 -c "...glob.glob('data/*.json')..."
+
+        The path pattern's `\\/` branch could start matching in the middle of a
+        token, so `data/*.json` yielded `/*.json` — POSIX-absolute, outside every
+        project. The command only reads. The model then spent ten calls writing a
+        temp script to compute the same numbers.
+        """
+        cmds = [
+            "python3 -c \"import glob; print(sorted(glob.glob('data/*.json')))\"",
+            "python3 -c \"import json; print(json.load(open('data/svc-01.json')))\"",
+            'node -e "require(\'fs\').readdirSync(\'02_Task_Queue/Task_001_X\')"',
+        ]
+        for cmd in cmds:
+            with self.subTest(cmd=cmd):
+                self.assertFalse(self.blocked(cmd))
+
+    def test_an_absolute_path_at_a_token_boundary_is_still_seen(self):
+        """The anchor must not cost the detections it was added around: after a
+        quote, a paren, an equals or a comma is where a path literal really
+        starts."""
+        for cmd in ("python3 -c \"open('/d/other/a','w')\"",
+                    'python3 -c "import shutil; shutil.copy(x, \'D:/elsewhere/a\')"',
+                    "python3 -c \"p='D:/elsewhere/a'; open(p,'w')\""):
+            with self.subTest(cmd=cmd):
+                self.assertTrue(self.blocked(cmd))
+
     def test_an_interpreter_writing_inside_the_project_is_allowed(self):
         self.assertFalse(self.blocked(
             "python3 -c \"open('out.md','w').write(1)\""))

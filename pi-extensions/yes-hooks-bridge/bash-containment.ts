@@ -226,8 +226,18 @@ const INTERPRETERS = new Set([
 ]);
 /** `-c`, `-e`, and the heredoc that carries a script on stdin. */
 const INLINE_CODE = /(?:^|\s)-(?:c|e)(?:\s|$)|<<-?\s*['"]?\w+/;
-/** Absolute paths as they appear literally inside such a script. */
-const ABS_PATH = /(?:[A-Za-z]:[\\/]|\/(?:[cdefgh]\/)?)[^\s'"`;|&)]+/g;
+/**
+ * Absolute paths as they appear literally inside such a script.
+ *
+ * The path must START a token. Without that, the `\/` branch matched a slash in
+ * the MIDDLE of one: `glob.glob('data/*.json')` yielded `/*.json`, which reads
+ * as POSIX-absolute and therefore outside every project. Measured 2026-08-11 in
+ * run 5 of T-A1 — two read-only `python3 -c` commands refused, and the model
+ * spent ten calls writing a temp script to get the same answer.
+ *
+ * Group 1 is the path, so this needs `matchAll`, not `match`.
+ */
+const ABS_PATH = /(?:^|[\s'"`(=,;:[{])((?:[A-Za-z]:[\\/]|\/(?:[cdefgh]\/)?)[^\s'"`;|&)]+)/g;
 
 /**
  * Escaping paths named inside an interpreter's inline code, or [].
@@ -258,8 +268,8 @@ function interpreterTargets(command: string, cwd: string): string[] {
     const cmd = unquote(tokens[i] ?? "").split(/[\\/]/).pop() || "";
     if (!INTERPRETERS.has(cmd.replace(/\.exe$/i, ""))) continue;
     if (!INLINE_CODE.test(seg)) continue;
-    for (const m of seg.match(ABS_PATH) ?? []) {
-      if (escapesCwd(m, cwd)) out.push(m);
+    for (const m of seg.matchAll(ABS_PATH)) {
+      if (escapesCwd(m[1], cwd)) out.push(m[1]);
     }
   }
   return out;

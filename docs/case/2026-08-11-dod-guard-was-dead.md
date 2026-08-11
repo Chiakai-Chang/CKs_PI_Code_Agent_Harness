@@ -82,3 +82,28 @@ production code matches on.
 
 Related: `docs/case/2026-08-10-guards-collide.md` (call 18 is that document's
 failure mode — one guard's refusal destroying another guard's evidence).
+
+## 修好之後(run 4、run 5)
+
+同一配置重跑兩次,兩次都 **11/11**。
+
+`CLAIM_FIRST` 的新句子在 run 4 直接命中:call 15 帶著完成的報告被擋,模型認領之後
+**在 call 19 重寫了報告**。run 3 在同一個位置沒有重寫,這是兩者唯一的行為差異。
+
+驗收物守衛在兩個 run 裡都沒有開口 —— 因為沒有機會。**它仍然只有安裝版層級的證據**
+(對 run 3 的那一次呼叫回 `BLOCKED`),沒有真實 session 的證據。依本 repo 的規矩,
+這叫「機制在,live 生效待證」,不叫 working。
+
+run 5 另外暴露一個誤擋:兩次只讀的
+
+```
+cd "D:/MyProject/PiTaskLab" && python3 -c "…glob.glob('data/*.json')…"
+```
+
+被 containment 判成寫入 `/*.json`。原因是路徑樣式的 `\/` 分支可以**從 token 中間**
+開始比對,於是 `data/*.json` 被讀成 POSIX 絕對路徑。模型的反應不是放棄,而是繞路 ——
+寫一個暫存腳本再執行,多花約十次呼叫(33 vs run 4 的 23)。已加 token 起始錨點,
+並以「拿掉錨點只讓那三個新案例變紅」證明錨點是修正本身,而非順手改寫。
+
+**守衛的誤擋不會讓工作停下,它讓工作變貴。** 這是一種比拒絕更難發現的成本 ——
+最終 DoD 仍然 11/11,只有呼叫數會說話。
