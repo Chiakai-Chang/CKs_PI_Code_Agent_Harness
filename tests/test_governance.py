@@ -258,6 +258,12 @@ class TestDocumentedChecksRunInCI(unittest.TestCase):
         # part that can be wrong in a way that hides a defect — is covered by
         # tests/test_mine_session.py against a captured fixture, which CI runs.
         documented.discard("scripts/mine-session.py")
+        # report-plan-order reads the same place mine-session does. On a CI
+        # runner there is no ~/.pi/agent/sessions, so it would print "0 sessions"
+        # and exit 0 forever — a check that cannot fail, which this repo counts
+        # as worse than no check. Its classifier is covered by
+        # tests/test_report_plan_order.py against captured shapes, which CI runs.
+        documented.discard("scripts/report-plan-order.py")
         missing = [c for c in sorted(documented) if c not in self.ci]
         self.assertEqual(missing, [], "documented checks absent from CI: %s" % missing)
 
