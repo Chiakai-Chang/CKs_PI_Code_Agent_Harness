@@ -16,6 +16,8 @@ request the user has already moved on from. That is worse than silence, so a
 cycle boundary must clear the previous cycle's goal.
 """
 
+import io
+import tempfile
 import json
 import os
 import re
@@ -285,7 +287,7 @@ class TestWiring(unittest.TestCase):
 
     def test_bridge_imports_and_constructs_it(self):
         self.assertIn("goal-restate.ts", self.src)
-        self.assertIn("new GoalRestate()", self.src)
+        self.assertIn("new GoalRestate(", self.src)
 
     def test_armed_on_every_prompt_cycle(self):
         self.assertIn("restate.begin(", self.src)
@@ -304,6 +306,97 @@ class TestWiring(unittest.TestCase):
 
     def test_session_start_resets(self):
         self.assertIn("restate.reset()", self.src)
+
+
+
+class TestCalibrationIsSuppliedNotHardcoded(unittest.TestCase):
+    """T-A2. 12 and 2 were measured against one model on one day. Left as
+    constants they swap models in silence — no error, just a reminder that
+    arrives too late or too often.
+
+    These drive the class with injected values, so a wiring that ignored its
+    arguments would show up here. The class must also still work with none,
+    because an unreadable config has to mean "use the shipped value"."""
+
+    def cycle(self, args, results):
+        return run_js(
+            "const r = new m.GoalRestate(%s);\n" % args +
+            "r.begin('先研究 A,再比較 B,最後整理成表', true);\n"
+            "const out = %s.map(e => r.afterToolResult(e));\n" % json.dumps(results) +
+            "process.stdout.write(JSON.stringify(out.map(t => t === null ? null : 'R')));")
+
+    def test_a_lower_threshold_restates_sooner(self):
+        out = self.cycle("3, 1", [False] * 6)
+        self.assertEqual(out, [None, None, "R", None, None, None])
+
+    def test_the_cap_is_the_supplied_one(self):
+        out = self.cycle("2, 2", [False] * 6)
+        self.assertEqual(out.count("R"), 2)
+
+    def test_no_arguments_keeps_the_shipped_calibration(self):
+        out = self.cycle("", [False] * 13)
+        self.assertEqual(out.index("R"), 11, "shipped threshold is 12 results")
+
+    def bridge(self, script):
+        driver = os.path.join(ROOT, "tests", ".tmp_calibrated_driver.mjs")
+        # calibration.ts, not index.ts: the bridge entry point opens with
+        # `require.resolve`, which exists only under Pi's shim, so importing it
+        # from node dies before the first assertion.
+        url = "file:///" + os.path.join(
+            ROOT, "pi-extensions", "task-shape-bridge", "calibration.ts").replace("\\", "/")
+        with open(driver, "w", encoding="utf-8") as f:
+            f.write("import * as m from %s;\n%s" % (json.dumps(url), script))
+        try:
+            p = subprocess.run(["node", driver], capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", cwd=ROOT, timeout=120)
+            if p.returncode != 0:
+                raise AssertionError("node driver failed:\n%s\n%s" % (p.stdout, p.stderr))
+            return json.loads(p.stdout)
+        finally:
+            if os.path.exists(driver):
+                os.remove(driver)
+
+    def calibrated(self, root, key, fallback):
+        return self.bridge("process.stdout.write(JSON.stringify("
+                           "m.calibrated(%s, %s, %s)));"
+                           % (json.dumps(root), json.dumps(key), fallback))
+
+    def test_the_reader_returns_what_the_config_says(self):
+        """Driven, not read. The shipped value and the fallback are both real
+        numbers, so a reader that ignored the file entirely would still look
+        right to a test that only checked the shipped case."""
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        os.makedirs(os.path.join(tmp, "pi-config"))
+        with open(os.path.join(tmp, "pi-config", "harness-config.json"),
+                  "w", encoding="utf-8") as f:
+            json.dump({"goalRestateThreshold": 3}, f)
+        self.assertEqual(self.calibrated(tmp, "goalRestateThreshold", 99), 3)
+
+    def test_a_missing_config_keeps_the_shipped_value(self):
+        self.assertEqual(self.calibrated(os.path.join(ROOT, "no-such-dir"),
+                                         "goalRestateThreshold", 99), 99)
+
+    def test_a_value_that_is_not_a_positive_integer_is_ignored(self):
+        """A config that says "12", or 0, or true, must not be obeyed. Zero is
+        the dangerous one: it would restate after every single tool result."""
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        os.makedirs(os.path.join(tmp, "pi-config"))
+        for bad in ["12", 0, -1, True, 2.5, None]:
+            with self.subTest(bad=bad):
+                with open(os.path.join(tmp, "pi-config", "harness-config.json"),
+                          "w", encoding="utf-8") as f:
+                    json.dump({"goalRestateThreshold": bad}, f)
+                self.assertEqual(
+                    self.calibrated(tmp, "goalRestateThreshold", 99), 99)
+
+    def test_the_bridge_passes_both_numbers_to_the_class(self):
+        src = io.open(os.path.join(ROOT, "pi-extensions", "task-shape-bridge",
+                                   "index.ts"), encoding="utf-8").read()
+        call = src.split("new GoalRestate(", 1)[1].split(");", 1)[0]
+        self.assertIn("goalRestateThreshold", call)
+        self.assertIn("goalRestateMax", call)
 
 
 if __name__ == "__main__":

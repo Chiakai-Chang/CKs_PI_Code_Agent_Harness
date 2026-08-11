@@ -79,6 +79,39 @@ const MAX_REFUSAL_TURNS = 8;   // measured 2026-08-09; see the bet document
  * 2026-08-09 attempt edited the constant and depended on remembering to put it
  * back.
  */
+/**
+ * This bridge's install directory's parent — where `pi-config/` lives.
+ *
+ * Mirrors `index.ts::harnessRoot()` rather than importing it: the two files are
+ * copied into the same installed directory, and a helper that throws here would
+ * take the gate down with it, so it fails to "" and the caller keeps its
+ * shipped default.
+ */
+let rootOverride: string | null = null;
+
+/**
+ * Point the config lookup at a fixture.
+ *
+ * Exists because the shipped cap and the code fallback are the same number, so
+ * a test that could not supply a different one could not tell a wired call site
+ * from a dead one — and the first version of that test was fooled exactly so:
+ * hardcoding `slice(0, 5)` back into the listing left every assertion green.
+ */
+export function useHarnessRoot(root: string | null): void {
+  rootOverride = root;
+}
+
+function harnessRootOf(): string {
+  if (rootOverride !== null) return rootOverride;
+  try {
+    const here = dirname(require.resolve("./package.json"));
+    const pkg = JSON.parse(readFileSync(join(here, "package.json"), "utf-8"));
+    return pkg["pi-harness"]?.root || join(here, "../..");
+  } catch {
+    return "";
+  }
+}
+
 /** Set by the bridge at session_start so the gate reads the same snapshot. */
 let sharedScope: ScopeSnapshot | null = null;
 
@@ -87,14 +120,25 @@ export function useScopeSnapshot(s: ScopeSnapshot | null): void {
 }
 
 function refusalTurns(queueDir: string): number {
-  // No global fallback on purpose: this setting exists only as a per-project
-  // tightening, so an empty harness root is correct and the shipped default
-  // stands when the project says nothing.
+  // REVERSAL, quoted rather than quietly deleted. This read:
+  //
+  //     No global fallback on purpose: this setting exists only as a per-project
+  //     tightening, so an empty harness root is correct and the shipped default
+  //     stands when the project says nothing.
+  //
+  // The reason was the trust boundary, and that argument is about the PROJECT
+  // file, which still may only tighten (bounds 8-12 in harness-scope.ts). The
+  // global file is ours. Keeping the number out of it made 8 — a value measured
+  // against one model on one day — a constant in enforcement code, where
+  // swapping models raises no error and produces silent unfitness. That is the
+  // failure T-A2 exists to remove, so the global layer is now consulted and the
+  // constant below is the last resort for an unreadable config.
+  //
   // Prefer the session snapshot when one has been taken; fall back to reading
   // for the unit tests, which construct a gate without a session.
   const snap = sharedScope?.get("caseClaimRefusalTurns");
   const v = snap !== undefined ? snap
-    : resolveFlag("caseClaimRefusalTurns", dirname(queueDir), "");
+    : resolveFlag("caseClaimRefusalTurns", dirname(queueDir), harnessRootOf());
   return typeof v === "number" ? v : MAX_REFUSAL_TURNS;
 }
 
@@ -274,9 +318,29 @@ const CLAIM_FIRST =
  * the exact file to write. It also counts, so consecutive refusals differ and
  * the model can see the cost accumulating rather than meeting the same wall.
  */
+/**
+ * How many pending tasks the listing prints.
+ *
+ * Calibration, not protocol: the cap exists because the listing shares a tool
+ * result with whatever else is being said, and how much a model reads before it
+ * stops is a property of the model. `resolveFlag` reads the global file only
+ * for this key — `PROJECT_SCOPED` is deliberately two entries, and a project
+ * being able to set its own listing length buys nothing.
+ */
+const LISTING_CAP = 5;
+
+export function listingCap(queueDir: string, root?: string): number {
+  // The root is a parameter so a test can point it at a fixture. Without that
+  // the shipped config value and the fallback are both 5, and a test could not
+  // tell a wired reader from a dead one — the exact hole that let a guard sit
+  // dead through 1287 tests on 2026-08-11.
+  const v = resolveFlag("queueListingCap", dirname(queueDir), root ?? harnessRootOf());
+  return typeof v === "number" && Number.isInteger(v) && v > 0 ? v : LISTING_CAP;
+}
+
 function claimThird(queueDir: string, seen: number, budget: number): string {
   const pending = tasks(queueDir).filter((t) => t.status === "PENDING");
-  const shown = pending.slice(0, 5);
+  const shown = pending.slice(0, listingCap(queueDir));
   const listing = shown.length
     ? shown.map((t) => `  - ${t.name}  ->  ${join(t.dir, "status.txt")}`).join("\n")
     : "  (這個佇列裡沒有 PENDING 任務)";

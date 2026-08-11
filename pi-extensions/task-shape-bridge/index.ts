@@ -32,7 +32,8 @@ import { join, dirname } from "node:path";
 
 import { classifyRequest, buildRoutine, buildSystemPromptNote, isBroadTool } from "./shape.ts";
 import { hasAnyPlan, isCaseProject } from "./plan.ts";
-import { GoalRestate } from "./goal-restate.ts";
+import { GoalRestate, MAX_RESTATEMENTS, RESTATE_THRESHOLD } from "./goal-restate.ts";
+import { calibrated } from "./calibration.ts";
 
 const pkgPath = require.resolve("./package.json");
 const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
@@ -95,7 +96,10 @@ export default function (pi: ExtensionAPI) {
   // Mid-run goal restatement. Separate state from the routing note above: the
   // note is spent on the first broad tool call, this one arms for the whole
   // cycle and fires deep into it. See goal-restate.ts for why it exists.
-  const restate = new GoalRestate();
+  const restate = new GoalRestate(
+    calibrated(HARNESS_ROOT, "goalRestateThreshold", RESTATE_THRESHOLD),
+    calibrated(HARNESS_ROOT, "goalRestateMax", MAX_RESTATEMENTS),
+  );
 
   pi.on("session_start", async () => {
     armed = null;

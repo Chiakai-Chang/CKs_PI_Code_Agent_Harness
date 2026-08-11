@@ -115,6 +115,27 @@ export class GoalRestate {
   private sent = 0;
 
   /**
+   * Calibration, supplied by the bridge from `pi-config/harness-config.json`.
+   *
+   * Both numbers were measured against one model on one day (12 from the 32.4%
+   * figure above). Left as constants they would swap models in silence — no
+   * error, just a reminder that arrives too late or too often. The constants
+   * remain as the fallback for an unreadable config and for the tests that
+   * construct this class directly.
+   */
+  private readonly threshold: number;
+  private readonly max: number;
+
+  // Fields assigned in the body, not parameter properties: Pi runs TypeScript
+  // through node's strip-only transform, which rejects `constructor(private x)`
+  // outright (ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX). It fails at import, so the
+  // whole bridge would be dead rather than one feature.
+  constructor(threshold: number = RESTATE_THRESHOLD, max: number = MAX_RESTATEMENTS) {
+    this.threshold = threshold;
+    this.max = max;
+  }
+
+  /**
    * Start a prompt cycle. Arms only for multi-step requests.
    *
    * A single-step request cannot drift from itself, and this bridge already
@@ -139,8 +160,8 @@ export class GoalRestate {
     if (!this.goal) return null;
     if (isError === true) return null;
     this.acts++;
-    if (this.acts < RESTATE_THRESHOLD) return null;
-    if (this.sent >= MAX_RESTATEMENTS) return null;
+    if (this.acts < this.threshold) return null;
+    if (this.sent >= this.max) return null;
     this.sent++;
     const text = restatement(this.goal, this.acts);
     this.acts = 0;
