@@ -34,7 +34,7 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 /**
  * Total budget for the injected block.
@@ -259,4 +259,104 @@ export function methodology(objective: string): string {
     "**在那之前階段閘不會讓你寫交付物**。" +
     "計畫寫在任務包裡,不是 `task_plan.md`。"
   );
+}
+
+/** How much of the goal rides along mid-run. It shares a tool result. */
+const MAX_RESTATE_CHARS = 400;
+
+/**
+ * The goal to put back in front of the model, taken from the TASK.
+ *
+ * T-A3. `task-shape-bridge/goal-restate.ts` restates the user's own request,
+ * which is the right source outside a C.A.S.E. project and the wrong one inside
+ * it: measured 2026-08-11, the real prompt for a queue run is 「請處理
+ * 02_Task_Queue 裡待辦的任務」, which names no goal at all. It also classifies
+ * as single-step, so that mechanism has never armed in any C.A.S.E. run — the
+ * injection tables for runs 4 through 7 show only the constitution and the
+ * phase notice.
+ *
+ * The Local DoD is preferred over the Objective because it is the thing the
+ * work is checked against, and because the run that motivated all of this
+ * reached REVIEW having done one item of eleven.
+ */
+export function taskGoal(taskDir: unknown): string | null {
+  const dir = String(taskDir ?? "");
+  if (!dir) return null;
+  const recipe = readIfPresent(dir, "recipe.md");
+  const dod = section(recipe, "local definition of done")
+    || section(recipe, "definition of done")
+    || section(recipe, "local dod")
+    || section(recipe, "驗收");
+  const goal = dod || section(recipe, "objective") || section(recipe, "目標");
+  const text = clip(goal.replace(/\s*\n\s*/g, "\n").trim(), MAX_RESTATE_CHARS);
+  return text || null;
+}
+
+/**
+ * Mid-run restatement for a C.A.S.E. task.
+ *
+ * `before_agent_start` fires once per USER MESSAGE, and moving to the next task
+ * uses a custom message, so everything stated at the start of a run is as many
+ * turns behind as the run is long. Session 019fe60f: one user message, sixteen
+ * assistant turns.
+ *
+ * Counts RESULTS, not calls, and says so in the text — turns emit tool calls in
+ * batches, and an extension's counter reaching 12 while the model has issued 14
+ * is a number the model can see is wrong.
+ *
+ * Errors do not count. A refused call is not progress, and counting it would
+ * interrupt the run least able to use a reminder as anything but noise.
+ */
+export class TaskGoalRestate {
+  private goal: string | null = null;
+  private task = "";
+  private acts = 0;
+  private sent = 0;
+  private readonly threshold: number;
+  private readonly max: number;
+
+  constructor(threshold: number, max: number) {
+    this.threshold = threshold;
+    this.max = max;
+  }
+
+  /**
+   * Arm on the task that was just claimed. A new task is a new goal.
+   *
+   * The SAME task re-arms nothing. `claimedTaskDir` reports every successful
+   * write that leaves status.txt reading IN_PROGRESS, not only the transition,
+   * so a model that writes its claim twice would reset the counter and push the
+   * reminder further away each time — the reminder would be quietest in exactly
+   * the run that repeats itself.
+   */
+  claimed(taskDir: unknown): void {
+    const name = basename(String(taskDir ?? ""));
+    if (name && name === this.task) return;
+    this.goal = taskGoal(taskDir);
+    this.task = name;
+    this.acts = 0;
+    this.sent = 0;
+  }
+
+  afterToolResult(isError: unknown): string | null {
+    if (!this.goal) return null;
+    if (isError === true) return null;
+    this.acts++;
+    if (this.acts < this.threshold) return null;
+    if (this.sent >= this.max) return null;
+    this.sent++;
+    const at = this.acts;
+    this.acts = 0;
+    return `[C.A.S.E.] 目標重述(不是指令輸出) —— 距離認領 ${this.task} 已經過 ` +
+      `${at} 個工具結果。這個任務的驗收標準是:\n${this.goal}\n` +
+      `對照一下:哪幾條已經有證據,哪幾條還沒有。`;
+  }
+
+  /** A new session is a new run. */
+  reset(): void {
+    this.goal = null;
+    this.task = "";
+    this.acts = 0;
+    this.sent = 0;
+  }
 }

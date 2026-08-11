@@ -16,7 +16,7 @@ import { QueueAdvancer } from "./queue-advancer.ts";
 import { PhaseGate, useScopeSnapshot } from "./phase-gate.ts";
 import { ScopeSnapshot } from "./harness-scope.ts";
 import { PhaseNotice, claimedTaskDir } from "./phase-notice.ts";
-import { localConstitution } from "./task-context.ts";
+import { TaskGoalRestate, localConstitution } from "./task-context.ts";
 
 const MAX_INJECT_CHARS = 3000;
 
@@ -96,6 +96,27 @@ function caseBridgeEnabled(): boolean {
   }
 }
 
+/**
+ * A calibrated integer from the harness config, or the shipped fallback.
+ *
+ * T-A2 moved these numbers out of enforcement code; this is case-bridge's
+ * reader for them. Strict on type: `"12"` is text and `0` would restate after
+ * every single tool result, so both fall through to the fallback.
+ */
+function calibratedNumber(key: string, fallback: number): number {
+  try {
+    const here = dirname(require.resolve("./package.json"));
+    const pkg = JSON.parse(readFileSync(join(here, "package.json"), "utf-8"));
+    const root = pkg["pi-harness"]?.root || join(here, "../..");
+    const cfgPath = join(root, "pi-config", "harness-config.json");
+    if (!existsSync(cfgPath)) return fallback;
+    const v = JSON.parse(readFileSync(cfgPath, "utf8"))[key];
+    return typeof v === "number" && Number.isInteger(v) && v > 0 ? v : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 /** The assistant text of a turn, if it said anything at all. */
 function extractText(message: unknown): string {
   const content = (message as { content?: unknown } | undefined)?.content;
@@ -139,6 +160,10 @@ export default function (pi: ExtensionAPI) {
     queueGuard.humanApproved.reset();
     phaseNotice.reset();
     taskContextSent.clear();
+    // Cleared here and nowhere else. Clearing per turn was the mistake this
+    // repo has already made once: `turn_end` fires on turns that produced no
+    // text, so per-turn state disappears before the turn that speaks.
+    goalRestate.reset();
     advancer.reset();
     if (!isCaseProject(ctx.cwd)) return;
     if (!caseBridgeEnabled()) return;
@@ -199,6 +224,14 @@ export default function (pi: ExtensionAPI) {
   // After a call runs. `tool_result` rather than `tool_call` on purpose: a
   // refused call never executed, and an audit trail that records intentions is
   // not an audit trail. Returns nothing, so the tool result is untouched.
+  // Calibration, from pi-config/harness-config.json — the same two keys the
+  // task-shape restatement reads, because after T-A3 they are one mechanism
+  // with one calibration, chosen by whether the project is a C.A.S.E. project.
+  const goalRestate = new TaskGoalRestate(
+    calibratedNumber("goalRestateThreshold", 12),
+    calibratedNumber("goalRestateMax", 2),
+  );
+
   pi.on("tool_result", async (event, ctx) => {
     if (!caseBridgeEnabled()) return;
     actionLog.record(ctx.cwd, event.toolName, event.input, event.isError === true);
@@ -230,6 +263,18 @@ export default function (pi: ExtensionAPI) {
         ctx.ui.notify(`📜 已載入任務專屬憲法(${local.sources.join(" + ")})`, "info");
       }
     }
+    // T-A3. The constitution above arrives once, at claim time, and a run is as
+    // many turns long as it is — by call 20 it is nineteen turns behind. This
+    // arms on the same claim and speaks again later, from the same source.
+    //
+    // It replaces `task-shape-bridge`'s restatement inside a C.A.S.E. project
+    // rather than joining it: that one quotes the USER's request, which here is
+    // 「請處理 02_Task_Queue 裡待辦的任務」 and names no goal. Two restatements
+    // would also share this channel and the model would meet the same reminder
+    // twice, which this repo has measured turning into wallpaper.
+    if (claimed) goalRestate.claimed(claimed);
+    const restated = goalRestate.afterToolResult(event.isError === true);
+    if (restated) blocks.push(restated);
 
     // Say when the door opened. The gate closing it was the only thing the
     // model ever heard: twenty refusals, zero permissions, and it stopped

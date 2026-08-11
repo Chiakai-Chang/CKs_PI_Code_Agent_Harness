@@ -465,9 +465,21 @@ class TestTheRouterYieldsInCaseProjects(unittest.TestCase):
         self.assertIn("isCaseProject(ctx.cwd)", self.src)
 
     def test_it_yields_before_arming_the_routine(self):
-        """Standing down after `armed = buildRoutine(...)` would still deliver."""
+        """Standing down after `armed = buildRoutine(...)` would still deliver.
+
+        The predicate moved into a local after T-A3, because the restatement
+        needs the same answer one line earlier; the ordering it guards did not
+        change."""
         head = self.src.split("armed = buildRoutine", 1)[0]
-        self.assertIn("isCaseProject(ctx.cwd)) return", head)
+        self.assertIn("if (caseProject) return;", head)
+        self.assertLess(head.index("const caseProject = isCaseProject(ctx.cwd)"),
+                        head.index("if (caseProject) return;"))
+
+    def test_the_restatement_stands_down_in_a_case_project(self):
+        """T-A3. Two restatements would share one channel and say different
+        things: this one quotes the user's request, and in a queue run that
+        request is 「請處理 02_Task_Queue 裡待辦的任務」."""
+        self.assertIn("if (restateOn && !caseProject) restate.begin(", self.src)
 
     def test_the_classifier_is_not_duplicated(self):
         """The predicate is two filesystem checks; the classifier is not copied.
@@ -601,3 +613,132 @@ class TestTheDodGuardBlocksInPractice(unittest.TestCase):
     def test_an_unparsable_recipe_does_not_stop_the_machine(self):
         (self.task / "recipe.md").write_text("no dod here", encoding="utf-8")
         self.assertIsNone(self.review(str(self.tmp)))
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestTheTaskIsTheGoal(unittest.TestCase):
+    """T-A3. The restatement's source, inside a C.A.S.E. project.
+
+    Measured 2026-08-11: the real prompt for a queue run is 「請處理
+    02_Task_Queue 裡待辦的任務」. It classifies as single-step, so the
+    task-shape restatement never armed in any of runs 4-7; and had it armed, it
+    would have restated a sentence that names no goal. The task's Local DoD is
+    what the work is checked against, so it is what gets restated."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.task = self.tmp / "Task_001_Drift"
+        self.task.mkdir()
+
+    def recipe(self, body):
+        (self.task / "recipe.md").write_text(body, encoding="utf-8")
+
+    def goal(self):
+        return run_js("process.stdout.write(JSON.stringify("
+                      "m.taskGoal(%s)));" % json.dumps(str(self.task)))
+
+    def cycle(self, threshold, cap, results):
+        return run_js(
+            "const r = new m.TaskGoalRestate(%d, %d);" % (threshold, cap) + chr(10) +
+            "r.claimed(%s);" % json.dumps(str(self.task)) + chr(10) +
+            "const out = %s.map(e => r.afterToolResult(e));" % json.dumps(results) + chr(10) +
+            "process.stdout.write(JSON.stringify(out));")
+
+    def test_the_local_dod_is_the_goal(self):
+        self.recipe("## Objective" + chr(10) + "稽核組態" + chr(10) * 2 +
+                    "## Local Definition of Done (DoD)" + chr(10) +
+                    "- [ ] output.md 存在" + chr(10))
+        self.assertIn("output.md 存在", self.goal())
+
+    def test_the_objective_is_used_when_there_is_no_dod(self):
+        """A task package without a DoD is not a task package this repo would
+        write, but refusing to restate anything at all would make the mechanism
+        depend on a template."""
+        self.recipe("## Objective" + chr(10) + "稽核 data/ 底下的組態" + chr(10))
+        self.assertIn("稽核 data/", self.goal())
+
+    def test_a_recipe_with_neither_yields_nothing(self):
+        self.recipe("# Task" + chr(10) + "沒有段落" + chr(10))
+        self.assertIsNone(self.goal())
+
+    def test_it_fires_at_the_threshold_and_is_capped(self):
+        self.recipe("## Local Definition of Done (DoD)" + chr(10) +
+                    "- [ ] output.md 存在" + chr(10))
+        out = self.cycle(3, 1, [False] * 8)
+        fired = [i for i, o in enumerate(out) if o]
+        self.assertEqual(fired, [2], "expected one firing on the 3rd result: %r" % fired)
+
+    def test_errors_do_not_count(self):
+        self.recipe("## Local Definition of Done (DoD)" + chr(10) +
+                    "- [ ] output.md 存在" + chr(10))
+        out = self.cycle(3, 2, [True] * 8)
+        self.assertEqual([o for o in out if o], [])
+
+    def test_it_says_it_counted_results_not_calls(self):
+        """Turns emit tool calls in batches, so the extension's number is always
+        behind what the model issued. A reminder carrying a number the model can
+        see is wrong teaches it to discount the reminder."""
+        self.recipe("## Local Definition of Done (DoD)" + chr(10) +
+                    "- [ ] output.md 存在" + chr(10))
+        text = [o for o in self.cycle(3, 1, [False] * 4) if o][0]
+        self.assertIn("工具結果", text)
+        self.assertIn("[C.A.S.E.]", text)
+        self.assertIn("Task_001_Drift", text)
+
+    def test_an_unclaimed_run_says_nothing(self):
+        out = run_js("const r = new m.TaskGoalRestate(1, 2);" + chr(10) +
+                     "process.stdout.write(JSON.stringify("
+                     "[r.afterToolResult(false), r.afterToolResult(false)]));")
+        self.assertEqual(out, [None, None])
+
+    def test_claiming_a_second_task_restarts_the_count(self):
+        """A queue run claims several tasks in one prompt cycle, and the second
+        task's goal is not the first task's."""
+        self.recipe("## Local Definition of Done (DoD)" + chr(10) +
+                    "- [ ] output.md 存在" + chr(10))
+        other = self.tmp / "Task_002_Second"
+        other.mkdir()
+        (other / "recipe.md").write_text(
+            "## Local Definition of Done (DoD)" + chr(10) +
+            "- [ ] report.md 存在" + chr(10), encoding="utf-8")
+        out = run_js(
+            "const r = new m.TaskGoalRestate(2, 9);" + chr(10) +
+            "r.claimed(%s);" % json.dumps(str(self.task)) + chr(10) +
+            "const a = [r.afterToolResult(false), r.afterToolResult(false)];" + chr(10) +
+            "r.claimed(%s);" % json.dumps(str(other)) + chr(10) +
+            "const b = [r.afterToolResult(false), r.afterToolResult(false)];" + chr(10) +
+            "process.stdout.write(JSON.stringify([a[1], b[1]]));")
+        self.assertIn("output.md 存在", out[0])
+        self.assertIn("report.md 存在", out[1])
+        self.assertIn("Task_002_Second", out[1])
+
+    def test_reset_disarms(self):
+        self.recipe("## Local Definition of Done (DoD)" + chr(10) +
+                    "- [ ] output.md 存在" + chr(10))
+        out = run_js(
+            "const r = new m.TaskGoalRestate(1, 9);" + chr(10) +
+            "r.claimed(%s);" % json.dumps(str(self.task)) + chr(10) +
+            "const before = r.afterToolResult(false);" + chr(10) +
+            "r.reset();" + chr(10) +
+            "const after = r.afterToolResult(false);" + chr(10) +
+            "process.stdout.write(JSON.stringify([before !== null, after !== null]));")
+        self.assertEqual(out, [True, False])
+
+    def test_reclaiming_the_same_task_does_not_reset_the_count(self):
+        """`claimedTaskDir` reports every successful write that leaves the file
+        reading IN_PROGRESS, not only the transition. Re-arming on each would
+        make the reminder quietest in the run that repeats itself."""
+        self.recipe("## Local Definition of Done (DoD)" + chr(10) +
+                    "- [ ] output.md 存在" + chr(10))
+        out = run_js(
+            "const r = new m.TaskGoalRestate(3, 9);" + chr(10) +
+            "const T = %s;" % json.dumps(str(self.task)) + chr(10) +
+            "r.claimed(T);" + chr(10) +
+            "const a = r.afterToolResult(false);" + chr(10) +
+            "r.claimed(T);" + chr(10) +
+            "const b = r.afterToolResult(false);" + chr(10) +
+            "r.claimed(T);" + chr(10) +
+            "const c = r.afterToolResult(false);" + chr(10) +
+            "process.stdout.write(JSON.stringify([a, b, c].map(x => x !== null)));")
+        self.assertEqual(out, [False, False, True],
+                         "the third result should still be the third")

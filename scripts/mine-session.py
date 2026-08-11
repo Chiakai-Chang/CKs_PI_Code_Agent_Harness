@@ -52,6 +52,11 @@ INJECTIONS = [
     ("task constitution", "[C.A.S.E.] 任務專屬憲法"),
     ("phase reopened", "階段閘已經放開"),
     ("goal restatement", "[task-shape] 目標重述"),
+    # T-A3 split the restatement in two by source: outside a C.A.S.E. project it
+    # quotes the user's request, inside one it quotes the claimed task's Local
+    # DoD. One label each, because "a restatement fired" would not say which,
+    # and the whole point of the change is which.
+    ("task goal restatement", "[C.A.S.E.] 目標重述"),
     ("routing note", "[task-shape] routing note"),
     ("ecc advisory", "[ecc-hooks] advisory"),
     ("compaction kit", "compact-continuation"),

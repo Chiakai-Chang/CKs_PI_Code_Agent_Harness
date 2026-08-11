@@ -112,16 +112,24 @@ export default function (pi: ExtensionAPI) {
     if (!enabled) return;
     try {
       const shape = classifyRequest(event.prompt);
+      // T-A3. In a C.A.S.E. project the restatement stands down: case-bridge
+      // restates the claimed task's Local DoD instead, which is the goal there.
+      // This one quotes the USER's request, and the real request for a queue
+      // run is 「請處理 02_Task_Queue 裡待辦的任務」 — it names no goal, and it
+      // classifies as single-step, so this has never armed in a C.A.S.E. run
+      // anyway. Standing down explicitly is the difference between a mechanism
+      // that is off and one that is off by accident.
+      const caseProject = isCaseProject(ctx.cwd);
       // Armed before the plan check below returns: a project that already has a
       // plan still forgets its goal by step 18 — that is the failure this
       // addresses, and it is independent of whether a plan file exists.
-      if (restateOn) restate.begin(event.prompt, shape.multiStep === true);
+      if (restateOn && !caseProject) restate.begin(event.prompt, shape.multiStep === true);
       if (!shape.multiStep) return;
       // A C.A.S.E. project plans inside the task package and has a gate that
       // enforces it. The routine below would point at task_plan.md, which
       // nothing there reads. Stand down and let the task-local constitution
       // carry the planning and the methodology — see plan.ts::isCaseProject.
-      if (isCaseProject(ctx.cwd)) return;
+      if (caseProject) return;
       // A project that already has a plan does not need to be told to make one.
       if (hasAnyPlan(ctx.cwd)) return;
       armed = buildRoutine(shape);
