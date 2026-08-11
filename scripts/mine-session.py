@@ -60,6 +60,16 @@ INJECTIONS = [
 REFUSALS = [
     ("phase gate", "C.A.S.E. 階段閘"),
     ("queue guard", "C.A.S.E. 任務佇列"),
+    # One label per rule, because "the queue guard fired" hid which rule did.
+    # Run 3 of T-A1 was mined as "no queue-guard refusals" when the question was
+    # whether the DoD rule specifically had fired — it had not, and it could not.
+    ("dod artifacts", "C.A.S.E. 驗收物守衛"),
+    ("status value", "C.A.S.E. status guard"),
+    ("transition", "C.A.S.E. transition guard"),
+    ("one-at-a-time", "C.A.S.E. one-at-a-time guard"),
+    ("retrospective", "C.A.S.E. retrospective guard"),
+    ("dual-track", "C.A.S.E. dual-track guard"),
+    ("boundary", "C.A.S.E. boundary guard"),
     ("tool-first", "tool-first guard"),
     ("containment", "Directory containment"),
     ("harness-root hint", "harness 的安裝位置"),

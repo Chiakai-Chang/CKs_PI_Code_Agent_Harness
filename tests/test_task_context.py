@@ -81,6 +81,35 @@ def run_js(script):
             driver.unlink()
 
 
+GUARD_MOD = ROOT / "pi-extensions" / "case-bridge" / "task-queue-guard.ts"
+
+
+def run_guard(script):
+    """Drives the real TaskQueueGuard through its public entry point.
+
+    The wiring used to be checked by asserting that the source text contained
+    "missingDodArtifacts(". It did contain it — and the guard was dead anyway,
+    because the call named `_cwd`, an identifier that exists only on `check()`
+    and not on the `evaluate()` body where the call sits. The ReferenceError was
+    swallowed by a nearby catch written for unparsable recipes, so REVIEW was
+    allowed with no artifacts and every test stayed green. Assert on behaviour.
+    """
+    driver = ROOT / "tests" / ".tmp_queue_guard.mjs"
+    url = "file:///" + str(GUARD_MOD).replace("\\", "/")
+    driver.write_text("import {TaskQueueGuard} from %s;\n%s" % (json.dumps(url), script),
+                      encoding="utf-8")
+    try:
+        p = subprocess.run(["node", str(driver)], capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", cwd=str(ROOT),
+                           timeout=120)
+        if p.returncode != 0:
+            raise AssertionError("node driver failed:\n%s\n%s" % (p.stdout, p.stderr))
+        return json.loads(p.stdout)
+    finally:
+        if driver.exists():
+            driver.unlink()
+
+
 def load(task_dir):
     return run_js("process.stdout.write(JSON.stringify("
                   "m.localConstitution(%s)));" % json.dumps(str(task_dir)))
@@ -530,79 +559,45 @@ class TestTheDodArtifactCheck(unittest.TestCase):
         self.assertEqual(self.missing(), [])
 
 
-class TestTheDodGuardIsWired(unittest.TestCase):
-    def setUp(self):
-        self.src = (ROOT / "pi-extensions" / "case-bridge"
-                    / "task-queue-guard.ts").read_text(encoding="utf-8")
-
-    def test_the_guard_calls_it_on_the_way_into_review(self):
-        """Anchored on the CALL, not on the first occurrence of the name — that
-        one is the import at the top of the file, and splitting there made this
-        test fail while the wiring was correct."""
-        self.assertIn("missingDodArtifacts(", self.src)
-        review = self.src.split('next === "REVIEW"', 1)[1]
-        self.assertIn("missingDodArtifacts(", review.split('next === "DONE"', 1)[0])
-
-    def test_it_fires_before_the_done_rules(self):
-        """REVIEW comes first in the protocol, so its check must too — placing it
-        after the DONE block would never run for a REVIEW write."""
-        self.assertLess(self.src.index('next === "REVIEW"'),
-                        self.src.index('next === "DONE"'))
-
-    def test_it_fails_open_on_an_unparsable_recipe(self):
-        block = self.src.split('next === "REVIEW"', 1)[1].split('next === "DONE"', 1)[0]
-        self.assertIn("catch", block)
-
-
-@unittest.skipUnless(NODE_OK, "node >= 22 required")
-class TestIsCaseProject(unittest.TestCase):
-    """The predicate that decides whether the task-shape router stands down.
-
-    Added 2026-08-10 after measuring mutation-sweep coverage: 33 of 48 pure
-    modules were never swept, and `plan.ts` — edited that same day — was one of
-    them. Adding it to the sweep produced ten survivors immediately. Every weak
-    check found that day came from the sweep and none from reading assertion
-    styles, so coverage of the sweep is the lever."""
+class TestTheDodGuardBlocksInPractice(unittest.TestCase):
+    """Run 3 of T-A1 (2026-08-11) reached REVIEW with no output.md while 1289
+    tests were green. These drive `check()` on a real folder, which is the only
+    thing that would have caught it."""
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.tmp, True)
+        # The name must match ^Task_(\d+)_ — `Task_001` alone does not, and a
+        # fixture that misses it exercises nothing at all: every status write
+        # was allowed, including "bogus". Caught while diagnosing run 3.
+        self.task = self.tmp / "02_Task_Queue" / "Task_001_Drift"
+        self.task.mkdir(parents=True)
+        (self.task / "recipe.md").write_text(
+            "## Local Definition of Done (DoD)" + chr(10) +
+            "- [ ] `output.md` 存在" + chr(10), encoding="utf-8")
+        (self.task / "status.txt").write_text("IN_PROGRESS" + chr(10), encoding="utf-8")
 
-    def call(self):
-        url = "file:///" + str(ROOT / "pi-extensions" / "task-shape-bridge"
-                               / "plan.ts").replace("\\", "/")
-        driver = ROOT / "tests" / ".tmp_plan_driver.mjs"
-        driver.write_text(
-            "import {isCaseProject} from %s;" % json.dumps(url) + chr(10) +
-            "process.stdout.write(JSON.stringify(isCaseProject(%s)));"
-            % json.dumps(str(self.tmp)), encoding="utf-8")
-        try:
-            p = subprocess.run(["node", str(driver)], capture_output=True,
-                               text=True, encoding="utf-8", errors="replace",
-                               cwd=str(ROOT), timeout=120)
-            if p.returncode != 0:
-                raise AssertionError(p.stderr)
-            return json.loads(p.stdout)
-        finally:
-            if driver.exists():
-                driver.unlink()
+    def review(self, cwd):
+        return run_guard(
+            "const g = new TaskQueueGuard();" + chr(10) +
+            "const r = g.check('write', {path: %s, content: 'REVIEW\\n'}, %s);" % (
+                json.dumps(str(self.task / "status.txt")), json.dumps(cwd)) + chr(10) +
+            "process.stdout.write(JSON.stringify(r === null ? null : r.reason));")
 
-    def test_an_empty_directory_is_not_a_case_project(self):
-        self.assertFalse(self.call())
+    def test_review_is_refused_when_the_named_artifact_is_absent(self):
+        r = self.review(str(self.tmp))
+        self.assertIsNotNone(r, "REVIEW was allowed with output.md absent")
+        self.assertIn("output.md", r)
 
-    def test_case_md_alone_is_enough(self):
-        (self.tmp / "CASE.md").write_text("x", encoding="utf-8")
-        self.assertTrue(self.call())
+    def test_review_is_allowed_once_the_artifact_exists(self):
+        (self.task / "output.md").write_text("x", encoding="utf-8")
+        self.assertIsNone(self.review(str(self.tmp)))
 
-    def test_a_constitution_directory_alone_is_enough(self):
-        """The `||` matters: a queue project bootstrapped from the protocol has
-        00_Constitution and no CASE.md. Flipping it to `&&` would demand both and
-        the router would keep firing in exactly the projects it must not."""
-        (self.tmp / "00_Constitution").mkdir()
-        self.assertTrue(self.call())
+    def test_it_still_refuses_when_no_cwd_is_supplied(self):
+        """Pi does not always hand the guard a cwd. The artifact sits in the task
+        folder here, so the task folder alone is enough to decide."""
+        self.assertIsNotNone(self.review(None))
 
-    def test_both_present_is_still_a_case_project(self):
-        (self.tmp / "CASE.md").write_text("x", encoding="utf-8")
-        (self.tmp / "00_Constitution").mkdir()
-        self.assertTrue(self.call())
-
+    def test_an_unparsable_recipe_does_not_stop_the_machine(self):
+        (self.task / "recipe.md").write_text("no dod here", encoding="utf-8")
+        self.assertIsNone(self.review(str(self.tmp)))

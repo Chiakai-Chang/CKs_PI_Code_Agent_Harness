@@ -337,3 +337,18 @@ harness-root 重導提示仍然提供正確路徑            -> true
 證據(寫這段時實跑):`Ran 1192 tests, OK`;`verify-bridges.py` 13 bridges 0 failures;
 `check-guard-mutations.py --only phase-gate --all` 7 survivors,全部有論證。
 
+
+---
+
+## 後續(2026-08-11)
+
+這份文件描述的碰撞在 T-A1 的第三個 run 又發生了一次,而且代價更明確:
+第 18 次呼叫帶著**完成的報告**寫向 `output.md`,被 CLAIM 閘拒絕;模型接著認領了任務,
+**再也沒有重寫那份報告**,空著進 REVIEW。
+
+兩件事因此改了:
+
+* CLAIM 閘的措辭現在明講**「剛才那次寫入的內容沒有被保存」**。拒絕會丟掉 payload,
+  而在此之前 session 裡沒有任何一句話說過這件事。
+* 本來應該接住這種空 REVIEW 的驗收物守衛,**從來沒有生效過** ——
+  見 [2026-08-11-dod-guard-was-dead.md](2026-08-11-dod-guard-was-dead.md)。

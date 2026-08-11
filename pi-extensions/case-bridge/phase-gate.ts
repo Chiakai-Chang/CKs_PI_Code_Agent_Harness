@@ -248,7 +248,12 @@ function writeTargets(toolName: string, input: unknown): string[] {
 const CLAIM_FIRST =
   "C.A.S.E. 階段閘(CLAIM):這個佇列有 PENDING 任務,還沒有人認領。" +
   "**問題不是搜尋** —— 搜幾次都可以,而且認領之後研究工具全開。" +
-  "問題是還沒認領就開工。先用 `write` 把該任務的 status.txt 改成 IN_PROGRESS,一次寫入的事。";
+  "問題是還沒認領就開工。先用 `write` 把該任務的 status.txt 改成 IN_PROGRESS,一次寫入的事。" +
+  // Run 3 of T-A1 (2026-08-11): call 18 carried the finished report, this gate
+  // refused it, the model claimed the task on call 19 — and never wrote the
+  // report again, arriving at REVIEW with an empty folder. A refusal discards
+  // the payload silently; nothing else in the session says so. Say it here.
+  "**剛才那次寫入的內容沒有被保存** —— 認領之後要把它重新寫一次。";
 
 /**
  * The rung that stops describing and starts showing.

@@ -75,6 +75,35 @@
 **配置紀錄(Harness-Bench 配置層原則):**
 `harness commit 66628da` / `model GRM-3.2-Sky-ONYX-balanced.gguf`
 
+**三個 run 的結果(同一配置):11/11、11/11、1/11**
+
+第三個 run 走到 `REVIEW`,資料夾是空的 —— 沒有 `output.md`。
+挖 session 的呼叫序列:
+
+```
+ 18 write output.md content="## 多數值\n\ntimeout_ms 多數值:3000…   ← 完整報告
+    !! C.A.S.E. 階段閘(CLAIM):這個佇列有 PENDING 任務,還沒有人認領。
+ 19 write status.txt content="IN_PROGRESS\n"
+ 20 write status.txt content="REVIEW\n"                              ← 應該被擋,沒擋
+```
+
+**兩個獨立缺陷,兩個都已修並附行為測試**
+(脈絡:[docs/case/2026-08-11-dod-guard-was-dead.md](docs/case/2026-08-11-dod-guard-was-dead.md)):
+
+1. **驗收物守衛從來沒有生效過。** 呼叫寫成 `missingDodArtifacts(taskDir, _cwd, …)`,
+   而 `_cwd` 只存在於 `check()`,不在 `checkTransition()` 的 scope —— 每次 REVIEW 寫入
+   都拋 `ReferenceError`,被旁邊那個「recipe 讀不到就 fail open」的 `catch` 吞掉。
+   **為某一種失敗寫的寬容 catch,吞掉了另一種致命的失敗。**
+   舊測試綠燈的原因:單元測試直接呼叫純函式(它一直是對的),接線測試斷言
+   **原始碼字串**含有那個呼叫(它確實含有)。本週第五次「在原始碼文字上斷言」。
+2. **拒絕會把內容丟掉,而沒有人講。** 第 18 呼叫帶著完成的報告被 CLAIM 閘拒絕,
+   模型認領之後**再也沒有重寫**。閘的措辭現在明講「剛才那次寫入的內容沒有被保存」。
+
+留下的規則:**守衛「接好了」的定義是它的公開入口會拒絕**,不是輔助函式回傳正確清單,
+也不是呼叫出現在檔案裡。fixture 的名字必須符合production 比對的樣式 ——
+第一版替換 fixture 用了 `Task_001`,不符 `^Task_(\d+)_`,於是**每一個** status 寫入
+都被放行(包括字串 `bogus`),測試失敗的理由是錯的。
+
 ### ⚪ T-A2 — 校準參數移出出貨程式碼
 * **為什麼**:`MAX_REFUSAL_TURNS=8`、重述門檻 `12`、清單上限 `5` 都是對**這一個模型**
   校準的,卻寫在協定執行碼裡。Harness-Bench:能力是 **model–harness 配對**的屬性

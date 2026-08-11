@@ -285,15 +285,15 @@ export class TaskQueueGuard {
    * `status.txt` means there is no old value to compare, and refusing on a
    * guess is worse than allowing.
    */
-  check(toolName: string, input: unknown, _cwd?: string): QueueBlock | null {
+  check(toolName: string, input: unknown, cwd?: string): QueueBlock | null {
     try {
-      return this.evaluate(toolName, input);
+      return this.evaluate(toolName, input, cwd);
     } catch {
       return null;
     }
   }
 
-  private evaluate(toolName: string, input: unknown): QueueBlock | null {
+  private evaluate(toolName: string, input: unknown, cwd?: string): QueueBlock | null {
     const name = String(toolName || "").toLowerCase();
     if (name === "bash") return this.checkBash(input);
     if (!WRITE_TOOLS.has(name)) return null;
@@ -308,13 +308,14 @@ export class TaskQueueGuard {
     const taskName = basename(taskDir);
 
     if (basename(resolve(target)) === "status.txt") {
-      return this.checkTransition(taskDir, queueDir, taskName, outgoingText(input));
+      return this.checkTransition(taskDir, queueDir, taskName, outgoingText(input), cwd);
     }
     return this.checkBoundary(queueDir, taskName);
   }
 
   private checkTransition(
     taskDir: string, queueDir: string, taskName: string, written: string | null,
+    cwd?: string,
   ): QueueBlock | null {
     // Unreadable content keeps passing: `bash` writes carry none, and this repo
     // refuses to half-parse them.
@@ -385,9 +386,21 @@ export class TaskQueueGuard {
       // arrived at REVIEW empty. See task-context.ts::missingDodArtifacts —
       // REVIEW is what summons a human under Path A, so an empty one asks
       // someone to accept an empty folder.
+      // `cwd` is a parameter of THIS function now. It used to be `_cwd`, which
+      // only existed on `check()` — so every REVIEW write raised a
+      // ReferenceError that the catch below swallowed, and the guard was
+      // silently dead. Measured 2026-08-11 in run 3 of T-A1: the task reached
+      // REVIEW with no output.md and no planning.md while 1287 tests were green,
+      // because the unit tests called `missingDodArtifacts` directly and the
+      // wiring test only asserted that the source CONTAINS the call.
+      //
+      // The catch was written to fail open on an unparsable recipe and absorbed
+      // a fatal error of a different kind instead. It is kept — a bad recipe
+      // must not stop the machine — but the identifier is now in scope, and a
+      // behavioural test drives `check()` rather than reading the file.
       let missing: string[] = [];
       try {
-        missing = missingDodArtifacts(taskDir, _cwd, existsSync);
+        missing = missingDodArtifacts(taskDir, cwd, existsSync);
       } catch {
         missing = [];                      // unparsable recipe: not this guard's call
       }

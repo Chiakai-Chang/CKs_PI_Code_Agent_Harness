@@ -259,6 +259,15 @@ class TestWhatTheFirstLiveRunShowed(unittest.TestCase):
         self.assertIsNotNone(out["reasons"][0])
         self.assertIn("IN_PROGRESS", out["reasons"][0])
 
+    def test_the_refusal_says_the_content_was_not_saved(self):
+        """Run 3 of T-A1 (2026-08-11): the refused call carried the finished
+        report, the model claimed the task on the next call, and never wrote the
+        report again — it reached REVIEW with an empty folder. A refusal discards
+        the payload and nothing in the session says so, so the refusal must."""
+        out = gate(self.q.queue_dir, "write",
+                   {"path": "research/report.md", "content": "# findings\n" * 200})
+        self.assertIn("沒有被保存", out["reasons"][0])
+
     def test_claiming_is_still_the_one_write_that_gets_through(self):
         out = gate(self.q.queue_dir, "write",
                    {"path": self.q.task.replace("\\", "/") + "/status.txt",
