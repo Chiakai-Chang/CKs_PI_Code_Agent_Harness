@@ -35,7 +35,7 @@ To prevent infinite loops and improve success rates during debugging or tool fai
 *   **Rejected Memory**: If a command or test fails, record the failed approach and the exact error output in `.pi/rejected_attempts.json` or `findings.md`.
 *   **Bounded Correction**: Before retrying, read the rejected attempts to ensure the new approach does not repeat previous errors. Modify only the specific code or parameters that failed.
 *   **3-Strike Cap**: Limit consecutive retries of the same task to 3 attempts. On the 3rd failure, stop, write the failure log to `findings.md`, and escalate to the user with a summary.
-*   **C.A.S.E. & Planning-with-Files Nesting**: When C.A.S.E. is active (indicated by `CASE.md` or `00_Constitution`), you MUST nest your `task_plan.md`, `findings.md`, and `progress.md` (from `planning-with-files`) INSIDE your active task directory (e.g. `02_Task_Queue/Task_<NNN>_<slug>/`) rather than the workspace root. Use `status.txt` to manage micro-state transitions (`IN_PROGRESS` -> `REVIEW`).
+*   **C.A.S.E. & Planning-with-Files Nesting**: When C.A.S.E. is active (indicated by `CASE.md` or `00_Constitution`), you MUST nest your `task_plan.md`, `findings.md`, and `progress.md` (from `pi-planning-with-files`) INSIDE your active task directory (e.g. `02_Task_Queue/Task_<NNN>_<slug>/`) rather than the workspace root. Use `status.txt` to manage micro-state transitions (`IN_PROGRESS` -> `REVIEW`).
 *   **Loop Engineering (Loopy Protocol)**: When executing or designing repeatable workflows (e.g. docs sync, test expansion, migrations), model them as bounded loops. Define: (1) target objective, (2) verification check, (3) feedback action, and (4) terminal/escalation conditions. Check catalog recommendations before inventing a new loop.
 *   **Genetic Gating & PR Isolation (GEPA Protocol)**: When proposing a permanent optimization or modification to an agent skill (e.g., `SKILL.md`), NEVER apply it directly to the active configuration. Instead, create a separate git branch (`evolve/skill-name`), perform sandboxed trials, and present the final version to the user as a Git Diff/PR for explicit review and validation.
 *   **「缺席」不是證據（Absence Is Not Impossibility）**：「缺席」是所有觀察裡最弱的一種證據——它同時相容於「功能不存在」「我沒開對」「有東西擋住」「還沒輪到它」。任何「X 沒發生／不支援／做不到」的結論，**寫下來之前**必須先排除三件事：(1) **開關**——該 API／旗標的**完整簽章**讀過了嗎？有沒有第二個參數或選項物件？(2) **干擾**——資源是不是被自己稍早留下的殘留進程佔著？查進程與資源用量，跟乾淨基準值比對。(3) **存活**——測試環境活到事件應該發生的時間點了嗎？stdin、timeout、process 生命週期都算。延伸兩條：**每次載入模型／後端都要讀啟動的能力探測行**（旗標被接受不代表生效，功能可能不報錯就靜默降級到退路）；**比較兩個設定之前先確認它們跑的是同一條路徑**，否則數字再乾淨，解讀也是虛構的。案例見 [docs/retro/2026-08-03-absence-is-not-impossibility.md](../docs/retro/2026-08-03-absence-is-not-impossibility.md)（同一天犯三次，兩次靠使用者質疑才翻案）。
@@ -86,12 +86,12 @@ When implementing frontend designs and components:
 ### 維度一 · 安全治理與工程紀律
 *   **ECC hooks（主動阻擋，經 `ecc-hooks-bridge`）**：在 `tool_call` 時實際擋下三類——`git push --no-verify`（block-no-verify）、弱化設定（config-protection）、未調查就動危險操作（GateGuard「先調查」）。被擋＝照它給的理由去調查／改法，**別想繞過**。
 *   **YES.md ＝ `yes` 技能（行為紀律；本 harness 只掛技能、未掛其 hooks，故非 `.env` 白名單）**：當你改檔案／設定／部署、想沒證據就猜（「應該是／可能」）、想推給使用者、改完沒驗證就報完成、有工具卻不用、或原地打轉時——遵它。與 §8（用工具）／§9（實測有證據）同源。
-*   做新東西／創意工作 → `brainstorming` 釐清意圖 → `planning-with-files`／`writing-plans` 立計畫。
+*   做新東西／創意工作 → `brainstorming` 釐清意圖 → `pi-planning-with-files`／`writing-plans` 立計畫。
 *   有 bug／非預期行為 → `systematic-debugging`（先復現、定位根因，別亂修）；實作功能或修 bug → `test-driven-development`（先寫會失敗的測試）。
 
 ### 維度二 · 工作流與上下文
-*   有邊界的多任務專案／cwd 有 `CASE.md` 或 `00_Constitution` → `case-framework`（憲法-架構-狀態-執行）；`planning-with-files` 巢狀其任務目錄內（見 §4）。
-*   複雜多步任務（>5 步或跨多檔）→ `planning-with-files`（task_plan／findings／progress）。
+*   有邊界的多任務專案／cwd 有 `CASE.md` 或 `00_Constitution` → `case-framework`（憲法-架構-狀態-執行）；`pi-planning-with-files` 巢狀其任務目錄內（見 §4）。
+*   複雜多步任務（>5 步或跨多檔）→ `pi-planning-with-files`（task_plan／findings／progress）。
 *   有取捨／多角度／多方利害的決策 → 輕量 `thinking-frameworks`；重大或多方上 `mece-autopilot`；要矛盾／辯證對照用 `contradiction-analysis`。
 *   對話中冒出可留存的新知 → `hello-reflect` 寫入規範檔；長對話省 token → `caveman`。
 

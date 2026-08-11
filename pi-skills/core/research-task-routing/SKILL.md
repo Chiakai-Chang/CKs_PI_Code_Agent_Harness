@@ -1,6 +1,6 @@
 ---
 name: research-task-routing
-description: Use when a request asks for research, a market survey, competitive analysis, a landscape review, a feasibility study, a technology comparison, an audit, or any brief naming several things to find out — 市場調查、競品分析、可行性研究、技術比較、盤點、產業研究. Also use when one request contains several separate deliverables. Routes the work to brainstorming and planning-with-files before any searching starts, so a multi-part brief does not become one round of web searches and a summary.
+description: Use when a request asks for research, a market survey, competitive analysis, a landscape review, a feasibility study, a technology comparison, an audit, or any brief naming several things to find out — 市場調查、競品分析、可行性研究、技術比較、盤點、產業研究. Also use when one request contains several separate deliverables. Routes the work to brainstorming and pi-planning-with-files before any searching starts, so a multi-part brief does not become one round of web searches and a summary.
 ---
 
 # research-task-routing
@@ -17,7 +17,7 @@ multi-step-methodology    0/3    0%
 A debugging request fires the methodology because it lands in
 `systematic-debugging`'s vocabulary. A market survey lands in nobody's:
 `brainstorming` describes itself as being for *creating features, building
-components*, and `planning-with-files` for a *complex multi-step task*. Those
+components*, and `pi-planning-with-files` for a *complex multi-step task*. Those
 skills are in submodules and their descriptions are not ours to change. This one
 carries the vocabulary they are missing.
 
@@ -37,7 +37,7 @@ recent — load `brainstorming` and resolve it with the user first. Searching an
 unclear brief produces an answer to a question nobody asked.
 
 **2. Write the plan down.**
-Load `planning-with-files` and write `task_plan.md` with **one phase per
+Load `pi-planning-with-files` and write `task_plan.md` with **one phase per
 deliverable**. The plan is what makes this recoverable when context is compacted;
 a plan held in conversation is lost at the first compaction.
 
@@ -80,4 +80,4 @@ thing it is.
 
 Findings that live only in conversation are gone at the next compaction, and a
 long research task will hit one. `task_plan.md` and `findings.md` survive it —
-that is the whole reason `planning-with-files` exists.
+that is the whole reason `pi-planning-with-files` exists.

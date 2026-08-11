@@ -78,6 +78,9 @@ export default function (pi: ExtensionAPI) {
   let armed: string | null = null;
   let pending: string | null = null;
   let delivered = 0;
+  // When this session began. `hasAnyPlan` compares the plan's mtime against it,
+  // so a plan from a previous week no longer counts as "already planning".
+  let sessionStartedAt = Date.now();
 
   /**
    * How many times the routine may ride along on a tool result in one session.
@@ -105,6 +108,7 @@ export default function (pi: ExtensionAPI) {
     armed = null;
     pending = null;
     delivered = 0;
+    sessionStartedAt = Date.now();
     restate.reset();
   });
 
@@ -131,7 +135,7 @@ export default function (pi: ExtensionAPI) {
       // carry the planning and the methodology — see plan.ts::isCaseProject.
       if (caseProject) return;
       // A project that already has a plan does not need to be told to make one.
-      if (hasAnyPlan(ctx.cwd)) return;
+      if (hasAnyPlan(ctx.cwd, sessionStartedAt)) return;
       armed = buildRoutine(shape);
 
       // Delivered here as well as on the tool result, because the first design

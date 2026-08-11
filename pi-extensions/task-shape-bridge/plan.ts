@@ -15,7 +15,7 @@
  * layouts and fails when they stop agreeing.
  */
 
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 function fileExists(dir: string, name: string): boolean {
@@ -50,9 +50,35 @@ export function resolvePlanDir(cwd: string): string {
   return cwd;
 }
 
-/** Whether a plan exists anywhere this project keeps one. */
-export function hasAnyPlan(cwd: string): boolean {
-  return fileExists(resolvePlanDir(cwd), "task_plan.md");
+/**
+ * Whether a plan exists anywhere this project keeps one.
+ *
+ * `since` is the moment this session began. Without it any `task_plan.md` at all
+ * counts, and that was measured costing the owner the exact behaviour he has
+ * complained about for weeks: on 2026-08-11 he opened `D:/MyProject/DiscoverTurth`
+ * — a project carrying a `task_plan.md` last written on 2026-08-06 — and asked a
+ * ten-deliverable investigation question. The router classified it correctly
+ * (`multiStep: true, deliverables: 10`) and then stood down, because a plan
+ * "existed". Nothing advised planning, the planning skill failed to load for a
+ * separate reason, and the run went straight to three `web_search` calls.
+ *
+ * A plan written five days ago says nothing about the request that just arrived.
+ * A plan written after this session began means the model is already planning,
+ * and repeating the advice there is the noise this stand-down exists to prevent.
+ * So the test is not "is there a plan" but "is there a plan for THIS run", and
+ * the boundary is a fact the bridge already knows rather than a tuned threshold.
+ */
+export function hasAnyPlan(cwd: string, since?: number): boolean {
+  const path = join(resolvePlanDir(cwd), "task_plan.md");
+  if (!existsSync(path)) return false;
+  if (typeof since !== "number") return true;
+  try {
+    return statSync(path).mtimeMs >= since;
+  } catch {
+    // Unreadable stat means "cannot tell". Answering true would silence the
+    // advice, and the advice never blocks anything.
+    return false;
+  }
 }
 
 /**

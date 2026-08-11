@@ -82,3 +82,88 @@ class TestSkillNamespaceGuardContract(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _node_major():
+    import re, shutil, subprocess
+    if not shutil.which("node"):
+        return 0
+    try:
+        out = subprocess.run(["node", "--version"], capture_output=True,
+                             text=True, timeout=30).stdout
+    except Exception:
+        return 0
+    m = re.match(r"v(\d+)", out.strip())
+    return int(m.group(1)) if m else 0
+
+
+NODE_OK = _node_major() >= 22
+
+
+def run_guard(script):
+    import json, os, subprocess
+    driver = os.path.join(ROOT, "tests", ".tmp_nsguard_driver.mjs")
+    url = "file:///" + os.path.join(
+        ROOT, "pi-extensions", "skill-namespace-guard", "index.ts").replace("\\", "/")
+    with open(driver, "w", encoding="utf-8") as f:
+        f.write("import * as m from %s;\n%s" % (json.dumps(url), script))
+    try:
+        p = subprocess.run(["node", driver], capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", cwd=ROOT, timeout=120)
+        if p.returncode != 0:
+            raise AssertionError("node driver failed:\n%s\n%s" % (p.stdout, p.stderr))
+        return json.loads(p.stdout)
+    finally:
+        if os.path.exists(driver):
+            os.remove(driver)
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestAQuotedNameIsNotAnUnsafeName(unittest.TestCase):
+    """Measured 2026-08-11 in a real session, on every single start:
+
+        Warning: [skill-namespace-guard] Skipping unsafe skill name ""yes""
+        from ...\external\yes.md\skills\yes\SKILL.md
+        (must match [A-Za-z0-9._-]+); registering as-is.
+
+    The file is correct. `name: "yes"` is quoted because YAML 1.1 reads a bare
+    `yes` as the boolean true, so upstream had no choice. The guard read the
+    value with a regex and kept the quotes, then failed its own safety pattern
+    against them. A warning that fires every session for a correct file is
+    noise, and noise is what stops warnings being read."""
+
+    import json as _json
+
+    def unquote(self, value):
+        import json
+        return run_guard("process.stdout.write(JSON.stringify(m.unquote(%s)));"
+                         % json.dumps(value))
+
+    def name_of(self, rel):
+        import json, os
+        return run_guard("process.stdout.write(JSON.stringify("
+                         "m.readFrontmatterName(%s)));"
+                         % json.dumps(os.path.join(ROOT, rel).replace("\\", "/")))
+
+    def test_the_real_file_that_warned_reads_as_yes(self):
+        self.assertEqual(
+            self.name_of("external/yes.md/skills/yes/SKILL.md"), "yes")
+
+    def test_an_unquoted_name_is_untouched(self):
+        self.assertEqual(
+            self.name_of("external/superpowers/skills/brainstorming/SKILL.md"),
+            "brainstorming")
+
+    def test_both_quote_characters_are_handled(self):
+        self.assertEqual(self.unquote('"yes"'), "yes")
+        self.assertEqual(self.unquote("'yes'"), "yes")
+
+    def test_an_unpaired_quote_is_left_alone(self):
+        """Stripping one side would hide a malformed file instead of surfacing
+        it — the name would look safe and the frontmatter would still be wrong."""
+        for value in ['"yes', 'yes"', "'yes", "\"yes'"]:
+            with self.subTest(value=value):
+                self.assertEqual(self.unquote(value), value)
+
+    def test_quotes_inside_a_name_are_not_stripped(self):
+        self.assertEqual(self.unquote('ye"s'), 'ye"s')

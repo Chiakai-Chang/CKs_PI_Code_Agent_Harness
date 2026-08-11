@@ -115,7 +115,7 @@ function scanHarnessSkills(): { name: string; path: string }[] {
 // "---\nname: my-skill\ndescription: ...\n---". Returns null if unparseable
 // (fail open — caller registers the raw path unchanged rather than dropping
 // the skill).
-function readFrontmatterName(skillMdPath: string): string | null {
+export function readFrontmatterName(skillMdPath: string): string | null {
   if (!existsSync(skillMdPath)) return null;
   let raw: string;
   try {
@@ -126,7 +126,30 @@ function readFrontmatterName(skillMdPath: string): string | null {
   const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!match) return null;
   const nameMatch = match[1].match(/^name:\s*(.+?)\s*$/m);
-  return nameMatch ? nameMatch[1].trim() : null;
+  if (!nameMatch) return null;
+  return unquote(nameMatch[1].trim());
+}
+
+/**
+ * Strip one layer of matching quotes from a frontmatter value.
+ *
+ * `external/yes.md/skills/yes/SKILL.md` declares `name: "yes"`, and the quotes
+ * are not decoration: unquoted, YAML 1.1 reads `yes` as the boolean true, so
+ * upstream had to quote it. Reading the value with a regex and not undoing that
+ * gave this guard the literal name `"yes"`, which fails its own safety pattern —
+ * measured 2026-08-11 in a real session, where every start printed
+ *
+ *     Skipping unsafe skill name ""yes"" ... registering as-is
+ *
+ * A warning that fires every session for a correct file is noise, and noise is
+ * what stops warnings being read.
+ */
+export function unquote(value: string): string {
+  // The backreference is the point: only a value quoted on BOTH sides with
+  // the same character is unwrapped. Without it `"yes` would lose its opening
+  // quote and nothing would be left to say the file is malformed.
+  const m = value.match(/^(["'])([\s\S]*)\1$/);
+  return m ? m[2] : value;
 }
 
 // Some manifest entries (e.g. external/taste-skill/skills, external/yes.md/

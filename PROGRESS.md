@@ -44,6 +44,31 @@ harness 名稱)。換成路徑乾淨的真實專案後,L1 在六個 run 裡沒�
 
 ---
 
+## 2026-08-12:一個真實 session 五步撞到三個缺陷
+
+擁有者隨手在 `D:/MyProject/DiscoverTurth` 開了一個 session,問一個十項的調查請求。
+五次呼叫,把這個 harness 最核心的承諾整條打斷 ——
+脈絡與修法:[docs/case/2026-08-12-the-name-nobody-could-load.md](docs/case/2026-08-12-the-name-nobody-could-load.md)
+
+```
+1 read  ~/.pi/agent/skills/research-task-routing/SKILL.md
+2 read  ...\external\superpowers\skills\planning-with-files\SKILL.md   ← ENOENT
+3-5 web_search × 3            injections: none   refusals: none
+```
+
+| # | 缺陷 | 修法 |
+|---|---|---|
+| 1 | 我們自己的指示叫 `planning-with-files`,註冊的是 `pi-planning-with-files` —— **每一條方法論路由都指向載不到的名字** | 全部改成註冊名;`tests/test_skill_names_resolve.py` 從此要求「指示叫得出的名字必須註冊得到」 |
+| 2 | `task_plan.md`(8/6 寫的)讓路由器對一個全新的十項請求閉嘴 | 只有 **session 開始之後**寫的計畫才算計畫;不加「幾天算過期」的門檻 |
+| 3 | `name: "yes"` 被讀成含引號 → 每次啟動都警告一個正確的檔案 | frontmatter 脫**成對**引號;不成對的不脫 |
+
+**這一天真正的教訓:我自己安排的九個 run 一個都沒發現這三件事。**
+它們全部跑在 `PiTaskLab`,那是 C.A.S.E. 專案,`isCaseProject` 為真,
+路由器與 `planning-with-files` 這條路**在那裡本來就會讓位** —— 三個缺陷剛好全在盲區。
+**自己安排的場地會遺傳自己的假設;要找缺陷,真實使用勝過受控實驗。**
+
+---
+
 ## Task Queue
 
 > **2026-08-11 起的排序原則(Round 14 TOWS):**
