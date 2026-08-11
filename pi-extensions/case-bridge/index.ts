@@ -17,6 +17,7 @@ import { PhaseGate, useScopeSnapshot } from "./phase-gate.ts";
 import { ScopeSnapshot } from "./harness-scope.ts";
 import { PhaseNotice, claimedTaskDir } from "./phase-notice.ts";
 import { TaskGoalRestate, localConstitution } from "./task-context.ts";
+import { calibratedNumber } from "./calibration.ts";
 
 const MAX_INJECT_CHARS = 3000;
 
@@ -93,27 +94,6 @@ function caseBridgeEnabled(): boolean {
     return JSON.parse(readFileSync(cfgPath, "utf8")).enableCaseBridge !== false;
   } catch {
     return true;
-  }
-}
-
-/**
- * A calibrated integer from the harness config, or the shipped fallback.
- *
- * T-A2 moved these numbers out of enforcement code; this is case-bridge's
- * reader for them. Strict on type: `"12"` is text and `0` would restate after
- * every single tool result, so both fall through to the fallback.
- */
-function calibratedNumber(key: string, fallback: number): number {
-  try {
-    const here = dirname(require.resolve("./package.json"));
-    const pkg = JSON.parse(readFileSync(join(here, "package.json"), "utf-8"));
-    const root = pkg["pi-harness"]?.root || join(here, "../..");
-    const cfgPath = join(root, "pi-config", "harness-config.json");
-    if (!existsSync(cfgPath)) return fallback;
-    const v = JSON.parse(readFileSync(cfgPath, "utf8"))[key];
-    return typeof v === "number" && Number.isInteger(v) && v > 0 ? v : fallback;
-  } catch {
-    return fallback;
   }
 }
 
@@ -228,8 +208,8 @@ export default function (pi: ExtensionAPI) {
   // task-shape restatement reads, because after T-A3 they are one mechanism
   // with one calibration, chosen by whether the project is a C.A.S.E. project.
   const goalRestate = new TaskGoalRestate(
-    calibratedNumber("goalRestateThreshold", 12),
-    calibratedNumber("goalRestateMax", 2),
+    calibratedNumber(harnessRoot() ?? "", "goalRestateThreshold", 12),
+    calibratedNumber(harnessRoot() ?? "", "goalRestateMax", 2),
   );
 
   pi.on("tool_result", async (event, ctx) => {

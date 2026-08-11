@@ -215,3 +215,43 @@ class TestTheListingItselfHonoursTheCap(unittest.TestCase):
         self.addCleanup(shutil.rmtree, root, True)
         text = self.refusal(root, 7, 5)
         self.assertEqual(len(self.lines(text)), 5, text)
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestBothCopiesOfTheReaderAgree(unittest.TestCase):
+    """Two bridges, two copies, one contract.
+
+    The copies exist because bridges install as independent directories and one
+    importing the other's file breaks when either is installed alone. What must
+    not drift is the behaviour, so both are driven against the same fixtures —
+    the scar being `uninstall.py` managing five bridges while `restore.py`
+    managed eleven, with seven left loading forever."""
+
+    COPIES = [
+        (os.path.join(ROOT, "pi-extensions", "task-shape-bridge", "calibration.ts"),
+         "calibrated"),
+        (os.path.join(ROOT, "pi-extensions", "case-bridge", "calibration.ts"),
+         "calibratedNumber"),
+    ]
+
+    def read(self, module, fn, root, key, fallback):
+        return run_js(module, "process.stdout.write(JSON.stringify("
+                              "m.%s(%s, %s, %s)));"
+                              % (fn, json.dumps(root), json.dumps(key), fallback))
+
+    def test_they_return_the_same_answer_for_every_case(self):
+        good = fixture_root({"goalRestateThreshold": 7})
+        self.addCleanup(shutil.rmtree, good, True)
+        missing = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, missing, True)
+        cases = [(good, 7), (missing, 99)]
+        for bad in ["7", 0, -1, True, 2.5, None]:
+            r = fixture_root({"goalRestateThreshold": bad})
+            self.addCleanup(shutil.rmtree, r, True)
+            cases.append((r, 99))
+        for root, expected in cases:
+            answers = [self.read(mod, fn, root, "goalRestateThreshold", 99)
+                       for mod, fn in self.COPIES]
+            with self.subTest(root=root):
+                self.assertEqual(answers, [expected, expected],
+                                 "the two copies disagree: %r" % (answers,))

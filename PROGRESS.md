@@ -64,7 +64,11 @@ harness 名稱)。換成路徑乾淨的真實專案後,L1 在六個 run 裡沒�
 * **成敗判準**:走到 REVIEW **且** Local DoD 的檔案存在。
   失敗也是結果 —— 但這次失敗的原因不會是路徑
 
-**實驗場地(2026-08-11 建立):`D:/MyProject/PiTaskLab`**
+**實驗場地(2026-08-11 建立):`D:/MyProject/PiTaskLab`**,
+來源在版控裡:[experiments/pitasklab/](experiments/pitasklab/README.md)
+(`make-lab.py --out <path>` 重建;**路徑含 `harness` 會被拒絕**)。
+復盤時補的:今天所有數字原本都由 `/tmp` 與 session 暫存區的腳本產生,
+跑在一顆曾經斷線的抽取式磁碟上 —— 場地一消失就全部不可重現。
 
 * **路徑刻意不含 harness 字樣** —— 這是先前四次失效的成因,已驗證
 * 憲法 + Roadmap + 一個任務包(`Task_001_ConfigDrift`)
@@ -76,6 +80,11 @@ harness 名稱)。換成路徑乾淨的真實專案後,L1 在六個 run 裡沒�
 
 **配置紀錄(Harness-Bench 配置層原則):**
 `harness commit 66628da` / `model GRM-3.2-Sky-ONYX-balanced.gguf`
+
+**這一天的完整復盤:[docs/case/2026-08-11-retro.md](docs/case/2026-08-11-retro.md)**
+(三個缺陷同一個形狀、寬容的 catch 吞掉致命錯、fixture 分不出兩種世界、
+誤擋花掉的是呼叫數不是結果、一句話不是機制、任務太簡單量到的就是任務、
+我自己違反了 fixture 必須可重建、查證前提是最划算的一步)
 
 **三個 run 的結果(同一配置):11/11、11/11、1/11**
 
