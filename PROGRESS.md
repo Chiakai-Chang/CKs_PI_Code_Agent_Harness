@@ -113,9 +113,8 @@ harness 名稱)。換成路徑乾淨的真實專案後,L1 在六個 run 裡沒�
 * **CLAIM 閘的新句子起作用了。** run 4 的 call 15 帶著報告被擋(訊息含「剛才那次寫入的內容
   沒有被保存」),模型認領後**在 call 19 重寫了報告** —— 這正是 run 3 沒做的事
 * **PLAN 閘**兩個 run 都要求先有帶 `## Self-Review` 的 `planning.md` 才准寫 `output.md`
-* **驗收物守衛全程沒開口**,因為兩個 run 進 REVIEW 時產出都在。它現在是後備:
-  對 run 3 的那一次呼叫,**安裝版**回 `BLOCKED: …點名的檔案還不存在:output.md`。
-  **live 生效仍未由真實 session 證明**
+* **驗收物守衛在 run 4/5/6 全程沒開口**(進 REVIEW 時產出都在),
+  **但在 run 7 第一次真的擋下了** —— 見下方 T-A2 的紀錄。live 生效已證明
 * **run 5 抓到一個誤擋(已修)**:兩次只讀的 `python3 -c "…glob.glob('data/*.json')…"`
   被 containment 判成寫入 `/*.json` —— 路徑樣式的 `\/` 分支會從 token 中間開始比對。
   代價是模型改用寫暫存腳本的迂迴,多花約十次呼叫(33 vs 23)。加錨點後,
@@ -152,6 +151,23 @@ harness 名稱)。換成路徑乾淨的真實專案後,L1 在六個 run 裡沒�
   迴圈守衛的 4/3/2 **可能真的是校準,但不在這次的清單裡** —— 附觸發條件
 * `calibrated()` 另立 `calibration.ts`:`index.ts` 開頭是 `require.resolve`,
   bare node 載不動,測試會死在 import 而不是斷言
+
+**順帶取得 T-A1 缺的那塊證據:run 7(11/11,28 呼叫,3 分 12 秒)。**
+它走了和 run 3 完全相同的失敗序列,而這次被擋住:
+
+```
+20 write output.md             !! 階段閘(CLAIM):任務還沒認領 —— payload 被丟棄
+21 write status.txt = IN_PROGRESS
+22 write planning.md
+23 write status.txt = REVIEW   !! C.A.S.E. 驗收物守衛:…點名的檔案還不存在:output.md
+24 read  output.md             ENOENT(模型自己去確認)
+25 write output.md             ← 重寫交付物
+26 write status.txt = REVIEW   允許
+```
+
+模型自己的話:*"The output.md wasn't persisted from the earlier attempt. Let me write it now"*。
+**run 3 在第 23 步結束成空的 REVIEW;run 7 在同一步被擋下,然後把事情做完。**
+這是驗收物守衛的第一次真實 session 證據 —— 距離它被寫出來一天,距離它被發現從未生效幾小時。
 
 **測試的教訓,今天第二次:** 出貨值與 fallback 是同一個數字,只驗出貨情境**分不出
 「讀了 config」與「根本沒讀」**。第一版驗了 `listingCap()` 這個輔助函式 ——

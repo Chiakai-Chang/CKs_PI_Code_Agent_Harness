@@ -107,3 +107,28 @@ cd "D:/MyProject/PiTaskLab" && python3 -c "…glob.glob('data/*.json')…"
 
 **守衛的誤擋不會讓工作停下,它讓工作變貴。** 這是一種比拒絕更難發現的成本 ——
 最終 DoD 仍然 11/11,只有呼叫數會說話。
+
+## 第一次真的擋下(run 7,2026-08-11)
+
+harness commit `dfd4016`,同一個任務、同一個模型。呼叫序列與 run 3 相同,結局相反:
+
+```
+20 write output.md             !! 階段閘(CLAIM):任務還沒認領
+21 write status.txt = IN_PROGRESS
+22 write planning.md
+23 write status.txt = REVIEW   !! C.A.S.E. 驗收物守衛:output.md 還不存在
+24 read  output.md             ENOENT
+25 write output.md             ← 重寫
+26 write status.txt = REVIEW   允許                      → 11/11
+```
+
+值得記下來的三件事:
+
+1. **CLAIM 閘的新句子沒有獨力解決問題。** 它在 call 20 講了「剛才那次寫入的內容沒有被
+   保存」,模型仍然直接去寫 REVIEW。是第二道守衛把它擋回來的。
+   run 4 曾經只靠那句話就重寫了 —— 兩個 run,兩種反應,**一句話不是機制**。
+2. **模型被擋下之後做的第一件事是去 `read` 那個檔案。** 它沒有爭辯,也沒有假裝寫過;
+   它去驗證,拿到 ENOENT,然後重寫。拒絕訊息點名了具體檔案,這是它能查證的原因。
+3. **這是「守衛從未生效」到「守衛擋下真實失敗」之間隔了幾小時的同一天。**
+   綠燈的 1287 條測試沒有發現它;一個真實 run 發現了,而修好之後,
+   又是一個真實 run 證明它有用。
