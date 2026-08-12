@@ -1,0 +1,22 @@
+# Line endings, declared for the two file types where mixing them costs
+# something. The repo is genuinely half and half — measured 2026-08-12 across 531
+# tracked text files: 317 CRLF, 209 LF, 5 mixed — and `core.autocrlf=true` keeps
+# it that way, because git writes CRLF on checkout while every file this harness
+# generates is written LF.
+#
+# Normalising all 531 would be a 300-file diff for no stated benefit, so this
+# names only the two that have one:
+
+# Shell scripts. `install.sh`, `update.sh` and `scripts/restore.sh` — the three a
+# new user runs first — are CRLF today, and CI only shellchecks them, never
+# executes them. On Linux a CR becomes part of the token (`X=abc\r`) and a CRLF
+# shebang breaks direct execution; NOT demonstrated on this machine, because
+# Git-for-Windows' bash tolerates both — which is exactly why nobody noticed.
+*.sh text eol=lf
+
+# Bridge sources. `scripts/verify-bridges.py` compares the repo copy against the
+# one installed in ~/.pi byte for byte, so a `git checkout` that rewrites endings
+# reports drift in a file whose content never changed. That happened on
+# 2026-08-12 after restoring a leaked mutation, and a drift check that cries wolf
+# is a drift check people stop reading.
+*.ts text eol=lf
