@@ -102,9 +102,15 @@ class TestOnlyThisRunsPlanCounts(unittest.TestCase):
         session start belongs to the session — the session did not exist before
         that instant, so nothing older can have been written by it, and nothing
         written at it can be history."""
-        started = int(time.time() * 1000) - 5000
-        os.utime(self.plan, (started / 1000.0, started / 1000.0))
-        self.assertTrue(self.has(started))
+        # Whole seconds on purpose. Setting mtime from a millisecond value means
+        # writing a float the filesystem may store a hair lower, and then
+        # `mtimeMs >= started` is false by a fraction of a millisecond — a red
+        # that appears once every few full-suite runs and goes green on a retry.
+        # A whole second is exact on both sides, so the boundary stays a
+        # boundary. Measured 2026-08-13: 1 failure in 5 suite runs before this.
+        whole = int(time.time()) - 5
+        os.utime(self.plan, (whole, whole))
+        self.assertTrue(self.has(whole * 1000))
 
     def test_a_plan_a_minute_older_than_the_session_does_not(self):
         """The boundary itself. One minute is not staleness — it is 'written

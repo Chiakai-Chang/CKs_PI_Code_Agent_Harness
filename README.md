@@ -1,243 +1,283 @@
 # CK's Pi Code Agent Harness
 
-> [!NOTE]
-> 本專案為 [Pi Coding Agent (pi-mono)](https://github.com/badlogic/pi-mono) 提供通用的配置增強與外部模組管理。透過 Git Submodule 與橋接機制，為本地 AI 代理人建立明確的**行為約束**、**記憶管理**與**安全防禦**。
+給 [Pi Coding Agent](https://github.com/badlogic/pi-mono) 用的一層外框:擴充(bridge)、技能、
+設定與驗證腳本。它不改 Pi 本身,只在 Pi 的事件上掛行為約束。MIT 授權,無二進位檔。
 
----
+## 快速開始 (Quick Start)
 
-### 🛡️ 開源信任保證 (Trust & License)
-*   **100% 乾淨透明**：無任何封閉二進位檔案，所有配置與腳本完全公開。
-*   **MIT 授權許可**：本專案採用 MIT 授權，保障使用者之使用、修改與散布權益。
-
----
-
-## 🚀 快速上手 (Quick Start)
-
-### 1. 取得專案
 ```bash
 git clone --recursive https://github.com/Chiakai-Chang/CKs_PI_Code_Agent_Harness.git
 cd CKs_PI_Code_Agent_Harness
+install.bat          # Windows
+bash install.sh      # macOS / Linux
 ```
 
-### 2. 部署配置
-*   **Windows**: 雙擊或執行 `install.bat`
-*   **macOS / Linux**: 執行 `bash install.sh`
+更新用 `update.bat` / `bash update.sh`。解除安裝、模式選擇與非互動用法見下方〈安裝與更新〉。
 
-### 3. 更新與升級 (Update & Fix Guide)
-已安裝過的使用者一鍵更新（設定與自訂技能都會保留）：
-*   **Windows**：雙擊 `update.bat`
-*   **macOS / Linux**：執行 `bash update.sh`
-*   **進階（等同上述）**：`python scripts/setup.py --mode update`
-    — 內部自動執行 `git pull --recurse-submodules` → `restore --auto` （自動同步全部 13 個 Extension 至 `~/.pi/agent/extensions/`） → `pi update --all`。
-
-> 🛠️ **舊用戶修復指南（若遇到 `@file` 無法讀取、標籤/JSON 假工具呼叫卡死、死鎖停擺、agent 宣告下一步就結束回合、PowerShell 指令在 Windows 上總是失敗）**：
-> 1. **執行一鍵更新**：執行上述 `update.bat` 或 `bash update.sh`，同步 Universal Parser 標籤轉譯器與 Self-Healing 擴充。
-> 2. **確認 `pi-config/harness-config.json` 減重配置**：若使用本地模型（如 `grm-2.6-plus` / llama.cpp），確保配置包含：
->    ```json
->    {
->      "promptProfile": "slim",
->      "enableTasteBridge": false,
->      "enableCaseBridge": true,
->      "caseBridgeMaxChars": 600,
->      "enablePlanningBridge": true,
->      "planningBridgeMaxChars": 600,
->      "enableUniversalTagTransformer": true,
->      "enableSelfHealingLoopGuard": true,
->      "enableDeepResearch": false,
->      "eccSkillModules": ["workflow-quality", "agentic-patterns", "security", "optimization-workflows"]
->    }
->    ```
-> 3. **2026-07-31 新增的四道防護**（一鍵更新即生效，無需額外設定）：
->    * **未兌現意圖守衛**：回合宣告「接下來要做 X」卻沒有任何工具呼叫就結束時，自動要求它真的去做。實測中這個形狀造成 6 個真實任務裡 3 個零產出，而既有守衛全部看不見它（它們找的是「宣稱**已完成**」，語意相反）。
->    * **跨 shell 引號守衛**：Windows 上 Pi 透過 bash 執行指令，`powershell -Command "...$var..."` 的變數會先被 bash 吃掉。現在會擋下並指名替代寫法。
->    * **子代理寫入邊界**：`deep_research` 的子代理曾在純研究任務中修改不相關的原始碼，且母 session 的 log 完全看不到。子代理現在不再持有 `bash`/`edit`/`write`。
->    * **子代理輸出上限**：一個失控子代理的 stdout 曾撐爆 V8 字串上限，**殺死母 Pi 行程**。兩條串流現在都有上限。
->
-> 4. **2026-08-04 新增 `async-exec-bridge`（一鍵更新即生效）**：新增 `bg_start` / `bg_status` / `bg_cancel` 三個工具，讓 agent 把長工作丟到背景、就地結束該輪，完成時自動被喚醒續跑（詳見上方功能說明與其中的安全須知）。**舊用戶請注意兩件事**：
->    * 更新後 `~/.pi/agent/extensions/` 會多一個 `async-exec-bridge/` 目錄——Pi 是**依目錄自動探索**的，`settings.json` 不會、也不該多出一筆（重複註冊曾造成工具名稱衝突而讓 Pi 完全無法啟動）。
->    * 專案目錄下會出現 `.pi/async-exec/`（工作記錄與輸出擷取），已加入 `.gitignore`。它是崩潰後對帳的唯一依據，請勿在工作進行中刪除。
->    * 同一次更新也修好了一個既有缺陷：`uninstall.py` 的受管 bridge 名單停在 5 個、而 `restore.py` 已管到 11 個，導致解除安裝會在 `~/.pi/agent/extensions/` **留下 7 個 bridge 繼續被載入**。名單現已補齊為 13 個並由測試鎖住，曾解除安裝過的使用者若發現殘留目錄，可手動刪除或重跑一次 `python scripts/uninstall.py`。
->
-> 5. **`deep_research` 自 2026-07-31 起預設關閉**（`enableDeepResearch: false`）。實測同一個問題：它耗時 44 分鐘、四個子代理、零可用產出；直接用 `web_search` + `web_open` 則 8 分鐘給出有具名出處的答案。程式碼與測試都保留，要用時把該旗標改成 `true` 再跑一次更新即可。**舊設定檔沒有這個鍵時視為關閉**，所以升級不會意外開啟它。
->
->    *`eccSkillModules` 控制 ECC 子模組要註冊哪些技能。Pi 會把**每一個**已註冊技能的 name / description / 絕對路徑寫進每一輪的 system prompt，ECC 全量 277 個技能實測為 110,240 字元（約 27,560 tokens）。改為依 ECC 上游 module 分類精選後，實測降為 65 個技能；整體技能區塊由 35,437 tokens 降至 14,202 tokens。需要完整領域包時設為 `"all"`，或自行列出 [`external/ecc/manifests/install-modules.json`](external/ecc/manifests/install-modules.json) 中的 module id。*
-
-> 啟動時若見到 `[Skill conflicts]` 警告：`external/*` 子模組技能（如 `agents-best-practices`、`darwin-skill`）不再於 `restore.py` 執行當下寫死進 `settings.json`。改由 `skill-namespace-guard` 這個 extension 在**每次** Pi 啟動時即時比對——內容跟全域已安裝的版本相同就跳過（不重複註冊），內容不同（你自己另外裝了同名但不同的東西）才會把 harness 這份隔離成 `harness-<name>` 兩份並存，不會動到你自己裝的版本。詳見 [docs/superpowers/specs/2026-07-21-skill-namespace-isolation-design.md](docs/superpowers/specs/2026-07-21-skill-namespace-isolation-design.md)。
-
-### 解除安裝 (Uninstall)
-*   **只移除 harness 管理項**（保留你自己的技能與 `~/.camofox` 登入資料）：`python scripts/uninstall.py`
-*   **完整刪除、重來**（逐項確認，可額外刪 `~/.camofox`、備份、Pi 本體）：`python scripts/uninstall.py --purge`
-    — 最後會提示手動刪除 repo 資料夾。
-
-### 健康度驗證 (Health Checks)
-*   **Bridge 驗證**：`python scripts/verify-bridges.py` — 檢查所有橋接程式的入口路徑存在性、manifest 與 package.json 註冊一致性（零依賴）。
-*   **設定檔驗證**：`python scripts/validate-config.py` — 檢查 `pi-config/settings.json` 格式完整性、反模式偵測（已提交之機器特定路徑、明文金鑰）。
-*   **提示衝突稽核**：`python scripts/check-prompt-conflicts.py` — 把 13 個 bridge 各自注入的指令**合起來看**：偵測「for any task」這類無條件宣稱（會吃掉其他工具的適用範圍）、列出被多個工具同時宣稱的觸發詞、統計每輪注入總量，並明確標出它**沒有**涵蓋的部分（直接改寫 `systemPrompt` 的 bridge）。
-*   **觸發率量測**：`python scripts/measure-triggers.py` — 以**不點名工具/技能**的情境描述任務，量測該觸發的機制有沒有真的觸發，並含「不該觸發」的反向情境（避免把指引寫得越來越強勢）。每情境重複 N 次取比率（本機模型 temp 0.6，單次樣本不可判讀），session 寫入隔離暫存目錄、cwd 為中性空目錄，避免污染真實歷史。速度慢，**不進 CI**。
-
-### 外部來源管理
-*   `external-manifest.json` 統一記錄全部外部來源（18 個 Git Submodule、參考克隆、蒸餾來源），取代過去 submodule / clone / 蒸餾混用無統一紀錄的狀態。每個來源標明整合方式（bridge / skill bridge / 僅參考）與更新策略。
-
-### 4. 模式選擇 (Profiles)
-安裝時可依需求選擇以下配置模式：
-*   **`minimal`** (極簡核心)：適合對對話 Token 敏感的輕量開發。
-    *   📦 **僅載入**：`Core 核心`（含 `hello-reflect` 自我演進）、`Caveman`（極簡對話防護）、`ECC`（通用工程實踐）。
-*   **`standard`** (預設標準版)：適合日常通用軟體開發。
-    *   📦 **載入項目**：包含本專案整合之**所有 17 個外部子模組**與所有本地擴充（TDD 方法論、Wiki 知識庫、AST 圖譜導航等）。
----
+> **這份 README 的寫法:** 每一個數字都標明**什麼時候、在什麼配置上量的**,並且分成
+> 「量過的」與「沒量過的」兩區。沒量過的事寫在〈尚未證明的部分〉,不寫在功能清單裡 ——
+> 這是本專案的第一條紀律([Evidence-Based Completion](CLAUDE.md)),README 也不例外。
 
 ---
 
-## 🛠️ 核心功能與 5 層 Harness OS 架構
+## 它想解決的問題
 
-本專案將 **13 大開源蒸餾核心技能**、**13 大 Extension Bridges** 與 **17 個外部子模組** 無縫熔鑄為 5 層閉環操作系統 (Harness OS)，兼顧開發效率、網頁檢索能力與系統安全：
+擁有者的原話,也是整個專案的驗收標準:
+
+> 「每次專注做一件事,做完復盤,有發現就增加 task queue」
+> 「他多搜幾次是好的阿?越多越好不是?**我抱怨的是他沒有先規劃就開始**」
+
+拆成三個可判定的問題:
+
+| | 問題 | 這個 harness 的做法 |
+|---|---|---|
+| **L1** | agent 在錯的地方工作(跑出專案、改到不相干的檔案) | bash 圍堵、子代理寫入邊界、目錄外移偵測 |
+| **L2** | 沒規劃就開工、沒產出就宣稱完成 | C.A.S.E. 階段閘(認領→規劃→產出→驗收)、驗收物守衛 |
+| **L3** | 跑到第 20 步已經忘記原本要什麼 | 任務目標中途重述(`before_agent_start` 只在每則使用者訊息觸發一次,不夠) |
+
+---
+
+## 量過的部分
+
+**測量配置**(能力屬於 model–harness 配對,不屬於模型 —— Harness-Bench, arXiv 2605.27922):
+本機 llama.cpp + `GRM-3.2-Sky-ONYX-balanced.gguf`,`n_ctx 262144`、`n_slots 1`,Windows 11。
+**換模型或換 harness commit,以下數字都要重測。**
+
+### C.A.S.E. 任務迴圈能不能把一件事做完
+
+在一個路徑不含 harness 名稱的真實專案(`PiTaskLab`)上,用**事先算好的標準答案**評分,
+提示不告訴模型 cwd、也不告訴它任務名稱:
+
+| 批次 | 結果 |
+|---|---|
+| run 1–2 | DoD **11/11**、11/11 |
+| run 3 | **1/11** —— 走到 REVIEW 但資料夾是空的。定位出兩個缺陷(見下),修好 |
+| run 4–8 | **11/11 × 5**,23–33 次工具呼叫,2–4 分鐘 |
+| run 9(較難的任務) | **9/9**,11 輪一輪不差 |
+
+run 3 暴露的兩個缺陷,兩個都已修並附行為測試:
+* **驗收物守衛從來沒有生效過** —— 呼叫用到一個不在該 scope 的變數,每次都拋 `ReferenceError`,
+  被旁邊那個「recipe 讀不到就放行」的 `catch` 吞掉。**11 個單元測試全綠,守衛全程沒運作**
+* **被拒絕的寫入會把內容丟掉,而沒有人講** —— 模型帶著完成的報告被閘擋下,認領後不再重寫。
+  閘的措辭現在明講「剛才那次寫入的內容沒有被保存」
+
+修好之後,**驗收物守衛在 run 7、run 8 各真的擋下一次空的 REVIEW**(session log 為憑),
+模型隨即自己去 `read` 該檔、拿到 ENOENT、重寫交付物。
+
+### 一次真實使用(不是實驗室)
+
+2026-08-13,`019ff6c1`,一個十項要求的社會事件調查,38 次工具呼叫 / 28 輪 / 1 則使用者訊息:
+
+* **先規劃再搜尋** —— 第 9 步寫 `task_plan.md`,第 10 步才第一次 `web_search`
+* **任務目標中途重述送達 2 次**(第 12、第 24 次工具結果後)
+* **引用閘擋下 2 次**,模型接著 `web_open` 開了 7 個實際頁面
+* 產出 7 個階段檔 + 一份綜合報告,10 項要求全部有對應段落
+* **碰到 harness 目錄 1 次**(載入技能),其餘全在使用者自己的專案裡
+
+同一個 session 也暴露兩個**新的**缺陷,已記入 [PROGRESS.md](PROGRESS.md):
+* **路徑中途漂移** —— 第 32 步起模型少寫了 `02_Task_Queue/` 這一層,
+  後半段的交付物落在專案根目錄的另一個同名資料夾。**沒有任何守衛看得見**(兩邊都在專案內)
+* **時間戳是捏造的** —— 產出的 `progress.md` 寫「2026-08-07 14:00–18:00」,
+  實際檔案時間是 2026-08-13 00:18–00:40
+
+### 這個模型的噪音底線(2026-08-12,n=5)
+
+同一個提示、同一臂、同一配置跑五次:工具呼叫 47 / 62 / **116** / 44 / 49。
 
 ```
-+-----------------------------------------------------------------------+
-|  Layer 0: Security & Protection (安全治理與防護層)                     |
-|  • YES.md pre-bash-guard + yes-hooks-bridge (指令硬鎖/Tag轉義/Strike 3)|
-|  • skill-namespace-guard (動態碰撞隔離) + validate-config.py 靜態合規  |
-+-----------------------------------------------------------------------+
-                                   |
-                                   v
-+-----------------------------------------------------------------------+
-|  Layer 1: Socratic Framing (需求研討與對立審查層)                       |
-|  • grilling-protocol (蘇格拉底一問一答需求釐清門控)                       |
-|  • contrarian-review & adversary-review (逆向鋼鐵人反方與極限對立審查) |
-+-----------------------------------------------------------------------+
-                                   |
-                                   v
-+-----------------------------------------------------------------------+
-|  Layer 2: Context Engine (上下文與記憶專注層)                          |
-|  • minimal-prompt-guide (~80-200 Token 注意力專注)                      |
-|  • compact-continuation-bridge (對話壓縮後自動接續工作)                |
-|  • hello-reflect (經驗自動提煉與 AGENTS.md / CLAUDE.md 規則自演進)     |
-|  • Caveman (語意無損 Token 壓縮防禦)                                  |
-+-----------------------------------------------------------------------+
-                                   |
-                                   v
-+-----------------------------------------------------------------------+
-|  Layer 3: Execution & Repair OS (執行管束、網頁檢索與工具自癒層)        |
-|  • browser-automation-guide + camofox-stealth (AX-Tree 定位/反偵測檢索) |
-|  • workflow-os-guide (Pins, Gates, Steers & HANDOFF.md 斷點保存)       |
-|  • subagent-orchestration-guide (cheap/balanced/max 模型分層調度)     |
-|  • tool-repair-guide (9 大 Canonical 欄位自癒修復)                      |
-|  • ide-intelligence-guide (LSP 語意診斷前檢 & 模型專屬 Edit 格式)       |
-+-----------------------------------------------------------------------+
-                                   |
-                                   v
-+-----------------------------------------------------------------------+
-|  Layer 4: Evidence Gate (證據驗證與基因進化層)                        |
-|  • autonomous-experiment-guide (MAD 統計顯著性驗證)                    |
-|  • harness-factory-guide (Repo Fit 打分、Darwin 演化 & mcp-scan)        |
-|  • 490 個自動化單元測試網 (2026-08-04 實跑，含一致性校驗)             |
-+-----------------------------------------------------------------------+
+tool_calls         sd 26.91   →  想偵測 10 次呼叫的差,需要 n=29
+assistant_turns    sd 13.96
+blocked            sd  5.19
+advance_injections sd  0.49   →  這一類指標 n=2 就夠
 ```
 
-### 核心功能三大維度與蒸餾技能整合
+**結論不是「數字很吵」,是「用呼叫數比較就是在讀雜訊」。** 判斷要用二元的 DoD ——
+同樣這五次,`status` 5/5 都是 REVIEW、交付物清單 5/5 完全相同。
+過程指標吵,結果指標穩。完整判準與原始資料:[docs/measurements/2026-08-12-noise-floor.md](docs/measurements/2026-08-12-noise-floor.md)
 
-#### 1. 🌐 網頁檢索與自動化實務 (Web Research & Automation)
-*   **深度網頁研究 (`deep_research` 工具 + `deep-research-guide`)**：不再只是散文指引——`deep-research-bridge` 註冊真正的 `deep_research` 工具，把每個子問題 spawn 成獨立的 `pi --print` 子行程（Pi 官方 subagent 做法）。子行程用自己的 context 讀網頁，只回傳精簡發現。**序列執行、上限 5 個子問題**，因為本機 llama.cpp 以 `-np 1` 啟動時並行請求會序列化（實測：兩個並行請求分別於 7.3s / 14.3s 完成），並行不會更快、只會讓牆鐘時間乘以 N。價值在 **context 隔離**：實測一次研究回傳父層僅 1,408 字元，而父層直接 `web_search` 單次就是 14,613 字元。
-*   **隱身網頁瀏覽與搜尋 (`camofox-stealth` + `stealth-web-bridge`)**：內建 Camoufox 反偵測瀏覽器，提供 `web_search` 與 `web_open` 工具，可穿透 Cloudflare 與複雜 JS 牆，支援分頁與登入態管理。實測 126 次搜尋僅 1 次被擋。回傳採**閱讀檢視**：依 AX-tree 語意角色剝除導覽子樹與 `[eN]` 參照（實測文章頁 8,253→1,936 字元）。**搜尋結果與標題連結的 `/url:` 會保留並解開轉址**——實測搜尋結果頁 12,886→3,581 字元、附 8 條可直接引用的位址，而文章頁的成本為 0%（文章的連結是內文連結，沒有標題）。這條當初為省 token 全部剝除，結果是 632 次搜尋回傳 0 個網址、模型只能憑印象重建位址，並統一套用 Pi 自身的 2000 行 / 50KB 工具輸出預算、超出部分落檔並在結果中告知路徑。需要點擊/輸入時以 `raw: true` 或 `web_snapshot` 取回完整樹。
-*   **AX-Tree 語意定位 (`browser-automation-guide`)**：蒸餾自 `pi-browser-harness`，優先使用 Accessibility Tree (AX-Tree) 語意節點進行頁面元素定位與變更驗證，大幅提升網頁資料抓取與操作精準度。
+### 其它有量測的數字(附量測日期)
 
-*   **背景執行與自動續跑 (`bg_start` / `bg_status` / `bg_cancel` + `async-exec-bridge`)**：慢模型本身不是最痛的，**慢又同步**才是——工作交出去以後 agent 只能卡著等，人也被綁在螢幕前。`bg_start` 把長工作（build、整套測試、benchmark）以 detached 子行程送出後**立刻回傳**，agent 可以就地結束這一輪；工作完成時 bridge 主動喚醒它並帶回結果尾段，全部做完再以 `agent_settled` 通知你一次。實測（GRM-3.2-Sky-OPAL，Vulkan，`-np 1`）：派工到自動續跑 32 秒，其中工作本身佔 20 秒。狀態一律落檔在 `.pi/async-exec/`，所以 Pi 被砍掉也能在下次啟動時對帳補報。
-    *   **安全須知**：`bg_start` 執行的是**任意 shell 指令、detached、不另外確認**，而且**中止 agent 不會中止它派出的背景工作**——這既是它的價值也是它的風險。要停就用 `bg_cancel`（連整棵進程樹一起殺）。目前沒有白名單與確認提示，若要接不受信任的提示來源請先自行加上。
-    *   **逐工作逾時**：`bg_start` 可傳 `timeoutMs` 覆寫預設的 30 分鐘,值由機制**夾在 10 秒至 24 小時之間**（模型給的值不被信任;`NaN` 這類輸入會退回預設,否則會變成「永遠不會逾時」）。逾時會殺掉整棵進程樹並標記為 `timeout`。
-    *   **Telegram 旁路通知（選用,預設關閉）**：在 `pi-config/harness-config.json` 設 `"asyncExecTelegramNotify": true` 後,全部工作做完時除了終端機通知,也會透過**你已設定好的 `pi-telegram`**（讀 `~/.pi/agent/telegram.json` 的 `botToken` 與 `allowedUserId`）發一則訊息。**預設關閉是刻意的**——這是對外網路傳送,不該因為偵測到設定檔就自動開啟。未安裝／未連線／傳送失敗一律靜默略過,**絕不影響工作狀態**。
-    *   **磁碟保留策略（保守預設）**：已回報且已完成的工作紀錄保留 **7 天**，且最多保留 **50 筆**，超出者由舊到新清除（連同輸出擷取檔一起）。**執行中、以及尚未回報過的完成結果永不清除**，不論多舊——那是崩潰復原唯一的依據。清理在 `session_start` 對帳**之後**才進行，所以不會刪掉還沒被讀到的結果。
-    *   **`localModel` 參數**：`none`（預設，可重疊）／`shared`（共用同一個本地模型 server）／`exclusive`（v1 直接拒絕——沒有 GPU 探測就無法誠實判斷第二個模型塞不塞得下，寧可拒絕也不猜）。若你的 llama-server 以 `-np 2` 以上啟動，設環境變數 `PI_MODEL_SERVER_SLOTS` 對應該值；預設值 1 是保守讀法，會如實警告 `shared` 工作會**阻塞**而非只是拖慢。
-
-#### 2. 🛡️ 安全治理與工程紀律 (Security & Engineering Discipline)
-*   **毀滅指令硬封鎖與循環防禦 (`yes-hooks-bridge` / `pre-bash-guard`)**：在模型執行 Bash 前以腳本硬性攔截高風險指令 (`rm -rf /`、`git push --force` 等)；內建 `loopGuard` 轉義標籤並於 Strike 3 自動啟動人類控制權斷路器（`deliverAs: "followUp"`），防止 Agent 陷入無限重複死循環。
-
-*   **需求研討與對立審查 (`grilling-protocol` / `contrarian` / `adversary`)**：強制執行一問一答需求釐清，並透過鋼鐵人反方與極限對立測試，避免 AI 瞎猜或陷入單一視角。
-*   **工具參數自癒修復 (`tool-repair-guide`)**：提供 9 大 Canonical 欄位修復與降級備援，防止 LLM 工具呼叫時 JSON 格式毀損造成執行中斷。
-
-#### 3. 🧠 工作流與上下文演進 (Workflow & Context Evolution)
-*   **模型專屬 IDE 診斷 (`ide-intelligence-guide`)**：自動匹配 LLM 最強 Editing 格式（Line-diff / Full-file / Search-replace），並於儲存前前置觸發 LSP 語意診斷。
-*   **斷點保存與續作 (`workflow-os-guide` / `compact-continuation-bridge`)**：產生決定性 `HANDOFF.md` 狀態快照，且在 Context 壓縮時自動續接任務。
-*   **海馬迴規則自演進 (`hello-reflect`)**：從每次對話自動提煉經驗，寫入 `.agents/AGENTS.md` / `CLAUDE.md` 實現規則自我進化。
+| 項目 | 數字 | 日期 |
+|---|---|---|
+| 單元測試 | `Ran 1413 tests ... OK`(零依賴,stdlib unittest) | 2026-08-13 |
+| Bridge 安裝一致性 | `13 bridges checked, 0 failure(s)` | 2026-08-13 |
+| ECC 技能注入量 | 全量 277 技能 ≈ 27,560 tokens → 依 module 精選 65 個,技能區塊 35,437 → 14,202 tokens | 2026-07 |
+| 隱身檢索閱讀檢視 | 文章頁 8,253 → 1,936 字元;搜尋結果頁 12,886 → 3,581 字元且保留 8 條可引用位址 | 2026-07 |
+| `deep_research` 對照 | 同一問題:子代理 44 分鐘 / 零可用產出;`web_search`+`web_open` 8 分鐘 / 有具名出處 | 2026-07-31 |
+| 真實 session 規劃順序 | 31 個 session:search-first **0**、no-plan 93.5%(此為**修正技能名稱之前**的基線) | 2026-08-12 |
 
 ---
 
-## ⚙️ Harness OS 與 Pi Engine 整合架構與共存矩陣
+## 尚未證明的部分
 
-本專案與原生 Pi Coding Agent 引擎**並非競爭或重複**，而是作為 **「Pi 引擎的 Harness OS (駕駛艙與守護框架)」**。詳細之完整 MECE 分析請參閱獨立技術文件：[📖 Harness OS 整合與共存完整指南 (docs/core/HARNESS_INTEGRATION_GUIDE.md)](docs/core/HARNESS_INTEGRATION_GUIDE.md)。
+寫在這裡,是因為把它們寫進功能清單就是這個 repo 反覆踩到的坑。
 
-### 💡 三大核心共存保證 (Coexistence Promises)
-
-1. **零覆蓋保護 (Zero Overwrite)**：`restore.py` 與 `uninstall.py` 嚴格限定僅管理 `managed_skills` 清單，絕不任意刪除或覆蓋使用者自行安裝於全域的 `.pi/agent/skills/` 與 `extensions`。
-2. **動態碰撞隔離 (Namespace Guard)**：當使用者安裝之技能與本專案外部技能同名時，`skill-namespace-guard` 在每次 Pi 啟動時自動比對，若內容不同則平滑重命名為 `harness-<name>` 獨立並存。
-3. **零擴充雙重註冊碰撞 (Config Hygiene)**：本 Harness 內部 13 大 Extension Bridges（如 `yes-hooks-bridge`、`stealth-web-bridge` 等）由 `restore.py` 實體複製至擴充目錄並由 Pi 自動載入，**絕不**重複寫入 `settings.json` 的 `extensions` 陣列中，防止 `registerTool()` 工具同名衝突崩潰。
-
----
-
-## 🎓 蒸餾核心技能 (Distilled Core Skills in `pi-skills/core/`)
-
-本 Harness 將 13 個頂級開源 Agent 專案之精神與演算法精華，蒸餾為零外部依賴、完全遵循 C.A.S.E. 協定的特化技能（收錄於 [pi-skills/core/](file:///D:/MyProject/CKs_PI_Code_Agent_Harness/pi-skills/core/)）：
-
-| 技能名稱 | 蒸餾來源專案 | 核心機制與解決問題 | 整合層級 |
-| :--- | :--- | :--- | :---: |
-| **`deep-research-guide`** | [pi-browser-harness](https://github.com/amankumarsingh77/pi-browser-harness) | 需求多維拆解、多子代理發散檢索、雙重硬上限門控與具名引用報告生成 | Layer 3 |
-| **`browser-automation-guide`** | [pi-browser-harness](https://github.com/amankumarsingh77/pi-browser-harness) | AX-Tree 語意定位與頁面變更驗證 (配合 `camofox-stealth` 網頁檢索) | Layer 3 |
-| **`ide-intelligence-guide`** | [oh-my-pi](https://github.com/audreyt/oh-my-pi) / [can1357](https://github.com/can1357/oh-my-pi) | 模型專屬編輯格式適配 (Model-adapted Edits) 與 LSP 語意診斷前檢 | Layer 3 |
-| **`harness-factory-guide`** | [metaharness](https://github.com/ruvnet/metaharness) | Repo Fit 打分 (`score`)、Darwin 演化 (`evolve`) 與 MCP 靜態安全預檢 | Layer 4 |
-| **`grilling-protocol`** | [harness-engineering](https://github.com/vinicius91carvalho/harness-engineering) | 一問一答需求研討 (Grilling Interview) 與不可變 Evidence QA 門控 | Layer 1 |
-| **`contrarian-review`** | [the-last-harness](https://github.com/diegopetrucci/the-last-harness) | 逆向鋼鐵人反方論證 (Ironclad Anti-Thesis Review) + 28 天自動輪替清理 | Layer 1 |
-| **`adversary-review`** | [ultimate-pi](https://github.com/aryaniyaps/ultimate-pi) | 對立面審查與極限壓力測試 (Adversarial Stress Testing) | Layer 1 |
-| **`autonomous-experiment-guide`**|[pi-autoresearch-harness](https://github.com/monotykamary/pi-autoresearch-harness)| MAD 統計顯著性評分與自動化實驗 (MAD Statistical Confidence) | Layer 4 |
-| **`tool-repair-guide`** | [pi-tool-repair-layer](https://github.com/calionauta/pi-tool-repair-layer) | 9 大 Canonical 欄位修復與強韌 Fallbacks (9 Canonical Field Repairs) | Layer 3 |
-| **`guardian-pipeline-guide`** | [agentic-harness.pi](https://github.com/Jitsusama/agentic-harness.pi) | 檢測-解析-審查管線合約與生命週期治理 (`detect` -> `parse` -> `review`) | Layer 4 |
-| **`subagent-orchestration-guide`**|[pi-superagents](https://github.com/teelicht/pi-superagents) | 抽象模型分層 (`cheap`/`balanced`/`max`) 與血統上下文隔離 | Layer 3 |
-| **`minimal-prompt-guide`** | [Huiyu-Pi](https://github.com/huiyu9144/Huiyu-Pi) | ~80-200 Token 極簡 Prompt 注意力專注 (Attention Focus Optimization) | Layer 2 |
-| **`workflow-os-guide`** | [auto-pi](https://github.com/romiluz13/auto-pi) | Pins, Gates, Steers 階段門控與決定性 Handoff 生成 (`HANDOFF.md`) | Layer 3 |
-| **`hello-reflect`** | [claude-reflect](https://github.com/BayramAnnakov/claude-reflect) | 規則自演進與海馬迴對話記憶提煉 (Automated Rule & Memory Evolution) | Layer 2 |
+* **L3(長 run 不漂移)沒有量測。** 目前的任務 23–38 次呼叫就結束,長度不足以觀察漂移。
+  C.A.S.E. §16 的 Handoff Capsule **尚未實作**
+* **只在一台機器、一個本機模型上測過。** 沒有跨模型比較,也沒有雲端模型的數字
+* **`enableCaseAdvancer` 預設為 `false`** —— 自動推進佇列的效果沒有足夠樣本
+* **`deep_research` 預設關閉**(`enableDeepResearch: false`),理由見上表。程式碼與測試都留著
+* **任何「效果」宣稱都受上面那個噪音底線限制。** 呼叫數差 10 次以內的比較,在 n<29 時無意義
+* **守衛只在真實跑過的情境下算驗證過。** 綠色測試只證明程式做了你叫它做的事;
+  一個從沒在真實 run 裡響過的守衛,狀態是「未驗證」,不是「正常」
 
 ---
 
-## 📂 整合外部倉庫 (Submodules & Bridges)
+## 安裝與更新
 
-說明：「**外部倉庫**」為整套 Git Submodule 或 Bridge 程式碼庫；「**蒸餾技能**」為提煉其精神、模式與核心演算法後，以 C.A.S.E. 規格重構寫入 [pi-skills/core/](file:///D:/MyProject/CKs_PI_Code_Agent_Harness/pi-skills/core/) 的零依賴核心技能。兩者相互呼應、融會貫通：
+* **安裝** —— Windows:`install.bat`;macOS / Linux:`bash install.sh`
+* **更新**(保留你的設定與自訂技能) —— Windows:`update.bat`;macOS / Linux:`bash update.sh`
+  * 等同 `python scripts/setup.py --mode update`:`git pull --recurse-submodules` →
+    `restore --auto`(**自動同步全部 13 個 Extension** 至 `~/.pi/agent/extensions/`)→ `pi update --all`
+  * **非互動情境**(腳本、背景工作)請直接用 `python scripts/restore.py --auto --profile standard < /dev/null`。
+    `setup.py --mode restore` 會停下來問設定檔編號,在背景會**永遠等下去**
+* **解除安裝** —— `python scripts/uninstall.py`(只移除 harness 管的項目);
+  `--purge` 則逐項確認、可一併清掉備份與 Pi 本體
 
-| 領域 | 來源專案 / 概念 | 導入方式 | 核心功能 | Minimal | Standard |
-| :--- | :--- | :--- | :--- | :---: | :---: |
-| **工程紀律** | [ECC](https://github.com/affaan-m/ECC) | Git Submodule | 安全審查與品質門檻 | ⚠️ | ✅ |
-| **工作流** | [Planning-with-Files](https://github.com/OthmanAdi/planning-with-files) | Git Submodule | 任務規劃與狀態快照 | ❌ | ✅ |
-| **專案知識** | [LLM Wiki](https://github.com/praneybehl/llm-wiki-plugin) | Git Submodule | 知識庫沉澱與鏈接文件 | ❌ | ✅ |
-| **方法論** | [Superpowers](https://github.com/obra/superpowers) | Git Submodule | TDD 方法論與微步提交 | ❌ | ✅ |
-| **資源防禦** | [Caveman](https://github.com/JuliusBrussee/caveman) | Git Submodule | Token 壓縮防禦 | ⚠️ | ✅ |
-| **行為準則** | [Karpathy](https://github.com/multica-ai/andrej-karpathy-skills) | Git Submodule | LLM 寫入防護指引 | ❌ | ✅ |
-| **提示工程** | [Prompt Master](https://github.com/nidhinjs/prompt-master) | Git Submodule | 提示詞優化範本 | ❌ | ✅ |
-| **安全治理** | [YES.md](https://github.com/sstklen/yes.md) | Submodule + Bridge | `yes` 行為紀律技能＋ `pre-bash-guard` 硬擋毀滅性指令 | ❌ | ✅ |
-| **美學/UX** | [Taste Engine](https://github.com/Leonxlnx/taste-skill) | Git Submodule | 設計樣式與視覺引導 | ❌ | ✅ |
-| **基因優化** | [Evolver](https://github.com/EvoMap/evolver) | Git Submodule | 失敗模式與 Prompt 演化 | ❌ | ✅ |
-| **提示微調** | [Darwin](https://github.alchaincyf/darwin-skill) | Bridge (橋接) | Prompt 變異優化 | ❌ | ✅ |
-| **辯證分析** | [Qiushi](https://github.com/HughYau/qiushi-skill) | Bridge (橋接) | 重構前後對照分析 | ❌ | ✅ |
-| **除錯實踐** | [Best Practices](https://github.com/DenisSergeevitch/agents-best-practices) | Bridge (橋接) | 系統化除錯引導 | ❌ | ✅ |
-| **圖譜導航** | [Graphify](https://github.com/safishamsi/graphify) | Bridge (橋接) | AST 本地圖譜分析 | ❌ | ✅ |
-| **循環工程** | [Loopy](https://github.com/Forward-Future/loopy) | Bridge (橋接) | 工作流閉環控制 | ❌ | ✅ |
-| **環境治理** | [C.A.S.E.](https://github.com/Chiakai-Chang/Local-Agent-Workspace/tree/main/C.A.S.E._Framework) | Bridge (橋接) | C.A.S.E. 任務管束協定 | ❌ | ✅ |
-| **多維推理** | [MECE-Autopilot](https://github.com/Chiakai-Chang/MECE-Autopilot) | Bridge (橋接) | 互斥窮盡多角色辯論與收斂 | ❌ | ✅ |
-| **記憶進化** | [claude-reflect](https://github.com/BayramAnnakov/claude-reflect) | 本地移植 (蒸餾) | 專案規則檔案自演進 (`hello-reflect`) | ✅ | ✅ |
-| **隱身瀏覽** | [camofox-browser](https://github.com/jo-inc/camofox-browser) | Thin Bridge (橋接) | Camoufox 隱身瀏覽引擎 (`web_*` / `camofox-stealth`) | ❌ | ✅ |
+### 安裝模式
+
+| 模式 | 內容 |
+|---|---|
+| `minimal` | Core 核心(含 `hello-reflect`)、Caveman、ECC |
+| `standard`(預設) | 全部 18 個外部子模組與全部本地擴充 |
+
+### 改完東西一定要做的事
+
+**Pi 跑的是安裝好的副本,不是你的 repo 檔案。** 動過 `pi-extensions/` 或 `pi-skills/` 之後,
+先 `python scripts/setup.py --mode restore`,否則你測的是上一版。
+`python scripts/verify-bridges.py` 會直接比對 repo 與 `~/.pi` 的內容並指出差異。
 
 ---
 
-## 🛡️ 隱私與安全限制
+## 健康檢查與驗證腳本
 
-*   **本地優先**：所有代碼分析（如 AST 拓撲）完全於本地運行，不對外洩漏專案結構。
-*   **防寫保護**：防禦規則禁止 AI 任意修改或刪除系統關鍵配置（如 `.env` 與設定檔）。
-*   **完全透明**：所有防呆 Hooks 與約束規則完全開源且透明。
+| 指令 | 檢查什麼 |
+|---|---|
+| `python -m unittest discover -s tests` | 全部單元測試(零依賴) |
+| `python scripts/verify-bridges.py` | 入口路徑、manifest 與 package.json 一致性,**以及安裝副本是否還等於 repo** |
+| `python scripts/validate-config.py` | 設定檔格式、反模式、機器特定路徑與明文金鑰 |
+| `python scripts/check-prompt-conflicts.py` | 把 13 個 bridge 的注入**合起來**看:無條件宣稱、共用觸發詞、每輪注入總量 |
+| `python scripts/check-prior-art.py` | README、manifest 與磁碟上的克隆有沒有互相漂移 |
+| `python scripts/check-guard-mutations.py` | 機械式竄改守衛,要求測試抓得到(CI 跑抽樣;**必須單獨跑**,它會就地改原始碼) |
+| `python scripts/mine-session.py --latest` | 讀一個真實 session:呼叫序列、注入送達、哪個守衛開口、批次形狀 |
+
+慢速、需要真跑本機模型、**不進 CI** 的:`measure-advancer.py`、`measure-drift.py`、
+`measure-triggers.py`、`probe-tool-calls.mjs`、`calibrate-context.py`。
 
 ---
 
-## 🙏 感謝與授權
+## 機制:實際會在執行期作用的東西
 
-*   本專案採用 **MIT 授權**。
-*   致謝所有被整合倉庫的作者與貢獻者。詳細決策脈絡請參閱各模組目錄下的 `RATIONALE.md`。
+### C.A.S.E. 任務迴圈(`case-bridge`)
+
+任務以資料夾為單位(`recipe.md` / `role.md` / `planning.md` / `output.md` / `status.txt`),
+狀態機由階段閘強制:
+
+* **認領閘** —— 佇列裡還有 `PENDING` 沒人認領時,擋下產出寫入,並明講被擋的內容沒有保存
+* **規劃閘** —— 沒有含 `## Self-Review` 的 `planning.md`,不准寫 `output.md`
+* **驗收物守衛** —— `recipe.md` 的 Local DoD 點名的檔案不存在時,不准把狀態寫成 `REVIEW`
+* **人類核可(Path A)** —— 到 `REVIEW` 時由對話中的人核可;
+  bridge 讀**真實使用者輸入**為憑,模型的轉述不算
+
+### 目標與方法論注入(`task-shape-bridge`)
+
+* **請求形狀路由** —— 多步請求會提示先載入 `pi-planning-with-files` 或 `brainstorming`,
+  而不是直接開搜
+* **目標中途重述** —— `before_agent_start` **每則使用者訊息只觸發一次**(實測:1 則訊息 / 16 輪),
+  所以目標會在跑到一定次數後重述一次,內容取自當前任務的 Local DoD
+
+### 安全與圍堵(`yes-hooks-bridge`)
+
+* 執行前硬擋毀滅性指令(`rm -rf /`、`git push --force` 等)
+* **bash 圍堵**:寫入型指令的目標路徑必須留在專案內;
+  也偵測 `cd 出去 && 用相對路徑寫入` 這種會跟著 cd 走的形狀
+* 假工具呼叫(XML / ```json 陣列)轉義與迴圈斷路器
+
+### 網頁檢索(`stealth-web-bridge`)
+
+`web_search` / `web_open`,底層是 `camofox-stealth`(Camoufox 反偵測瀏覽器)。回傳採**閱讀檢視**:
+依 AX-tree 語意角色剝除導覽子樹,但**保留搜尋結果的網址並解開轉址** ——
+當初全部剝除的版本造成 632 次搜尋回傳 0 個網址,模型只能憑印象重建位址。
+需要點擊/輸入時用 `raw: true` 或 `web_snapshot` 取回完整樹。
+
+### 背景執行(`async-exec-bridge`)
+
+`bg_start` / `bg_status` / `bg_cancel`:長工作以 detached 子行程送出後立刻回傳,
+agent 可以結束這一輪,完成時被喚醒續跑。狀態落檔在 `.pi/async-exec/`,Pi 被砍掉也能對帳。
+
+> **安全須知**:`bg_start` 執行的是**任意 shell 指令、detached、不另外確認**,
+> 而且**中止 agent 不會中止它派出的背景工作**。要停用 `bg_cancel`(殺整棵進程樹)。
+> 目前沒有白名單與確認提示,要接不受信任的提示來源請先自行加上。
+> 逐工作逾時預設 30 分鐘,值被夾在 10 秒至 24 小時之間。
+
+### 其它 bridge
+
+`compact-continuation-bridge`(壓縮後接續未完成的工作)、`skill-namespace-guard`(同名技能即時隔離
+成 `harness-<name>`,不動你自己裝的版本)、`skill-catalog-bridge`、`ecc-hooks-bridge`、
+`mece-autopilot-bridge`、`taste-bridge`、`deep-research-bridge`(預設關閉)、
+`planning-with-files-bridge`。
 
 ---
-**由 [CK (Chiakai Chang)](https://github.com/Chiakai-Chang) 維護。本專案純屬實驗性質。**
 
+## 內容清單
 
+| 類別 | 數量 | 位置 |
+|---|---|---|
+| Extension bridges | **13** | `pi-extensions/` |
+| 蒸餾核心技能 | **16** | `pi-skills/core/` |
+| 技能目錄(僅名稱,依需要載入) | **120** | `pi-config/skill-catalog.json` |
+| 外部子模組 | **18** | `.gitmodules` / `external-manifest.json` |
+| 單元測試 | **1413** | `tests/` |
+
+### 蒸餾核心技能與其來源
+
+「蒸餾」指提煉其模式與核心演算法後,以零外部依賴重寫;**不是**把整個專案搬進來。
+
+| 技能 | 來源 | 解決什麼 |
+| :--- | :--- | :--- |
+| `deep-research-guide` | [pi-browser-harness](https://github.com/amankumarsingh77/pi-browser-harness) | 多子問題拆解與具名引用報告 |
+| `browser-automation-guide` | 同上 | AX-Tree 語意定位與頁面變更驗證 |
+| `ide-intelligence-guide` | [oh-my-pi](https://github.com/audreyt/oh-my-pi) | 模型專屬編輯格式、LSP 前檢 |
+| `harness-factory-guide` | [metaharness](https://github.com/ruvnet/metaharness) | Repo Fit 打分、演化、MCP 靜態預檢 |
+| `grilling-protocol` | [harness-engineering](https://github.com/vinicius91carvalho/harness-engineering) | 一問一答需求釐清門控 |
+| `contrarian-review` | [the-last-harness](https://github.com/diegopetrucci/the-last-harness) | 反方論證 |
+| `adversary-review` | [ultimate-pi](https://github.com/aryaniyaps/ultimate-pi) | 對立面壓力測試 |
+| `autonomous-experiment-guide` | [pi-autoresearch-harness](https://github.com/monotykamary/pi-autoresearch-harness) | 統計顯著性與自動化實驗 |
+| `tool-repair-guide` | [pi-tool-repair-layer](https://github.com/calionauta/pi-tool-repair-layer) | 工具參數欄位修復與降級 |
+| `guardian-pipeline-guide` | [agentic-harness.pi](https://github.com/Jitsusama/agentic-harness.pi) | `detect`→`parse`→`review` 管線合約 |
+| `subagent-orchestration-guide` | [pi-superagents](https://github.com/teelicht/pi-superagents) | 模型分層與上下文隔離 |
+| `minimal-prompt-guide` | [Huiyu-Pi](https://github.com/huiyu9144/Huiyu-Pi) | 極簡 prompt 注意力配置 |
+| `workflow-os-guide` | [auto-pi](https://github.com/romiluz13/auto-pi) | 階段門控與 `HANDOFF.md` |
+| `hello-reflect` | [claude-reflect](https://github.com/BayramAnnakov/claude-reflect) | 規則自演進 |
+| `planning-with-files` | [planning-with-files](https://github.com/OthmanAdi/planning-with-files) | 檔案化任務規劃 |
+| `research-task-routing` | 本地 | 依請求形狀選方法論 |
+
+外部子模組完整清單與整合方式(submodule / bridge / 僅參考)見
+[`external-manifest.json`](external-manifest.json) 與 [`docs/prior-art/REGISTER.md`](docs/prior-art/REGISTER.md)。
+
+---
+
+## 與 Pi 本體共存的三個保證
+
+1. **零覆蓋** —— `restore.py` / `uninstall.py` 只碰 `managed_skills` 清單裡的項目,
+   不刪你自己裝在全域的技能與擴充
+2. **同名隔離** —— 內容相同就跳過;內容不同才隔離成 `harness-<name>` 並存
+3. **不重複註冊** —— 13 個 bridge 由 Pi **依目錄自動探索**,
+   `settings.json` 的 `extensions` 陣列不會、也不該多出一筆(重複註冊會造成工具同名衝突而無法啟動)
+
+---
+
+## 給要動這個 repo 的人
+
+* **先讀 [PROGRESS.md](PROGRESS.md)** —— 現在在做什麼、什麼做完了、什麼做了但沒證明
+* **[CLAUDE.md](CLAUDE.md)** 是工程紀律的正本,包含所有踩過的坑與它們留下的規則
+* **先查既有再動手** —— [docs/prior-art/REGISTER.md](docs/prior-art/REGISTER.md)。
+  跳過這一步曾經花掉一整天:重造的東西,我們自己的筆記早就寫過
+* **三層,一個改動只屬於一層** —— 協定(C.A.S.E.,不得依賴任何特定模型)/
+  執行(bridge,依賴 Pi 的事件模型)/ 校準(門檻、預算,依賴特定模型)。
+  校準值放在 `pi-config/harness-config.json` 的 `_calibration` 區
+
+---
+
+**由 [CK (Chiakai Chang)](https://github.com/Chiakai-Chang) 維護。實驗性專案。**
+致謝所有被整合倉庫的作者與貢獻者。
