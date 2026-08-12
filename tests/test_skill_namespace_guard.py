@@ -4,6 +4,11 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+import sys as _sys
+_sys.path.insert(0, os.path.join(ROOT, "tests"))
+from _scratch import scratch  # per-process temp names; see tests/_scratch.py
+
+
 
 def read(rel):
     with open(os.path.join(ROOT, rel), encoding="utf-8") as f:
@@ -103,7 +108,7 @@ NODE_OK = _node_major() >= 22
 
 def run_guard(script):
     import json, os, subprocess
-    driver = os.path.join(ROOT, "tests", ".tmp_nsguard_driver.mjs")
+    driver = scratch(".tmp_nsguard_driver.mjs")
     url = "file:///" + os.path.join(
         ROOT, "pi-extensions", "skill-namespace-guard", "index.ts").replace("\\", "/")
     with open(driver, "w", encoding="utf-8") as f:

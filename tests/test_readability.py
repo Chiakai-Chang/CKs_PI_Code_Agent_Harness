@@ -24,6 +24,10 @@ import subprocess
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+import sys as _sys
+_sys.path.insert(0, os.path.join(ROOT, "tests"))
+from _scratch import scratch  # per-process temp names; see tests/_scratch.py
+
 MOD = os.path.join(ROOT, "pi-extensions", "stealth-web-bridge", "readability.ts")
 FIXTURES = os.path.join(ROOT, "tests", "fixtures")
 
@@ -43,8 +47,8 @@ NODE_OK = _node_major() >= 22
 
 
 def extract(fixture_or_text, is_text=False):
-    driver = os.path.join(ROOT, "tests", ".tmp_read_driver.mjs")
-    payload = os.path.join(ROOT, "tests", ".tmp_read_input.txt")
+    driver = scratch(".tmp_read_driver.mjs")
+    payload = scratch(".tmp_read_input.txt")
     url = "file:///" + MOD.replace("\\", "/")
     text = fixture_or_text if is_text else open(
         os.path.join(FIXTURES, fixture_or_text), encoding="utf-8").read()

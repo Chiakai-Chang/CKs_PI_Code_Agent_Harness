@@ -30,6 +30,11 @@ import time
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+import sys as _sys
+_sys.path.insert(0, os.path.join(ROOT, "tests"))
+from _scratch import scratch  # per-process temp names; see tests/_scratch.py
+
 MOD = os.path.join(ROOT, "pi-extensions", "task-shape-bridge", "plan.ts")
 INDEX = os.path.join(ROOT, "pi-extensions", "task-shape-bridge", "index.ts")
 
@@ -50,7 +55,7 @@ NODE_OK = _node_major() >= 22
 
 
 def run_js(script):
-    driver = os.path.join(ROOT, "tests", ".tmp_staleplan_driver.mjs")
+    driver = scratch(".tmp_staleplan_driver.mjs")
     url = "file:///" + MOD.replace("\\", "/")
     with open(driver, "w", encoding="utf-8") as f:
         f.write("import * as m from %s;\n%s" % (json.dumps(url), script))

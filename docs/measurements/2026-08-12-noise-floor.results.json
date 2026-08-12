@@ -1,0 +1,137 @@
+[
+  {
+    "run": 1,
+    "prompt": "research",
+    "ended": "finished",
+    "config": {
+      "enableCaseAdvancer": true
+    },
+    "first_record_s": 50,
+    "status": "REVIEW",
+    "files": [
+      "action_log.jsonl",
+      "output.md",
+      "planning.md",
+      "recipe.md",
+      "retro.md",
+      "role.md",
+      "status.txt"
+    ],
+    "dir": "C:\\Users\\User\\AppData\\Local\\Temp\\advancer-research-1-jic9w7qh",
+    "tool_calls": 47,
+    "blocked": 23,
+    "advance_injections": 3,
+    "blocked_claim_injections": 0,
+    "status_writes_tool": 2,
+    "status_writes_bash": 0,
+    "assistant_turns": 26
+  },
+  {
+    "run": 2,
+    "prompt": "research",
+    "ended": "finished",
+    "config": {
+      "enableCaseAdvancer": true
+    },
+    "first_record_s": 50,
+    "status": "REVIEW",
+    "files": [
+      "action_log.jsonl",
+      "output.md",
+      "planning.md",
+      "recipe.md",
+      "retro.md",
+      "role.md",
+      "status.txt"
+    ],
+    "dir": "C:\\Users\\User\\AppData\\Local\\Temp\\advancer-research-2-1hg0vs3_",
+    "tool_calls": 62,
+    "blocked": 25,
+    "advance_injections": 2,
+    "blocked_claim_injections": 0,
+    "status_writes_tool": 4,
+    "status_writes_bash": 1,
+    "assistant_turns": 34
+  },
+  {
+    "run": 3,
+    "prompt": "research",
+    "ended": "finished",
+    "config": {
+      "enableCaseAdvancer": true
+    },
+    "first_record_s": 65,
+    "status": "REVIEW",
+    "files": [
+      "action_log.jsonl",
+      "output.md",
+      "planning.md",
+      "recipe.md",
+      "retro.md",
+      "role.md",
+      "status.txt"
+    ],
+    "dir": "C:\\Users\\User\\AppData\\Local\\Temp\\advancer-research-3-hjhkodts",
+    "tool_calls": 116,
+    "blocked": 18,
+    "advance_injections": 2,
+    "blocked_claim_injections": 0,
+    "status_writes_tool": 4,
+    "status_writes_bash": 0,
+    "assistant_turns": 62
+  },
+  {
+    "run": 4,
+    "prompt": "research",
+    "ended": "finished",
+    "config": {
+      "enableCaseAdvancer": true
+    },
+    "first_record_s": 65,
+    "status": "REVIEW",
+    "files": [
+      "action_log.jsonl",
+      "output.md",
+      "planning.md",
+      "recipe.md",
+      "retro.md",
+      "role.md",
+      "status.txt"
+    ],
+    "dir": "C:\\Users\\User\\AppData\\Local\\Temp\\advancer-research-4-7i0s4jg0",
+    "tool_calls": 44,
+    "blocked": 10,
+    "advance_injections": 2,
+    "blocked_claim_injections": 0,
+    "status_writes_tool": 3,
+    "status_writes_bash": 0,
+    "assistant_turns": 25
+  },
+  {
+    "run": 5,
+    "prompt": "research",
+    "ended": "finished",
+    "config": {
+      "enableCaseAdvancer": true
+    },
+    "first_record_s": 75,
+    "status": "REVIEW",
+    "files": [
+      "action_log.jsonl",
+      "output.md",
+      "planning.md",
+      "recipe.md",
+      "retro.md",
+      "role.md",
+      "status.txt"
+    ],
+    "dir": "C:\\Users\\User\\AppData\\Local\\Temp\\advancer-research-5-czoz0vps",
+    "tool_calls": 49,
+    "blocked": 18,
+    "advance_injections": 3,
+    "blocked_claim_injections": 0,
+    "status_writes_tool": 2,
+    "status_writes_bash": 0,
+    "assistant_turns": 27
+  }
+]

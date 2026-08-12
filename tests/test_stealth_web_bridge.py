@@ -7,6 +7,11 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+import sys as _sys
+_sys.path.insert(0, os.path.join(ROOT, "tests"))
+from _scratch import scratch  # per-process temp names; see tests/_scratch.py
+
+
 
 def read(rel):
     with open(os.path.join(ROOT, rel), encoding="utf-8") as f:
@@ -215,7 +220,7 @@ class TestToolOutputTruncation(unittest.TestCase):
     MOD = "pi-extensions/stealth-web-bridge/truncate.ts"
 
     def _run(self, script):
-        driver = os.path.join(ROOT, "tests", ".tmp_trunc_driver.mjs")
+        driver = scratch(".tmp_trunc_driver.mjs")
         url = "file:///" + os.path.join(ROOT, self.MOD).replace("\\", "/")
         with open(driver, "w", encoding="utf-8") as f:
             f.write('import { truncateForTool, humanSize, MAX_TOOL_BYTES, MAX_TOOL_LINES } from %s;\n%s'

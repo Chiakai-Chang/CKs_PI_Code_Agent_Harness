@@ -20,6 +20,10 @@ import tempfile
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+import sys as _sys
+_sys.path.insert(0, os.path.join(ROOT, "tests"))
+from _scratch import scratch  # per-process temp names; see tests/_scratch.py
+
 ECC = os.path.join(ROOT, "external", "ecc")
 HOOKS = os.path.join(ECC, "scripts", "hooks")
 PAYLOAD = os.path.join(ROOT, "pi-extensions", "ecc-hooks-bridge", "ecc-payload.ts")
@@ -51,7 +55,7 @@ def feed_hook(script, tool, pi_input, translate=True, hook_id=None, state_dir=No
     `translate=False` sends Pi's raw input, which is what the bridge used to do —
     the negative control that proves these tests can fail.
     """
-    driver = os.path.join(ROOT, "tests", ".tmp_contract_driver.mjs")
+    driver = scratch(".tmp_contract_driver.mjs")
     if hook_id:
         argv = [os.path.join(HOOKS, "run-with-flags.js").replace("\\", "/"),
                 hook_id, "scripts/hooks/" + script, "standard,strict"]

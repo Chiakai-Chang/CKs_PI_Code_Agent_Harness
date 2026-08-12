@@ -29,6 +29,11 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import sys as _sys
+_sys.path.insert(0, str(ROOT / "tests"))
+from _scratch import scratch  # per-process temp names; see tests/_scratch.py
+
 MOD = ROOT / "pi-extensions" / "case-bridge" / "task-context.ts"
 INDEX = ROOT / "pi-extensions" / "case-bridge" / "index.ts"
 
@@ -65,7 +70,7 @@ Clone, analyze, and extract lessons from six target repositories.
 
 
 def run_js(script):
-    driver = ROOT / "tests" / ".tmp_task_context.mjs"
+    driver = Path(scratch(".tmp_task_context.mjs"))
     url = "file:///" + str(MOD).replace("\\", "/")
     driver.write_text("import * as m from %s;\n%s" % (json.dumps(url), script),
                       encoding="utf-8")
@@ -94,7 +99,7 @@ def run_guard(script):
     swallowed by a nearby catch written for unparsable recipes, so REVIEW was
     allowed with no artifacts and every test stayed green. Assert on behaviour.
     """
-    driver = ROOT / "tests" / ".tmp_queue_guard.mjs"
+    driver = Path(scratch(".tmp_queue_guard.mjs"))
     url = "file:///" + str(GUARD_MOD).replace("\\", "/")
     driver.write_text("import {TaskQueueGuard} from %s;\n%s" % (json.dumps(url), script),
                       encoding="utf-8")

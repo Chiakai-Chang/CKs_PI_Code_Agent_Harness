@@ -22,6 +22,10 @@ import subprocess
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+import sys as _sys
+_sys.path.insert(0, os.path.join(ROOT, "tests"))
+from _scratch import scratch  # per-process temp names; see tests/_scratch.py
+
 MOD = os.path.join(ROOT, "pi-extensions", "mece-autopilot-bridge", "notice.ts")
 INDEX = os.path.join(ROOT, "pi-extensions", "mece-autopilot-bridge", "index.ts")
 
@@ -42,7 +46,7 @@ NODE_OK = _node_major() >= 22
 
 
 def notice(script):
-    driver = os.path.join(ROOT, "tests", ".tmp_mece_notice.mjs")
+    driver = scratch(".tmp_mece_notice.mjs")
     url = "file:///" + MOD.replace("\\", "/")
     with open(driver, "w", encoding="utf-8") as f:
         f.write("import { buildNotice } from %s;\n"

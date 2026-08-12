@@ -41,6 +41,10 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
 ROOT = os.path.dirname(HERE)
+import sys as _sys
+_sys.path.insert(0, os.path.join(ROOT, "tests"))
+from _scratch import scratch  # per-process temp names; see tests/_scratch.py
+
 BRIDGES = os.path.join(ROOT, "pi-extensions")
 
 
@@ -124,7 +128,7 @@ process.stdout.write(JSON.stringify({ registered: Object.keys(handlers), failure
 
 def drive(bridge):
     entry = os.path.join(BRIDGES, bridge, "index.ts").replace("\\", "/")
-    driver = os.path.join(ROOT, "tests", ".tmp_handlers_%s.mjs" % bridge)
+    driver = scratch(".tmp_handlers_%s.mjs" % bridge)
     with open(driver, "w", encoding="utf-8") as f:
         f.write(DRIVER % {"url": json.dumps("file:///" + entry)})
     try:
@@ -198,7 +202,7 @@ class TestHandlersExecute(unittest.TestCase):
         from _one_correction_driver import source
 
         entry = os.path.join(BRIDGES, "yes-hooks-bridge", "index.ts").replace(os.sep, "/")
-        driver = os.path.join(ROOT, "tests", ".tmp_onecorrection.mjs")
+        driver = scratch(".tmp_onecorrection.mjs")
         with open(driver, "w", encoding="utf-8") as f:
             f.write(source("file:///" + entry))
         sandbox = tempfile.mkdtemp(prefix="one-correction-")

@@ -21,6 +21,11 @@ import subprocess
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+import sys as _sys
+_sys.path.insert(0, os.path.join(ROOT, "tests"))
+from _scratch import scratch, scratch_rel  # per-process temp names; see tests/_scratch.py
+
 IDX = os.path.join(ROOT, "pi-extensions", "yes-hooks-bridge", "index.ts")
 
 
@@ -56,8 +61,8 @@ process.stdout.write(JSON.stringify(out));
 
 
 def run_parser(samples):
-    driver = os.path.join(ROOT, "tests", ".tmp_parser_driver.mjs")
-    payload = os.path.join(ROOT, "tests", ".tmp_parser_input.json")
+    driver = scratch(".tmp_parser_driver.mjs")
+    payload = scratch(".tmp_parser_input.json")
     mod_url = "file:///" + IDX.replace("\\", "/")
     with open(driver, "w", encoding="utf-8") as f:
         f.write(DRIVER % {"mod": json.dumps(mod_url)})
@@ -406,8 +411,8 @@ process.stdout.write(JSON.stringify(out));
 """
 
     def _run(self, cases):
-        driver = os.path.join(ROOT, "tests", ".tmp_autoexec_driver.mjs")
-        payload = os.path.join(ROOT, "tests", ".tmp_autoexec_input.json")
+        driver = scratch(".tmp_autoexec_driver.mjs")
+        payload = scratch(".tmp_autoexec_input.json")
         with open(driver, "w", encoding="utf-8") as f:
             f.write(self.DRIVER % {
                 "mod": json.dumps("file:///" + IDX.replace("\\", "/")),
@@ -460,11 +465,12 @@ process.stdout.write(JSON.stringify(out));
         self.assertIsNone(got)
 
     def test_large_file_is_truncated(self):
-        big = os.path.join(ROOT, "tests", ".tmp_big_fixture.txt")
+        big = scratch(".tmp_big_fixture.txt")
         with open(big, "w", encoding="utf-8") as f:
             f.write("x" * 50000)
         try:
-            (got,) = self._run([{"name": "read", "args": {"path": "tests/.tmp_big_fixture.txt"}}])
+            (got,) = self._run([{"name": "read", "args":
+                                 {"path": scratch_rel(".tmp_big_fixture.txt")}}])
         finally:
             os.remove(big)
         self.assertIsNotNone(got)
@@ -498,7 +504,7 @@ process.stdout.write(JSON.stringify(sent));
 """
 
     def _run(self, text):
-        driver = os.path.join(ROOT, "tests", ".tmp_feedback_driver.mjs")
+        driver = scratch(".tmp_feedback_driver.mjs")
         with open(driver, "w", encoding="utf-8") as f:
             f.write(self.DRIVER % {
                 "mod": json.dumps("file:///" + IDX.replace("\\", "/")),
@@ -544,8 +550,8 @@ process.stdout.write(JSON.stringify(sent));
 """
 
     def _run_many(self, texts):
-        driver = os.path.join(ROOT, "tests", ".tmp_feedback_many.mjs")
-        payload = os.path.join(ROOT, "tests", ".tmp_feedback_many.json")
+        driver = scratch(".tmp_feedback_many.mjs")
+        payload = scratch(".tmp_feedback_many.json")
         with open(driver, "w", encoding="utf-8") as f:
             f.write(self.MANY_DRIVER % {
                 "mod": json.dumps("file:///" + IDX.replace("\\", "/")),
@@ -609,7 +615,7 @@ process.stdout.write("done");
 """
 
     def _run(self, dump_path):
-        driver = os.path.join(ROOT, "tests", ".tmp_dump_driver.mjs")
+        driver = scratch(".tmp_dump_driver.mjs")
         with open(driver, "w", encoding="utf-8") as f:
             f.write(self.DRIVER % {"mod": json.dumps("file:///" + IDX.replace("\\", "/"))})
         env = dict(os.environ)
@@ -627,7 +633,7 @@ process.stdout.write("done");
                 os.remove(driver)
 
     def test_dumps_the_prompt_when_the_env_var_names_a_file(self):
-        out = os.path.join(ROOT, "tests", ".tmp_prompt_dump.txt")
+        out = scratch(".tmp_prompt_dump.txt")
         if os.path.exists(out):
             os.remove(out)
         try:
@@ -644,7 +650,7 @@ process.stdout.write("done");
                 os.remove(out)
 
     def test_writes_nothing_without_the_env_var(self):
-        out = os.path.join(ROOT, "tests", ".tmp_prompt_dump_off.txt")
+        out = scratch(".tmp_prompt_dump_off.txt")
         if os.path.exists(out):
             os.remove(out)
         self._run(None)
@@ -695,8 +701,8 @@ process.stdout.write(JSON.stringify(sent));
 """
 
     def _run(self, turns):
-        driver = os.path.join(ROOT, "tests", ".tmp_fabricated_driver.mjs")
-        payload = os.path.join(ROOT, "tests", ".tmp_fabricated_input.json")
+        driver = scratch(".tmp_fabricated_driver.mjs")
+        payload = scratch(".tmp_fabricated_input.json")
         with open(driver, "w", encoding="utf-8") as f:
             f.write(self.DRIVER % {
                 "mod": json.dumps("file:///" + IDX.replace("\\", "/")),
@@ -931,8 +937,8 @@ process.stdout.write(JSON.stringify(sent));
 """
 
     def _run(self, turns):
-        driver = os.path.join(ROOT, "tests", ".tmp_discard_driver.mjs")
-        payload = os.path.join(ROOT, "tests", ".tmp_discard_input.json")
+        driver = scratch(".tmp_discard_driver.mjs")
+        payload = scratch(".tmp_discard_input.json")
         with open(driver, "w", encoding="utf-8") as f:
             f.write(self.DRIVER % {
                 "mod": json.dumps("file:///" + IDX.replace("\\", "/")),
@@ -1025,8 +1031,8 @@ process.stdout.write(JSON.stringify(out));
 """
 
     def _run(self, calls):
-        driver = os.path.join(ROOT, "tests", ".tmp_repeat_driver.mjs")
-        payload = os.path.join(ROOT, "tests", ".tmp_repeat_input.json")
+        driver = scratch(".tmp_repeat_driver.mjs")
+        payload = scratch(".tmp_repeat_input.json")
         with open(driver, "w", encoding="utf-8") as f:
             f.write(self.DRIVER % {
                 "mod": json.dumps("file:///" + IDX.replace("\\", "/")),
@@ -1105,8 +1111,8 @@ process.stdout.write(JSON.stringify(out));
 """
 
     def _run(self, cases):
-        driver = os.path.join(ROOT, "tests", ".tmp_guard_driver.mjs")
-        payload = os.path.join(ROOT, "tests", ".tmp_guard_input.json")
+        driver = scratch(".tmp_guard_driver.mjs")
+        payload = scratch(".tmp_guard_input.json")
         with open(driver, "w", encoding="utf-8") as f:
             f.write(self.DRIVER % {
                 "mod": json.dumps("file:///" + IDX.replace("\\", "/")),
@@ -1183,8 +1189,8 @@ process.stdout.write(JSON.stringify(out));
 """
 
     def _run(self, cases):
-        driver = os.path.join(ROOT, "tests", ".tmp_runaway_driver.mjs")
-        payload = os.path.join(ROOT, "tests", ".tmp_runaway_input.json")
+        driver = scratch(".tmp_runaway_driver.mjs")
+        payload = scratch(".tmp_runaway_input.json")
         with open(driver, "w", encoding="utf-8") as f:
             f.write(self.DRIVER % {
                 "mod": json.dumps("file:///" + IDX.replace("\\", "/")),
