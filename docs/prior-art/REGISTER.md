@@ -56,7 +56,7 @@
 | claude-reflect | distillation-source | (無 clone) | 已審視 | docs/core/ | 本地移植為 `hello-reflect` | — | 2026-07-07 |
 | ecc | submodule | external/ecc | 已審視 | README.md 的 `eccSkillModules` 段 | 依 module 精選 65 技能(全量 277 個 = 27.5k tokens) | 全量註冊 | 2026-07-28 |
 | planning-with-files | submodule | external/planning-with-files | 已審視 | pi-extensions/planning-with-files-bridge/ | Verifiability Block 注入 | — | 2026-08-06 |
-| superpowers | submodule | external/superpowers | 已審視 | docs/superpowers/ | brainstorming / TDD / writing-plans 流程技能 | — | 2026-08-06 |
+| superpowers | submodule | external/superpowers | 已審視(實作層 2026-08-13) | docs/superpowers/ · docs/measurements/2026-08-13-skill-layer-reachability.md | 14 個技能**全部已註冊**(有名稱有描述)。**已採用**:`systematic-debugging` / `test-driven-development` / `verification-before-completion` 由 `task-shape-bridge` 依工作種類**當場點名**(2026-08-13)—— 因為實測顯示只有被點名的技能會被打開 | 不採用「靠模型自己從 45 條描述裡挑」:165 個 session 實測,45 個註冊技能有 38 個從未被打開 | 2026-08-13 |
 | Local-Agent-Workspace | submodule | external/Local-Agent-Workspace | 已審視 | docs/case/ | C.A.S.E. 協定 + `verify.py` 強化(已回貢上游) | — | 2026-08-06 |
 | mece-autopilot | submodule | external/mece-autopilot | 已審視 | docs/mece/rounds/ | 多角色辯論 + SWOT/TOWS 收斂 | — | 2026-08-06 |
 | yes.md | submodule | external/yes.md | 已審視 | pi-extensions/yes-hooks-bridge/ | pre-bash-guard 硬擋毀滅性指令 | — | 2026-07-12 |

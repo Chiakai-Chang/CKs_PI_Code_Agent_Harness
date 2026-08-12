@@ -30,7 +30,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 
-import { classifyRequest, buildRoutine, buildSystemPromptNote, isBroadTool } from "./shape.ts";
+import { classifyRequest, buildRoutine, buildSystemPromptNote, buildKindNote, isBroadTool } from "./shape.ts";
 import { hasAnyPlan, isCaseProject } from "./plan.ts";
 import { GoalRestate, MAX_RESTATEMENTS, RESTATE_THRESHOLD } from "./goal-restate.ts";
 import { calibrated } from "./calibration.ts";
@@ -128,7 +128,22 @@ export default function (pi: ExtensionAPI) {
       // plan still forgets its goal by step 18 — that is the failure this
       // addresses, and it is independent of whether a plan file exists.
       if (restateOn && !caseProject) restate.begin(event.prompt, shape.multiStep === true);
-      if (!shape.multiStep) return;
+      // A single-step request can still be a KIND of work with a methodology
+      // skill behind it, and that is where the measured zero lives: debugging
+      // asks are short and singular, so they never reach the multi-step branch
+      // below. Measured over 121 real prompts — multi-step 19%, kind 13%, both
+      // 5% — so riding the kind sentence on the multi-step note would have left
+      // `systematic-debugging` at the 0/165 sessions this change exists to fix.
+      // The C.A.S.E. stand-down still applies: there the task package names the
+      // methodology.
+      if (!shape.multiStep) {
+        if (caseProject) return;
+        const kindNote = buildKindNote(event.prompt);
+        if (kindNote) return { systemPrompt: `${event.systemPrompt ?? ""}
+
+${kindNote}` };
+        return;
+      }
       // A C.A.S.E. project plans inside the task package and has a gate that
       // enforces it. The routine below would point at task_plan.md, which
       // nothing there reads. Stand down and let the task-local constitution
@@ -136,7 +151,7 @@ export default function (pi: ExtensionAPI) {
       if (caseProject) return;
       // A project that already has a plan does not need to be told to make one.
       if (hasAnyPlan(ctx.cwd, sessionStartedAt)) return;
-      armed = buildRoutine(shape);
+      armed = buildRoutine(shape, event.prompt);
 
       // Delivered here as well as on the tool result, because the first design
       // delivered only there and was measured failing: the routine arrived in
@@ -148,7 +163,8 @@ export default function (pi: ExtensionAPI) {
       // `hasUI` is documented as "whether dialog-capable UI is available (true in
       // TUI and RPC modes)". Under `pi --print` there is nobody to answer a
       // scoping question, and one measured run spent its whole turn asking four.
-      const note = buildSystemPromptNote(shape, { interactive: ctx.hasUI !== false });
+      const note = buildSystemPromptNote(shape, {
+        interactive: ctx.hasUI !== false, prompt: event.prompt });
       if (note) return { systemPrompt: `${event.systemPrompt ?? ""}\n\n${note}` };
     } catch {
       // Classification must never break a turn. Disarm rather than leave the

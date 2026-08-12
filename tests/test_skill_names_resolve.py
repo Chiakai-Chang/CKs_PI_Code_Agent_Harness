@@ -120,6 +120,16 @@ class TestTheInstructionsNameSkillsThatExist(unittest.TestCase):
         ("CLAUDE.md",
          ["brainstorming", "pi-planning-with-files", "systematic-debugging",
           "test-driven-development", "mece-autopilot"]),
+        # The bridge source, and it belongs here more than the documents do:
+        # this is the file whose text is injected into the model's context. On
+        # 2026-08-12 the rename reached the two SKILL.md files and the two rule
+        # documents and stopped there, so the router kept telling live sessions
+        # to load `planning-with-files` — a name Pi does not register. Dumping
+        # the real prompt on 2026-08-13 is what found it, four weeks of green
+        # tests later.
+        ("pi-extensions/task-shape-bridge/shape.ts",
+         ["brainstorming", "pi-planning-with-files", "systematic-debugging",
+          "test-driven-development", "verification-before-completion"]),
     ]
 
     def setUp(self):

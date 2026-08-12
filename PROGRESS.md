@@ -383,6 +383,31 @@ advance_injections n=5 mean=2.40 sd=0.49    need_n=1
 * **工具已就緒**:`scripts/measure-advancer.py --variance <results.json...> --delta N`
   (它拒絕把配置不明的 run 併在一起算)
 
+### 🔴 T-A11 — 技能層幾乎沒有在運作(**2026-08-13 量測,擁有者提問引出**)
+* **提問**:「參考了這麼多 repo,其他有發揮作用嗎?為什麼幾乎感覺不到 superpowers?」
+* **量到的**([skill-layer-reachability](docs/measurements/2026-08-13-skill-layer-reachability.md)):
+  165 個真實 session、45 個已註冊技能 —— **曾被打開 7 個,從未被打開 38 個**。
+  superpowers 全部註冊(有名稱有描述),但 `systematic-debugging`、
+  `test-driven-development`、`verification-before-completion` 都是 **0 次**
+* **規律**:跨 session 被打開的只有四個,**全部是有 bridge 當場點名的**
+  (`planning-with-files` 6 次/5 session、`research-task-routing`、`mece-autopilot`、`brainstorming`)
+* **成本**:`<available_skills>` 佔系統提示 **44%**(19,885 / 45,637 字元)
+* **蒸餾的 16 個核心技能有 15 個連註冊層都不在**,只在 120 個名字的目錄層
+* **服務哪一層**:整個「參考眾多 repo」的價值 —— 目前絕大部分沒有到達執行期
+* **可做的三件事,未決定**:(1) 把三個 superpowers 技能接進形狀路由(唯一有實測效果的機制)
+  (2) 把從未被打開的降級以回收提示預算 (3) 蒸餾技能升上註冊層或承認它是文件
+* **先做 1 再量**,不要三件一起改 —— 否則量到的是三件事的和
+* **2026-08-13 已完成第 1 項**([Round 15](docs/mece/rounds/2026-08-13_round15_註冊了但沒有人叫它.md)):
+  形狀路由現在依工作種類點名 `systematic-debugging` / `test-driven-development`,
+  多步路由尾端點名 `verification-before-completion`。
+  **順帶抓到一個活的缺陷**:路由器注入的是未註冊的 `planning-with-files`,
+  而不是 `pi-planning-with-files` —— 8/12 的改名漏掉了真正送到模型面前的那個檔案
+* **送達已證明,效果未證明**:實跑一次(非 C.A.S.E. 專案、真實 bug),
+  系統提示裡確實有 `[task-shape] This reads like debugging: load the systematic-debugging...`,
+  但**模型沒打開該技能,直接把 bug 修好**。效果要靠累積的真實 session
+* **第 2、3 項暫緩**,觸發條件寫在 Round 15:上線後累積 ≥5 個真實 session,
+  若兩個技能的打開次數仍為 0,則問題不在觸發而在載具,那時再談降級提示預算
+
 ### 🔴 T-A9 — 路徑中途漂移(**2026-08-13 真實 session 發現**)
 * **證據**:session `019ff6c1` 第 32 步起,模型少寫了 `02_Task_Queue/` 這一層,
   後半段交付物(phase5/6/7 + final-synthesis)落在專案根目錄的另一個同名資料夾。

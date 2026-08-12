@@ -379,3 +379,86 @@ class TestTheClassifierBoundaries(unittest.TestCase):
         self.assertGreaterEqual(out["deliverables"], 2,
                                 "a research request naming several things is "
                                 "never a one-deliverable job")
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required for native TypeScript type stripping")
+class TestNamingTheMethodologySkill(unittest.TestCase):
+    """Naming a skill is the only thing measured to make one get opened.
+
+    2026-08-13, 165 real sessions: 45 skills are registered in the system prompt
+    with descriptions, 7 have ever been opened, 38 never. The ones opened across
+    more than one session are exactly the ones a bridge names at the moment of
+    action. `systematic-debugging` and `test-driven-development` — the two the
+    owner finds most useful in other harnesses — were both zero.
+    """
+
+    def note(self, prompt):
+        return run_js("process.stdout.write(JSON.stringify("
+                      "m.buildKindNote(%s)));" % json.dumps(prompt))
+
+    def kind(self, prompt):
+        return run_js("const r = m.classifyKind(%s);"
+                      "process.stdout.write(JSON.stringify(r && r.skill));"
+                      % json.dumps(prompt))
+
+    def test_a_debugging_request_names_systematic_debugging(self):
+        self.assertEqual(
+            self.kind("這個 parser 一直報錯,請找出 bug 並修復"), "systematic-debugging")
+
+    def test_an_implementation_request_names_tdd(self):
+        self.assertEqual(
+            self.kind("請實作一個新的匯出模組,並附上測試"), "test-driven-development")
+
+    def test_a_request_of_neither_kind_says_nothing(self):
+        """No default. A classifier that cannot tell has one honest output."""
+        self.assertIsNone(self.kind("請幫我整理這份會議記錄的重點與待辦事項"))
+        self.assertEqual(self.note("請幫我整理這份會議記錄的重點與待辦事項"), "")
+
+    def test_a_greeting_is_below_the_floor(self):
+        """The same 25-weighted-char floor the shape classifier uses. Without it
+        a one-word 'error?' would arm the note."""
+        self.assertEqual(self.note("error"), "")
+
+    def test_both_kinds_present_names_exactly_one(self):
+        """A crash with a fix in it is debugging: planning an implementation for
+        code nobody understands yet is the failure systematic-debugging exists
+        to prevent. And naming two skills makes the note a menu — the 45-entry
+        menu already in the prompt is what scores zero."""
+        note = self.note("這個 parser 會 crash,請 debug 後實作修正並重構相關模組")
+        self.assertIn("systematic-debugging", note)
+        self.assertNotIn("test-driven-development", note)
+
+    def test_the_multi_step_note_names_the_registered_spelling(self):
+        """`planning-with-files` resolves to nothing; the skill declares
+        `pi-planning-with-files` in its own frontmatter. A real session was told
+        the bare name on 2026-08-12, went looking for the file and got ENOENT —
+        and the fix that day reached the SKILL.md files and the rule documents
+        but not this bridge, the one that actually reaches the model."""
+        note = run_js(
+            "const s = m.classifyRequest(%s);"
+            "process.stdout.write(JSON.stringify(m.buildSystemPromptNote(s, {prompt: %s})));"
+            % (json.dumps("請研究並比較三個競品的定價、功能與支援,並整理成表格"),
+               json.dumps("請研究並比較三個競品的定價、功能與支援,並整理成表格")))
+        self.assertIn("`pi-planning-with-files`", note)
+        self.assertNotIn("the `planning-with-files`", note)
+
+    def test_the_routine_names_verification_before_completion(self):
+        """Paid once, on the tool result, at the moment an unverified completion
+        claim gets made. It is one of the 38 never-opened skills."""
+        routine = run_js(
+            "const s = m.classifyRequest(%s);"
+            "process.stdout.write(JSON.stringify(m.buildRoutine(s, %s)));"
+            % (json.dumps("請研究並比較三個競品的定價、功能與支援,並整理成表格"),
+               json.dumps("請研究並比較三個競品的定價、功能與支援,並整理成表格")))
+        self.assertIn("verification-before-completion", routine)
+        self.assertIn("`pi-planning-with-files`", routine)
+
+    def test_a_single_step_request_still_gets_the_kind_note(self):
+        """The measurement that refuted Round 15's own limit: multi-step 19%,
+        kind 13%, both 6% over 121 real prompts. Debugging asks are singular, so
+        riding on the multi-step note would have kept the zero."""
+        prompt = "這個 parser 一直報錯,請找出 bug 並修復"
+        shape = run_js("process.stdout.write(JSON.stringify("
+                       "m.classifyRequest(%s).multiStep));" % json.dumps(prompt))
+        self.assertFalse(shape, "this prompt must be single-step for the test to mean anything")
+        self.assertIn("systematic-debugging", self.note(prompt))
