@@ -505,6 +505,18 @@ class TestNothingEscapesAnUnknownProject(unittest.TestCase):
                       % (json.dumps(target), json.dumps(cwd)))
 
     def test_an_unknown_cwd_cannot_be_escaped(self):
+        """The path must be absolute on BOTH platforms or this proves nothing.
+
+        The first version used `D:/other-project/file.md`, which is absolute on
+        Windows and a plain relative name on Linux — there it resolves under the
+        runner's own directory, and the mutant answers false exactly like the
+        original. It killed the mutant on my machine and CI stayed red with the
+        same survivor. A test that has to fail on the mutant must fail on every
+        platform CI runs, not just the one it was written on.
+
+        `/other-project/...` is absolute for both `path.win32` and `path.posix`,
+        and it is not one of the scratch prefixes, so neither door lets it out."""
+        self.assertFalse(self.escapes("/other-project/file.md", ""))
         self.assertFalse(self.escapes("D:/other-project/file.md", ""))
 
     def test_an_empty_target_escapes_nothing(self):
