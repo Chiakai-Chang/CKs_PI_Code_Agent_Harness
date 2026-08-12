@@ -490,6 +490,32 @@ class TestARedirectionDoesNotEatTheRealDestination(unittest.TestCase):
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestNothingEscapesAnUnknownProject(unittest.TestCase):
+    """`if (!target || !cwd) return false;` at the top of escapesCwd.
+
+    A CI mutation survivor on 2026-08-12: with `&&`, an empty cwd stops being a
+    reason to say nothing and `resolve("", target)` is compared against the
+    PROCESS's working directory instead — so every absolute path outside the
+    runner's cwd reads as an escape. Every caller inside the module guards cwd
+    first, but the function is exported and its contract is the fail-open one
+    this repo insists on: what the guard cannot locate, it does not refuse."""
+
+    def escapes(self, target, cwd):
+        return run_js("process.stdout.write(JSON.stringify(m.escapesCwd(%s, %s)));"
+                      % (json.dumps(target), json.dumps(cwd)))
+
+    def test_an_unknown_cwd_cannot_be_escaped(self):
+        self.assertFalse(self.escapes("D:/other-project/file.md", ""))
+
+    def test_an_empty_target_escapes_nothing(self):
+        self.assertFalse(self.escapes("", "D:/MyProject/thing"))
+
+    def test_the_ordinary_answers_are_unchanged(self):
+        self.assertTrue(self.escapes("D:/other-project/file.md", "D:/MyProject/thing"))
+        self.assertFalse(self.escapes("sub/file.md", "D:/MyProject/thing"))
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
 class TestACdOutOfTheProjectIsTheTell(unittest.TestCase):
     """Run 10, 2026-08-12, call 23, from a session whose workspace was elsewhere:
 
