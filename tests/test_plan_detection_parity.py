@@ -91,6 +91,19 @@ class PlanLayouts:
         return base
 
     @staticmethod
+    def active_plan_points_at_a_directory_with_no_plan(base):
+        """The pointer names a real directory that holds no `task_plan.md`.
+
+        A mutation survivor until this layout existed: `existsSync(candidate) &&
+        fileExists(candidate, "task_plan.md")` flipped to `||` returns that
+        directory as the plan directory, and the bridges then look for a plan
+        beside a file that is not there. The pointer going stale — a plan folder
+        emptied or half-created — is ordinary, not adversarial."""
+        write(os.path.join(base, ".planning", "stale-plan", "notes.md"), "x")
+        write(os.path.join(base, ".planning", ".active_plan"), "stale-plan\n")
+        return base
+
+    @staticmethod
     def planning_dir_but_no_plan_file(base):
         write(os.path.join(base, ".planning", "empty", "notes.md"), "x")
         return base
@@ -108,6 +121,7 @@ LAYOUTS_WITH_A_PLAN = [
 ]
 LAYOUTS_WITHOUT_A_PLAN = [
     "planning_dir_but_no_plan_file",
+    "active_plan_points_at_a_directory_with_no_plan",
     "no_plan_at_all",
 ]
 
@@ -141,6 +155,33 @@ class TestPlanDetectionParity(unittest.TestCase):
                 self.assertEqual(norm(out["ecc"]), norm(out["pwf"]))
                 self.assertEqual(norm(out["tsb"]), norm(out["pwf"]))
 
+    def test_a_stale_pointer_falls_back_to_the_project_root(self):
+        """Parity alone cannot catch this: all three copies would agree on the
+        same wrong directory. The assertion has to be what the answer IS.
+
+        `existsSync(candidate) && fileExists(candidate, "task_plan.md")` with `||`
+        returns a directory that holds no plan, and every later question — does a
+        plan exist, where do I write one — is then asked about the wrong place."""
+        base = tempfile.mkdtemp(prefix="stale-pointer-")
+        try:
+            cwd = PlanLayouts.active_plan_points_at_a_directory_with_no_plan(base)
+            out = run_js(
+                'const cwd = %s;\n'
+                'process.stdout.write(JSON.stringify({\n'
+                '  ecc: ecc.resolvePlanDir(cwd), pwf: pwf.resolvePlanDir(cwd),\n'
+                '  tsb: tsb.resolvePlanDir(cwd),\n'
+                '}));' % json.dumps(cwd))
+
+            def norm(p):
+                return os.path.normcase(os.path.normpath(p))
+
+            for key in ("ecc", "pwf", "tsb"):
+                with self.subTest(bridge=key):
+                    self.assertEqual(norm(out[key]), norm(cwd),
+                                     "resolved to a directory with no task_plan.md")
+        finally:
+            shutil.rmtree(base, ignore_errors=True)
+
     def test_both_bridges_agree_a_plan_exists(self):
         for layout in LAYOUTS_WITH_A_PLAN:
             with self.subTest(layout=layout):
@@ -170,6 +211,16 @@ class TestGitCommitDetection(unittest.TestCase):
         out = run_js('process.stdout.write(JSON.stringify({ v: ecc.isGitCommit(%s) }));'
                      % json.dumps(command))
         return out["v"]
+
+    def test_an_empty_command_is_not_a_commit(self):
+        """A mutation survivor until this existed: `if (!command) return false;`
+        flipped to `true` makes every empty or missing command read as a commit,
+        and the bridge's post-commit advisory then fires on nothing at all. Empty
+        is not adversarial — a bash call whose command failed to extract arrives
+        here as one."""
+        for cmd in ["", "   "]:
+            with self.subTest(cmd=repr(cmd)):
+                self.assertFalse(self._is_commit(cmd))
 
     def test_recognises_real_commits(self):
         for cmd in [

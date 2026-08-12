@@ -373,6 +373,18 @@ class TestCalibrationIsSuppliedNotHardcoded(unittest.TestCase):
             json.dump({"goalRestateThreshold": 3}, f)
         self.assertEqual(self.calibrated(tmp, "goalRestateThreshold", 99), 3)
 
+    def test_one_is_a_legal_value(self):
+        """`v > 0` and `v > 1` differ on exactly this input, and before this test
+        the mutation sweep could flip one into the other unnoticed. `goalRestateMax:
+        1` — restate once — is a setting someone would choose."""
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        os.makedirs(os.path.join(tmp, "pi-config"))
+        with open(os.path.join(tmp, "pi-config", "harness-config.json"),
+                  "w", encoding="utf-8") as f:
+            json.dump({"goalRestateMax": 1}, f)
+        self.assertEqual(self.calibrated(tmp, "goalRestateMax", 99), 1)
+
     def test_a_missing_config_keeps_the_shipped_value(self):
         self.assertEqual(self.calibrated(os.path.join(ROOT, "no-such-dir"),
                                          "goalRestateThreshold", 99), 99)

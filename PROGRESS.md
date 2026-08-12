@@ -385,7 +385,63 @@ no-plan       29    93.5%
 
 **新增的 task(依規則「有發現就增加」):見 T1b。**
 
-### ⚪ T1b — 其餘 31 個未掃描模組
+### 🟡 T1b — 未掃描模組的變異掃描(**認領中,batch 1-2 已跑**)
+
+**前提更新:未掃描是 22 個,不是 31**(舊數字用了不同的定義,含 `index.ts` 與測試檔)。
+純模組 39 個:掃描 26 + 具名排除 13。
+
+**batch 1(2026-08-12 當天寫的程式碼):`case-bridge/calibration.ts`、
+`task-shape-bridge/calibration.ts`、`mece-autopilot-bridge/notice.ts`,連帶重掃
+`task-shape-bridge/plan.ts` 與 `phase-notice.ts`。**
+
+* 兩支 calibration 各有一個存活者,**同一個突變 `v > 0` → `v > 1`** ——
+  設定值剛好是 `1` 時行為不同,而沒有測試分得出來。`1` 是合法值
+  (`goalRestateMax: 1`、`queueListingCap: 1`),所以補測試,不是豁免
+* `plan.ts` 的 `mtimeMs >= since` → `> since`:計畫寫在 session 起始的**那一毫秒**
+  時兩者不同。補了邊界測試
+* `plan.ts` 的 catch 分支要 TOCTOU 競態才到得了 → 具名豁免,並寫明方向是刻意的
+* `phase-notice.ts` 的既有豁免條目**因行號漂移而失效**(allowlist 檔頭警告過的陷阱,
+  第二次發生)。重新對上並實測確認,不是重寫論證
+* `notice.ts` 沒有任何可變異的運算子(純字串組裝)——**掃描對它說不出話**,
+  覆蓋它的是測試
+
+**batch 2(先前從未掃描的 6 個)**:
+
+| 模組 | 存活者 | 處置 |
+|---|---|---|
+| `ecc-hooks-bridge/plan.ts` | 2 | **兩個都用測試殺掉**:`.active_plan` 指向沒有計畫的目錄要回退到專案根;`isGitCommit("")` 不是 commit |
+| `ecc-hooks-bridge/advisory.ts` | 5 | **4 個用測試殺掉**(空 advisory 被拒、剛好等於預算不截斷、預算小於截斷標記時只回標記、advisory 之間的換行有計數);`DEFAULT_DRAIN_BUDGET` ±1 具名豁免 |
+| `ecc-hooks-bridge/ecc-payload.ts` | 3 | **2 個用測試殺掉**(空字串 path 不該變成 `file_path`、空白 `additionalContext` 不該變成 advisory);非物件 section 具名豁免(呼叫端只讀三個欄位,字串上全是 undefined,實測過) |
+| `stealth-web-bridge/truncate.ts` | 9 | **待處理**(`humanSize` 的 1024 邊界、`truncateForTool` 的 `<=`/`&&`/換行計數) |
+| `stealth-web-bridge/readability.ts` | 1 | **待處理**(`headsAResult` 的 `index + 2`) |
+| `deep-research-bridge/research.ts` | 6 | **待處理** |
+
+**掃描器自己的缺陷(這一批最重要的發現):被中斷會把突變留在磁碟上。**
+我用 2 分鐘的 timeout 包住一次掃描,它被 SIGTERM 殺掉,
+`readability.ts` 就留著 `index + 2`(原始碼是 `index + 1`)。
+`mutated_file` 的 `finally` 擋得住所有例外,**而 SIGTERM 不是例外** ——
+行程在 `finally` 之前就消失了。二十分鐘後是全套測試把它抓出來的。
+
+* **為什麼比紅測試嚴重**:留在工作區的突變可以被 commit,
+  而 `setup.py --mode restore` 會把它裝進 `~/.pi`,在真實 session 裡執行
+* **修法兩層**:能攔的訊號(SIGTERM/SIGBREAK/SIGHUP)轉成例外,讓既有的
+  `finally` 生效;攔不到的(SIGKILL、斷電)用**標記檔** —— 記下正在被變異的檔案,
+  下一次啟動看到標記就拒絕執行並指名該檔。標記檔的行為有測試
+* **教訓**:別用短 timeout 包住慢掃描;測試在你沒動過的檔案上變紅時,
+  第一個假設應該是「有東西寫了我的工作區」,而不是去 debug 那個測試
+
+**結構性成果(比單次掃描更重要):`tests/test_mutation_coverage.py`** ——
+每一個純模組都必須出現在 `GUARD_MODULES` 或**附理由的** `UNSWEPT_WITH_REASON` 裡,
+兩者都不在就紅。T1b 的起因正是「33/48 沒被掃描而沒有人說得出來」;
+一次性掃描不會保住這件事,這條檢查會。移除任一模組登記 → 紅 1 條(已驗)。
+
+* **13 個 `async-exec-bridge/*` 具名排除**:它們的測試是 bun 的 `.test.ts`,
+  而這支掃描器跑的是 `python -m unittest`;`test_async_exec_bridge.py` 只驗結構
+  (是不是 ESM、有沒有註冊),指過去只會**每個突變都報 killed 而什麼都沒測**。
+  2026-08-12 查證:`bun` 也不在這台機器的 PATH 上。
+  **觸發條件**:讓 runner 會呼叫 `bun test <file>`,13 個模組一次進入範圍
+
+### ⚪ T1b-rest — 其餘 16 個存活者(truncate 9 / research 6 / readability 1)
 * **為什麼**:T1 量到 48 個純模組只有 15 個在掃描裡。納入 2 個就找到 22 個存活者,
   其中 10 個在當天改過的檔案。**剩下 31 個是未知的**
 * **服務哪一層**:全部三層的前提(同 T1)

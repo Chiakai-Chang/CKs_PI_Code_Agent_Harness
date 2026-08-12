@@ -82,6 +82,16 @@ class TestTheListingCapComesFromConfig(unittest.TestCase):
         self.addCleanup(shutil.rmtree, root, True)
         self.assertEqual(self.cap(root), 2)
 
+    def test_one_is_a_legal_cap(self):
+        """The boundary, and a mutation survivor before this test existed:
+        `v > 0` and `v > 1` differ on exactly this input and nothing could tell
+        them apart. One is legal — a queue with one pending task listed, or
+        `goalRestateMax: 1` meaning restate once. Rejecting it would silently
+        substitute the shipped value for a setting someone chose on purpose."""
+        root = fixture_root({"queueListingCap": 1})
+        self.addCleanup(shutil.rmtree, root, True)
+        self.assertEqual(self.cap(root), 1)
+
     def test_a_missing_config_keeps_the_shipped_cap(self):
         root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, root, True)
@@ -244,7 +254,11 @@ class TestBothCopiesOfTheReaderAgree(unittest.TestCase):
         self.addCleanup(shutil.rmtree, good, True)
         missing = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, missing, True)
-        cases = [(good, 7), (missing, 99)]
+        one = fixture_root({"goalRestateThreshold": 1})
+        self.addCleanup(shutil.rmtree, one, True)
+        # 1 is legal and is the input the two `> 0` tests exist for; both
+        # copies must accept it, not only one.
+        cases = [(good, 7), (missing, 99), (one, 1)]
         for bad in ["7", 0, -1, True, 2.5, None]:
             r = fixture_root({"goalRestateThreshold": bad})
             self.addCleanup(shutil.rmtree, r, True)

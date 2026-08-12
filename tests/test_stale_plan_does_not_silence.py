@@ -91,6 +91,16 @@ class TestOnlyThisRunsPlanCounts(unittest.TestCase):
         started = int(time.time() * 1000) - 60_000
         self.assertTrue(self.has(started))
 
+    def test_a_plan_written_at_the_exact_moment_the_session_began_counts(self):
+        """The boundary, and a mutation survivor before this test existed:
+        `>=` and `>` differ on exactly this input. A plan whose mtime equals the
+        session start belongs to the session — the session did not exist before
+        that instant, so nothing older can have been written by it, and nothing
+        written at it can be history."""
+        started = int(time.time() * 1000) - 5000
+        os.utime(self.plan, (started / 1000.0, started / 1000.0))
+        self.assertTrue(self.has(started))
+
     def test_a_plan_a_minute_older_than_the_session_does_not(self):
         """The boundary itself. One minute is not staleness — it is 'written
         before this conversation existed', which is the whole distinction."""

@@ -44,6 +44,7 @@ import json
 import os
 import re
 import subprocess
+import signal
 import sys
 from collections import namedtuple
 
@@ -78,8 +79,65 @@ GUARD_MODULES = {
     # today was found by this sweep and none by reading assertion styles, so
     # coverage of the sweep is the lever, not the wording of the tests.
     "pi-extensions/task-shape-bridge/shape.ts": ["test_task_shape"],
-    "pi-extensions/task-shape-bridge/plan.ts": ["test_plan_module"],
+    "pi-extensions/task-shape-bridge/plan.ts": ["test_plan_module", "test_stale_plan_does_not_silence"],
+    # T1b batch 1, added 2026-08-12: the three modules written or rewritten that
+    # day. Fresh code with fresh tests is where a weak assertion is most likely
+    # and least likely to have been noticed — two of the three exist only because
+    # `index.ts` cannot be imported by a test, which is the same reason nothing
+    # was covering them yesterday.
+    "pi-extensions/case-bridge/calibration.ts": ["test_calibration_layer"],
+    "pi-extensions/task-shape-bridge/calibration.ts": ["test_calibration_layer", "test_goal_restate"],
+    "pi-extensions/mece-autopilot-bridge/notice.ts": ["test_mece_notice"],
+    # T1b batch 2, added 2026-08-12: every remaining pure module that a python
+    # test can drive. What is left after this is async-exec-bridge/*, whose tests
+    # are bun `.test.ts` files this scanner cannot run — recorded as an exclusion
+    # with a reason rather than left looking unswept.
+    "pi-extensions/ecc-hooks-bridge/advisory.ts": ["test_ecc_hooks_bridge"],
+    "pi-extensions/ecc-hooks-bridge/ecc-payload.ts": ["test_ecc_payload", "test_ecc_hook_contract"],
+    "pi-extensions/ecc-hooks-bridge/plan.ts": ["test_plan_detection_parity"],
+    "pi-extensions/stealth-web-bridge/readability.ts": ["test_readability"],
+    "pi-extensions/stealth-web-bridge/truncate.ts": ["test_stealth_web_bridge"],
+    "pi-extensions/deep-research-bridge/research.ts": ["test_deep_research_bridge"],
 }
+
+# Pure modules this scanner deliberately does NOT sweep, and why. Written down
+# rather than left implicit: T1b started because 33 of 48 modules were unswept
+# and nothing said so — an unguarded list drifts, which is how `uninstall.py`
+# came to manage five bridges while `restore.py` managed eleven.
+#
+# `tests/test_mutation_coverage.py` requires every pure module to be in exactly
+# one of GUARD_MODULES or this dict, so a new module cannot arrive unnoticed.
+UNSWEPT_WITH_REASON = {
+    "pi-extensions/async-exec-bridge/capture.ts": "bun",
+    "pi-extensions/async-exec-bridge/constants.ts": "bun",
+    "pi-extensions/async-exec-bridge/envelope.ts": "bun",
+    "pi-extensions/async-exec-bridge/jobs.ts": "bun",
+    "pi-extensions/async-exec-bridge/lease.ts": "bun",
+    "pi-extensions/async-exec-bridge/notify.ts": "bun",
+    "pi-extensions/async-exec-bridge/paths.ts": "bun",
+    "pi-extensions/async-exec-bridge/preflight.ts": "bun",
+    "pi-extensions/async-exec-bridge/retention.ts": "bun",
+    "pi-extensions/async-exec-bridge/spawn.ts": "bun",
+    "pi-extensions/async-exec-bridge/state-block.ts": "bun",
+    "pi-extensions/async-exec-bridge/telegram.ts": "bun",
+    "pi-extensions/async-exec-bridge/timeout.ts": "bun",
+}
+
+# The one reason string above, spelled out once.
+#
+#   bun: the module's real tests are `*.test.ts` run by bun, and this scanner
+#        drives `python -m unittest`. `tests/test_async_exec_bridge.py` exists
+#        but only asserts structure — package shape, manifest registration,
+#        exported handlers — so pointing the sweep at it would report every
+#        mutant killed while testing nothing about the logic, which is worse
+#        than reporting nothing. Verified 2026-08-12: `bun` is not on PATH on
+#        this machine either, so the sweep could not run those tests today even
+#        if it knew how.
+#
+#   TRIGGER for revisiting: teach the runner to invoke `bun test <file>` for
+#   modules whose tests are `.test.ts`, on a machine that has bun. 13 modules
+#   would come into scope at once.
+UNSWEPT_REASONS = {"bun"}
 
 Mutation = namedtuple("Mutation", "offset kind original mutated")
 
@@ -228,6 +286,59 @@ def apply_mutation(path: str, mutation: Mutation) -> None:
         f.write(new)
 
 
+# A file that exists only while a source file is mutated on disk.
+#
+# Measured 2026-08-12: a sweep was killed by a 2-minute command timeout and left
+# `readability.ts` holding `index + 2` instead of `index + 1`. The `finally`
+# below restores on every exception, but SIGTERM is not an exception — the
+# process dies before it runs. The unit tests caught the mutant minutes later,
+# which is the system working, but a mutation left in the tree can be committed,
+# and `setup.py --mode restore` would install it into ~/.pi and run it in a live
+# session.
+#
+# Signals are handled where they can be (below); this marker covers what they
+# cannot, including SIGKILL and a power cut. It cannot restore the bytes — those
+# are only in the dead process's memory — so it says which file to check.
+MUTATION_MARKER = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                               ".mutation-in-progress")
+
+
+def refuse_if_a_mutation_leaked() -> None:
+    """Stop if a previous run died with a file mutated."""
+    if not os.path.exists(MUTATION_MARKER):
+        return
+    try:
+        with open(MUTATION_MARKER, encoding="utf-8") as f:
+            stranded = f.read().strip()
+    except OSError:
+        stranded = "(unreadable marker)"
+    raise SystemExit(
+        f"FATAL: a previous sweep died while {stranded} was mutated.\n"
+        f"       Check it with `git diff {stranded}` and restore it, then delete\n"
+        f"       {MUTATION_MARKER} and run again. Running now would sweep a file\n"
+        f"       that is already wrong and report the mutant as killed.")
+
+
+def install_signal_restore() -> None:
+    """Turn the signals that can be caught into exceptions, so `finally` runs.
+
+    SIGINT already raises KeyboardInterrupt. SIGTERM does not, and a command
+    timeout sends SIGTERM. SIGKILL cannot be caught by anything — the marker
+    above is what covers it.
+    """
+    def raise_it(signum, _frame):
+        raise KeyboardInterrupt(f"signal {signum}")
+
+    for name in ("SIGTERM", "SIGBREAK", "SIGHUP"):
+        sig = getattr(signal, name, None)
+        if sig is None:
+            continue
+        try:
+            signal.signal(sig, raise_it)
+        except (ValueError, OSError):
+            pass          # not settable on this platform or not the main thread
+
+
 @contextlib.contextmanager
 def mutated_file(path: str, mutation: Mutation):
     """Mutate, yield, and put the original bytes back on every exit path.
@@ -240,6 +351,8 @@ def mutated_file(path: str, mutation: Mutation):
         original = f.read()
     digest = hashlib.sha256(original).hexdigest()
     try:
+        with open(MUTATION_MARKER, "w", encoding="utf-8") as f:
+            f.write(path)
         apply_mutation(path, mutation)
         yield
     finally:
@@ -248,6 +361,10 @@ def mutated_file(path: str, mutation: Mutation):
         with open(path, "rb") as f:
             if hashlib.sha256(f.read()).hexdigest() != digest:
                 raise SystemExit(f"FATAL: could not restore {path} — fix it by hand before continuing")
+        try:
+            os.remove(MUTATION_MARKER)
+        except OSError:
+            pass
 
 
 def line_col(src: str, offset: int):
@@ -373,6 +490,9 @@ def main():
     args = ap.parse_args()
 
     cap = None if args.all else args.cap
+    refuse_if_a_mutation_leaked()
+    install_signal_restore()
+
     targets = {k: v for k, v in GUARD_MODULES.items() if not args.only or args.only in k}
     if not targets:
         print(f"no guard module matches {args.only!r}")

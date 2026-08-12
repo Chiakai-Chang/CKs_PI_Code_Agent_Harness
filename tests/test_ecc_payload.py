@@ -95,6 +95,19 @@ class TestInboundTranslation(unittest.TestCase):
         self.assertEqual(out["tool_input"]["file_path"], "/tmp/a.ts")
         self.assertEqual(out["tool_input"]["content"], "x")
 
+    def test_an_empty_path_does_not_become_a_file_path(self):
+        """`typeof src.path === "string" && src.path` with `||` sets
+        `file_path: ""` for a write with no path. Three ECC hooks read
+        `tool_input.file_path` and branch on its presence — an empty string is
+        present, so they would run their checks against the current directory
+        instead of skipping. Empty is ordinary: a malformed call arrives so."""
+        out = to_hook_input("write", {"path": "", "content": "x"})
+        self.assertNotIn("file_path", out["tool_input"])
+
+    def test_a_non_string_path_does_not_become_a_file_path(self):
+        out = to_hook_input("write", {"path": 42, "content": "x"})
+        self.assertNotIn("file_path", out["tool_input"])
+
     def test_edit_path_becomes_file_path_and_edits_survive(self):
         edits = [{"oldText": "a", "newText": "b"}]
         out = to_hook_input("edit", {"path": "/tmp/a.ts", "edits": edits})
@@ -185,6 +198,27 @@ class TestOutboundTranslation(unittest.TestCase):
         out = parse_output({"stdout": json.dumps(payload), "stderr": "", "exitCode": 0})
         self.assertTrue(out["block"])
         self.assertIn("Fact-Forcing Gate", out["reason"])
+
+    def test_whitespace_only_context_is_not_an_advisory(self):
+        """`typeof context === "string" && context.trim()` with `||` turns a
+        blank `additionalContext` into an advisory, and the queue then injects a
+        header with nothing under it on every tool result. A hook that found
+        nothing to say returns exactly this."""
+        payload = {"hookSpecificOutput": {"hookEventName": "PostToolUse",
+                                          "additionalContext": "   \n  "}}
+        out = parse_output({"stdout": json.dumps(payload), "stderr": "", "exitCode": 0})
+        self.assertNotIn("advisory", out)
+
+    def test_a_non_object_hook_section_is_ignored(self):
+        """`section && typeof section === "object"` with `||` returns a string or
+        a number as if it were the hook's structured output, and every field read
+        off it is undefined — a deny that never denies."""
+        for junk in ["deny", 7, True]:
+            with self.subTest(junk=junk):
+                payload = {"hookSpecificOutput": junk}
+                out = parse_output({"stdout": json.dumps(payload), "stderr": "",
+                                    "exitCode": 0})
+                self.assertFalse(out.get("block"))
 
     def test_additional_context_becomes_an_advisory(self):
         """suggest-compact's own comment: non-blocking stderr does not reach the

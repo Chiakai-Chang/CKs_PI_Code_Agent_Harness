@@ -261,6 +261,82 @@ class TestAdvisoryBudget(unittest.TestCase):
         self.assertFalse(out["hasB"])
         self.assertTrue(out["secondHasB"])
 
+    def test_a_block_that_is_exactly_the_budget_is_not_truncated(self):
+        """The boundary, and a mutation survivor before this test existed:
+        `block.length <= budget` and `< budget` differ on exactly this input, and
+        the `<` version truncates a message that fits — replacing its last
+        characters with the truncation mark for nothing."""
+        out = run_js("""
+        const q = new m.AdvisoryQueue();
+        q.push("a", "A".repeat(50), "always");
+        const probe = q.drain(100000);          // whole block, un-truncated
+        const q2 = new m.AdvisoryQueue();
+        q2.push("a", "A".repeat(50), "always");
+        const exact = q2.drain(probe.length);   // budget == block length
+        process.stdout.write(JSON.stringify({ probe, exact }));
+        """)
+        self.assertEqual(out["exact"], out["probe"],
+                         "a block that exactly fits was truncated")
+
+    def test_a_budget_smaller_than_the_truncation_mark_still_returns_something(self):
+        """`Math.max(0, budget - MARK.length)` with `1` instead of `0` differs
+        only when the budget is smaller than the mark itself. Slicing with a
+        negative length silently counts from the end of the string, so getting
+        this wrong returns the TAIL of an advisory — text that reads like a
+        complete message and is not."""
+        out = run_js("""
+        const q = new m.AdvisoryQueue();
+        q.push("big", "Z".repeat(500), "always");
+        const block = q.drain(1);
+        process.stdout.write(JSON.stringify({ block }));
+        """)
+        self.assertIsNotNone(out["block"])
+        self.assertNotIn("ZZZ", out["block"],
+                         "a 1-char budget returned advisory text, not just the mark")
+        # Exactly the mark, with nothing in front of it. `Math.max(1, …)` keeps
+        # one character of the header, which reads as the start of a real message.
+        self.assertEqual(out["block"], " …[truncated]")
+
+    def test_the_newline_between_advisories_is_counted(self):
+        """`next.text.length + 1` — the +1 is the newline that will join them.
+        Counting 2 shifts the packing boundary by one character per advisory, so
+        a pair that exactly fills the budget would be split across two drains.
+        Sized to the boundary here, because anywhere else the margin hides it."""
+        out = run_js("""
+        const q = new m.AdvisoryQueue();
+        const header = m.ADVISORY_HEADER.length;
+        const a = "A".repeat(20), b = "B".repeat(20);
+        // header + (a + newline) + (b + newline) is what drain() accounts for.
+        const budget = header + a.length + 1 + b.length + 1;
+        q.push("a", a, "always");
+        q.push("b", b, "always");
+        const first = q.drain(budget);
+        process.stdout.write(JSON.stringify({
+          hasA: first.includes("AAA"), hasB: first.includes("BBB"),
+          pendingAfter: q.pendingCount,
+        }));
+        """)
+        self.assertTrue(out["hasA"])
+        self.assertTrue(out["hasB"], "the second advisory was dropped: the "
+                                     "per-item cost is over-counted")
+        self.assertEqual(out["pendingAfter"], 0)
+
+    def test_an_empty_advisory_is_refused(self):
+        """`if (!body) return false;` flipped to `true` queues a blank advisory,
+        and drain then emits a header with nothing under it. Empty is ordinary:
+        a hook that found nothing to say arrives here with an empty string."""
+        out = run_js("""
+        const q = new m.AdvisoryQueue();
+        process.stdout.write(JSON.stringify({
+          empty: q.push("a", "", "always"),
+          blank: q.push("b", "   ", "always"),
+          pending: q.pendingCount,
+        }));
+        """)
+        self.assertFalse(out["empty"])
+        self.assertFalse(out["blank"])
+        self.assertEqual(out["pending"], 0)
+
     def test_a_single_oversized_advisory_is_truncated_rather_than_dropped(self):
         """Dropping it silently is how a guard fires zero times and nobody notices."""
         out = run_js("""
