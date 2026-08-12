@@ -133,6 +133,19 @@ class TestDeepResearchIsOptIn(unittest.TestCase):
             return run_js('process.stdout.write(JSON.stringify({on: m.deepResearchEnabled(%s)}));'
                           % json.dumps(root))["on"]
 
+    def test_an_unreadable_config_leaves_it_off(self):
+        """The catch in `deepResearchEnabled` returns false, and the direction is
+        the whole point: a missing or corrupt config must not switch on a bridge
+        that is off because it once spent 44 minutes returning nothing usable.
+        Flipping that `return false` to `true` was a mutation survivor — the
+        branch is reached by an ordinary missing file, not by anything exotic."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:      # no pi-config inside
+            root = tmp.replace("\\", "/")
+            self.assertFalse(
+                run_js('process.stdout.write(JSON.stringify({on: m.deepResearchEnabled(%s)}));'
+                       % json.dumps(root))["on"])
+
     def test_shipped_config_has_the_flag_off(self):
         cfg = json.loads(read("pi-config/harness-config.json"))
         self.assertIn("enableDeepResearch", cfg, "the flag must ship, not be an undocumented default")
@@ -253,6 +266,111 @@ class TestChildOutputIsBounded(unittest.TestCase):
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestTheTrimmingBoundaries(unittest.TestCase):
+    """Mutation survivors from the exhaustive sweep of 2026-08-12.
+
+    Every one of these is an off-by-one at a size boundary. They matter because
+    what they trim is the only description of a failure the parent ever sees: a
+    child that dies leaves stderr, and this is what turns it into a sentence."""
+
+    def summarize(self, text, max_chars):
+        return run_js('process.stdout.write(JSON.stringify({out: m.summarizeChildStderr(%s, %d)}));'
+                      % (json.dumps(text), max_chars))["out"]
+
+    def test_a_summary_that_exactly_fits_is_not_trimmed(self):
+        """`joined.length <= max` with `<` appends an ellipsis to a message that
+        fits, which reads as a truncated error and is not one."""
+        line = "e" * 40
+        self.assertEqual(self.summarize(line, 40), line)
+        self.assertTrue(self.summarize(line, 39).endswith("…"))
+
+    def test_a_finding_that_exactly_fits_is_not_marked_truncated(self):
+        """`t.length <= max` with `<` appends "[finding truncated at N chars]" to
+        an answer that was never cut. The parent files that note as part of the
+        finding, so the digest then says a complete answer is incomplete."""
+        out = run_js(
+            "process.stdout.write(JSON.stringify({"
+            "exact: m.clampFinding('x'.repeat(10), 10),"
+            "over: m.clampFinding('x'.repeat(11), 10)}));")
+        self.assertEqual(out["exact"], "x" * 10)
+        self.assertIn("truncated", out["over"])
+
+    def test_the_ok_flag_says_what_happened(self):
+        """`{ ok: false }` on a bad list and `{ ok: true }` on a good one. Both
+        literals survived mutation: nothing asserted the flag itself, only the
+        payload beside it — and the caller branches on the flag."""
+        out = run_js(
+            "process.stdout.write(JSON.stringify({"
+            "bad: m.validateSubQuestions('not an array').ok,"
+            "good: m.validateSubQuestions(['a real question']).ok}));")
+        self.assertFalse(out["bad"], "a rejected input reported ok: true")
+        self.assertTrue(out["good"], "a valid list reported ok: false")
+
+    def test_a_buffer_that_exactly_fills_its_cap_is_kept_whole(self):
+        """`combined.length <= max` with `<` throws away one character of a
+        stream that fits. On the head-kept stdout buffer that character is the
+        opening brace of the child's first JSON event."""
+        out = run_js(
+            "process.stdout.write(JSON.stringify({"
+            "exact: m.appendBounded('abcde', '', 5, 'head'),"
+            "over: m.appendBounded('abcdef', '', 5, 'head'),"
+            "tail: m.appendBounded('abcdef', '', 5, 'tail')}));")
+        self.assertEqual(out["exact"], "abcde", "a buffer that exactly fits was trimmed")
+        self.assertEqual(out["over"], "abcde")
+        self.assertEqual(out["tail"], "bcdef")
+
+    def test_only_a_text_block_with_a_string_body_becomes_a_finding(self):
+        """Two `&&`s in one condition: `c && c.type === "text" && typeof c.text
+        === "string"`. With `||`, a null block or an image block reaches
+        `texts.push(c.text)` and files `undefined` as the child's finding — the
+        P1 defect this bridge already has on record, arriving by another door."""
+        events = [
+            {"type": "message_end", "message": {"role": "assistant", "content": [
+                {"type": "text", "text": "the actual finding"},
+                # AFTER the text on purpose: with `||` a junk block pushes
+                # `undefined`, and only a junk block that lands LAST changes the
+                # answer. The first version of this test put it first and the
+                # mutants sailed through.
+                {"type": "image", "source": "…"},
+                None,
+                {"type": "text", "text": 42},
+            ]}},
+        ]
+        out = run_js("process.stdout.write(JSON.stringify({out: m.parseChildOutput(%s)}));"
+                     % json.dumps(chr(10).join(json.dumps(e) for e in events)))["out"]
+        self.assertEqual(out, "the actual finding")
+
+    def test_only_an_assistant_message_end_is_read(self):
+        """`event?.type === "message_end" && msg?.role === "assistant"` with `||`
+        accepts a user turn as the child's finding — the parent would then file
+        its own question back to itself as the answer."""
+        stream = chr(10).join([
+            json.dumps({"type": "message_end", "message": {"role": "assistant",
+                                                           "content": "the finding"}}),
+            json.dumps({"type": "message_end", "message": {"role": "user",
+                                                           "content": "the question"}}),
+        ])
+        out = run_js("process.stdout.write(JSON.stringify({out: m.parseChildOutput(%s)}));"
+                     % json.dumps(stream))["out"]
+        self.assertEqual(out, "the finding")
+
+    def test_a_child_that_said_nothing_yields_an_empty_finding(self):
+        """`texts.length > 0` with `> 1` drops a child whose only output was its
+        answer — one message, which is the shape of a child that worked."""
+        one = json.dumps({"type": "message_end", "message": {"role": "assistant",
+                                                            "content": "the only thing it said"}})
+        out = run_js("process.stdout.write(JSON.stringify({out: m.parseChildOutput(%s)}));"
+                     % json.dumps(one))["out"]
+        self.assertEqual(out, "the only thing it said")
+
+    def test_the_summary_starts_at_the_first_character(self):
+        """`joined.slice(0, max)` with `slice(1, max)` drops the first character
+        of every trimmed error — and the first character is where the error
+        starts."""
+        out = self.summarize("ERROR: the child died\nmore noise " + ("x" * 400), 20)
+        self.assertTrue(out.startswith("ERROR:"), out[:30])
+
+
 class TestChildFailureDiagnostic(unittest.TestCase):
     """P2 from the 2026-07-30 validation: when a child fails, the parent is told
     nothing useful about why.

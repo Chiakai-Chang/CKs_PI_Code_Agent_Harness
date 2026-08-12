@@ -211,6 +211,104 @@ class TestSearchResultsPage(unittest.TestCase):
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestAHeadingOnTheVeryNextLine(unittest.TestCase):
+    """The BBC shape at its tightest: `/url:` and its heading are adjacent.
+
+    A mutation survivor until this existed. `headsAResult` scans forward from
+    `index + 1`, and with `index + 2` the heading immediately below the address
+    is skipped — the scan then meets the next dedent and answers "no heading",
+    so a real result's address is dropped as navigation. Every fixture until now
+    had something between the two lines, so nothing noticed.
+    """
+
+    SNAPSHOT = (
+        '- link "Spain and France brace for record heat":' + chr(10) +
+        "  - /url: /news/articles/ckg34128nvpo" + chr(10) +
+        '  - heading "Spain and France brace for record heat" [level=2]' + chr(10) +
+        '- link "Home":' + chr(10) +
+        "  - /url: /" + chr(10)
+    )
+
+    def test_the_address_under_it_survives(self):
+        out = extract(self.SNAPSHOT, is_text=True)
+        self.assertIn("/news/articles/ckg34128nvpo", out["text"],
+                      "a result address was dropped as navigation")
+
+    def test_navigation_without_a_heading_still_goes(self):
+        """The other half of the same predicate: if everything survived, the
+        assertion above would pass for the wrong reason.
+
+        Compared line by line rather than by substring — the first version
+        asserted `"- /url: /" + "\n"` was absent, and the extracted text has no
+        trailing newline, so a mutant that kept the line passed anyway. A
+        substring assertion is only as precise as the string it is given."""
+        lines = [l.strip() for l in extract(self.SNAPSHOT, is_text=True)["text"].splitlines()]
+        self.assertNotIn("- /url: /", lines, "navigation was kept as a result")
+        self.assertIn("- /url: /news/articles/ckg34128nvpo", lines)
+
+    def test_a_trailing_address_with_no_heading_after_it_still_goes(self):
+        """`return false` at the end of the forward scan, flipped to `true`,
+        keeps any address the snapshot happens to end on. Pages end on
+        navigation all the time."""
+        snapshot = ('- link "Home":' + chr(10) + "  - /url: /home")
+        lines = [l.strip() for l in extract(snapshot, is_text=True)["text"].splitlines()]
+        self.assertNotIn("- /url: /home", lines)
+
+    def test_a_heading_container_on_the_first_line_is_found(self):
+        """The backward scan runs `j >= 0`; with `j >= 1` it never reads line 0,
+        so the DuckDuckGo shape — heading first, link and address nested under
+        it — loses its address whenever the heading opens the snapshot."""
+        snapshot = (
+            '- heading "Smart Video Doorbell - Tecom Taiwan" [level=2]:' + chr(10) +
+            '  - link "Smart Video Doorbell - Tecom Taiwan":' + chr(10) +
+            "    - /url: https://www.tecom.com.tw/doorbell" + chr(10)
+        )
+        self.assertIn("https://www.tecom.com.tw/doorbell",
+                      extract(snapshot, is_text=True)["text"])
+
+    def test_exactly_the_minimum_length_is_not_a_fallback(self):
+        """`text.length < minChars` with a default of 200: at exactly 200 the
+        extraction stands, and at 199 the whole accessibility tree is handed back
+        instead.
+
+        The first version of this test asserted `out.get("fellBack", False)` is
+        false. `ReadableResult` has no such field, so the assertion was true for
+        every input and the mutant `200 -> 201` survived it — a check that cannot
+        fail, written into the file whose job is to catch exactly that. The
+        fallback is observable as `text === snapshot`, so that is what is asked.
+        """
+        # The link line itself is kept — only its address is dropped — so the
+        # padding is computed rather than guessed. The first version hardcoded a
+        # length that came out at 214 and asserted 200.
+        nav_line = '- link "nav":'
+        nav = chr(10) + nav_line + chr(10) + "  - /url: /"
+        pad = 200 - 1 - len(nav_line) - len("- text: ")
+        at_200 = extract("- text: " + ("a" * pad) + nav, is_text=True)
+        self.assertEqual(at_200["readableChars"], 200)
+        self.assertNotIn("- /url: /", at_200["text"],
+                         "fell back to the raw snapshot at exactly minChars")
+
+        at_199 = extract("- text: " + ("a" * (pad - 1)) + nav, is_text=True)
+        self.assertIn("- /url: /", at_199["text"],
+                      "one character short must fall back, or the boundary is "
+                      "not being tested at all")
+
+    def test_a_sibling_heading_is_not_an_ancestor(self):
+        """The backward scan skips lines at or below its current indent with
+        `ind >= indent`. With `>`, a heading that is a SIBLING of the link — same
+        indent, not containing it — is read as the heading that owns the address,
+        and navigation under an unrelated block is kept as a result."""
+        snapshot = (
+            "- list:" + chr(10) +
+            '  - heading "Related stories" [level=3]:' + chr(10) +
+            '  - link "Home":' + chr(10) +
+            "    - /url: /home" + chr(10)
+        )
+        lines = [l.strip() for l in extract(snapshot, is_text=True)["text"].splitlines()]
+        self.assertNotIn("- /url: /home", lines)
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
 class TestFailOpen(unittest.TestCase):
     def test_widget_only_page_returns_the_original(self):
         """Returning an empty 'article' would read as a successfully-read blank
@@ -342,3 +440,56 @@ class TestAcrossPageLayouts(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required")
+class TestTheThreeFiltersEachCarryTheirWeight(unittest.TestCase):
+    """Mutation survivors from the exhaustive sweep of 2026-08-12.
+
+    Each of these is one operator in the keep/drop chain. Sampled sweeps missed
+    them, and `--all` found them — which is why the count in this task's ledger
+    entry was wrong: a sampled number understates, and I had scoped the task with
+    one."""
+
+    def kept(self, snapshot):
+        return [l.strip() for l in extract(snapshot, is_text=True)["text"].splitlines()]
+
+    def test_prose_wins_when_a_line_carries_both_roles(self):
+        """`!isProse && CHROME.test(line)` says chrome is only chrome when the
+        line is not prose. Both regexes SEARCH the line rather than anchoring, so
+        a flattened list item holding a button matches both — and that is the
+        only input where the negation is observable. With the negation dropped,
+        the prose line is discarded because it also mentions a control.
+
+        The first version of this test used `- text: Status: shipped`, which
+        looks like a collision and is not one: CHROME needs the role right after
+        the dash, so it never matched and both spellings agreed."""
+        line = '- listitem: - button "Subscribe" — the newsletter ships Tuesdays'
+        kept = self.kept(line + chr(10) + "- text: the only real sentence here")
+        self.assertIn(line, kept, "a prose line was dropped for naming a control")
+
+    def test_a_bare_role_label_is_dropped(self):
+        """`if (!/[A-Za-z0-9…]/.test(cleaned.replace(…)))` drops a role label
+        that carries nothing once its children are filtered away.
+
+        It has to be a role the earlier filters KEEP, or the line never reaches
+        this branch: the first version used `- list:`, which is neither prose nor
+        a link and was already gone two lines above. `- text:` is prose, so it
+        arrives here, and empty is exactly what it is."""
+        kept = self.kept("- text:" + chr(10) + "- text: the only real sentence here")
+        self.assertIn("- text: the only real sentence here", kept)
+        self.assertNotIn("- text:", kept, "an empty prose label was kept")
+
+    def test_a_snapshot_exactly_at_the_minimum_still_falls_back(self):
+        """`snapshot.length >= minChars` guards the fallback: with `>`, a
+        snapshot of exactly 200 characters whose readable text is shorter keeps
+        the near-empty extraction instead of handing back the tree. The
+        fallback exists because six turns in a row once received
+        "(empty snapshot)" as a success."""
+        filler = '- button "x"' + chr(10)
+        snapshot = (filler * (200 // len(filler)))
+        snapshot = snapshot + ("y" * (200 - len(snapshot)))
+        self.assertEqual(len(snapshot), 200, "the fixture must sit on the boundary")
+        out = extract(snapshot, is_text=True)
+        self.assertEqual(out["text"], snapshot,
+                         "a snapshot of exactly minChars did not fall back")

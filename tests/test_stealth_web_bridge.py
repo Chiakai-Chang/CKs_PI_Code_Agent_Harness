@@ -218,7 +218,7 @@ class TestToolOutputTruncation(unittest.TestCase):
         driver = os.path.join(ROOT, "tests", ".tmp_trunc_driver.mjs")
         url = "file:///" + os.path.join(ROOT, self.MOD).replace("\\", "/")
         with open(driver, "w", encoding="utf-8") as f:
-            f.write('import { truncateForTool, MAX_TOOL_BYTES, MAX_TOOL_LINES } from %s;\n%s'
+            f.write('import { truncateForTool, humanSize, MAX_TOOL_BYTES, MAX_TOOL_LINES } from %s;\n%s'
                     % (json.dumps(url), script))
         try:
             p = subprocess.run(["node", driver], capture_output=True, text=True,
@@ -263,6 +263,83 @@ process.stdout.write(JSON.stringify({
         out = self._run('process.stdout.write(JSON.stringify({lines: MAX_TOOL_LINES, bytes: MAX_TOOL_BYTES}));')
         self.assertEqual(out["lines"], 2000)
         self.assertEqual(out["bytes"], 50000)
+
+    @unittest.skipUnless(NODE_OK, "node >= 22 required")
+    def test_human_size_switches_units_at_the_real_boundaries(self):
+        """1024 exactly is one kilobyte, not 1024 bytes. Three mutation
+        survivors sat on these three comparisons: every `1024` could become
+        `1025` and no test noticed, because every existing case was far from a
+        boundary. The number appears in the truncation note the model reads."""
+        out = self._run(
+            "process.stdout.write(JSON.stringify({"
+            "under: humanSize(1023), at: humanSize(1024), over: humanSize(1025),"
+            "underMB: humanSize(1024 * 1024 - 1), atMB: humanSize(1024 * 1024)}));")
+        self.assertEqual(out["under"], "1023B")
+        self.assertEqual(out["at"], "1.0KB")
+        self.assertEqual(out["over"], "1.0KB")
+        self.assertEqual(out["underMB"], "1024.0KB")
+        self.assertEqual(out["atMB"], "1.0MB")
+
+    @unittest.skipUnless(NODE_OK, "node >= 22 required")
+    def test_output_that_exactly_fills_a_budget_is_returned_whole(self):
+        """`<=` and `<` differ only here, and `<` truncates output that fits —
+        spilling a file and adding a note for nothing."""
+        out = self._run(
+            "const exactLines = Array.from({length: MAX_TOOL_LINES}, () => 'y').join(String.fromCharCode(10));"
+            "const exactBytes = 'z'.repeat(MAX_TOOL_BYTES);"
+            "process.stdout.write(JSON.stringify({"
+            "linesUntouched: truncateForTool(exactLines, 't') === exactLines,"
+            "bytesUntouched: truncateForTool(exactBytes, 't') === exactBytes,"
+            "lineCount: exactLines.split(String.fromCharCode(10)).length,"
+            "byteCount: Buffer.byteLength(exactBytes, 'utf-8')}));")
+        self.assertEqual(out["lineCount"], 2000)
+        self.assertEqual(out["byteCount"], 50000)
+        self.assertTrue(out["linesUntouched"], "exactly MAX_TOOL_LINES was truncated")
+        self.assertTrue(out["bytesUntouched"], "exactly MAX_TOOL_BYTES was truncated")
+
+    @unittest.skipUnless(NODE_OK, "node >= 22 required")
+    def test_exceeding_either_budget_alone_still_truncates(self):
+        """`&&` with `||` returns output that blows one budget as long as it
+        respects the other — which is how a 3000-line snapshot reaches the model
+        whole. Both operands are covered, one per direction."""
+        out = self._run(
+            "const manyShortLines = Array.from({length: MAX_TOOL_LINES + 500}, () => 'y').join(String.fromCharCode(10));"
+            "const oneHugeLine = 'z'.repeat(MAX_TOOL_BYTES + 5000);"
+            "process.stdout.write(JSON.stringify({"
+            "overLinesTruncated: truncateForTool(manyShortLines, 't') !== manyShortLines,"
+            "overBytesTruncated: truncateForTool(oneHugeLine, 't') !== oneHugeLine,"
+            "overLinesBytes: Buffer.byteLength(manyShortLines, 'utf-8')}));")
+        self.assertLess(out["overLinesBytes"], 50000,
+                        "the fixture must break ONE budget only, or it proves nothing")
+        self.assertTrue(out["overLinesTruncated"], "too many lines, within the byte budget")
+        self.assertTrue(out["overBytesTruncated"], "too many bytes, within the line budget")
+
+    @unittest.skipUnless(NODE_OK, "node >= 22 required")
+    def test_the_kept_lines_start_at_the_first_one(self):
+        """`lines.slice(0, MAX_TOOL_LINES)` with `slice(1, …)` silently drops the
+        first line of every truncated output. On an AX-tree snapshot that is the
+        page's own title."""
+        out = self._run(
+            "const lines = Array.from({length: MAX_TOOL_LINES + 100}, (_, i) => 'L' + i);"
+            "const res = truncateForTool(lines.join(String.fromCharCode(10)), 't');"
+            "process.stdout.write(JSON.stringify({first: res.split(String.fromCharCode(10))[0]}));")
+        self.assertEqual(out["first"], "L0", "the first line was dropped")
+
+    @unittest.skipUnless(NODE_OK, "node >= 22 required")
+    def test_the_newline_between_kept_lines_is_counted_once(self):
+        """`byteLength(line) + 1` — the +1 is the newline that rejoins them.
+        Counting 2 costs one line per thousand, and starting `used` at 1 costs
+        another; both survived until a fixture sat on the boundary. 99 bytes plus
+        a newline is 100, so the byte budget fits exactly 500 of them."""
+        out = self._run(
+            "const line = 'x'.repeat(99);"
+            "const lines = Array.from({length: MAX_TOOL_LINES + 10}, () => line);"
+            "const res = truncateForTool(lines.join(String.fromCharCode(10)), 't');"
+            "const kept = res.split(String.fromCharCode(10)).filter(l => l === line).length;"
+            "process.stdout.write(JSON.stringify({kept}));")
+        self.assertEqual(out["kept"], 500,
+                         "the byte budget fits exactly 500 lines of 100 bytes; "
+                         "a different count means the per-line cost is wrong")
 
     def test_every_result_site_is_truncated(self):
         """A new tool that forgets to wrap its result reintroduces the problem."""

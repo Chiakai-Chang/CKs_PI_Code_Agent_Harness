@@ -303,6 +303,16 @@ MUTATION_MARKER = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                ".mutation-in-progress")
 
 
+# RUN THIS ALONE.
+#
+# The sweep edits source files in place. Anything else reading the tree at the
+# same time — the unit suite, an editor's type checker, `setup.py --mode restore`
+# — sees whichever mutant happens to be applied at that instant. Measured
+# 2026-08-12: a full `unittest discover` started beside a sweep reported
+# `failures=9, errors=13`, all in the module being mutated and none of them real,
+# and the sweep's own numbers were untrustworthy for the same reason in reverse.
+#
+# The marker below makes the damage visible; it cannot make concurrency safe.
 def refuse_if_a_mutation_leaked() -> None:
     """Stop if a previous run died with a file mutated."""
     if not os.path.exists(MUTATION_MARKER):
