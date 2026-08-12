@@ -51,29 +51,27 @@ def frontmatter_name(skill_md):
 
 
 def registered_names():
-    """Every skill name a session can actually load, from the same two sources
-    restore.py installs from."""
-    names = set()
+    """Every skill name a session can load, from sources that are IN THE REPO.
 
-    for entry in json.load(io.open(MANIFEST, encoding="utf-8")):
-        path = entry.get("path") if isinstance(entry, dict) else None
-        if not path:
-            continue
-        # Paths in the manifest are absolute and machine-specific; re-root them
-        # so this passes on a fresh checkout as well as on the author's disk.
-        rel = path.replace("\\", "/").split("/external/", 1)
-        base = os.path.join(ROOT, "external", rel[1]) if len(rel) == 2 else path
-        direct = os.path.join(base, "SKILL.md")
-        if os.path.isfile(direct):
-            n = frontmatter_name(direct)
-            names.add(n or os.path.basename(base))
-            continue
-        # A container directory holding several sub-skills.
-        if os.path.isdir(base):
-            for sub in sorted(os.listdir(base)):
-                sub_md = os.path.join(base, sub, "SKILL.md")
-                if os.path.isfile(sub_md):
-                    names.add(frontmatter_name(sub_md) or sub)
+    The first version read `pi-config/external-skills-manifest.json` and walked
+    `external/`. Both are absent on a fresh checkout — the manifest is gitignored
+    because it holds machine-specific absolute paths, and CI's `actions/checkout`
+    does not pull submodules. It passed here and failed on every CI run, which is
+    this repo's oldest recorded scar, repeated: a test that reads state only the
+    author's disk has is a test that says nothing anywhere else.
+
+    So the registry comes from two tracked files:
+
+      * `pi-skills/core/*/SKILL.md` — the skills this repo ships and installs.
+      * `pi-config/harness-config.json` -> `skillTiers.core` — the names the
+        harness registers, including the ones that come from submodules. That
+        list is where `pi-planning-with-files` appears, which is the name this
+        test exists to keep the instructions pointing at.
+
+    The external manifest is still read WHEN PRESENT, so a machine that has one
+    checks more, never less.
+    """
+    names = set()
 
     core = os.path.join(ROOT, "pi-skills", "core")
     if os.path.isdir(core):
@@ -83,6 +81,31 @@ def registered_names():
             md = os.path.join(core, name, "SKILL.md")
             if os.path.isfile(md):
                 names.add(frontmatter_name(md) or name)
+
+    try:
+        cfg = json.load(io.open(os.path.join(ROOT, "pi-config", "harness-config.json"),
+                                encoding="utf-8"))
+        tiers = cfg.get("skillTiers") or {}
+        names.update(n for n in (tiers.get("core") or []) if isinstance(n, str))
+    except (OSError, ValueError):
+        pass
+
+    if os.path.isfile(MANIFEST):
+        for entry in json.load(io.open(MANIFEST, encoding="utf-8")):
+            path = entry.get("path") if isinstance(entry, dict) else None
+            if not path:
+                continue
+            rel = path.replace("\\", "/").split("/external/", 1)
+            base = os.path.join(ROOT, "external", rel[1]) if len(rel) == 2 else path
+            direct = os.path.join(base, "SKILL.md")
+            if os.path.isfile(direct):
+                names.add(frontmatter_name(direct) or os.path.basename(base))
+                continue
+            if os.path.isdir(base):
+                for sub in sorted(os.listdir(base)):
+                    sub_md = os.path.join(base, sub, "SKILL.md")
+                    if os.path.isfile(sub_md):
+                        names.add(frontmatter_name(sub_md) or sub)
     return names
 
 

@@ -1,4 +1,5 @@
 import os
+import shutil
 import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -120,7 +121,7 @@ def run_guard(script):
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
 class TestAQuotedNameIsNotAnUnsafeName(unittest.TestCase):
-    """Measured 2026-08-11 in a real session, on every single start:
+    r"""Measured 2026-08-11 in a real session, on every single start:
 
         Warning: [skill-namespace-guard] Skipping unsafe skill name ""yes""
         from ...\external\yes.md\skills\yes\SKILL.md
@@ -145,14 +146,48 @@ class TestAQuotedNameIsNotAnUnsafeName(unittest.TestCase):
                          "m.readFrontmatterName(%s)));"
                          % json.dumps(os.path.join(ROOT, rel).replace("\\", "/")))
 
-    def test_the_real_file_that_warned_reads_as_yes(self):
-        self.assertEqual(
-            self.name_of("external/yes.md/skills/yes/SKILL.md"), "yes")
+    def skill_file(self, frontmatter):
+        """A SKILL.md written here, not read from a submodule.
+
+        The first version read `external/yes.md/skills/yes/SKILL.md` and
+        `external/superpowers/skills/brainstorming/SKILL.md` directly. CI's
+        `actions/checkout` does not pull submodules, so both were absent, the
+        parser returned None, and the test failed on every run while passing
+        here — the repo's oldest scar, repeated. The file this test is ABOUT is
+        one line of frontmatter; writing it is more honest than depending on a
+        checkout that may not have it.
+        """
+        import tempfile
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, True)
+        path = os.path.join(d, "SKILL.md")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("---\n%s\ndescription: x\n---\n\nbody\n" % frontmatter)
+        return path
+
+    def name_of_file(self, path):
+        import json
+        return run_guard("process.stdout.write(JSON.stringify("
+                         "m.readFrontmatterName(%s)));"
+                         % json.dumps(path.replace("\\", "/")))
+
+    def test_a_quoted_name_reads_without_its_quotes(self):
+        """`name: "yes"` is quoted because YAML 1.1 reads a bare `yes` as the
+        boolean true — upstream had no choice, and the guard must undo it."""
+        self.assertEqual(self.name_of_file(self.skill_file('name: "yes"')), "yes")
 
     def test_an_unquoted_name_is_untouched(self):
         self.assertEqual(
-            self.name_of("external/superpowers/skills/brainstorming/SKILL.md"),
-            "brainstorming")
+            self.name_of_file(self.skill_file("name: brainstorming")), "brainstorming")
+
+    def test_the_real_file_that_warned_reads_as_yes(self):
+        """The same assertion against the actual file, when this machine has the
+        submodule. Skipped rather than failed where it is absent: it adds
+        confidence locally and cannot be the thing CI depends on."""
+        real = os.path.join(ROOT, "external", "yes.md", "skills", "yes", "SKILL.md")
+        if not os.path.isfile(real):
+            self.skipTest("external/yes.md is not checked out here")
+        self.assertEqual(self.name_of_file(real), "yes")
 
     def test_both_quote_characters_are_handled(self):
         self.assertEqual(self.unquote('"yes"'), "yes")
