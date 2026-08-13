@@ -383,7 +383,7 @@ advance_injections n=5 mean=2.40 sd=0.49    need_n=1
 * **工具已就緒**:`scripts/measure-advancer.py --variance <results.json...> --delta N`
   (它拒絕把配置不明的 run 併在一起算)
 
-### 🔴 T-A11 — 技能層幾乎沒有在運作(**2026-08-13 量測,擁有者提問引出**)
+### 🟡 T-A11 — 技能層幾乎沒有在運作(**第 1 項已完成並上線;第 2、3 項暫緩,附觸發條件**)
 * **提問**:「參考了這麼多 repo,其他有發揮作用嗎?為什麼幾乎感覺不到 superpowers?」
 * **量到的**([skill-layer-reachability](docs/measurements/2026-08-13-skill-layer-reachability.md)):
   165 個真實 session、45 個已註冊技能 —— **曾被打開 7 個,從未被打開 38 個**。

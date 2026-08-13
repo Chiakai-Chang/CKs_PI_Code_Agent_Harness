@@ -428,6 +428,20 @@ class TestNamingTheMethodologySkill(unittest.TestCase):
         self.assertIn("systematic-debugging", note)
         self.assertNotIn("test-driven-development", note)
 
+    def test_the_sentence_matches_the_kind_it_named(self):
+        """CI's sampled sweep found this hole: flipping `kind === "debug"` to
+        `!==` swaps only the wording, because the skill name comes from the rule
+        either way. Every test here passed under that mutant, and the live
+        consequence is a debugging task being told to write the test first.
+        The wording IS the behaviour — it is the instruction the model reads."""
+        debug = self.note("這個 parser 一直報錯,請找出 bug 並修復")
+        self.assertIn("debugging", debug)
+        self.assertNotIn("write the test first", debug)
+        impl = self.note("請實作一個新的匯出模組,並附上測試")
+        self.assertIn("implementation", impl)
+        self.assertIn("write the test first", impl)
+        self.assertNotIn("before changing anything", impl)
+
     def test_the_multi_step_note_names_the_registered_spelling(self):
         """`planning-with-files` resolves to nothing; the skill declares
         `pi-planning-with-files` in its own frontmatter. A real session was told
@@ -462,3 +476,102 @@ class TestNamingTheMethodologySkill(unittest.TestCase):
                        "m.classifyRequest(%s).multiStep));" % json.dumps(prompt))
         self.assertFalse(shape, "this prompt must be single-step for the test to mean anything")
         self.assertIn("systematic-debugging", self.note(prompt))
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required for native TypeScript type stripping")
+class TestTheBoundariesThemselves(unittest.TestCase):
+    """Every number in this classifier is a calibration, and an uncalibrated
+    boundary is invisible: the exhaustive sweep found eleven surviving mutants in
+    this module on 2026-08-13, most of them off-by-one on a threshold nobody had
+    written a test at. CI samples 4 of 37 mutations per run, so they had been
+    surviving quietly for weeks — one of them surfaced only because a new
+    function put it in the sample.
+    """
+
+    def shape(self, prompt):
+        return run_js("process.stdout.write(JSON.stringify("
+                      "m.classifyRequest(%s)));" % json.dumps(prompt))
+
+    def length(self, text):
+        return run_js("process.stdout.write(JSON.stringify("
+                      "m.weightedLength(%s)));" % json.dumps(text))
+
+    def test_a_cjk_character_counts_double_and_a_latin_one_does_not(self):
+        """The 2:1 weighting is the fix that stopped this classifier being blind
+        to the language its owner writes in."""
+        self.assertEqual(self.length("研究"), 4)
+        self.assertEqual(self.length("ab"), 2)
+        self.assertEqual(self.length(""), 0)
+
+    def test_the_floor_is_exactly_25(self):
+        """24 weighted characters is below the floor and 25 is not. Without a
+        test at the boundary itself, 25 and 26 are the same program."""
+        at = "a" * 25
+        below = "a" * 24
+        self.assertEqual(self.length(at), 25)
+        # The floor gates classification: below it, nothing is even looked at,
+        # so `deliverables` stays 0 however many separators there are.
+        listy = "研究, 比較, 評估, 盤點"          # separators, but short
+        self.assertLess(self.length(listy), 25)
+        self.assertEqual(self.shape(listy)["deliverables"], 0)
+        padded = listy + " " + "x" * 25
+        self.assertGreaterEqual(self.length(padded), 25)
+        self.assertGreater(self.shape(padded)["deliverables"], 0)
+        self.assertEqual(self.shape(below)["deliverables"], 0)
+
+    def test_a_sentence_under_twelve_characters_is_not_counted(self):
+        """Short fragments carry separators without carrying deliverables —
+        the per-sentence floor is what keeps 'a, b' from being two asks."""
+        short_clauses = "a, b. c, d. " + "z" * 30
+        self.assertEqual(self.shape(short_clauses)["deliverables"], 0)
+
+    def test_one_separator_means_two_deliverables(self):
+        """`separators + 1`, and the `> 0` guard below it: a sentence with no
+        separator contributes nothing, one separator contributes two."""
+        one = "please research the pricing and the feature coverage of it"
+        self.assertGreaterEqual(self.length(one), 25)
+        self.assertEqual(self.shape(one)["deliverables"], 2)
+        none = "please research the pricing coverage of this single product now"
+        self.assertEqual(self.shape(none)["deliverables"], 0)
+
+    def test_the_research_plus_plural_branch_reports_at_least_two(self):
+        """The second multi-step branch. `Math.max(deliverables, 2)` is what
+        stops it reporting a count it did not actually find, and `multiStep:
+        true` there is the branch itself."""
+        got = self.shape("請評估這三項的可行性,並且逐一說明理由與風險以及後續做法")
+        self.assertTrue(got["multiStep"])
+        self.assertGreaterEqual(got["deliverables"], 2)
+
+    def test_the_floor_is_25_not_26(self):
+        """A string of exactly 25 weighted characters that does contain a
+        separator: at a floor of 25 it is classified, at 26 it returns early
+        with nothing. Both the earlier tests here passed either way."""
+        at = "research pricing and cove"
+        self.assertEqual(self.length(at), 25)
+        self.assertEqual(self.shape(at)["deliverables"], 2)
+
+    def test_a_sentence_of_exactly_twelve_characters_counts(self):
+        """11 characters is skipped, 12 is counted. The pair is the test; one of
+        them alone says nothing about where the line is."""
+        eleven = "aaa, bbbbbb. " + "z" * 30
+        twelve = "aaaa, bbbbbb. " + "z" * 30
+        self.assertEqual(self.shape(eleven)["deliverables"], 0)
+        self.assertEqual(self.shape(twelve)["deliverables"], 2)
+
+    def test_the_second_branch_reports_exactly_two(self):
+        """A research request with a plural marker and too few separators for
+        the first branch. It must come out multi-step, and the count it reports
+        must be 2 — the floor `Math.max(deliverables, 2)` puts there, not a
+        number it invented."""
+        got = self.shape("請評估三項的可行性並逐一說明")
+        self.assertTrue(got["multiStep"])
+        self.assertEqual(got["deliverables"], 2)
+        self.assertIn("research request", got["reason"])
+
+    def test_the_kind_note_floor_is_25_too(self):
+        """Exactly 25 weighted characters, and it is a debugging ask."""
+        at = "the parser has a bug oops"
+        self.assertEqual(self.length(at), 25)
+        note = run_js("process.stdout.write(JSON.stringify("
+                      "m.buildKindNote(%s)));" % json.dumps(at))
+        self.assertIn("systematic-debugging", note)
