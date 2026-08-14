@@ -15,6 +15,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import shutil
 import tempfile
 import unittest
@@ -125,19 +126,185 @@ class TestItReportsRatherThanJudges(unittest.TestCase):
         self.assertIn("REFUSALS = [", src)
         self.assertIn("Declared, never derived", src)
 
-    def test_every_declared_label_still_exists_in_a_bridge(self):
-        """The other direction: a marker nobody emits any more reports zero
-        forever and looks like a mechanism that never fires."""
-        m = load()
+    @staticmethod
+    def _bridge_sources():
         haystack = ""
         for p in (ROOT / "pi-extensions").rglob("*.ts"):
             if "node_modules" in str(p):
                 continue
             haystack += p.read_text(encoding="utf-8", errors="replace")
-        missing = [label for label, marker in m.INJECTIONS if marker not in haystack]
+        return haystack
+
+    def test_every_declared_label_still_exists_in_a_bridge(self):
+        """The other direction: a marker nobody emits any more reports zero
+        forever and looks like a mechanism that never fires.
+
+        This checked INJECTIONS only until 2026-08-14, and three REFUSAL markers
+        had died behind the gap: `queue guard`/`C.A.S.E. 任務佇列` (superseded by
+        the per-rule labels), `research depth`/`研究深度`, and
+        `citation gate`/`引用`. The last one is why the omission mattered —
+        `引用` is ordinary Chinese, so on a Chinese session it did not report
+        zero, it reported two, from prose. A dead marker is not silent; it is
+        silent about its own guard and loud about everything else."""
+        m = load()
+        haystack = self._bridge_sources()
+        missing = [label for label, marker in m.INJECTIONS + m.REFUSALS
+                   if marker not in haystack]
         self.assertEqual(missing, [],
-                         "these injection markers are emitted by no bridge: %s"
-                         % missing)
+                         "these markers are emitted by no bridge: %s" % missing)
+
+    def test_no_marker_can_be_swallowed_by_another(self):
+        """Two labels cannot share a hit. If one marker contains another, the
+        shorter one fires on every message the longer one matches, and the
+        report shows two mechanisms where one spoke."""
+        m = load()
+        table = m.INJECTIONS + m.REFUSALS
+        clashes = [(a, b) for a, ma in table for b, mb in table
+                   if a != b and ma in mb]
+        self.assertEqual(clashes, [],
+                         "marker of the first is contained in the second: %s"
+                         % clashes)
+
+    def test_every_customtype_a_bridge_sends_is_claimed(self):
+        """A delivery channel this script does not recognise reads as 'that
+        guard never fired'. Session 019ffbba was mined as `injections: none /
+        refusals: none` while carrying four custom messages."""
+        m = load()
+        declared = set(re.findall(r'customType:\s*"([^"]+)"',
+                                  self._bridge_sources()))
+        self.assertTrue(declared, "found no customType at all — regex rotted")
+        unclaimed = sorted(declared - set(m.CUSTOM_TYPE_ALLOWED))
+        self.assertEqual(unclaimed, [],
+                         "not in CUSTOM_TYPE_ALLOWED: %s" % unclaimed)
+
+    def test_the_allowed_labels_are_real_labels(self):
+        """A typo in CUSTOM_TYPE_ALLOWED silently forbids everything for that
+        type, which looks exactly like a guard that never fires."""
+        m = load()
+        known = {l for l, _ in m.INJECTIONS} | {l for l, _ in m.REFUSALS}
+        for ctype, labels in m.CUSTOM_TYPE_ALLOWED.items():
+            with self.subTest(ctype=ctype):
+                self.assertEqual(sorted(set(labels) - known), [],
+                                 "%s allows labels that do not exist" % ctype)
+
+
+class TestTheSendMessageChannel(unittest.TestCase):
+    """The miner read one channel and reported on two.
+
+    `records()` kept only `{"type":"message"}`, so everything a bridge delivers
+    through `pi.sendMessage` — a `custom_message` record — was dropped before any
+    counting. Session 019ffbba was mined as "injections: none / refusals: none"
+    while carrying four corrections, and the labels `blocked-claim` and
+    `loop guard` could never have counted anything at all, because both of those
+    guards speak only on this channel.
+
+    The fixture is a contiguous slice of that session's own bytes (records 5–12:
+    the four corrections and the four turns between them). The big first turn and
+    the user's prompt are outside the slice; nothing in it is written by hand."""
+
+    FIXTURE = ROOT / "tests" / "fixtures" / "session-fake-tool-call-loop.jsonl"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.m = load()
+        cls.d = cls.m.mine(cls.FIXTURE)
+
+    def test_the_fixture_is_real_session_bytes(self):
+        first = json.loads(self.FIXTURE.read_text(encoding="utf-8").splitlines()[0])
+        self.assertEqual(first.get("type"), "custom_message")
+        self.assertIn("customType", first)
+        self.assertIn("content", first)
+
+    def test_custom_messages_are_counted_at_all(self):
+        self.assertEqual(sum(self.d["custom_messages"].values()), 4)
+
+    def test_they_are_counted_by_the_type_the_sender_declared(self):
+        """Not by a marker guessed from the wording. The sender knows which
+        mechanism spoke; a marker only knows which sentence matched, and this
+        repo has already attributed one bridge's wording to another's label."""
+        self.assertEqual(self.d["custom_messages"]["loop-guard"], 2)
+        self.assertEqual(self.d["custom_messages"]["universal-tag-transformer"], 2)
+
+    def test_a_sendmessage_only_guard_now_appears_in_the_refusals_table(self):
+        """`blocked-claim`'s marker is 「你剛才說」 and it has only ever been
+        delivered by sendMessage — so its label reported zero in every session
+        ever mined, which reads as "the guard never fired"."""
+        self.assertGreaterEqual(self.d["refusals"]["blocked-claim"], 1)
+
+    def test_the_report_names_the_channel(self):
+        buf = io.StringIO()
+        self.m.report(self.d, False, buf)
+        out = buf.getvalue()
+        self.assertIn("custom messages   4", out)
+        self.assertIn("sendMessage", out)
+        self.assertIn("universal-tag-transformer", out)
+
+    def test_a_verbatim_repeat_on_this_channel_is_called_out(self):
+        """Two of the four corrections are byte-identical — the transformer sent
+        the same parsed-intent message twice and the model repeated its fake call
+        both times. That is the finding in this session, and it is on a channel
+        the repeat detector could not see."""
+        buf = io.StringIO()
+        self.m.report(self.d, False, buf)
+        self.assertIn("custom message(s) repeat the one before them", buf.getvalue())
+
+    def test_the_transformers_own_wording_is_not_a_loop_guard_refusal(self):
+        """The defect this fixture happens to carry, and the one measured on
+        session 019ffbdd: the transformer's message says 「原文不在此重複」, the
+        loop-guard marker was 重複, and the report claimed the loop guard refused
+        three times in a session where it refused none. The same three messages
+        were already listed correctly by customType, so one batch was counted
+        twice under two mechanisms."""
+        raw = self.FIXTURE.read_text(encoding="utf-8")
+        self.assertIn("原文不在此重複", raw, "fixture no longer carries the wording")
+        self.assertEqual(self.d["refusals"]["loop guard"], 0)
+        self.assertEqual(self.d["custom_messages"]["universal-tag-transformer"], 2)
+
+    def test_a_type_cannot_borrow_another_types_label(self):
+        """Prove the restriction can refuse. The payload here is synthetic on
+        purpose — what is under test is the routing, not the wording: a message
+        carrying the loop guard's own marker, sent under the transformer's type,
+        must not be counted as a loop-guard refusal."""
+        m = load()
+        rec = {"type": "custom_message", "id": "x",
+               "customType": "universal-tag-transformer", "display": True,
+               "content": "[SYSTEM] 你發出了完全相同的呼叫、被糾正 3 次仍在重複。"}
+        d = tempfile.mkdtemp()
+        try:
+            p = Path(d) / "s.jsonl"
+            p.write_text(json.dumps(rec, ensure_ascii=False) + "\n",
+                         encoding="utf-8")
+            got = m.mine(p)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+        self.assertEqual(got["custom_messages"]["universal-tag-transformer"], 1)
+        self.assertEqual(got["refusals"]["loop guard"], 0,
+                         "the type did not restrict which label may match")
+
+    def test_an_unknown_customtype_is_reported_not_dropped(self):
+        m = load()
+        rec = {"type": "custom_message", "id": "x", "customType": "brand-new",
+               "display": True, "content": "hello"}
+        d = tempfile.mkdtemp()
+        try:
+            p = Path(d) / "s.jsonl"
+            p.write_text(json.dumps(rec, ensure_ascii=False) + "\n",
+                         encoding="utf-8")
+            got = m.mine(p)
+            buf = io.StringIO()
+            m.report(got, False, buf)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+        self.assertIn("brand-new", got["unknown_custom_types"])
+        self.assertIn("customType this script does not know", buf.getvalue())
+
+    def test_a_session_with_no_custom_messages_still_says_so(self):
+        """Zero and unchecked must not look the same — the reason this whole
+        blind spot survived is that "none" was printed for both."""
+        buf = io.StringIO()
+        self.m.report(self.m.mine(FIXTURE), False, buf)
+        out = buf.getvalue()
+        self.assertIn("custom messages   0", out)
 
 
 if __name__ == "__main__":
