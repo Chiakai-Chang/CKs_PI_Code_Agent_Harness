@@ -180,5 +180,78 @@ class TestTheRealCatalogWhenItExists(unittest.TestCase):
         )
 
 
+class TestTheWriteItselfCarriesTheLocalNames(unittest.TestCase):
+    """The check above is about the file on disk; this one is about the code
+    that writes it, because for ten days those were different questions.
+
+    The state above was first measured on 2026-08-04 and a check was written for
+    it. The check printed a remedy — re-run restore — and the remedy WORKED, so
+    the cause was never chased: the local names were folded in ~150 lines after
+    the catalogue was written, behind the `--config-only` early return, so every
+    config-only restore silently put the file back. Reproduced on demand
+    2026-08-14: full restore 120 entries, `--config-only` 102, 18 skills
+    unreachable, among them `hello-reflect` (ecc-hooks-bridge tells the model to
+    use it five times a session) and `thinking-frameworks` (CLAUDE.md's own
+    methodology routing names it).
+
+    A working remedy hides a defect better than no remedy. So the assertion is
+    on `merged_catalog_entries`, the one place that now decides it — no restore
+    run, no ordering, nothing on disk to be repaired between failures.
+    """
+
+    def setUp(self):
+        self.mode, self.core = restore.skill_tiers_from_config(
+            os.path.join(ROOT, "pi-config", "harness-config.json"))
+        if self.mode != "tiered":
+            self.skipTest("skillTiers is not in tiered mode")
+
+    def _local_names(self, *subs):
+        names = set()
+        for sub in subs:
+            _kept, tail = restore.tier_local_skills(
+                os.path.join(ROOT, "pi-skills", sub), set(self.core))
+            names |= {e["name"] for e in tail}
+        return names
+
+    def test_the_fixture_is_not_vacuous(self):
+        """An empty expectation would make every assertion below pass forever."""
+        self.assertTrue(self._local_names("core"),
+                        "no local core skill is demoted — nothing under test")
+
+    def test_a_standard_restore_carries_core_and_optional(self):
+        got = {e["name"] for e in restore.merged_catalog_entries(
+            [], "standard", self.core)}
+        expected = self._local_names("core", "optional")
+        self.assertEqual(sorted(expected - got), [],
+                         "demoted local skills missing from the write")
+
+    def test_a_minimal_restore_carries_core(self):
+        """`optional` is left out on purpose — a minimal profile should not
+        advertise what it declines to install — but `core` is restored under
+        every profile, so it must be catalogued under every profile."""
+        got = {e["name"] for e in restore.merged_catalog_entries(
+            [], "minimal", self.core)}
+        self.assertEqual(sorted(self._local_names("core") - got), [])
+
+    def test_an_external_entry_wins_a_name_collision(self):
+        """The external tiering already resolved that name; two entries for one
+        skill would point the model at whichever the JSON happened to list."""
+        name = sorted(self._local_names("core"))[0]
+        got = restore.merged_catalog_entries(
+            [{"name": name, "path": "external/somewhere/SKILL.md"}],
+            "standard", self.core)
+        hit = [e for e in got if e["name"] == name]
+        self.assertEqual(len(hit), 1, "the name appears twice")
+        self.assertEqual(hit[0]["path"], "external/somewhere/SKILL.md")
+
+    def test_the_external_tail_is_still_carried(self):
+        """Guarding the fix in the other direction: folding the local names in
+        must not drop the external ones the catalogue existed for."""
+        got = {e["name"] for e in restore.merged_catalog_entries(
+            [{"name": "zzz-external-only", "path": "external/z/SKILL.md"}],
+            "standard", self.core)}
+        self.assertIn("zzz-external-only", got)
+
+
 if __name__ == "__main__":
     unittest.main()

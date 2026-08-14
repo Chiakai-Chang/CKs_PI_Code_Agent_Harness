@@ -430,6 +430,36 @@ def tier_local_skills(src_root, core_names):
     return kept, tail
 
 
+def merged_catalog_entries(external_tail, profile, core_names, repo_root=None):
+    """Every demoted skill — external AND local — in one list.
+
+    Factored out because the defect it fixes was an ordering dependency, and a
+    test of the ordering has to be able to call the thing that decides it. The
+    local names used to be folded in ~150 lines after the catalogue was written,
+    behind the `--config-only` early return. Measured 2026-08-14 and reproduced
+    on demand: a full restore wrote 120 entries, `--config-only` wrote 102, and
+    18 skills — `hello-reflect`, `thinking-frameworks` and 16 others — were then
+    reachable by no route at all. That state had been found once already, on
+    2026-08-04, and the check written for it printed a remedy (re-run restore)
+    that worked, which is why nobody went looking for the cause.
+
+    An external entry wins on a name collision: the external tiering already
+    resolved that name.
+    """
+    root = repo_root or REPO_ROOT
+    # `optional` only under the profile that installs it; `core` always.
+    roots = ("core", "optional") if profile == "standard" else ("core",)
+    by_name = {}
+    for local_root in roots:
+        _kept, ltail = tier_local_skills(
+            os.path.join(root, "pi-skills", local_root), set(core_names))
+        for e in ltail:
+            by_name[e["name"]] = {"name": e["name"], "path": e["path"]}
+    by_name.update({e["name"]: e for e in external_tail
+                    if isinstance(e, dict) and "name" in e})
+    return [by_name[n] for n in sorted(by_name)]
+
+
 def merge_into_catalog(path, entries):
     """Add entries to an existing skill-catalog.json, keeping it sorted by name.
 
@@ -1032,9 +1062,16 @@ def main():
         # ~10,700 into the context the moment it is used. The description is
         # redundant anyway: the model reads the SKILL.md next, which opens with it.
         tail_entries = [{"name": n, "path": p} for n, _d, p, _dir in sorted(tail)]
+        # The demoted LOCAL skills belong in this same write, not in a fold-in a
+        # hundred and fifty lines further down behind the `--config-only` early
+        # return. See merged_catalog_entries() for what that cost.
+        external_only = len(tail_entries)
+        tail_entries = merged_catalog_entries(tail_entries, profile, core_names)
+
         write_catalog(catalog_path, tail_entries)
         save_json(manifest_path_of(REPO_ROOT), [{"path": p} for p in core_dirs])
-        log(f"  - skill tiers: {len(core_dirs)} core registered, {len(tail_entries)} in catalog")
+        log(f"  - skill tiers: {len(core_dirs)} core registered, {len(tail_entries)} in catalog"
+            f" ({len(tail_entries) - external_only} of them local)")
         # A core entry that matches nothing is a typo or an upstream rename, and
         # its only symptom is a skill quietly demoted to the catalog. Name it.
         internal = {os.path.basename(os.path.dirname(p)) for p in
