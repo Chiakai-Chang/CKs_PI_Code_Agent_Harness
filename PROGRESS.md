@@ -16,7 +16,9 @@
 
 **當前認領中:** 無。T-A5 已完成(2026-08-12,n=5),等待 Path A 核可。T-A1/A2/A3/A6/A7/T1b 皆已由擁有者在對話中口頭核可(Path A)。
 
-**下一個要動的**:T-A5(噪音底線)—— **阻塞中,本機模型服務沒開**,要真實 run 才量得到。
+**下一個要動的**:**T-A12(量測儀器)** —— 2026-08-14 Round 16 的排序,無條件第一,
+因為 T-A13 ~ T-A20 的排序判斷全部由 `mine-session.py` 讀出,而它現在會把別的機制的訊息
+算成 loop guard 的三次拒絕。之後照家族順序 **A → B(T-A13/14/15)→ C(T-A16/17/18)→ D(T-A19)**。
 不阻塞的替代:T3(反轉極性)、T6(§16 Handoff Capsule)。
 **明講不做的**:讓變異掃描支援 `bun`(13 個 `async-exec-bridge/*` 模組),
 **這台機器的 PATH 上沒有 bun**,做了也驗不了 —— 除非擁有者裝。
@@ -52,6 +54,16 @@
 | **T-A10(捏造時間戳)** | ❌ **不做** | **2 / 126**,而且**不可機械判定** —— 合法引用的日期與捏造的日期在工具參數裡一模一樣 |
 | T5(探針殘留) | 👤 你決定 | gitignored 的 `02_Task_Queue/` 裡 16 個任務包,只有 `Task_001_Inventory` 是探針留的 |
 | T2 | 🚫 已撤銷 | 建立在探針假象上(Round 14),原文保留 |
+| T-A12(量測儀器) | ✅ 完成 | 2026-08-14。查到的比原本記的多:3 個死 marker、1 個隱形守衛、`customType` 只認 bridge 不認機制 |
+| T-A13(換模型守門員) | ⚪ 待做 | 不卡。清單 §1 早就寫對,只差變成一支跑得起來的程式 |
+| T-A14(殘留標籤) | ⚪ 待做 | 不卡。與 T-A19 共用同一組正則,兩者要一起設計 |
+| T-A15(20 個髒檔案) | 🚫 不做 | **2026-08-14 擁有者決定保留**:那些檔案他有用 |
+| T-A16(18 個技能載不到) | ✅ 完成 | 2026-08-14。`--config-only` 是根因,已重現並修掉;套件由 `failures=2` 轉 `Ran 1465 tests / OK` |
+| T-A17(learning notify) | ⚪ **下一個** | T-A16 已解除依賴 —— 技能現在載得到,那則訊息才有意義 |
+| T-A21(點名的名字要載得到) | ⚪ 待做 | 自 T-A16 拆出。要先決定「可達」的權威定義 |
+| T-A18(GateGuard 語意) | ⚪ 待做 | 不卡。界線是不動 `external/ecc/` |
+| T-A19(解析器) | ⚪ 待做 | 不卡。fixture 用你手上那份真實 session |
+| T-A20(批次崩壞) | ⏸ 等資料 | **n=1**,且 T-A13 的 template 問題本身就可能是原因 |
 
 **為什麼「不做」也是結論。** T-A8 是從**一個現象**立的任務,做完第一步才發現那個現象在 31 個
 真實 session 裡發生 **0 次**,代價是一天。現在的規矩是**先量頻率再決定做不做**,
@@ -105,12 +117,306 @@ harness 名稱)。換成路徑乾淨的真實專案後,L1 在六個 run 裡沒�
 
 ---
 
+## 2026-08-14:換模型之後的第一個長 session,六個缺陷共用一條根因鏈
+
+擁有者換了本機模型(`Muse-Glimmer-30B-Abliterated-Q6_K`),在
+`D:/MyProject/test-20260813-cyber-patrol` 跑了一個 6.5 小時、122 turn、113 次呼叫的真實 session
+(`019ffbdd`),並回報:「問題不少,而且 skills 有些有提示但沒真的做,
+例如『📝 偵測到新學習點 (1)。』一直出現,只有提示沒有意義。」
+
+量測:[docs/measurements/2026-08-14-session-019ffbdd-postmortem.md](docs/measurements/2026-08-14-session-019ffbdd-postmortem.md)
+復盤:[Round 16](docs/mece/rounds/2026-08-14_round16_模板換了而清單沒有跑.md)
+
+| # | 缺陷 | 證據 |
+|---|---|---|
+| 1 | `📝 偵測到新學習點` 走 `notify`(到不了模型),而它指的 `hello-reflect` **三條註冊路徑都不在** | 降級的 **14 個本地 core skill 一個都不在 catalog**;手動呼叫 `merge_into_catalog` 得 `lost []` |
+| 2 | ECC GateGuard 的**阻擋型**原文被當 advisory 貼在**成功的**結果後 | 模型 thinking:`Maybe git init didn't work due to GateGuard` —— 那次 `git init` 成功了,後續約 28 次 bash 空轉 |
+| 3 | server 載到的 chat template 教模型用 `<atem:*>` XML 發工具呼叫,而 Pi 走原生 `tool_calls` | `</atem:日>` 出現 **24 次**,全在 `write` 的最後一個參數尾端;**那個專案 20 個檔案帶著垃圾** |
+| 4 | `universal-tag-transformer` 把 git 的**輸出回顯** `commit fe56ec6` 解析成 bash 指令 | 3 則 sendMessage,第 3 則的參數含該行 |
+| 5 | `mine-session.py` 的 `loop guard` marker 是 `重複`,而全 session 的 3 次 `重複` 全來自 transformer 自己 | 報表印 `loop guard 3`,實際 **0** |
+| 6 | 批次崩壞:113 次呼叫分佈在 122 個 turn(對照 `019fe72a` 的 `2/4/4/4`) | n=1,**只記錄不追** |
+| 7 | **缺陷 1 的守衛早就存在,而且早就是紅的** | `Ran 1454 tests` / `FAILED (failures=2)`,兩個失敗同一缺陷,而且是 **18 個技能**不是 14 個 |
+
+**第四個教訓(排完佇列才學到的):守衛在響,而沒有人聽。**
+本輪在規劃階段一度打算「新增一支可達性檢查」——
+`test_skill_catalog_staleness.py` 與 `scripts/validate-config.py` 都已經在報同一件事,
+訊息裡連補救指令都寫好了。多出來的四個技能之一是 **`thinking-frameworks`**,
+而 **CLAUDE.md 的方法論路由指名它**。
+「先查既有再動手」這條規矩需要一個自體版本:**動手設計守衛之前,先跑自己的測試套件。**
+
+**這一天真正的教訓:缺陷 3 是流程缺陷,不是程式缺陷。**
+[2026-07-29 換模型驗收清單](docs/retro/2026-07-29-model-swap-checklist.md) §1 第一條就是
+「確認 server 實際載到的 chat template」,理由原文寫著「llama.cpp 對這件事**不報錯**」。
+清單早就對了,它沒有被跑 —— 因為它是一份要用眼睛讀的 markdown。
+**換 bridge 有 `verify-bridges.py`、換設定有 `validate-config.py`、換提示有 `check-prompt-conflicts.py`;
+換模型只有一份文件。**
+
+**第二個教訓:一則訊息的第一個問題是「聽眾是誰」。**
+GateGuard 的文字是對的,送給成功的結果就變成 28 次無用呼叫;
+`📝 偵測到新學習點` 送給了看螢幕的人,而它想推動的動作只有模型能做。
+
+**第三個:技能可達性有三層,不能混為一談** —— 載不到 / 看得到但不知何時用 / 知道卻沒人點名。
+[Round 15](docs/mece/rounds/2026-08-13_round15_註冊了但沒有人叫它.md) 修的是第三層;
+這次發現有 14 個卡在第一層。**本次量測自己一度也判斷錯**(用 `~/.pi/agent/skills` 的目錄內容
+推論 external 技能不見了,實際上它們由 `skill-namespace-guard` 在 `resources_discover` 動態註冊)——
+更正寫在量測文件裡,因為那個陷阱本身會重演。
+
+---
+
 ## Task Queue
+
+> **2026-08-14 新增(Round 16 TOWS)—— T-A12 ~ T-A20。**
+> 家族順序 **A 儀器 → B 服務層與產出完整性 → C 可達性與通道紀律 → D 解析與待量**。
+> A 無條件第一:其他三家的排序判斷都由 `mine-session.py` 讀出來,而它現在會把
+> 別的機制的訊息算成 loop guard 的三次拒絕。
 
 > **2026-08-11 起的排序原則(Round 14 TOWS):**
 > SO 先做(用現成工具鏈在真實專案做乾淨實驗)→ WO 次之(校準參數移出程式碼)→
 > ST 是紀律不是任務(任何 pp 宣稱必須附 model+harness 配置與樣本數)→
 > WT 是排序原則(便宜且二元的先做,昂貴的量測往後)。
+
+### ✅ T-A12 — 量測儀器在說謊(**DONE,2026-08-14;等 Path A 核可**)
+
+* **為什麼**:`scripts/mine-session.py` 的 `REFUSALS` 表把 `loop guard` 對到 marker `重複`。
+  session `019ffbdd` 裡 `重複` 只出現 3 次,**全部來自 `universal-tag-transformer` 自己那句
+  「(原文不在此重複,以免你再照著寫一次。)」**。報表印 `loop guard 3`,實際是 **0**,
+  而且同一批訊息已經正確地列在 `customType` 區塊 —— **同一批訊息被數了兩次,掛在兩個機制名下**
+* **服務哪一層**:所有其他任務的排序判斷都由這支程式讀出來
+* **不要做過頭**:不是重寫 marker 機制,是讓每個 marker 足以識別它宣稱的那個機制
+* **動手後查到的比原本記的多。** 對 `pi-extensions/**/*.ts` 逐條比對 marker:
+  * **3 個 marker 在任何 bridge 原始碼裡都不存在** —— `queue guard`/`C.A.S.E. 任務佇列`
+    (被 per-rule 標籤取代後留下的傘狀項)、`research depth`/`研究深度`、`citation gate`/`引用`
+  * **`引用` 才是真正危險的那個**:死掉的 marker 不會安靜。它對自己的守衛沉默,
+    對其他所有東西大聲 —— 在一個中文 session 上它報了 2 次,全來自散文
+  * **`Artifact guard` 根本沒有 marker**,所以這支程式產出過的每一份報告裡它都是隱形的
+  * **`customType` 不指認機制,只指認 bridge**:`loop-guard` 這一個型別在 yes-hooks-bridge
+    裡有 **7 個發送點**(重複呼叫斷路器、blocked-claim 的檔案與網路兩個分支、
+    輸出上限提醒、transformer 三振交還、假工具三振)
+* **所以最終設計是兩層**:型別認 bridge(擋掉跨 bridge 誤標),措辭在型別**允許的標籤集合內**分辨;
+  兩者都不中的訊息只在 `custom messages` 區塊按型別記一次,不猜
+* **這條檢查本來就有,只是只查了一半。** `test_every_declared_label_still_exists_in_a_bridge`
+  存在,但只掃 `INJECTIONS` 不掃 `REFUSALS` —— 三個死 marker 就是從那個缺口活下來的
+* **Local DoD**:
+  - [x] `loop guard` 的 marker 換成迴圈守衛實際輸出的字串(`發出了完全相同的呼叫`,自原始碼取)
+  - [x] 對 `019ffbdd` 重跑:`loop guard` 消失(原 3,實際 0)、`citation gate` 由 2 修正為 1、
+        `tag transformer 3` 正確歸位到注入表
+  - [x] 新增四條檢查:死 marker(擴到 REFUSALS)、marker 互為子字串、
+        每個 bridge 宣告的 `customType` 都要被認領、允許清單裡的標籤必須真的存在
+  - [x] **證明四條都會紅**:舊表的 3 個死 marker、植入 `Depth guard` 觸發子字串衝突、
+        移除 `loop-guard` 觸發未認領、植入 `typo-label` 觸發不存在標籤 —— 四條各自回報非空
+  - [x] `python -m unittest discover -s tests` → `Ran 1460 tests` / `FAILED (failures=2)`,
+        兩個失敗都是 **T-A16 的既有缺陷**(修改前是 `Ran 1454 tests` / 同樣 2 個失敗),沒有新破的
+
+### ⚪ T-A13 — 換模型沒有守門員(**家族 B,SO,Round 16 的主結論**)
+
+* **為什麼**:`</atem:日>` 24 次的根因是 server 載到的 chat template 教模型用
+  `<atem:function_calls>/<atem:invoke>/<atem:parameter>` 發工具呼叫,而 Pi 走原生 `tool_calls`。
+  [換模型驗收清單](docs/retro/2026-07-29-model-swap-checklist.md) §1 第一條就是查這個,
+  **它沒有被跑,因為它是一份要用眼睛讀的文件**
+* **外部佐證**:[llama.cpp #24189](https://github.com/ggml-org/llama.cpp/issues/24189)
+  —— 有 `--mmproj` 時 llama-server **靜默忽略** `--chat-template-file`;
+  本次 `/props` 回報 `"modalities":{"vision":true,"video":true}`
+* **服務哪一層**:L1/L2 的前提。模板不對時,守衛全部照常綠燈而產出全部帶垃圾
+* **層歸屬**:**檢查在 repo,設定在機器。** repo 不出貨任何模型預設值 ——
+  這支程式報告不一致,不修改任何 server 設定
+* **Local DoD**:
+  - [ ] `scripts/check-model-serving.py`:讀 `/props`,至少檢查三件事 ——
+        (a) `chat_template` 裡是否含工具呼叫方言標籤(`<*:function_calls>`、`<*:invoke`、
+        `<tool_call`、`<function=`)而 Pi 送的是原生 `tools`;(b) `model_path` 與預期相符;
+        (c) `/v1/chat/completions` 回 200(清單 §1:載入中 `/props` 會回應而它回 503)
+  - [ ] **證明它會失敗**:餵一份含 `render_atem` 的 template 必須紅,餵一份乾淨的必須綠
+  - [ ] 落一份 `pi-config/serving-check-report.json`(照 `skill-conflict-report.json` 的模式)
+  - [ ] server 沒開時印 SKIP 並回 0(與 `verify-bridges.py` 的漂移檢查同一種語意)
+  - [ ] 換模型清單 §1 改成指向這支程式,並在 CLAUDE.md 的指令清單裡列出
+
+### ⚪ T-A14 — 殘留標籤要清掉,而且要對操作者出聲(**家族 B**)
+
+* **為什麼**:`</atem:日>` 全部落在**最後一個參數的結尾**;有一次最後一個參數是 `path`,
+  於是 `ENOENT ... mkdir '…\.gitignore<'`。`yes-hooks-bridge` 的 `FAKE_TOOL_CALL_PATTERN`
+  認得 `<invoke\b` 與 `<parameter\s+name=`,**但 `<atem:invoke` 不匹配** ——
+  正則寫死了沒有命名空間前綴的形式,任何帶前綴的方言都會重演
+* **Round 16 的約束(老魔 + 秦姐)**:**默默過濾會把根因藏起來**,重演 citation gate 的規避形狀;
+  而**模型不是這則訊息的正確聽眾** —— 它改不了自己的 chat template,對它說只會浪費一輪,
+  那正是 T-A18 那條缺陷的形狀。**所以:清掉,但對操作者出聲,不對模型出聲**
+* **服務哪一層**:每一個被寫出去的檔案
+* **Local DoD**:
+  - [ ] `FAKE_TOOL_CALL_PATTERN` 認得帶命名空間前綴的形式(`<\w+:invoke`、`<\w+:parameter\s+name=`、
+        `<\w+:function_calls`),註解裡寫上 session id 與原因
+  - [ ] `write`/`edit` 的參數在寫入前剝除尾端殘留結束標籤;**剝除事件必須留痕**
+  - [ ] 留痕走 `ctx.ui.notify` + `pi-config/serving-mismatch-report.json`,**不進 `tool_result`**
+  - [ ] 單元測試用真實 session 取出的字串,不是自己編的
+  - [ ] 從公開入口點驅動一次並斷言剝除(不是測純函式 —— 見「fail-open catch 藏死守衛」那條疤)
+
+### 🚫 T-A15 — 已經寫壞的 20 個檔案(**2026-08-14 擁有者決定保留,不做**)
+
+> **擁有者原話:「T-A15 留著我有用。」** 原文保留 ——
+> 一個沒有寫下來的否決會被下一個人重做。
+> **仍然成立的部分**:那 20 個檔案是 T-A14 修好之後的現成驗收樣本;
+> 若日後要驗「新產出不再帶標籤」,對照組就在那裡。
+
+
+* **為什麼**:`D:\MyProject\test-20260813-cyber-patrol\investigation_2026_taiwan_local_election\`
+  底下 **20 個 `.md` 帶著 `</atem…`**(`grep -rl "</atem" … | wc -l` = 20)。
+  那是擁有者真的要用的情資文件,不是測試資料。**修好 harness 不會讓已經寫壞的檔案自己乾淨**
+* **Round 16 記下的規矩缺口**:本 repo 已有「探針要自己收拾殘骸」,
+  但那條只涵蓋**我們跑的探針**;這次是**使用者真實 run 的殘骸**,規矩沒涵蓋,差點沒人提
+* **需要擁有者決定**:那個專案不歸 harness 管,清理要不要動由擁有者說了算
+* **Local DoD**:
+  - [ ] 擁有者確認要清
+  - [ ] 清理前先備份(該目錄有 git,確認 commit 過再動)
+  - [ ] 清完重跑 `grep -rl "</atem" … | wc -l`,輸出 0,把指令與輸出貼進本檔
+
+### ✅ T-A16 — 18 個技能載不到,而**守衛早就在響**(**DONE,2026-08-14;等 Path A 核可**)
+
+* **為什麼**:`hello-reflect` 不在 `~/.pi/agent/skills`(restore 的 `managed_skills` 主動刪)、
+  不在 `skillTiers.core`、**也不在這台機器的 `pi-config/skill-catalog.json`**。
+  而 `ecc-hooks-bridge` 每個 session 叫模型「Use the hello-reflect skill」5 次
+* **⚠️ 排佇列之後才跑測試套件,發現這支守衛已經存在且已經是紅的**
+  (`python -m unittest discover -s tests` → `Ran 1454 tests` / `FAILED (failures=2)`):
+
+  ```
+  FAIL: test_every_demoted_local_skill_is_reachable (test_skill_catalog_staleness)
+        … reachable by no route at all; re-run `python scripts/setup.py --mode restore`
+  FAIL: test_repo_as_shipped_passes (test_validate_config)
+        FAIL: 18 local skill(s) are neither natively registered nor in the catalogue …
+  ```
+
+  **是 18 個不是我先數的 14 個** —— 我只查了 `pi-skills/core`,檢查同時涵蓋 `optional`。
+  多出來的四個是 `camofox-stealth`、`cua-commander`、`nothing-design`、**`thinking-frameworks`**
+* **`thinking-frameworks` 要單獨看**:**CLAUDE.md 的方法論路由指名它**
+  (「一個有取捨的決定 → `thinking-frameworks` / `mece-autopilot` / `qiushi`」)。
+  專案最上層的指示叫模型去用一個載不到的技能 ——
+  與 2026-08-12 的 `planning-with-files` 是同一個形狀,那次是名字不對,這次是東西不在
+* **所以這一條的問題不是「沒有守衛」,是「守衛在響而沒有人聽」**,
+  與 T-A13 的「清單存在而沒被跑」是同一件事換了地方發生
+* **機制假說(程式路徑已證,本機觸發為推論)**:`restore.py:1035` 的 `write_catalog` 先用
+  「只有 external」的清單覆寫 catalog;把本地降級那批折進去的 `merge_into_catalog` 在約 1236 行,
+  而 `--config-only` 的 early return 在 **1175 行,擋在中間**。
+  兩個檔案 mtime 同為 `2026-08-13 23:58:08`,catalog 缺的恰好就是本地那批。
+  另有旁證:手動呼叫 `merge_into_catalog(path, tail)` 得
+  `lost []` / `total 116` / `hello-reflect present: True` —— **函式沒壞,是流程沒走到它**
+* **服務哪一層**:[Round 15](docs/mece/rounds/2026-08-13_round15_註冊了但沒有人叫它.md)
+  的第三層之下那一層(**載不到**)
+* **這是同一個缺陷的第三次**,而且 `tests/test_skill_catalog_staleness.py` 的檔頭把
+  **2026-08-04** 那次寫得清清楚楚(「104 entries, all under external/*, 0 from pi-skills …
+  hello-reflect, thinking-frameworks, grilling-protocol, camofox-stealth 與另外十一個
+  註冊在哪裡都沒有、編目在哪裡也沒有」)。**檢查寫了,原因沒查。**
+* **為什麼一個有效的補救反而藏住了缺陷**:那條檢查印的補救是「重跑 restore」,
+  而重跑**真的會好**。於是每次紅了就重跑、綠了就過去,
+  沒有人問它為什麼一直回來。**一個有效的補救,比沒有補救更會藏住成因。**
+* **根因(已用實驗確認,可重現)**:`--config-only` 的 early return 在本地名單折入之前。
+  同一台機器上依序跑:
+
+  ```
+  restore --auto --profile standard              -> 120 entries, hello-reflect: True,  validate 0 failures
+  restore --auto --profile standard --config-only -> 102 entries, hello-reflect: False, validate 1 failure
+  ```
+* **修法**:抽出 `merged_catalog_entries()`,在 catalog 被寫出的**同一個運算式**裡
+  把 external 與 local 兩批合起來。不再有先後,也就不再有 early return 能把它們拆開
+* **Local DoD**:
+  - [x] 跑 `python scripts/restore.py --auto --profile standard < /dev/null`(非互動)
+  - [x] 兩個檢查**轉綠** → `--config-only` 假說成立;
+        catalog 102 → **120**,`hello-reflect` / `thinking-frameworks` / `deep-research-guide` 皆為 True
+  - [x] **決定性實驗**:修法前跑 `--config-only` 重現 102 / 1 failure;
+        修法後同一道指令得 `22 core registered, 120 in catalog (18 of them local)` / **0 failures**
+  - [x] 本地降級名單在 catalog 被覆寫的**同一次寫入**折進去(`merged_catalog_entries()`)
+  - [x] 五條防迴歸測試,斷言對象是**決定它的那個函式**而不是磁碟上的檔案 ——
+        磁碟狀態會被下一次 restore 修好,而那正是這個缺陷藏了十天的方式
+  - [x] **證明會紅**:把該函式換回修法前的行為,standard 少 **18** 個、minimal 少 **14** 個;
+        修法後兩者皆 0,且 external 條目仍在(反向也守)
+  - [x] `python -m unittest discover -s tests` → **`Ran 1465 tests` / `OK`**(exit 0)。
+        修改前是 `Ran 1454 tests` / `FAILED (failures=2)`,**兩個失敗都消失了**
+  - [x] `python scripts/verify-bridges.py` → `13 bridges checked, 0 failure(s) found`
+        (restore 重裝後安裝與 repo 仍相符)
+
+> **延後、不假裝做完的部分**(移到 T-A21):
+> 把 `tests/test_skill_names_resolve.py` 擴到 **CLAUDE.md 與 bridge 注入文字裡點名的技能**,
+> 以及一支同時看四條可達路徑的查詢。兩者都不是本條的根因修復,
+> 而且第二個要先決定「可達」的權威定義 —— 本次量測自己就先用單一路徑判斷錯過一次。
+
+### ⚪ T-A17 — `📝 偵測到新學習點` 這段程式的三個附帶缺陷(**家族 C,使用者直接看到的那個**)
+
+* **為什麼**:`pi-extensions/ecc-hooks-bridge/index.ts:457`
+  1. `notify` **沒有去重**(同段的 advisory 是 `"once"`,notify 不是)—— 122 個 turn 噴 122 次
+  2. 每個 `turn_end` 都 `execSync` 起一個 python 行程,並**遞迴掃過整個 `~/.pi/agent/sessions`**
+     (這台機器 20 個 workspace 目錄)。6.5 小時 = 122 次行程啟動 + 122 次全域掃描
+  3. 它挑「**全域 mtime 最新**的 `.jsonl`」,**不保證是當前 session** ——
+     同時開兩個 Pi 就會讀到另一個專案的紀錄。這是歸因缺陷,也是稽核問題
+* **服務哪一層**:使用者實際看到的症狀 + 每輪成本
+* **依賴**:第 1 點修完之後那則訊息才有意義,而「有意義」需要 T-A16 先讓技能載得到
+* **Local DoD**:
+  - [ ] notify 與 advisory 共用同一個 `"once"` 判定,一個 session 最多一次
+  - [ ] 不再每個 turn 掃全域;綁定當前 session(由 Pi 提供的 session 識別,不用 mtime 猜)
+  - [ ] 不再每個 turn 起行程(改成有條件觸發,或 session 結束一次)
+  - [ ] 在真實 session 的 log 裡確認:notify 一次、advisory 一次,且讀的是**這個** session 的檔案
+
+### ⚪ T-A18 — 阻擋型 hook 的原文不該走 advisory 通道(**家族 C**)
+
+* **為什麼**:`external/ecc/scripts/hooks/gateguard-fact-force.js` 是 PreToolUse **阻擋** hook,
+  上游語意是「這次不准,先給事實」。我們把原文原封不動貼在**成功的** tool result 後面。
+  模型的 thinking 逐字:`GateGuard requires facts. Let's present facts then retry.`、
+  `Maybe git init didn't work due to GateGuard.` —— 而那次 `git init` **成功了**
+  (`Initialized empty Git repository in …`),後續約 **28 次 bash** 空轉在 `git config` / `safe.directory`
+* **另一個症狀**:「Before the **first** Bash command this session」在同一 session 觸發 **2 次**
+  (16:18:50Z、22:26:20Z)
+* **老杜的界線**:**不要改 `external/ecc/`** —— 上游更新會撕裂,而那個 hook 在它自己的 harness 裡是對的。
+  要改的是**我們選擇怎麼遞送它**
+* **服務哪一層**:通道紀律。這是「移除選項的守衛要配一個說話的東西」的**反向形態** ——
+  一個不移除任何東西的通知被讀成了移除
+* **Local DoD**:
+  - [ ] 盤點 ecc-hooks-bridge 遞送的每一條 hook,標出哪些是上游的**阻擋**語意
+  - [ ] 阻擋型的:要嘛真的走 `tool_call` block,要嘛包裝時改寫成不含「先做 X 才能做 Y」語氣
+  - [ ] 「first … this session」這類一次性 gate 加 session 級去重
+  - [ ] 用真實 session 驗證:同一條 gate 一個 session 內不重複,且模型的下一個動作不是重試
+
+### ⚪ T-A19 — 解析器把輸出當指令(**家族 D**)
+
+* **為什麼**:第 3 則 `universal-tag-transformer` 解析出的 command 含 `commit fe56ec6` ——
+  那是 git 的**輸出回顯**,不是指令。解析器撈進參數後,用
+  「🔥【指令】：請你在此輪對話中【立即且只能】呼叫原生工具 'bash'」命令模型照送
+* **老秦的完整路徑**:模型文字 → 解析器 → 帶「立即且只能」的命令 → 模型照送 bash。
+  而模型的文字裡可以有**它剛從網頁讀進來的東西**(這個 session 開了 12 個網頁)。
+  **這條路徑上沒有任何一個環節在問來源**
+* **老魔的界線**:立成任務,**不要立成資安專案** ——
+  [Round 13](docs/mece/rounds/2026-08-10_round13_把導航問題當成資安問題.md) 的結論是別過度武裝
+* **服務哪一層**:解析正確性;順帶收掉一條沒有人守的路徑
+* **Local DoD**:
+  - [ ] 只接受可證明完整的程式碼區塊(有開有閉),不接受散落文字
+  - [ ] 對解析結果做形狀檢查:一行 `commit <sha>` 不是任何工具的合法參數
+  - [ ] 「【立即且只能】」改成保留拒絕空間的措辭 —— 參數是**猜**出來的,猜錯時模型要能不照做
+  - [ ] fixture 取自真實 session(擁有者手上已有 `tests/fixtures/session-fake-tool-call-loop.jsonl`),
+        不是自己編的乾淨區塊
+  - [ ] 把 `<atem:*>` 這類命名空間方言納入(與 T-A14 共用同一組正則,不要各寫一份)
+
+### ⚪ T-A21 — 「叫得出的名字必須載得到」擴到指示文字(**家族 C,自 T-A16 拆出**)
+
+* **為什麼**:`hello-reflect` 由 `ecc-hooks-bridge` 每 session 點名 5 次、
+  `thinking-frameworks` 由 **CLAUDE.md 的方法論路由**點名,兩者當時都載不到。
+  T-A16 修好了它們**為什麼**會消失,沒有修**下次換一個名字消失時誰會發現**
+* **和 2026-08-12 是同一個形狀**:那次是名字不對(`planning-with-files` /
+  `pi-planning-with-files`),這次是東西不在。`tests/test_skill_names_resolve.py`
+  已經守著前者,守不到後者
+* **要先決定的事**:「可達」的權威定義。目前有四條路徑
+  (`settings.skills` / `~/.pi/agent/skills` / manifest 動態註冊 / catalog),
+  **本次量測自己只看一條就判斷錯過一次**,所以這支查詢是防呆的對象也是使用者
+* **Local DoD**:
+  - [ ] 一支查詢回報每個技能落在哪一條路徑上,四條都看
+  - [ ] `test_skill_names_resolve.py` 的來源擴到 CLAUDE.md 與 bridge 注入文字
+  - [ ] 對現行狀態跑一次,列出所有被點名但不可達的名字(可能是 0,那也是結果)
+  - [ ] 證明它會紅:塞一個不存在的技能名進測試用的指示文字
+
+### ⚪ T-A20 — 批次崩壞(**家族 D,只記錄,先不追**)
+
+* **觀察**:113 次呼叫分佈在 **122 個 turn**,每 turn 幾乎都是 1 次;
+  對照 2026-08-09 的 `019fe72a` 是 `2/4/4/4/4/1/1`。15 個 turn 沒有 tool call
+* **為什麼先不追**:**n=1**,而這個 repo 的噪音底線是
+  [sd 26.91 / CV 42%](docs/measurements/2026-08-12-noise-floor.md) ——
+  任何單次前後比較都讀不出效果。而且 T-A13 的 template 問題**本身就可能是原因**
+  (模型在兩套協定間搖擺),先修那個再看
+* **觸發條件**:T-A13 修好後累積 **≥5 個同模型 session**,若每 turn 呼叫數中位數仍為 1,
+  才立成任務並按 `n ≳ (sd/(Δ/2))²` 算樣本數
+* **Local DoD**:
+  - [ ] (等觸發條件成立再填)
 
 ### ✅ T-A1 — A+C 的第一個乾淨實驗(**DONE,2026-08-11 Path A 核可**)
 * **為什麼**:五個探針 run 全部在被污染的暫存路徑裡、用我隨手寫的 recipe。
