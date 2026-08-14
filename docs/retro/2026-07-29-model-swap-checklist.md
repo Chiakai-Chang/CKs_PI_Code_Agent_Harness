@@ -26,6 +26,27 @@
 
 ## 1. 啟動並確認載到的東西
 
+> **2026-08-14:這一節現在是一支程式,不是一段要用眼睛讀的說明。**
+>
+> ```bash
+> python scripts/check-model-serving.py --expect-model <你預期的字串>
+> ```
+>
+> **為什麼改**:2026-08-13 換模型,這一節沒有被跑。代價是一個 6.5 小時的 session,
+> 模型寫出去的每個檔案尾端都是 `</atem:日>` —— server 載到的 template 教模型用
+> `<atem:function_calls>/<atem:invoke>/<atem:parameter>` 發工具呼叫,而 Pi 用原生
+> `tool_calls`。兩套協定,同一個模型。詳見
+> [2026-08-14 postmortem](../measurements/2026-08-14-session-019ffbdd-postmortem.md)。
+>
+> 換 bridge 有 `verify-bridges.py`、換設定有 `validate-config.py`、
+> 換提示有 `check-prompt-conflicts.py`;**換模型當時只有這份文件**。
+> 靠記得維持的檢查,這個 repo 已經證明過會被忘記。
+>
+> 那支程式報告不一致,**不會改動任何 server 設定** —— 服務哪個模型、用哪份 template,
+> 是這台機器的校準,是操作者的決定。
+>
+> 下面的手動步驟保留,因為它說明了那支程式在看什麼。
+
 ```bash
 curl -s http://127.0.0.1:8080/props > props.json
 node -e 'const p=require("fs").readFileSync("props.json","utf8");const j=JSON.parse(p);

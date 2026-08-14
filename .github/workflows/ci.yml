@@ -44,6 +44,18 @@ jobs:
         run: |
           python scripts/validate-config.py
 
+      # Swapping a bridge, a config or the prompt each had a check; swapping the
+      # MODEL had a markdown file somebody had to remember to read, and on
+      # 2026-08-13 nobody did — a 6.5-hour session in which every file the model
+      # wrote ended in `</atem:日>`, because the served chat template taught a
+      # tool-call dialect Pi does not use. There is no model server on a runner,
+      # so this prints SKIP and exits 0 here; it earns its keep on the machine
+      # that serves the model. It is in CI so the SCRIPT stays runnable — a
+      # check nobody executes rots exactly like the checklist it replaces.
+      - name: Check what the model server actually loaded
+        run: |
+          python scripts/check-model-serving.py
+
       # Every external source stays accounted for: README's list, the manifest
       # and the clones on disk must all appear in the prior-art register. A day
       # was spent rebuilding mechanisms a registered clone already implements.

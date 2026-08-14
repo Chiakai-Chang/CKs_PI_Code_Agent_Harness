@@ -16,10 +16,15 @@
 
 **當前認領中:** 無。T-A5 已完成(2026-08-12,n=5),等待 Path A 核可。T-A1/A2/A3/A6/A7/T1b 皆已由擁有者在對話中口頭核可(Path A)。
 
-**下一個要動的**:**T-A12(量測儀器)** —— 2026-08-14 Round 16 的排序,無條件第一,
-因為 T-A13 ~ T-A20 的排序判斷全部由 `mine-session.py` 讀出,而它現在會把別的機制的訊息
-算成 loop guard 的三次拒絕。之後照家族順序 **A → B(T-A13/14/15)→ C(T-A16/17/18)→ D(T-A19)**。
+**下一個要動的**:**T-A14 + T-A19(一起做)** —— 兩者共用同一組正則,而那組正則的詞彙
+來自 T-A13 已經寫好的 `DIALECTS` 表。**T-A12、T-A16、T-A13 已完成**(2026-08-14,等 Path A 核可)。
+之後 T-A17 → T-A18 → T-A21。
 不阻塞的替代:T3(反轉極性)、T6(§16 Handoff Capsule)。
+
+> **2026-08-14 排序修正兩次,兩次都不是照原表走。**
+> 原本是家族 A→B→C→D。T-A16(C)插到 B 前面,因為它有一支**已經在紅**的檢查;
+> T-A13(B)插到 T-A17(C)前面,因為**壞掉的 template 當時還在 server 上跑**,
+> 那個活樣本會隨著一次重開消失。**排序的依據是證據的時效,不是表格的順序。**
 **明講不做的**:讓變異掃描支援 `bun`(13 個 `async-exec-bridge/*` 模組),
 **這台機器的 PATH 上沒有 bun**,做了也驗不了 —— 除非擁有者裝。
 
@@ -55,8 +60,8 @@
 | T5(探針殘留) | 👤 你決定 | gitignored 的 `02_Task_Queue/` 裡 16 個任務包,只有 `Task_001_Inventory` 是探針留的 |
 | T2 | 🚫 已撤銷 | 建立在探針假象上(Round 14),原文保留 |
 | T-A12(量測儀器) | ✅ 完成 | 2026-08-14。查到的比原本記的多:3 個死 marker、1 個隱形守衛、`customType` 只認 bridge 不認機制 |
-| T-A13(換模型守門員) | ⚪ 待做 | 不卡。清單 §1 早就寫對,只差變成一支跑得起來的程式 |
-| T-A14(殘留標籤) | ⚪ 待做 | 不卡。與 T-A19 共用同一組正則,兩者要一起設計 |
+| T-A13(換模型守門員) | ✅ 完成 | 2026-08-14。⚠️ **這台機器的 server 仍是紅的** —— 修法是操作者重開,repo 不動它 |
+| T-A14(殘留標籤) | ⚪ **下一個** | 與 T-A19 共用同一組正則,兩者一起做。詞彙來自 T-A13 的 `DIALECTS` |
 | T-A15(20 個髒檔案) | 🚫 不做 | **2026-08-14 擁有者決定保留**:那些檔案他有用 |
 | T-A16(18 個技能載不到) | ✅ 完成 | 2026-08-14。`--config-only` 是根因,已重現並修掉;套件由 `failures=2` 轉 `Ran 1465 tests / OK` |
 | T-A17(learning notify) | ⚪ **下一個** | T-A16 已解除依賴 —— 技能現在載得到,那則訊息才有意義 |
@@ -207,7 +212,7 @@ GateGuard 的文字是對的,送給成功的結果就變成 28 次無用呼叫;
   - [x] `python -m unittest discover -s tests` → `Ran 1460 tests` / `FAILED (failures=2)`,
         兩個失敗都是 **T-A16 的既有缺陷**(修改前是 `Ran 1454 tests` / 同樣 2 個失敗),沒有新破的
 
-### ⚪ T-A13 — 換模型沒有守門員(**家族 B,SO,Round 16 的主結論**)
+### ✅ T-A13 — 換模型沒有守門員(**DONE,2026-08-14;等 Path A 核可**)
 
 * **為什麼**:`</atem:日>` 24 次的根因是 server 載到的 chat template 教模型用
   `<atem:function_calls>/<atem:invoke>/<atem:parameter>` 發工具呼叫,而 Pi 走原生 `tool_calls`。
@@ -219,15 +224,40 @@ GateGuard 的文字是對的,送給成功的結果就變成 28 次無用呼叫;
 * **服務哪一層**:L1/L2 的前提。模板不對時,守衛全部照常綠燈而產出全部帶垃圾
 * **層歸屬**:**檢查在 repo,設定在機器。** repo 不出貨任何模型預設值 ——
   這支程式報告不一致,不修改任何 server 設定
+* **時效性決定了它插隊到 T-A17 前面**:壞掉的 template **當時還在 server 上跑著**,
+  所以有一個活的失敗樣本可以對著寫。第一個動作是趁它還在,把 `/props` 的 `chat_template`
+  釘成 fixture:`tests/fixtures/chat-template-atem.jinja`,9,532 bytes,
+  sha256 `6bbce2a5b3b0f154935b89c9efb0a8caf19119a9c478b268f2359e2a0946a4b2`。
+  釘 bytes 而不是描述它,因為這一整類故障就是「server 載到的東西不是任何人以為的東西」——
+  照著印象寫的 fixture 會把同一個錯誤再犯一次
+* **正例是真實 bytes,反例是 stock ChatML**(219 bytes,真實存在的 template,短所以直接寫出來)
+* **偵測器的關鍵是前綴**:`<atem:invoke` 不匹配 `<invoke\b` —— harness 自己的
+  `FAKE_TOOL_CALL_PATTERN` 就是這樣被繞過的,所以命名空間前綴寫進 pattern 而不是事後補
+* **「渲染方言」與「教模型寫方言」分開**:只渲染是 WARN,教它寫才是 FAIL。
+  兩者不分開,這個檢查會變成所有人繞過的閘門
 * **Local DoD**:
-  - [ ] `scripts/check-model-serving.py`:讀 `/props`,至少檢查三件事 ——
-        (a) `chat_template` 裡是否含工具呼叫方言標籤(`<*:function_calls>`、`<*:invoke`、
-        `<tool_call`、`<function=`)而 Pi 送的是原生 `tools`;(b) `model_path` 與預期相符;
-        (c) `/v1/chat/completions` 回 200(清單 §1:載入中 `/props` 會回應而它回 503)
-  - [ ] **證明它會失敗**:餵一份含 `render_atem` 的 template 必須紅,餵一份乾淨的必須綠
-  - [ ] 落一份 `pi-config/serving-check-report.json`(照 `skill-conflict-report.json` 的模式)
-  - [ ] server 沒開時印 SKIP 並回 0(與 `verify-bridges.py` 的漂移檢查同一種語意)
-  - [ ] 換模型清單 §1 改成指向這支程式,並在 CLAUDE.md 的指令清單裡列出
+  - [x] `scripts/check-model-serving.py`,三件事都查:
+        (a) `chat_template` 的工具呼叫方言(anthropic-style XML / `<tool_call>` /
+        `<function=>` / `<tools>`,含命名空間前綴);(b) `--expect-model` 比對
+        `model_path` 與 `model_alias`;(c) `/v1/chat/completions` 是否 200 而非載入中的 503
+  - [x] **證明它會失敗**:對釘死的真實 template →
+        `FAIL: … teaches the model to emit tool calls as anthropic-style XML
+        (<atem:function_calls>, <atem:invoke name=, <atem:parameter name=)`,exit **1**;
+        對 ChatML → `0 failure(s), 0 warning(s)`,exit **0**;
+        `--expect-model nonexistent-model` → exit **1**
+  - [x] 落 `pi-config/serving-check-report.json`(已加入 `.gitignore`,機器專屬)
+  - [x] server 沒開 → `SKIP: nothing answered at …`,exit **0**
+  - [x] 換模型清單 §1 改成指向這支程式(手動步驟保留,說明它在看什麼);
+        CLAUDE.md 指令清單已列出並標為換模型後第一件事
+  - [x] 進 CI(`.github/workflows/ci.yml`),runner 上必然 SKIP ——
+        目的是**讓這支程式保持跑得起來**,沒有人執行的檢查會和它取代的那份清單一樣爛掉
+  - [x] 17 條測試,全部不需要 server;`python -m unittest discover -s tests` →
+        **`Ran 1482 tests` / `OK`**(exit 0)
+
+> **⚠️ 這台機器現在仍然是紅的。** `python scripts/check-model-serving.py` 對活著的 server
+> 回報 1 failure + 1 warning(mmproj 已載入)。**修法是操作者重開 server**,
+> repo 不出貨模型預設值,這支程式也不會去改它。
+> 在那之前,這台機器上的每一次 Pi run 都還會把 `</atem:parameter>` 寫進檔案。
 
 ### ⚪ T-A14 — 殘留標籤要清掉,而且要對操作者出聲(**家族 B**)
 
