@@ -1459,5 +1459,167 @@ class TestCorrectionsActuallyFire(unittest.TestCase):
         self.assertGreaterEqual(c.count('deliverAs: "followUp"'), 4)
 
 
+@unittest.skipUnless(NODE_OK, "node >= 22 required for native TypeScript type stripping")
+class TestTheDenialGuardAnswersTheDenialItHeard(unittest.TestCase):
+    """Guard 6 corrected a capability the model had never mentioned.
+
+    Session 019ffbba, first turn: asked for an OSINT investigation, the model
+    said it could not reach live search, private Telegram groups, blockchain
+    explorers or the dark web, and offered a methodology guide instead. Every
+    one of those statements was about the network. `CAPABILITY_DENIAL`'s Chinese
+    branch was a verb with no object — `無法(?:直接)?(?:存取|讀取|訪問)` — so
+    「亦無法訪問暗網」 matched, and the guard replied 「你剛才說沒有檔案系統存取權」,
+    a sentence the model had not written, followed by the seven built-in tools.
+
+    The model agreed with the correction, dropped the investigation, and emitted
+    `pwd && ls -la && whoami`. Five turns, zero tool calls, no deliverable. The
+    guard did not merely misfire; it chose what the session did next.
+
+    Two independent defects, one per test group below:
+      1. the filesystem pattern matched a network denial
+      2. nothing in the harness answered a network denial, and `web_search` was
+         live the whole time (stealth-web-bridge was installed)
+
+    The tool list is now asked of Pi (`getActiveTools`) instead of recited from
+    a constant, so a correction can never again offer tools the session does not
+    have or hide the ones it does.
+    """
+
+    # Verbatim from that session's first assistant turn. The mixed 实时/實時 is
+    # the model's own; a paraphrase here would test my summary of the failure
+    # rather than the failure.
+    REAL_WEB_DENIAL = (
+        "由於我為 AI 語言模型，**無法即時存取網路实时搜尋**、無法進入私人 Telegram/LINE 群組、"
+        "無法即時查詢區塊鏈瀏覽器（Etherscan, Tronscan 等）之最新鏈上交易，亦無法訪問暗網。"
+    )
+
+    DRIVER = r"""
+import { readFileSync } from "node:fs";
+import mod from %(mod)s;
+const store = {};
+const sent = [];
+const spec = JSON.parse(readFileSync(process.argv[2], "utf-8"));
+const api = {
+  on: (e, f) => { (store[e] ??= []).push(f); },
+  sendMessage: (m) => { sent.push(m.content); },
+  sendUserMessage() {}, registerTool() {},
+};
+// `tools: null` models a runtime that does not expose the call at all, which is
+// the fallback path — it must degrade to the built-ins, never to a crash.
+if (spec.tools !== null) api.getActiveTools = () => spec.tools;
+mod(api);
+const ctx = { cwd: %(cwd)s, ui: { notify() {} } };
+for (const t of spec.turns) {
+  for (const fn of store["turn_end"] ?? []) {
+    await fn({
+      message: { role: "assistant", content: t.text },
+      toolResults: t.hadTool ? [{ toolName: "read", content: "..." }] : [],
+    }, ctx);
+  }
+}
+process.stdout.write(JSON.stringify(sent));
+"""
+
+    def _run(self, text, tools):
+        driver = scratch(".tmp_denial_driver.mjs")
+        payload = scratch(".tmp_denial_input.json")
+        with open(driver, "w", encoding="utf-8") as f:
+            f.write(self.DRIVER % {
+                "mod": json.dumps("file:///" + IDX.replace("\\", "/")),
+                "cwd": json.dumps(ROOT.replace("\\", "/")),
+            })
+        with open(payload, "w", encoding="utf-8") as f:
+            json.dump({"tools": tools, "turns": [{"text": text, "hadTool": False}]},
+                      f, ensure_ascii=False)
+        try:
+            p = subprocess.run(["node", driver, payload], capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", cwd=ROOT, timeout=120)
+            if p.returncode != 0:
+                raise AssertionError("node driver failed:\n%s\n%s" % (p.stdout, p.stderr))
+            return json.loads(p.stdout)
+        finally:
+            for x in (driver, payload):
+                if os.path.exists(x):
+                    os.remove(x)
+
+    BUILTINS = ["bash", "edit", "find", "grep", "ls", "read", "write"]
+    WITH_WEB = BUILTINS + ["web_search", "web_open", "deep_research"]
+
+    # ---- defect 1: a network denial is not a filesystem denial ----
+
+    def test_the_real_denial_is_not_answered_with_the_filesystem(self):
+        sent = self._run(self.REAL_WEB_DENIAL, self.BUILTINS)
+        self.assertEqual(
+            sent, [],
+            "a session with no web tools cannot answer a web denial, and must not "
+            "answer a different one instead")
+
+    def test_other_non_filesystem_denials_stay_silent(self):
+        for text in [
+            "我無法訪問暗網。",
+            "我無法進入私人 Telegram 群組。",
+            "我無法查詢區塊鏈瀏覽器的最新交易。",
+            "I cannot access the Bloomberg terminal.",
+        ]:
+            self.assertEqual(self._run(text, self.BUILTINS), [],
+                             "not a filesystem denial: %r" % text)
+
+    def test_a_real_filesystem_denial_is_still_corrected(self):
+        """The pattern was narrowed, not disarmed. These are the shapes Guard 6
+        was built for, and narrowing that loses them buys nothing."""
+        for text in [
+            "我無法直接存取您的本地檔案系統，請把內容貼給我。",
+            "我無法讀取檔案，因為沒有權限。",
+            "抱歉，我無法存取這個專案的目錄。",
+            "I don't have direct access to your local filesystem.",
+        ]:
+            sent = self._run(text, self.BUILTINS)
+            self.assertTrue(sent, "a filesystem denial must still be corrected: %r" % text)
+            self.assertIn("檔案系統", sent[0])
+
+    # ---- defect 2: nobody answered the denial that actually happened ----
+
+    def test_the_real_denial_is_corrected_when_web_tools_are_live(self):
+        """Same bytes, one configuration apart. This is the turn that should have
+        been corrected in 019ffbba and was not."""
+        sent = self._run(self.REAL_WEB_DENIAL, self.WITH_WEB)
+        self.assertTrue(sent, "a web denial in a session with web_search must be corrected")
+        self.assertIn("web_search", sent[0],
+                      "the correction has to name the tool the model said it lacked")
+        self.assertNotIn("檔案系統", sent[0],
+                         "answering a web denial with the filesystem is the original defect")
+
+    def test_the_web_correction_never_claims_a_tool_that_is_absent(self):
+        """The mirror of the mistake already documented above HARNESS_TOOLS.
+        Telling a model a tool exists when it does not produces the same
+        contradiction, pointing the other way."""
+        sent = self._run("I don't have live internet access.", self.BUILTINS)
+        self.assertEqual(sent, [])
+
+    # ---- the list itself ----
+
+    def test_the_correction_lists_the_session_s_real_tools(self):
+        """A recited constant told every model that the bridges' tools did not
+        exist. This asserts the list came from Pi: `read_file` is not a Pi
+        built-in, so it can only appear if getActiveTools was consulted."""
+        sent = self._run("我無法讀取檔案。", ["read_file", "shell_exec"])
+        self.assertTrue(sent)
+        self.assertIn("read_file", sent[0])
+        self.assertNotIn("grep", sent[0], "the built-in list must not be recited over the real one")
+
+    def test_it_falls_back_to_the_builtins_when_pi_cannot_be_asked(self):
+        """Older Pi, or any runtime without the call. Under-reporting is the safe
+        direction: the guard may go quiet, but it never invents a tool."""
+        sent = self._run("我無法讀取檔案。", None)
+        self.assertTrue(sent, "the filesystem branch must survive the fallback")
+        self.assertIn("read", sent[0])
+
+    def test_an_empty_tool_list_does_not_silence_the_fabrication_branch(self):
+        """Claiming work never done is not a capability question, so it must not
+        become conditional on what is registered."""
+        sent = self._run("File `x.py` read. Stopping as instructed.", [])
+        self.assertTrue(sent, "a fabricated completion is still a fabrication")
+
+
 if __name__ == "__main__":
     unittest.main()

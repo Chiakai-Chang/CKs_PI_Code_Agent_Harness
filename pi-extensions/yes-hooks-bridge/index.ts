@@ -522,6 +522,50 @@ function isKnownTool(name: string): boolean {
   return PI_TOOLS.has(name) || HARNESS_TOOLS.has(name);
 }
 
+/** Tools that reach a network. Declared, not derived from a name prefix: the
+ * question a denial branch asks is "could this session have searched?", and
+ * `bg_start` shares the harness list without being able to. */
+const WEB_TOOLS = new Set([
+  "web_search", "web_open", "web_snapshot", "web_click", "web_type",
+  "web_press", "web_scroll", "web_screenshot", "web_evaluate",
+  "deep_research",
+]);
+
+/** What this session can ACTUALLY call, asked of Pi rather than assumed.
+ *
+ * `PI_TOOLS` is the built-in list and nothing more; every correction that
+ * recited it was silently telling the model that the bridges' own tools did not
+ * exist. On the denial path that was the whole defect — a model refusing for
+ * want of web access was handed seven filesystem tools.
+ *
+ * Falls back to the built-ins when the runtime does not expose the call (older
+ * Pi, or a test double). The fallback under-reports, which keeps the failure on
+ * the safe side: this guard may then stay silent, but it will not claim a tool
+ * that is not there. */
+function activeToolNames(pi: ExtensionAPI): string[] {
+  try {
+    const got = (pi as { getActiveTools?: () => unknown }).getActiveTools?.();
+    if (Array.isArray(got)) {
+      const names = got.filter((n): n is string => typeof n === "string" && n.length > 0);
+      if (names.length) return names;
+    }
+  } catch {}
+  return [...PI_TOOLS];
+}
+
+function webToolsAmong(names: string[]): string[] {
+  return names.filter((n) => WEB_TOOLS.has(n));
+}
+
+/** Active tools that act on this machine. Goes through TOOL_ALIASES rather than
+ * testing PI_TOOLS membership directly: a session may register `read_file`
+ * instead of `read`, and answering "I cannot read your files" with an empty list
+ * — or with silence — is the same failure as answering it with the wrong list. */
+function localToolsAmong(names: string[]): string[] {
+  return names.filter((n) =>
+    PI_TOOLS.has(n) || PI_TOOLS.has(TOOL_ALIASES[n.toLowerCase()] ?? ""));
+}
+
 const TOOL_ALIASES: Record<string, string> = {
   read: "read", read_file: "read", readfile: "read", view: "read", cat: "read", open_file: "read", get_file: "read",
   write: "write", write_file: "write", writefile: "write", create_file: "write", create: "write", str_replace_editor: "edit",
@@ -1042,7 +1086,30 @@ const AUTO_EXEC_MAX_TURNS = 8;
 // Invisible to everything else here: no tool call to inspect, no markup for
 // FAKE_TOOL_CALL_PATTERN, nothing for the loop guard to count. This is the
 // dominant failure at this prompt scale, and it had no guard at all.
-const CAPABILITY_DENIAL = /(?:do(?:n['’]?t| not)|cannot|can['’]?t|no)\s+(?:have\s+)?(?:direct(?:ly)?\s+|live\s+)?access\s+(?:to\s+)?(?:your|the|this)?\s*(?:local\s+)?(?:file\s?system|files?|repositor|folder|director|machine|disk)|無法(?:直接)?(?:存取|讀取|訪問)/i;
+// The Chinese branch used to be a bare `無法(?:直接)?(?:存取|讀取|訪問)` — a verb
+// with no object, where the English branch had always required a filesystem
+// noun. Measured on session 019ffbba: the model truthfully wrote 「亦無法訪問暗網」
+// (it cannot reach the dark web), the guard matched that, and answered
+// 「你剛才說沒有檔案系統存取權」 — a sentence the model never wrote — then listed
+// seven tools, none of which reach a network. The model accepted the correction,
+// abandoned the intelligence task it had been given, and emitted
+// `pwd && ls -la && whoami` instead. A guard that corrects a truthful turn does
+// not just waste a turn; this one chose the turn's next action.
+//
+// The object is now required, and the gap cannot cross sentence-ending
+// punctuation, so 「無法訪問暗網。因此…」 stops at the 。.
+const CAPABILITY_DENIAL = /(?:do(?:n['’]?t| not)|cannot|can['’]?t|no)\s+(?:have\s+)?(?:direct(?:ly)?\s+|live\s+)?access\s+(?:to\s+)?(?:your|the|this)?\s*(?:local\s+)?(?:file\s?system|files?|repositor|folder|director|machine|disk)|無法(?:直接|即時|實時)?(?:存取|讀取|訪問|進入|開啟)[^。！？!?\n]{0,16}?(?:檔案系統|文件系統|檔案|文件|目錄|資料夾|磁碟|硬碟|本機|本地端|儲存空間|repo|repository|專案)/i;
+
+// The denial this harness had no answer for at all. Same session: the model's
+// FIRST turn declined the whole task with 「無法即時存取網路實時搜尋」 while
+// stealth-web-bridge was installed and web_search was live. Nothing spoke,
+// because every guard here was written for the filesystem.
+//
+// Fired only when a matching tool is actually active — see webToolsAmong. A
+// model that says it cannot browse in a session with no web tools is right, and
+// telling it otherwise is the mirror of the mistake documented above
+// HARNESS_TOOLS.
+const WEB_DENIAL = /(?:do(?:n['’]?t| not)|cannot|can['’]?t|no)\s+(?:have\s+)?(?:direct(?:ly)?\s+|live\s+|real[\s-]?time\s+)?(?:internet|web|network|online)\s+access|(?:cannot|can['’]?t|unable\s+to)\s+(?:browse|search|access)\s+(?:the\s+)?(?:internet|web|online)|無法(?:直接|即時|實時)?(?:存取|讀取|訪問|連上|進入|瀏覽|搜尋|查詢)[^。！？!?\n]{0,16}?(?:網路|網際網路|網頁|線上|即時搜尋|實時搜尋|網站|暗網)/i;
 // Claiming a read/run. Deliberately narrow: it must look like a report of a
 // completed action, not a plan ("I will read…") or a question.
 // The last alternative was added 2026-07-30. Captured live at a 41,129-token
@@ -1259,7 +1326,11 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
         {
           customType: "loop-guard",
           content:
-            "系統已連續 3 次自動糾正你的假工具呼叫，但你仍然沒有發出真正的原生 Function Call。" +
+            // "3 次自動糾正" was false: strike 3 sends THIS message instead of a
+            // correction, so the model had received two. A number stated back to
+            // the model has to be one the model can verify against its own
+            // context; three turns is what actually happened.
+            "你已經連續 3 輪用文字描述工具呼叫，系統糾正後仍然沒有發出真正的原生 Function Call。" +
             "請停止輸出任何工具標籤或 JSON 工具描述，改用文字向使用者說明你卡住的原因與需要什麼協助。",
           display: true,
         },
@@ -1344,24 +1415,39 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
 
   // Guard 6, before the markup check below: these turns carry no markup at all,
   // so looksLikeFakeToolCall returns false and resets every counter.
-  const denied = CAPABILITY_DENIAL.test(text);
+  //
+  // Each denial is answered with the tools that answer THAT denial, and only
+  // when the session actually has them. Naming the capability the model
+  // declined is the whole point: the version that answered every denial with
+  // the filesystem list sent a model that wanted the web to run `whoami`.
+  const active = activeToolNames(pi);
+  const webActive = webToolsAmong(active);
+  const fsActive = localToolsAmong(active);
+  const deniedFs = CAPABILITY_DENIAL.test(text) && fsActive.length > 0;
+  const deniedWeb = WEB_DENIAL.test(text) && webActive.length > 0;
+  const denied = deniedFs || deniedWeb;
   const fabricated = !sawAnyRealToolCall && FABRICATED_COMPLETION.test(text);
   if (denied || fabricated) {
     consecutiveFakeToolStrikes += 1;
     if (consecutiveFakeToolStrikes <= 3) {
       ctx.ui.notify(
-        `🚨 Turn ended with no tool call but ${denied ? "denied filesystem access" : "claimed work it never did"} (strike ${consecutiveFakeToolStrikes}/3).`,
+        `🚨 Turn ended with no tool call but ${denied ? (deniedWeb ? "denied web access" : "denied filesystem access") : "claimed work it never did"} (strike ${consecutiveFakeToolStrikes}/3).`,
         "error",
       );
       pi.sendMessage(
         {
           customType: "loop-guard",
           content:
-            (denied
-              ? "[SYSTEM] 你剛才說沒有檔案系統存取權，但這個 session 有原生工具可用：" +
-                `${[...PI_TOOLS].join(", ")}。它們直接在這台機器上執行。`
-              : "[SYSTEM] 你剛才宣稱已經讀取／執行了某個東西，但這個 session 到目前為止沒有任何一次真正的工具呼叫。" +
-                "不要陳述你沒有實際做過的動作。") +
+            (deniedWeb
+              ? "[SYSTEM] 你剛才說你沒有網路／即時搜尋的能力，但這個 session 現在就有可用的網頁工具：" +
+                `${webActive.join(", ")}。它們會真的連上網路。` +
+                "\n請直接以原生 Function Call 使用它們，不要在一次都沒試過的情況下宣告做不到，" +
+                "也不要改用與使用者要求無關的替代動作。"
+              : deniedFs
+                ? "[SYSTEM] 你剛才說沒有檔案系統存取權，但這個 session 有原生工具可用：" +
+                  `${fsActive.join(", ")}。它們直接在這台機器上執行。`
+                : "[SYSTEM] 你剛才宣稱已經讀取／執行了某個東西，但這個 session 到目前為止沒有任何一次真正的工具呼叫。" +
+                  "不要陳述你沒有實際做過的動作。") +
             "\n請立刻發出真正的原生 Function Call 完成該動作；若你判斷不需要動作，請直接說明理由，不要宣稱做過。",
           display: true,
         },
