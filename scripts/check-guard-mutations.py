@@ -70,6 +70,11 @@ GUARD_MODULES = {
     "pi-extensions/yes-hooks-bridge/harness-root.ts": ["test_harness_root_redirect"],
     "pi-extensions/yes-hooks-bridge/loop-detect.ts": ["test_cycle_guard"],
     "pi-extensions/yes-hooks-bridge/compaction-echo.ts": ["test_compaction_echo"],
+    # Repairs tool arguments in place rather than refusing, so a weakened
+    # predicate here does not fail loudly the way a dead guard does — it just
+    # quietly stops stripping, or starts stripping honest markup out of files
+    # the agent writes. Both directions are asserted in test_dialect_residue.
+    "pi-extensions/yes-hooks-bridge/dialect-residue.ts": ["test_dialect_residue"],
     "pi-extensions/task-shape-bridge/goal-restate.ts": ["test_goal_restate"],
     "pi-extensions/case-bridge/task-context.ts": ["test_task_context"],
     # Added 2026-08-10 after measuring coverage: 33 of 48 pure modules were

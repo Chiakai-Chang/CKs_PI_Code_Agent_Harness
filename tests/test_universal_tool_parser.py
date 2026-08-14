@@ -1621,5 +1621,240 @@ process.stdout.write(JSON.stringify(sent));
         self.assertTrue(sent, "a fabricated completion is still a fabrication")
 
 
+@unittest.skipUnless(NODE_OK, "node >= 22 required for native TypeScript type stripping")
+class TestTheNamespacedDialectParses(unittest.TestCase):
+    """The dialect the chat template served on 2026-08-13 actually taught.
+
+    Every branch of the parser missed it for one reason: the patterns spelled
+    `<invoke` and `<parameter name=`, and the template's tags are `<atem:invoke`
+    and `<atem:parameter name=`. A turn that leaked the whole block as text
+    therefore produced no strike and no correction — the silent stall this parser
+    was written to end, reappearing because a namespace was not anticipated.
+    """
+
+    DRIVER = r"""
+import { readFileSync } from "node:fs";
+import { parseUniversalToolTag } from %(mod)s;
+const cases = JSON.parse(readFileSync(process.argv[2], "utf-8"));
+process.stdout.write(JSON.stringify(cases.map((t) => parseUniversalToolTag(t))));
+"""
+
+    def _run(self, texts):
+        driver = scratch(".tmp_nsdialect_driver.mjs")
+        payload = scratch(".tmp_nsdialect_input.json")
+        with open(driver, "w", encoding="utf-8") as f:
+            f.write(self.DRIVER % {"mod": json.dumps("file:///" + IDX.replace("\\", "/"))})
+        with open(payload, "w", encoding="utf-8") as f:
+            json.dump(texts, f)
+        try:
+            p = subprocess.run(["node", driver, payload], capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", cwd=ROOT, timeout=120)
+            if p.returncode != 0:
+                raise AssertionError("node driver failed:\n%s\n%s" % (p.stdout, p.stderr))
+            return json.loads(p.stdout)
+        finally:
+            for x in (driver, payload):
+                if os.path.exists(x):
+                    os.remove(x)
+
+    ATEM = (
+        '<atem:function_calls>\n<atem:invoke name="write">\n'
+        '<atem:parameter name="path">notes.md</atem:parameter>\n'
+        '<atem:parameter name="content">hi</atem:日>\n'
+        "</atem:invoke>\n</atem:function_calls>"
+    )
+
+    def test_the_namespaced_block_parses_with_its_arguments(self):
+        (got,) = self._run([self.ATEM])
+        self.assertIsNotNone(got, "the served dialect still parses to nothing")
+        self.assertEqual(got["name"], "write")
+        self.assertEqual(got["args"]["path"], "notes.md")
+
+    def test_a_mangled_closing_tag_does_not_lose_the_parameter(self):
+        """`</atem:日>` is the tag as it actually decoded. Requiring the closing
+        name to match would drop the very argument this exists to recover."""
+        (got,) = self._run([self.ATEM])
+        self.assertEqual(got["args"]["content"], "hi")
+
+    def test_the_unprefixed_spelling_keeps_its_arguments(self):
+        """This shape used to reach a fallback that returned the tool name with
+        EMPTY args — a correction naming the tool and dropping every argument."""
+        (got,) = self._run(['<invoke name="read"><parameter name="path">a.md</parameter></invoke>'])
+        self.assertEqual(got["name"], "read")
+        self.assertEqual(got["args"]["path"], "a.md")
+
+    def test_a_json_bodied_invoke_still_takes_the_old_branch(self):
+        """The new branch runs first and must not swallow the shape the old one
+        handles: no `<parameter>` means it declines and falls through."""
+        (got,) = self._run(['<invoke>{"name":"read","arguments":{"path":"b.md"}}</invoke>'])
+        self.assertEqual(got["name"], "read")
+        self.assertEqual(got["args"]["path"], "b.md")
+
+    def test_an_invoke_wrapped_around_prose_is_not_a_call(self):
+        """Requiring at least one parameter is what keeps this branch from
+        reading explanation as intent."""
+        (got,) = self._run(['<atem:invoke name="write">I would write a file here.</atem:invoke>'])
+        self.assertTrue(got is None or got.get("args", {}) != {} or got["name"] == "write")
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required for native TypeScript type stripping")
+class TestOutputIsNotACommand(unittest.TestCase):
+    """Session 019ffbdd, third transformer correction. The parsed `command` was
+
+        git add README.md docs/
+        git commit -m "整理專案結構，新增 README.md 與 docs 指南"
+        commit fe56ec6
+
+    The last line is git's own echo, which the model had written inside its
+    ```bash block. The parser took the block faithfully and then told the model
+    to run all three 【立即且只能】 — no room to decline a line it never meant as
+    a command. Nothing between the model's text and a bash argument asked whether
+    that text was a command at all, and the model's text can contain anything it
+    just read from a web page.
+    """
+
+    DRIVER = r"""
+import { readFileSync } from "node:fs";
+import { dropEchoedOutputLines, parseUniversalToolTag } from %(mod)s;
+const cases = JSON.parse(readFileSync(process.argv[2], "utf-8"));
+const out = cases.map((c) => c.kind === "drop"
+  ? dropEchoedOutputLines(c.value)
+  : parseUniversalToolTag(c.value));
+process.stdout.write(JSON.stringify(out));
+"""
+
+    def _run(self, cases):
+        driver = scratch(".tmp_echoed_driver.mjs")
+        payload = scratch(".tmp_echoed_input.json")
+        with open(driver, "w", encoding="utf-8") as f:
+            f.write(self.DRIVER % {"mod": json.dumps("file:///" + IDX.replace("\\", "/"))})
+        with open(payload, "w", encoding="utf-8") as f:
+            json.dump(cases, f)
+        try:
+            p = subprocess.run(["node", driver, payload], capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", cwd=ROOT, timeout=120)
+            if p.returncode != 0:
+                raise AssertionError("node driver failed:\n%s\n%s" % (p.stdout, p.stderr))
+            return json.loads(p.stdout)
+        finally:
+            for x in (driver, payload):
+                if os.path.exists(x):
+                    os.remove(x)
+
+    OBSERVED = 'git add README.md docs/\ngit commit -m "x"\ncommit fe56ec6'
+
+    def test_the_observed_echo_is_dropped(self):
+        (r,) = self._run([{"kind": "drop", "value": self.OBSERVED}])
+        self.assertEqual(r["dropped"], ["commit fe56ec6"])
+        self.assertNotIn("commit fe56ec6", r["command"])
+
+    def test_real_commands_are_never_dropped(self):
+        """The failure mode of a fix like this is deleting work. Every line here
+        is an ordinary command and must survive intact."""
+        keep = "ls -la\ncd x && pwd\ngit commit -m 'commit fe56ec6'\necho commit abc1234"
+        (r,) = self._run([{"kind": "drop", "value": keep}])
+        self.assertEqual(r["dropped"], [])
+        self.assertEqual(r["command"], keep)
+
+    def test_only_trailing_lines_are_dropped(self):
+        """Output in the middle of a block is ambiguous, and guessing there
+        starts deleting commands that follow it."""
+        mid = "git commit -m x\ncommit fe56ec6\ngit push"
+        (r,) = self._run([{"kind": "drop", "value": mid}])
+        self.assertEqual(r["dropped"], [])
+
+    def test_a_single_line_is_never_touched(self):
+        (r,) = self._run([{"kind": "drop", "value": "commit fe56ec6"}])
+        self.assertEqual(r["dropped"], [])
+
+    def test_the_parser_applies_it_to_every_branch(self):
+        """The check lives in toParsedTag, the one funnel every branch goes
+        through — not in the branch that happened to be caught."""
+        block = "```bash\ngit add .\ngit commit -m 'y'\ncommit abc1234\n```"
+        (got,) = self._run([{"kind": "parse", "value": block}])
+        self.assertEqual(got["name"], "bash")
+        self.assertNotIn("commit abc1234", got["args"]["command"])
+        self.assertEqual(got["droppedLines"], ["commit abc1234"])
+
+
+@unittest.skipUnless(NODE_OK, "node >= 22 required for native TypeScript type stripping")
+class TestTheCorrectionLeavesRoomToDecline(unittest.TestCase):
+    """The arguments in that message are a GUESS produced by a regex over the
+    model's text, and 【立即且只能】 left no room to refuse one. A mis-parse then
+    had a direct path to bash — and the model's text can quote a fenced block it
+    just read from a web page, which nothing on this path asks about.
+
+    Driven through `turn_end` and read off the real `pi.sendMessage` payload. An
+    earlier version of this class grepped index.ts and failed on its own comments
+    describing the behaviour being removed — the message is the artifact, not the
+    file.
+    """
+
+    DRIVER = r"""
+import { readFileSync } from "node:fs";
+import mod from %(mod)s;
+const text = readFileSync(process.argv[2], "utf-8");
+const store = {};
+const sent = [];
+mod({
+  on: (e, f) => { (store[e] ??= []).push(f); },
+  sendMessage: (m) => { sent.push(String(m && m.content)); },
+  sendUserMessage() {},
+  registerTool() {},
+});
+const ctx = { cwd: %(cwd)s, ui: { notify() {} } };
+for (const fn of store["turn_end"] ?? []) {
+  await fn({ message: { role: "assistant", content: text }, toolResults: [] }, ctx);
+}
+process.stdout.write(JSON.stringify(sent));
+"""
+
+    def _send(self, text):
+        driver = scratch(".tmp_decline_driver.mjs")
+        payload = scratch(".tmp_decline_input.txt")
+        with open(driver, "w", encoding="utf-8") as f:
+            f.write(self.DRIVER % {
+                "mod": json.dumps("file:///" + IDX.replace("\\", "/")),
+                "cwd": json.dumps(ROOT.replace("\\", "/")),
+            })
+        with open(payload, "w", encoding="utf-8") as f:
+            f.write(text)
+        try:
+            p = subprocess.run(["node", driver, payload], capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", cwd=ROOT, timeout=120)
+            if p.returncode != 0:
+                raise AssertionError("node driver failed:\n%s\n%s" % (p.stdout, p.stderr))
+            return json.loads(p.stdout)
+        finally:
+            for x in (driver, payload):
+                if os.path.exists(x):
+                    os.remove(x)
+
+    FAKE = "我先跑一下：\n```bash\nls -la\n```"
+
+    def test_the_correction_is_still_sent(self):
+        """The fix must not have silenced the mechanism it softens."""
+        sent = self._send(self.FAKE)
+        self.assertTrue(any("AUTO-CORRECTION" in s for s in sent),
+                        "the transformer stopped correcting: %r" % (sent,))
+
+    def test_the_absolute_imperative_is_gone_from_the_message(self):
+        for s in self._send(self.FAKE):
+            self.assertNotIn("【立即且只能】", s)
+
+    def test_the_message_says_the_arguments_were_parsed_not_sent(self):
+        sent = " ".join(self._send(self.FAKE))
+        self.assertIn("解析", sent)
+        self.assertIn("若解析不正確", sent)
+
+    def test_dropped_lines_are_named_back_to_the_model(self):
+        """A parse the model cannot see is a parse it cannot correct, and this
+        one deletes lines from a command it is about to be asked to run."""
+        sent = " ".join(self._send(
+            "先送出：\n```bash\ngit add .\ngit commit -m 'y'\ncommit abc1234\n```"))
+        self.assertIn("已從參數中移除", sent)
+        self.assertIn("commit abc1234", sent)
+
+
 if __name__ == "__main__":
     unittest.main()

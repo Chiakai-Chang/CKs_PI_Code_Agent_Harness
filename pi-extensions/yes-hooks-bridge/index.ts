@@ -72,6 +72,7 @@ import { bashContainmentBlock } from "./bash-containment.ts";
 import { BlockedClaimTracker } from "./blocked-claim.ts";
 import { containmentRefusal, workspaceListing } from "./harness-root.ts";
 import { compactionEcho } from "./compaction-echo.ts";
+import { scrubToolInput, type ResidueRemoval } from "./dialect-residue.ts";
 
 function harnessRoot(): string {
   const here = dirname(fileURLToPath(import.meta.url));
@@ -84,6 +85,72 @@ function harnessRoot(): string {
 
 function guardScript(): string {
   return join(harnessRoot(), "external/yes.md/hooks/pre-bash-guard.sh");
+}
+
+// ---------------------------------------------------------------------------
+// Dialect residue: repaired for the model, reported to the operator.
+//
+// The removals go to `ctx.ui.notify` and to a file, and to nothing else. The
+// model is the wrong audience — it cannot change its own chat template, so a
+// message about the residue can only cost it a turn, and the GateGuard
+// misdelivery in this same session shows what a misread notice does to the next
+// action. The operator can fix it, with a server restart that
+// `scripts/check-model-serving.py` names.
+//
+// Notified once per session, not per call. The measured session would have
+// produced 24 of these, which is the same failure as the learning-point notice
+// that repeated 122 times and meant nothing by the third.
+// ---------------------------------------------------------------------------
+let residueTotal = 0;
+let residueAnnounced = false;
+const residueSeen: ResidueRemoval[] = [];
+
+function residueReportPath(): string {
+  return join(harnessRoot(), "pi-config", "serving-mismatch-report.json");
+}
+
+function recordResidue(removed: ResidueRemoval[], ctx: ExtensionContext): void {
+  if (!removed.length) return;
+  residueTotal += removed.length;
+  // Bounded: a report is evidence, not a log. The shape repeats after the first
+  // few and the count is what matters.
+  for (const r of removed) if (residueSeen.length < 50) residueSeen.push(r);
+
+  if (!residueAnnounced) {
+    residueAnnounced = true;
+    const first = removed[0];
+    ctx.ui.notify(
+      `🧩 Tool arguments carried '${first.tag}' from the model's chat template ` +
+        `(in ${first.tool}.${first.field}). Removed before the call ran. The ` +
+        `served template teaches a tool-call dialect this harness does not use — ` +
+        `run: python scripts/check-model-serving.py`,
+      "warning",
+    );
+  }
+
+  try {
+    writeFileSync(
+      residueReportPath(),
+      JSON.stringify(
+        {
+          version: 1,
+          generatedAt: new Date().toISOString(),
+          note:
+            "Tool-call dialect residue removed from tool arguments before " +
+            "execution. Cause is the served chat template, not the model and " +
+            "not this harness; see scripts/check-model-serving.py.",
+          removedTotal: residueTotal,
+          samples: residueSeen,
+        },
+        null,
+        2,
+      ),
+      "utf-8",
+    );
+  } catch {
+    // A report that cannot be written must not take the session with it. The
+    // repair already happened; this is the record of it.
+  }
 }
 
 // Resolve a real shell (Node's bare "sh" ENOENTs on Windows — see stealth-web).
@@ -234,7 +301,14 @@ function vendoredGuard(
 // Blocking costs nothing — Pi was going to reject the call anyway — but it
 // replaces a confusing engine message with a specific instruction, which is the
 // difference between the model repeating the failure and correcting it.
-const ARG_SYNTAX_LEAK = /<\/?(?:tool_call|function|parameter)\b|<\|tool▁call/i;
+//
+// The optional namespace prefix carries the same fix as FAKE_TOOL_CALL_PATTERN:
+// `</atem:parameter>` did not match `<\/?parameter\b`, so on session 019ffbdd
+// this guard saw 24 corrupted arguments and stayed silent. write/edit are
+// repaired before this runs (see dialect-residue.ts) precisely so this guard
+// keeps the cases it judges better — a leak in a `command` or a `query` is a
+// generation runaway the model can fix, and refusing it says so.
+const ARG_SYNTAX_LEAK = /<\/?(?:[A-Za-z][\w.-]*:)?(?:tool_call|function|parameter|function_calls|invoke)\b|<\|tool▁call/i;
 const MAX_ARG_CHARS = 8000;
 
 function runawayArgumentGuard(event: ToolCallEvent, ctx: ExtensionContext) {
@@ -465,7 +539,16 @@ function containmentGuard(event: ToolCallEvent, ctx: ExtensionContext) {
 // Guard 3: catches a turn that ends with NO real tool call but assistant text shaped like
 // one (Claude/Superpowers `<read>`, `<write>`, `<edit>`, `<bash>`, `<ls>`, `<dir>`, `<invoke>`, `<tool_code>` tags,
 // or Markdown ` ```bash ` code blocks) — text that is never executed. Universal Parser intercepts valid tags and auto-advances.
-const FAKE_TOOL_CALL_PATTERN = /<invoke\b|<\/invoke>|<parameter\s+name=|<\/?read-files?>|<modified-files>|<bash\b|<\/bash>|<read\b|<\/read>|<write\b|<\/write>|<edit\b|<\/edit>|<browse\b|<\/browse>|<ls\b|<\/ls>|<dir\b|<\/dir>|<tool_code\b|<\/tool_code>|<tool_call\b|<\/tool_call>|```(?:bash|sh|cmd|powershell|ps1)\b/i;
+//
+// The `(?:[A-Za-z][\w.-]*:)?` prefix on the tool-call tags is not decoration.
+// Until 2026-08-14 this pattern matched `<invoke` and `<parameter name=` and
+// therefore did NOT match `<atem:invoke` or `<atem:parameter name=` — the exact
+// dialect the local model's chat template was teaching it. A whole tool-call
+// syntax walked past this detector, the loop guard and the transformer for a
+// 6.5-hour session because of one namespace prefix. Any dialect that namespaces
+// its tags would have done the same, so the prefix is optional and general
+// rather than a list of the ones seen so far. See dialect-residue.ts.
+const FAKE_TOOL_CALL_PATTERN = /<(?:[A-Za-z][\w.-]*:)?invoke\b|<\/(?:[A-Za-z][\w.-]*:)?invoke>|<(?:[A-Za-z][\w.-]*:)?parameter\s+name=|<\/(?:[A-Za-z][\w.-]*:)?parameter>|<(?:[A-Za-z][\w.-]*:)?function_calls>|<\/(?:[A-Za-z][\w.-]*:)?function_calls>|<\/?read-files?>|<modified-files>|<bash\b|<\/bash>|<read\b|<\/read>|<write\b|<\/write>|<edit\b|<\/edit>|<browse\b|<\/browse>|<ls\b|<\/ls>|<dir\b|<\/dir>|<tool_code\b|<\/tool_code>|<(?:[A-Za-z][\w.-]*:)?tool_call\b|<\/(?:[A-Za-z][\w.-]*:)?tool_call>|```(?:bash|sh|cmd|powershell|ps1)\b/i;
 
 // A JSON payload shaped like a tool call — the shape a model reaches for when
 // it "describes" tool calls instead of emitting them, e.g.
@@ -700,12 +783,74 @@ interface ParsedToolTag {
   count?: number;
   /** True when the canonical name is not one of Pi's built-in tools. */
   unknownTool?: boolean;
+  /** Trailing lines dropped as command OUTPUT rather than command. See
+   * dropEchoedOutputLines — these are named back to the model, because a parse
+   * it cannot see is a parse it cannot correct. */
+  droppedLines?: string[];
+}
+
+// Lines that are a command's OUTPUT, not a command.
+//
+// Session 019ffbdd, third transformer correction: the parsed `command` was
+//
+//     git add README.md docs/
+//     git commit -m "整理專案結構，新增 README.md 與 docs 指南"
+//     commit fe56ec6
+//
+// The last line is git's own echo, which the model had written inside its
+// ```bash block. The parser took the block faithfully and then ordered the model
+// to run all three 【立即且只能】. Nothing between the model's text and a bash
+// argument asked whether that text was a command at all.
+//
+// Deliberately narrow and derived from what was observed, not from imagination:
+// every pattern here is unambiguous output with no plausible reading as a
+// command. Only TRAILING lines are dropped — output in the middle of a block is
+// ambiguous, and guessing there would start deleting real commands.
+const ECHOED_OUTPUT_LINE = [
+  /^commit\s+[0-9a-f]{7,40}$/i,
+  /^[0-9a-f]{7,40}$/i,
+  /^\[[^\]\s]+\s+[0-9a-f]{7,40}\]\s/,
+  /^\s*\d+\s+files?\s+changed/i,
+  /^\s*\d+\s+(?:insertions?|deletions?)\b/i,
+  /^\s*(?:create|delete|rename)\s+mode\s/i,
+  /^On branch\s/i,
+  /^nothing to commit/i,
+  /^Author:\s/i,
+  /^Date:\s/i,
+];
+
+export function dropEchoedOutputLines(command: string): { command: string; dropped: string[] } {
+  if (typeof command !== "string" || !command.includes("\n")) {
+    return { command, dropped: [] };
+  }
+  const lines = command.split("\n");
+  const dropped: string[] = [];
+  while (lines.length > 1) {
+    const last = lines[lines.length - 1];
+    if (!last.trim()) { lines.pop(); continue; }
+    if (!ECHOED_OUTPUT_LINE.some((re) => re.test(last.trim()))) break;
+    dropped.unshift(lines.pop() as string);
+  }
+  if (!dropped.length) return { command, dropped: [] };
+  return { command: lines.join("\n"), dropped };
 }
 
 // Normalizes a raw {name, args} pair into Pi's tool vocabulary.
 function toParsedTag(rawName: string, rawArgs: Record<string, unknown>, raw: string, count = 1): ParsedToolTag {
   const name = canonicalizeToolName(rawName);
-  return { name, args: canonicalizeArgs(name, rawArgs), raw, count, unknownTool: !isKnownTool(name) };
+  const args = canonicalizeArgs(name, rawArgs);
+  // Every branch of parseUniversalToolTag funnels through here, so the shape
+  // check belongs here rather than in the one branch that happened to be caught
+  // producing output-as-command.
+  let droppedLines: string[] | undefined;
+  if (name === "bash" && typeof args.command === "string") {
+    const { command, dropped } = dropEchoedOutputLines(args.command);
+    if (dropped.length) {
+      args.command = command;
+      droppedLines = dropped;
+    }
+  }
+  return { name, args, raw, count, unknownTool: !isKnownTool(name), droppedLines };
 }
 
 // Extracts every tool-call-shaped object from a JSON payload, fenced or bare,
@@ -870,6 +1015,45 @@ export function parseUniversalToolTag(text: string): ParsedToolTag | null {
   if (jsonCalls.length > 0) {
     const first = jsonCalls[0];
     return toParsedTag(first.name, first.args, text.trim(), jsonCalls.length);
+  }
+
+  // 1a. The namespaced Anthropic-style dialect
+  //     (runs BEFORE branch 1: branch 1 matches the <invoke> wrapper, fails to
+  //     JSON-parse a <parameter> body, and falls back to a name with EMPTY
+  //     args — a correction that names the tool and drops every argument), which is what the chat template
+  //     served on 2026-08-13 taught:
+  //
+  //       <atem:function_calls>
+  //       <atem:invoke name="write">
+  //       <atem:parameter name="path">x.md</atem:parameter>
+  //       </atem:invoke>
+  //       </atem:function_calls>
+  //
+  //     Branch 1 cannot see it: its pattern is `<invoke\b`, and `<atem:invoke`
+  //     does not match. The same prefix hid this dialect from
+  //     FAKE_TOOL_CALL_PATTERN, so a turn that leaked the whole block as text
+  //     produced no strike and no correction — the silent stall this parser
+  //     exists to end, reappearing because a namespace was not anticipated.
+  //     The prefix is optional here, so the unprefixed spelling lands in the
+  //     same branch rather than in two places that can drift apart.
+  const invokeMatch = text.match(
+    /<(?:[A-Za-z][\w.-]*:)?invoke\s+name=["']([^"']+)["']\s*>([\s\S]*?)<\/(?:[A-Za-z][\w.-]*:)?invoke>/i);
+  if (invokeMatch) {
+    const args: Record<string, unknown> = {};
+    const paramRe =
+      /<(?:[A-Za-z][\w.-]*:)?parameter\s+name=["']([^"']+)["']\s*>([\s\S]*?)<\/(?:[A-Za-z][\w.-]*:)?[^<>\s]{0,24}>/gi;
+    for (const p of invokeMatch[2].matchAll(paramRe)) {
+      args[p[1]] = p[2];
+    }
+    // A closing tag whose name decoded wrong is exactly how this dialect showed
+    // up in real arguments (`</atem:日>`), so the parameter pattern above
+    // deliberately does not require the closing tag's name to match. The trade
+    // is that it would also close on an unrelated tag; requiring at least one
+    // parameter keeps `<invoke>` wrapped around prose out.
+    const count = [...text.matchAll(/<(?:[A-Za-z][\w.-]*:)?invoke\s+name=/gi)].length;
+    if (Object.keys(args).length > 0) {
+      return toParsedTag(invokeMatch[1], args, invokeMatch[0], count);
+    }
   }
 
   // 1. Standard XML tool wrappers: <tool_code>, <invoke>, <tool_call>, <function_call>, <action>, <execute>
@@ -1370,6 +1554,15 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
     const unknownNote = parsedTag.unknownTool
       ? `\n（'${parsedTag.name}' 不在本守衛已知的清單內。若它由某個擴充提供，照樣以原生呼叫發出即可；若你其實想用內建工具，可用的是：${[...PI_TOOLS].join(", ")}。）`
       : "";
+    // Name what was thrown away. A parse the model cannot see is a parse it
+    // cannot correct, and this one deletes lines from a command it is about to
+    // be asked to run.
+    const droppedNote =
+      parsedTag.droppedLines && parsedTag.droppedLines.length
+        ? `\n（下列結尾行看起來是指令的「輸出」而不是指令，已從參數中移除：${parsedTag.droppedLines
+            .map((l) => `\`${l.trim()}\``)
+            .join("、")}。若其中有你真正要執行的指令，請自行改回。）`
+        : "";
 
     ctx.ui.notify(
       `🛠️ Universal Parser: transformed fake tool call into '${parsedTag.name}' (strike ${consecutiveTransformStrikes}/3)`,
@@ -1384,9 +1577,20 @@ function loopGuard(event: { message: unknown; toolResults?: unknown[] }, ctx: Ex
           `偵測到你剛才以${shape}描述工具呼叫，而不是發出真正的呼叫。` +
           `（原文不在此重複，以免你再照著寫一次。）\n\n` +
           `系統已識別你的意圖為呼叫原生工具【${parsedTag.name}】，解析後的參數為：\n` +
-          `${JSON.stringify(parsedTag.args, null, 2)}${batchNote}${unknownNote}\n\n` +
-          `🔥【指令】：請你在此輪對話中【立即且只能】呼叫原生工具 '${parsedTag.name}'，傳入上述參數！` +
-          `絕對不要再輸出任何 XML 標籤、\`\`\`json 工具清單或 \`\`\`bash 程式碼塊！`,
+          `${JSON.stringify(parsedTag.args, null, 2)}${batchNote}${unknownNote}${droppedNote}\n\n` +
+          // The arguments above are a GUESS, produced by a regex over the
+          // model's text. 【立即且只能】 left no room to decline one, and a
+          // mis-parse then had a
+          // direct path to bash: session 019ffbdd parsed `commit fe56ec6` — a
+          // line of git OUTPUT — into a command and ordered it run. Text the
+          // model merely quoted (a fenced block from a fetched web page, its own
+          // transcript) reaches this same path, and nothing here asks where the
+          // text came from. So the instruction now states what it is: a
+          // reconstruction, to be issued if correct and corrected if not.
+          `【請這樣做】：上面的參數是本守衛從你的文字「解析」出來的，不是你送出的呼叫。\n` +
+          `若解析正確，請直接以原生工具 '${parsedTag.name}' 發出這個呼叫。\n` +
+          `若解析不正確，請不要照著送出——改用純文字說明你原本想做什麼，或直接發出正確的原生呼叫。\n` +
+          `無論哪一種，都不要再輸出 XML 標籤、\`\`\`json 工具清單或 \`\`\`bash 程式碼塊。`,
         display: true,
       },
       // MUST be "followUp", not "nextTurn". Pi's docs (docs/extensions.md) are
@@ -1578,6 +1782,15 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("tool_call", async (event, ctx) => {
+    // FIRST, before any guard reads the arguments.
+    //
+    // A residual dialect tag is part of the string every other guard judges:
+    // session 019ffbdd produced `…/.gitignore</atem:日>` as a `path`, and
+    // containment, the harness-root hint and the repeat detector would all have
+    // been reasoning about a filename that the model never meant to write. The
+    // repair has to happen before they look, not after.
+    recordResidue(scrubToolInput(event.toolName, event.input), ctx);
+
     const runaway = runawayArgumentGuard(event, ctx);
     if (runaway) return runaway;
     const repeat = repeatCallGuard(event, ctx, pi);

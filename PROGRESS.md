@@ -16,9 +16,9 @@
 
 **當前認領中:** 無。T-A5 已完成(2026-08-12,n=5),等待 Path A 核可。T-A1/A2/A3/A6/A7/T1b 皆已由擁有者在對話中口頭核可(Path A)。
 
-**下一個要動的**:**T-A14 + T-A19(一起做)** —— 兩者共用同一組正則,而那組正則的詞彙
-來自 T-A13 已經寫好的 `DIALECTS` 表。**T-A12、T-A16、T-A13 已完成**(2026-08-14,等 Path A 核可)。
-之後 T-A17 → T-A18 → T-A21。
+**下一個要動的**:**T-A17**(`📝 偵測到新學習點` 的三個附帶缺陷;T-A16 已解除它的依賴)。
+**T-A12、T-A16、T-A13、T-A19 已完成**,**T-A14 已上線但 live 觸發 0 次**
+(2026-08-14/15,等 Path A 核可)。之後 T-A18 → T-A21。
 不阻塞的替代:T3(反轉極性)、T6(§16 Handoff Capsule)。
 
 > **2026-08-14 排序修正兩次,兩次都不是照原表走。**
@@ -61,13 +61,13 @@
 | T2 | 🚫 已撤銷 | 建立在探針假象上(Round 14),原文保留 |
 | T-A12(量測儀器) | ✅ 完成 | 2026-08-14。查到的比原本記的多:3 個死 marker、1 個隱形守衛、`customType` 只認 bridge 不認機制 |
 | T-A13(換模型守門員) | ✅ 完成 | 2026-08-14。⚠️ **這台機器的 server 仍是紅的** —— 修法是操作者重開,repo 不動它 |
-| T-A14(殘留標籤) | ⚪ **下一個** | 與 T-A19 共用同一組正則,兩者一起做。詞彙來自 T-A13 的 `DIALECTS` |
+| T-A14(殘留標籤) | 🟡 已上線 | 送達已證明,**live 觸發 0 次** —— 兩次探針模型都沒吐殘留。觸發條件已寫下 |
+| T-A19(解析器) | ✅ 完成 | 2026-08-15。順帶發現這個方言連解析都進不去,以及一個「參數全空」的舊洞 |
 | T-A15(20 個髒檔案) | 🚫 不做 | **2026-08-14 擁有者決定保留**:那些檔案他有用 |
 | T-A16(18 個技能載不到) | ✅ 完成 | 2026-08-14。`--config-only` 是根因,已重現並修掉;套件由 `failures=2` 轉 `Ran 1465 tests / OK` |
 | T-A17(learning notify) | ⚪ **下一個** | T-A16 已解除依賴 —— 技能現在載得到,那則訊息才有意義 |
 | T-A21(點名的名字要載得到) | ⚪ 待做 | 自 T-A16 拆出。要先決定「可達」的權威定義 |
 | T-A18(GateGuard 語意) | ⚪ 待做 | 不卡。界線是不動 `external/ecc/` |
-| T-A19(解析器) | ⚪ 待做 | 不卡。fixture 用你手上那份真實 session |
 | T-A20(批次崩壞) | ⏸ 等資料 | **n=1**,且 T-A13 的 template 問題本身就可能是原因 |
 
 **為什麼「不做」也是結論。** T-A8 是從**一個現象**立的任務,做完第一步才發現那個現象在 31 個
@@ -259,7 +259,7 @@ GateGuard 的文字是對的,送給成功的結果就變成 28 次無用呼叫;
 > repo 不出貨模型預設值,這支程式也不會去改它。
 > 在那之前,這台機器上的每一次 Pi run 都還會把 `</atem:parameter>` 寫進檔案。
 
-### ⚪ T-A14 — 殘留標籤要清掉,而且要對操作者出聲(**家族 B**)
+### 🟡 T-A14 — 殘留標籤要清掉,而且要對操作者出聲(**已上線;送達已證明,live 觸發 0 次**)
 
 * **為什麼**:`</atem:日>` 全部落在**最後一個參數的結尾**;有一次最後一個參數是 `path`,
   於是 `ENOENT ... mkdir '…\.gitignore<'`。`yes-hooks-bridge` 的 `FAKE_TOOL_CALL_PATTERN`
@@ -269,13 +269,40 @@ GateGuard 的文字是對的,送給成功的結果就變成 28 次無用呼叫;
   而**模型不是這則訊息的正確聽眾** —— 它改不了自己的 chat template,對它說只會浪費一輪,
   那正是 T-A18 那條缺陷的形狀。**所以:清掉,但對操作者出聲,不對模型出聲**
 * **服務哪一層**:每一個被寫出去的檔案
+* **`.d.ts` 說參數可以改,而 CLAUDE.md 漏了這條。** 安裝版
+  `core/extensions/types.d.ts` 的 `ToolCallEventResult` 註解原文:
+  `Block tool execution. To modify arguments, mutate event.input in place instead.`
+  —— 所以「對模型無聲、對操作者留痕」是做得到的,不必用 block 去煩模型
+* **與 runaway guard 的邊界(兩個守衛撞在一起,讓給抱怨比較好的那個)**:
+  `runawayArgumentGuard` 已經會擋任何帶工具語法的參數,而對 `command` / `query`
+  它的抱怨更好 ——「你越過呼叫結尾繼續生成」是模型可以修的行為;
+  template 殘留不是(模型改不了自己的 template),所以 **write/edit 用修復,其餘留給它擋**。
+  第一版把 `query` 也納入,直接讓 `test_universal_tool_parser.py` 三條測試轉紅,
+  那三條寫著「Size is not the tell」—— 那是一個既有決定,不能默默反轉
 * **Local DoD**:
-  - [ ] `FAKE_TOOL_CALL_PATTERN` 認得帶命名空間前綴的形式(`<\w+:invoke`、`<\w+:parameter\s+name=`、
-        `<\w+:function_calls`),註解裡寫上 session id 與原因
-  - [ ] `write`/`edit` 的參數在寫入前剝除尾端殘留結束標籤;**剝除事件必須留痕**
-  - [ ] 留痕走 `ctx.ui.notify` + `pi-config/serving-mismatch-report.json`,**不進 `tool_result`**
-  - [ ] 單元測試用真實 session 取出的字串,不是自己編的
-  - [ ] 從公開入口點驅動一次並斷言剝除(不是測純函式 —— 見「fail-open catch 藏死守衛」那條疤)
+  - [x] `FAKE_TOOL_CALL_PATTERN` 與 `ARG_SYNTAX_LEAK` 都認得帶命名空間前綴的形式,
+        註解寫上 session id 與原因
+  - [x] `write`/`edit` 的參數在其他守衛讀到之前就剝除(handler 的第一件事 ——
+        `…/.gitignore</atem:日>` 這種 path 會讓 containment 與 harness-root 判斷錯的字串)
+  - [x] 留痕走 `ctx.ui.notify` + `pi-config/serving-mismatch-report.json`,**不進 `tool_result`**;
+        且**整個 session 只通知一次**(量到的那次會產生 24 則 —— 就是
+        `📝 偵測到新學習點` 那個失敗)
+  - [x] 測試用真實 session 取出的字串(`</atem:日>` 為常數,改了就紅)
+  - [x] 從公開入口點 `pi.on("tool_call")` 驅動並斷言修復 + 不 block + 通知內容
+  - [x] 反向也守:`</xsl:template>`、`</svg:path>`、`<w:p>` 與**標籤在字串中間**皆不動
+  - [x] 進變異掃描涵蓋清單;`--only dialect-residue --all` 窮舉掃過,
+        **三個存活者補成測試**(非字串輸入、8 層堆疊、殘缺 `edits` 陣列),
+        只留一條豁免(迴圈上限 `8->9`,理由寫在 allowlist)
+  - [ ] **live 觸發:0 次。** 兩次真實 Pi 探針(短英文一次、長中文三檔一次,
+        server 仍是同一份壞 template)都是 `atem: 0` —— 模型沒吐殘留,
+        守衛就沒有條件可以觸發,`serving-mismatch-report.json` 也沒產生。
+        **依本 repo 的規矩,這叫未驗證,不叫可用。**
+        **觸發條件(先寫下來,之後拿真實 session 對):**
+        某個 session 的 `toolCall.arguments` 裡出現 `atem`,且
+        `pi-config/serving-mismatch-report.json` 存在
+* **順帶量到的**:殘留是**間歇性**的 —— 6.5 小時的 session 出現 24 次,
+  兩個短探針一次都沒有。與本 repo 既有的「工具呼叫格式在大提示下退化」是同一族,
+  也代表**短探針無法驗證這個守衛**
 
 ### 🚫 T-A15 — 已經寫壞的 20 個檔案(**2026-08-14 擁有者決定保留,不做**)
 
@@ -399,7 +426,7 @@ GateGuard 的文字是對的,送給成功的結果就變成 28 次無用呼叫;
   - [ ] 「first … this session」這類一次性 gate 加 session 級去重
   - [ ] 用真實 session 驗證:同一條 gate 一個 session 內不重複,且模型的下一個動作不是重試
 
-### ⚪ T-A19 — 解析器把輸出當指令(**家族 D**)
+### ✅ T-A19 — 解析器把輸出當指令(**DONE,2026-08-15;等 Path A 核可**)
 
 * **為什麼**:第 3 則 `universal-tag-transformer` 解析出的 command 含 `commit fe56ec6` ——
   那是 git 的**輸出回顯**,不是指令。解析器撈進參數後,用
@@ -410,13 +437,28 @@ GateGuard 的文字是對的,送給成功的結果就變成 28 次無用呼叫;
 * **老魔的界線**:立成任務,**不要立成資安專案** ——
   [Round 13](docs/mece/rounds/2026-08-10_round13_把導航問題當成資安問題.md) 的結論是別過度武裝
 * **服務哪一層**:解析正確性;順帶收掉一條沒有人守的路徑
+* **查前提時發現的第三個缺陷**:這個方言連**解析**都進不去。
+  branch 1 的 pattern 是 `<invoke\b`,`<atem:invoke` 不匹配,
+  於是一個把整塊 XML 吐成文字的回合**不會記 strike、不會有糾正** ——
+  正是這支解析器當初要消滅的那種靜默停擺,因為沒人預料到命名空間而重演
+* **順帶修掉一個更早的洞**:`<invoke name="read"><parameter name="path">a.md</parameter></invoke>`
+  這種形狀原本會掉進 branch 1 的 fallback,拿到**工具名稱但參數全空**的糾正
 * **Local DoD**:
-  - [ ] 只接受可證明完整的程式碼區塊(有開有閉),不接受散落文字
-  - [ ] 對解析結果做形狀檢查:一行 `commit <sha>` 不是任何工具的合法參數
-  - [ ] 「【立即且只能】」改成保留拒絕空間的措辭 —— 參數是**猜**出來的,猜錯時模型要能不照做
-  - [ ] fixture 取自真實 session(擁有者手上已有 `tests/fixtures/session-fake-tool-call-loop.jsonl`),
-        不是自己編的乾淨區塊
-  - [ ] 把 `<atem:*>` 這類命名空間方言納入(與 T-A14 共用同一組正則,不要各寫一份)
+  - [x] 只接受可證明完整的程式碼區塊 —— **查證後確認 branch 3 本來就要求收尾 fence**,
+        所以這條原本就成立,記錄而不「修」
+  - [x] 形狀檢查 `dropEchoedOutputLines`,放在 `toParsedTag`(每個 branch 的唯一漏斗),
+        不是放在剛好被抓到的那一個 branch
+  - [x] **只砍結尾行**:中間的輸出是模稜兩可的,在那裡猜會開始刪掉後面的真指令
+  - [x] `git commit -m 'commit fe56ec6'`、`echo commit abc1234` 這類**真指令一行都不動**
+  - [x] 「【立即且只能】」改成:上面的參數是**解析出來的猜測**,
+        正確就送出、不正確就不要照送 —— 猜錯時模型要有拒絕的空間
+  - [x] 砍掉的行**逐行講回給模型**(模型看不到的解析,它就無法糾正)
+  - [x] 新增命名空間方言 branch(與 T-A14 共用同一套前綴寫法),
+        且**排在舊 branch 之前**,否則舊 branch 先吃掉再吐出空參數
+  - [x] 這一段的斷言全部走**行為**:驅動 `turn_end` 讀 `pi.sendMessage` 的真實內容。
+        第一版用原始碼字串比對,結果被自己描述舊行為的**註解**判紅 ——
+        訊息才是產物,檔案不是
+  - [x] `python -m unittest discover -s tests` → **`Ran 1515 tests` / `OK`**(exit 0)
 
 ### ⚪ T-A21 — 「叫得出的名字必須載得到」擴到指示文字(**家族 C,自 T-A16 拆出**)
 
