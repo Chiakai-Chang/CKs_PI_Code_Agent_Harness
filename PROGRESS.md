@@ -254,7 +254,30 @@ GateGuard 的文字是對的,送給成功的結果就變成 28 次無用呼叫;
   - [x] 17 條測試,全部不需要 server;`python -m unittest discover -s tests` →
         **`Ran 1482 tests` / `OK`**(exit 0)
 
-> **⚠️ 這台機器現在仍然是紅的。** `python scripts/check-model-serving.py` 對活著的 server
+> **2026-08-15 第一次真實使用就抓到這支檢查自己的缺陷。**
+> 擁有者換到 `Qwen3.8-27B-Uncensored-Q6_K`,檢查回報 0 failures —— **但理由是錯的**。
+> 它說「template 沒有教模型寫方言」,而那份 template 白紙黑字寫著
+> `If you choose to call a function ONLY reply in the following format` 與
+> `<IMPORTANT> Function calls MUST follow the specified format`。
+> `TEACHES` 那條正則只認 "you can/should/must invoke/call/use",漏了這個講法。
+>
+> **更重要的是判準本身錯了。** 對這份 template 送一個帶 `tools` 的真實請求:
+> `finish_reason: tool_calls`、參數 `{"path":"README.md"}`、`content` 空 ——
+> **llama.cpp 有 qwen/hermes 家族的解析器,把它收回成原生呼叫。**
+> 所以「教方言 ⇒ 壞掉」有反例了。**教方言不是缺陷,教一個沒人讀得回來的方言才是。**
+>
+> 修法三件:(1) `DIALECTS` 標註每個方言**伺服器端有沒有解析器**,
+> anthropic-style 是 `False`(llama.cpp 沒有),qwen/hermes 是 `True`;
+> (2) 補 `TEACHES` 的講法,並明講「對散文做啟發式判斷還會再漏」;
+> (3) 加**活體往返探測** —— 送一個工具,要求拿到原生 `tool_calls`,
+> 並檢查回來的參數有沒有殘留。**探測的位階高於所有啟發式**,
+> 因為 jinja template 是散文,而散文的啟發式已經錯過一次了。
+>
+> 兩份 template 現在都是 fixture:ATEM(教 + 不可解析 = FAIL)、
+> QWEN(教 + 可解析 = WARN,`c3cf9e34…`)。兩者**都教**,只有一個壞 ——
+> 測試明確斷言這個區分,collapse 成一個答案就是又弄丟了。
+
+> **⚠️(已由 2026-08-15 換模型解除)這台機器當時是紅的。** `python scripts/check-model-serving.py` 對活著的 server
 > 回報 1 failure + 1 warning(mmproj 已載入)。**修法是操作者重開 server**,
 > repo 不出貨模型預設值,這支程式也不會去改它。
 > 在那之前,這台機器上的每一次 Pi run 都還會把 `</atem:parameter>` 寫進檔案。

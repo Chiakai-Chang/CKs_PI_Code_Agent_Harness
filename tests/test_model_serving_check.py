@@ -31,6 +31,15 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIXTURES = os.path.join(ROOT, "tests", "fixtures")
 ATEM = os.path.join(FIXTURES, "chat-template-atem.jinja")
 CHATML = os.path.join(FIXTURES, "chat-template-chatml.jinja")
+# Captured 2026-08-15 from the server after the owner swapped models, and the
+# reason this file grew a second real template: the first version of the script
+# read this one as teaching nothing and passed it for the wrong reason. It
+# teaches its dialect outright ("ONLY reply in the following format",
+# "<IMPORTANT> ... MUST follow the specified format") — and that is FINE, because
+# llama.cpp parses that shape back into real tool_calls. Verified live:
+# finish_reason=tool_calls, arguments {"path":"README.md"}, empty content.
+QWEN = os.path.join(FIXTURES, "chat-template-qwen38.jinja")
+QWEN_SHA256 = "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041"
 
 # Captured 2026-08-14 from the live server (model_alias muse-glimmer-30B-abliterated,
 # Q6_K). If this changes, the fixture was edited and every assertion below is
@@ -104,6 +113,120 @@ class TestDialectDetection(unittest.TestCase):
         self.assertFalse(self.m.teaches_dialect(read(CHATML)))
 
 
+class TestTeachingIsNotTheDefect(unittest.TestCase):
+    """The correction this file exists to lock in.
+
+    The first version of the script failed ANY template that taught a tool-call
+    dialect, reasoning that Pi drives the model with native OpenAI tool_calls.
+    The very first model swap after it shipped produced a counter-example: the
+    Qwen3.8 template teaches `<tool_call><function=name><parameter=key>`, and a
+    live probe returned `finish_reason: tool_calls` with structured arguments and
+    empty content — llama.cpp has a parser for that shape and converts it back.
+
+    Teaching a dialect is not the defect. Teaching one nothing can read back is.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.m = load()
+
+    def test_the_qwen_fixture_has_not_been_edited(self):
+        got = hashlib.sha256(read(QWEN).encode("utf-8")).hexdigest()
+        self.assertEqual(got, QWEN_SHA256)
+
+    def test_the_qwen_template_does_teach_its_dialect(self):
+        """The specific miss: the original TEACHES pattern had only the
+        "you can/should/must invoke…" family and read this template as teaching
+        nothing. It says otherwise in two places."""
+        raw = read(QWEN)
+        self.assertIn("reply in the following format", raw)
+        self.assertTrue(self.m.teaches_dialect(raw),
+                        "the heuristic is blind to this phrasing again")
+
+    def test_a_parseable_dialect_taught_is_a_warning_not_a_failure(self):
+        r = self.m.assess({}, template=read(QWEN))
+        self.assertEqual(r["failures"], [], "a working configuration was failed")
+        self.assertTrue(r["warnings"])
+
+    def test_an_unparseable_dialect_taught_is_a_failure(self):
+        r = self.m.assess({}, template=read(ATEM))
+        self.assertTrue(r["failures"])
+        self.assertIn("no server-side parser reads that shape back", r["failures"][0])
+
+    def test_the_two_templates_are_separated_by_parseability_not_by_teaching(self):
+        """Both teach. Only one is broken. If this ever collapses to one answer,
+        the distinction has been lost again."""
+        self.assertTrue(self.m.teaches_dialect(read(ATEM)))
+        self.assertTrue(self.m.teaches_dialect(read(QWEN)))
+        self.assertEqual(
+            self.m.unparseable_dialects(self.m.find_dialects(read(QWEN))), [])
+        self.assertEqual(
+            self.m.unparseable_dialects(self.m.find_dialects(read(ATEM))),
+            ["anthropic-style XML"])
+
+
+class TestTheLiveProbeOutranksTheHeuristics(unittest.TestCase):
+    """A jinja template is prose, and a heuristic over prose has already been
+    wrong once. One request with one tool answers the actual question: does THIS
+    configuration produce native tool calls."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.m = load()
+
+    def test_no_tool_calls_returned_is_a_failure(self):
+        r = self.m.assess({}, template=read(CHATML), probe={
+            "finish_reason": "stop", "native_tool_calls": 0, "arguments": [],
+            "content_head": "I would call read(README.md)."})
+        self.assertTrue(r["failures"])
+        self.assertIn("no native tool_calls", r["failures"][0])
+        self.assertIn("I would call", r["failures"][0],
+                      "the text it replied with instead is the evidence")
+
+    def test_a_real_tool_call_passes_even_on_a_dialect_teaching_template(self):
+        """The measured Qwen case, end to end."""
+        r = self.m.assess({}, template=read(QWEN), probe={
+            "finish_reason": "tool_calls", "native_tool_calls": 1,
+            "arguments": ['{"path":"README.md"}'], "content_head": ""})
+        self.assertEqual(r["failures"], [])
+
+    def test_dialect_markup_surviving_into_arguments_is_a_failure(self):
+        """The 2026-08-13 shape: a native call came back and its argument still
+        carried the closing tag. That text is what reaches the filesystem."""
+        r = self.m.assess({}, template=read(CHATML), probe={
+            "finish_reason": "tool_calls", "native_tool_calls": 1,
+            "arguments": ['{"path":"README.md</atem:parameter>"}'],
+            "content_head": ""})
+        self.assertTrue(r["failures"])
+        self.assertIn("still carry", r["failures"][0])
+
+    def test_the_mangled_tag_is_recognised_in_an_argument(self):
+        """`</atem:日>` is the tag as it actually decoded, and a template scan
+        cannot find it: templates show OPENING tags, arguments carry the closing
+        one. Reusing the template patterns here matched nothing, which is how
+        this test earned its place."""
+        r = self.m.assess({}, template=read(CHATML), probe={
+            "finish_reason": "tool_calls", "native_tool_calls": 1,
+            "arguments": ['{"path":"a/.gitignore</atem:日>"}'], "content_head": ""})
+        self.assertTrue(r["failures"])
+
+    def test_a_clean_argument_is_not_flagged(self):
+        r = self.m.assess({}, template=read(CHATML), probe={
+            "finish_reason": "tool_calls", "native_tool_calls": 1,
+            "arguments": ['{"path":"README.md"}'], "content_head": ""})
+        self.assertEqual(r["failures"], [])
+
+    def test_an_unreachable_server_is_not_probed_and_not_failed(self):
+        """A slow or absent server must degrade to "not probed", never to a
+        verdict — the same reason the whole script SKIPs without one."""
+        r = self.m.assess({}, template=read(CHATML), probe={"error": "timed out"})
+        self.assertEqual(r["failures"], [])
+
+    def test_the_probe_never_raises(self):
+        got = self.m.probe_tool_call("http://127.0.0.1:59999", timeout=3)
+        self.assertIn("error", got)
+
+
 class TestTheJudgement(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -112,7 +235,7 @@ class TestTheJudgement(unittest.TestCase):
     def test_the_real_template_fails(self):
         r = self.m.assess({}, template=read(ATEM))
         self.assertTrue(r["failures"], "the template that caused the defect passed")
-        self.assertIn("native OpenAI tool_calls", r["failures"][0])
+        self.assertIn("no server-side parser reads that shape back", r["failures"][0])
 
     def test_the_clean_template_passes(self):
         r = self.m.assess({}, template=read(CHATML))
