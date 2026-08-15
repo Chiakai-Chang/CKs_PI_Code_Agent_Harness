@@ -32,8 +32,11 @@ jobs:
       # disappears, and `Ran N tests, OK` stays green while N quietly drops by
       # several hundred. Pinning it makes the guard tests a thing CI actually
       # ran, and the skip-budget check below makes a future disappearance loud.
+      # v5, not v4: the 2026-08-15 run annotated "Node.js 20 is deprecated …
+      # actions/setup-node@v4 … being forced to run on Node.js 24". Forced today,
+      # broken later.
       - name: Install Node (the guard tests need >= 22 for native TS stripping)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "22"
 
