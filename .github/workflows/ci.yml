@@ -21,6 +21,22 @@ jobs:
         with:
           python-version: "3.12"
 
+      # 38 test files gate their guard-behaviour classes on `skipUnless(NODE_OK)`,
+      # where NODE_OK means node >= 22 — the version that strips TypeScript types
+      # natively, which is how those tests drive the bridges at all.
+      # test_universal_tool_parser alone is 123 tests.
+      #
+      # Until 2026-08-15 this workflow installed only Python and relied on
+      # whatever node the runner image happened to carry. That is not a
+      # dependency, it is a coincidence: `skipUnless` does not fail, it
+      # disappears, and `Ran N tests, OK` stays green while N quietly drops by
+      # several hundred. Pinning it makes the guard tests a thing CI actually
+      # ran, and the skip-budget check below makes a future disappearance loud.
+      - name: Install Node (the guard tests need >= 22 for native TS stripping)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Check Python syntax (setup.py / restore.py / uninstall.py)
         run: |
           python -m py_compile scripts/setup.py

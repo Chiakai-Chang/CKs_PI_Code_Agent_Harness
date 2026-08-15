@@ -289,13 +289,81 @@ process.stdout.write(JSON.stringify({ results: out, notices }));
         self.assertEqual([n for n in got["notices"] if "check-model-serving" in n], [])
 
 
-class TestTheDetectorsLearnedThePrefix(unittest.TestCase):
-    """Both message-text detectors missed the dialect for the same reason, so
-    both are checked here rather than trusting that fixing one fixed the idea."""
+class TestEveryToolCallPatternLearnedThePrefix(unittest.TestCase):
+    """Every regex in this file that matches a tool-call tag, not just the two
+    that were fixed first.
+
+    On 2026-08-15 a consistency pass found the job half done: FAKE_TOOL_CALL_PATTERN
+    and ARG_SYNTAX_LEAK had the prefix, and PARAM_TAG_PATTERN, the `<invoke
+    name=>` fallback, the `<tool_call>` wrapper and both `<function=>` patterns
+    did not. That is worse than not having started, because the comments on the
+    first two say the dialect problem is handled and a reader would believe them.
+
+    So this asserts on the SET, not on the members: a new tool-call pattern
+    without a prefix fails here even if nobody remembers this class exists.
+    """
+
+    # `<bash>`, `<read>` and friends are single-word harness/Claude tags with no
+    # namespace form in any template observed, and CHILD_TAG_PATTERN is a
+    # generic `<name>…</name>` matcher whose whole job is to accept any name.
+    # Only the tags that belong to a tool-call DIALECT are required to carry it.
+    DIALECT_WORDS = ("invoke", "parameter", "function_calls", "tool_call", "function")
+    PREFIX = r"(?:[A-Za-z][\w.-]*:)?"
 
     def setUp(self):
         with open(IDX, encoding="utf-8") as f:
             self.src = f.read()
+
+    @staticmethod
+    def _in_string_literal(line, col):
+        """Whether `col` on `line` sits inside a quoted or template string.
+
+        Needed because refusal TEXT legitimately names the tags it is warning
+        about — `a value contains raw tool-call syntax (</parameter>,
+        </tool_call>, <function>)` is a sentence, not a pattern. The first
+        version of this check flagged it three times, which is a false positive
+        that would have taught the next reader to ignore this test."""
+        quote = None
+        i = 0
+        while i < len(line) and i < col:
+            c = line[i]
+            if quote:
+                if c == "\\":
+                    i += 2
+                    continue
+                if c == quote:
+                    quote = None
+            elif c in "\"'`":
+                quote = c
+            i += 1
+        return quote is not None
+
+    def test_no_dialect_tag_is_matched_without_an_optional_namespace(self):
+        import re
+        bare = []
+        # The prefix must sit IMMEDIATELY after the opener, not merely somewhere
+        # nearby. A 40-character lookback was the first version and it was too
+        # lax to fail: the window reaches onto the previous line, so a
+        # neighbouring pattern's prefix satisfied this one. Proven by reverting
+        # a pattern in memory and watching the check stay green — the exact
+        # "check that cannot fail" shape this repo counts.
+        for m in re.finditer(r"<(?:\\?/)?(?=" + "|".join(self.DIALECT_WORDS) + r")",
+                             self.src):
+            line_start = self.src.rfind("\n", 0, m.start()) + 1
+            line_end = self.src.find("\n", m.start())
+            line = self.src[line_start:line_end if line_end != -1 else len(self.src)]
+            stripped = line.strip()
+            # Comments and prose describe the defect; they are not patterns.
+            if stripped.startswith("//") or stripped.startswith("*"):
+                continue
+            if self._in_string_literal(line, m.start() - line_start):
+                continue
+            # Exact: the characters right after the opener must BE the prefix.
+            if not self.src.startswith(self.PREFIX, m.end()):
+                bare.append((self.src[:m.start()].count("\n") + 1, stripped[:110]))
+        self.assertEqual(sorted(set(bare)), [],
+                         "these tool-call patterns still match only the "
+                         "unprefixed spelling: %s" % sorted(set(bare)))
 
     def test_the_fake_tool_call_pattern_accepts_a_namespace(self):
         import re

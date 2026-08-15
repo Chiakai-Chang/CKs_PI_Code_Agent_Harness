@@ -714,7 +714,17 @@ function canonicalizeArgs(toolName: string, args: Record<string, unknown>): Reco
 // Both shapes were observed live. Without this the body was taken verbatim, so
 // `path` became the string `<path>README.md</path>` and the correction message
 // handed those broken arguments back to the model.
-const PARAM_TAG_PATTERN = /<parameter(?:\s+name\s*=\s*["']([^"']+)["']|\s*=\s*([a-zA-Z0-9_.-]+))\s*>([\s\S]*?)<\/parameter>/gi;
+//
+// The optional `(?:[A-Za-z][\w.-]*:)?` prefix is the same fix as
+// FAKE_TOOL_CALL_PATTERN and ARG_SYNTAX_LEAK, applied here on 2026-08-15
+// because it had been left out. That is worse than never having done it: the
+// comments above those two say the dialect problem is handled, and a reader
+// checking this file would have believed them.
+//
+// The closing tag deliberately does not have to match the opening one. The
+// measured residue was `</atem:日>` — a closing tag whose name decoded wrong —
+// and requiring a match would drop the parameter this exists to recover.
+const PARAM_TAG_PATTERN = /<(?:[A-Za-z][\w.-]*:)?parameter(?:\s+name\s*=\s*["']([^"']+)["']|\s*=\s*([a-zA-Z0-9_.-]+))\s*>([\s\S]*?)<\/(?:[A-Za-z][\w.-]*:)?[^<>\s]{0,24}>/gi;
 const CHILD_TAG_PATTERN = /<([a-zA-Z_][a-zA-Z0-9_.-]*)\s*>([\s\S]*?)<\/\1>/g;
 
 // Names a child tag may carry as an argument. Anything else is content: a
@@ -1078,7 +1088,7 @@ export function parseUniversalToolTag(text: string): ParsedToolTag | null {
           return toParsedTag(name, args, match[0]);
         }
       } catch {
-        const nameMatch = text.match(/<invoke\s+name=["']([^"']+)["']/i) || text.match(/<tool_code\s+name=["']([^"']+)["']/i);
+        const nameMatch = text.match(/<(?:[A-Za-z][\w.-]*:)?invoke\s+name=["']([^"']+)["']/i) || text.match(/<(?:[A-Za-z][\w.-]*:)?tool_code\s+name=["']([^"']+)["']/i);
         if (nameMatch && nameMatch[1]) {
           return toParsedTag(nameMatch[1], {}, match[0]);
         }
@@ -1094,10 +1104,10 @@ export function parseUniversalToolTag(text: string): ParsedToolTag | null {
   //     text instead. Every branch here used to miss it — step 1 matches the
   //     <tool_call> wrapper but bails when the body is not JSON — so the turn
   //     ended with no strike, no correction and no signal to the user.
-  const fnMatch = text.match(/<function\s*=\s*([a-zA-Z0-9_.-]+)\s*>([\s\S]*?)<\/function>/i);
+  const fnMatch = text.match(/<(?:[A-Za-z][\w.-]*:)?function\s*=\s*([a-zA-Z0-9_.-]+)\s*>([\s\S]*?)<\/(?:[A-Za-z][\w.-]*:)?function>/i);
   if (fnMatch) {
-    const wrapper = text.match(/<tool_call>[\s\S]*?<\/tool_call>/i);
-    const fnCount = [...text.matchAll(/<function\s*=\s*[a-zA-Z0-9_.-]+\s*>/gi)].length;
+    const wrapper = text.match(/<(?:[A-Za-z][\w.-]*:)?tool_call>[\s\S]*?<\/(?:[A-Za-z][\w.-]*:)?tool_call>/i);
+    const fnCount = [...text.matchAll(/<(?:[A-Za-z][\w.-]*:)?function\s*=\s*[a-zA-Z0-9_.-]+\s*>/gi)].length;
     return toParsedTag(fnMatch[1], extractChildTagArgs(fnMatch[2]), wrapper?.[0] ?? fnMatch[0], fnCount);
   }
 
@@ -1112,7 +1122,7 @@ export function parseUniversalToolTag(text: string): ParsedToolTag | null {
   //     keeps `<tool_call>` wrapped around prose from being read as a call.
   const lagunaCalls = [
     ...text.matchAll(
-      /<tool_call>\s*([a-zA-Z0-9_.-]+)\s*((?:<arg_key>[\s\S]*?<\/arg_value>\s*)+)<\/tool_call>/gi,
+      /<(?:[A-Za-z][\w.-]*:)?tool_call>\s*([a-zA-Z0-9_.-]+)\s*((?:<(?:[A-Za-z][\w.-]*:)?arg_key>[\s\S]*?<\/(?:[A-Za-z][\w.-]*:)?arg_value>\s*)+)<\/(?:[A-Za-z][\w.-]*:)?tool_call>/gi,
     ),
   ];
   if (lagunaCalls.length > 0) {
