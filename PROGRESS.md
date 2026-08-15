@@ -16,9 +16,16 @@
 
 **當前認領中:** 無。T-A5 已完成(2026-08-12,n=5),等待 Path A 核可。T-A1/A2/A3/A6/A7/T1b 皆已由擁有者在對話中口頭核可(Path A)。
 
-**下一個要動的**:**T-A17**(`📝 偵測到新學習點` 的三個附帶缺陷;T-A16 已解除它的依賴)。
-**T-A12、T-A16、T-A13、T-A19 已完成**,**T-A14 已上線但 live 觸發 0 次**
-(2026-08-14/15,等 Path A 核可)。之後 T-A18 → T-A21。
+**下一個要動的**:**T-A18**(GateGuard 的阻擋型原文不該走 advisory 通道)。
+**T-A12、T-A16、T-A13、T-A19、T-A17 已完成**,**T-A14 已上線但 live 觸發 0 次**
+(2026-08-14/15,等 Path A 核可)。之後 T-A21。
+
+> **2026-08-15 擁有者換模型至 `Qwen3.8-27B-Uncensored-Q6_K`。**
+> `check-model-serving` 對它回報 0 failures,而且**這次的判準是對的**:
+> template 教 `<tool_call><function=>`,活體探測回 `finish_reason: tool_calls`
+> 與結構化參數 —— llama.cpp 讀得回來。
+> **產生 `</atem:日>` 的那份 template 已經不在服務中**,所以 T-A14 的 live 驗證
+> 在這台機器上暫時沒有機會;觸發條件留著,等哪天再遇到不可解析的方言。
 不阻塞的替代:T3(反轉極性)、T6(§16 Handoff Capsule)。
 
 > **2026-08-14 排序修正兩次,兩次都不是照原表走。**
@@ -65,8 +72,9 @@
 | T-A19(解析器) | ✅ 完成 | 2026-08-15。順帶發現這個方言連解析都進不去,以及一個「參數全空」的舊洞 |
 | T-A15(20 個髒檔案) | 🚫 不做 | **2026-08-14 擁有者決定保留**:那些檔案他有用 |
 | T-A16(18 個技能載不到) | ✅ 完成 | 2026-08-14。`--config-only` 是根因,已重現並修掉;套件由 `failures=2` 轉 `Ran 1465 tests / OK` |
-| T-A17(learning notify) | ⚪ **下一個** | T-A16 已解除依賴 —— 技能現在載得到,那則訊息才有意義 |
+| T-A17(learning notify) | ✅ 完成 | 2026-08-15。掃描 122→3 次、通知 122→1 次、改用 `getSessionFile()` 不再猜 |
 | T-A21(點名的名字要載得到) | ⚪ 待做 | 自 T-A16 拆出。要先決定「可達」的權威定義 |
+| **T-A22(遞增計數器迴圈)** | 🔴 **先查頻率** | 換模型當天第一個探針:31 次呼叫、0 次寫檔。**兩個守衛各響 3 次,模型又發了 20 次** |
 | T-A18(GateGuard 語意) | ⚪ 待做 | 不卡。界線是不動 `external/ecc/` |
 | T-A20(批次崩壞) | ⏸ 等資料 | **n=1**,且 T-A13 的 template 問題本身就可能是原因 |
 
@@ -414,7 +422,7 @@ GateGuard 的文字是對的,送給成功的結果就變成 28 次無用呼叫;
 > 以及一支同時看四條可達路徑的查詢。兩者都不是本條的根因修復,
 > 而且第二個要先決定「可達」的權威定義 —— 本次量測自己就先用單一路徑判斷錯過一次。
 
-### ⚪ T-A17 — `📝 偵測到新學習點` 這段程式的三個附帶缺陷(**家族 C,使用者直接看到的那個**)
+### ✅ T-A17 — `📝 偵測到新學習點` 這段程式的三個附帶缺陷(**DONE,2026-08-15;等 Path A 核可**)
 
 * **為什麼**:`pi-extensions/ecc-hooks-bridge/index.ts:457`
   1. `notify` **沒有去重**(同段的 advisory 是 `"once"`,notify 不是)—— 122 個 turn 噴 122 次
@@ -423,12 +431,40 @@ GateGuard 的文字是對的,送給成功的結果就變成 28 次無用呼叫;
   3. 它挑「**全域 mtime 最新**的 `.jsonl`」,**不保證是當前 session** ——
      同時開兩個 Pi 就會讀到另一個專案的紀錄。這是歸因缺陷,也是稽核問題
 * **服務哪一層**:使用者實際看到的症狀 + 每輪成本
-* **依賴**:第 1 點修完之後那則訊息才有意義,而「有意義」需要 T-A16 先讓技能載得到
+* **依賴**:第 1 點修完之後那則訊息才有意義,而「有意義」需要 T-A16 先讓技能載得到(已完成)
+* **`getSessionFile()` 一直都在**:`ReadonlySessionManager` 的成員之一
+  (`core/session-manager.d.ts:140`)。第 3 點根本不必用 mtime 猜 ——
+  同一族的教訓:「先讀安裝版的 `.d.ts`,不要照記憶寫」
+* **邏輯抽成 `reflect-budget.ts` 而不是留在 handler 裡**:
+  `ecc-hooks-bridge` 在裸 node 下匯入不了(Pi-only 依賴),
+  `tests/test_bridge_handlers_run.py` 明列它「not importable」,
+  所以**沒有任何測試能驅動它的 handler**。這正是「一個未宣告變數撐過 774 個測試、
+  三個檢查與逐位元組相同的安裝」那條疤 —— 會錯的邏輯要搬到測得到的地方
+* **notify 與 advisory 分開判定,不合併**:notify 是擁有者回報的那個(只畫 TUI、到不了模型、
+  122 次);advisory 是**唯一到得了模型**的一半,它的 `"once"` 是每個 drain 週期一次,
+  在 019ffbdd 送達 5 次。**把模型通道砍成整個 session 只講一次是另一個決定**,
+  不是這次被要求的;掃描上限本身已把它壓到最多 3 次
 * **Local DoD**:
-  - [ ] notify 與 advisory 共用同一個 `"once"` 判定,一個 session 最多一次
-  - [ ] 不再每個 turn 掃全域;綁定當前 session(由 Pi 提供的 session 識別,不用 mtime 猜)
-  - [ ] 不再每個 turn 起行程(改成有條件觸發,或 session 結束一次)
-  - [ ] 在真實 session 的 log 裡確認:notify 一次、advisory 一次,且讀的是**這個** session 的檔案
+  - [x] notify 一個 session 最多一次(`ReflectBudget.claimNotice()`)
+  - [x] 不再每個 turn 掃全域:改用 `ctx.sessionManager.getSessionFile()`;
+        **拿不到就跳過,不退回 mtime 掃描** —— 那個退路就是歸因缺陷本身
+  - [x] 不再每個 turn 起行程:上限 3 次,且兩次之間 transcript 要長 ≥20KB。
+        **不是「只跑一次」** —— 第 2 個 turn 掃到的是還沒有內容的 transcript,
+        原本每個 turn 都跑正是為了最後能看到一個長的
+  - [x] 12 條測試驅動真實模組:122 個 turn 的尺寸序列 → **掃 3 次**(原本 122 次)、
+        通知 50 次 → **只有第一次為真**、沒長大就不重掃、續接的大 session 仍有第一次掃描、
+        壞掉的 size(-1 / "x" / null)不燒預算
+  - [x] 窮舉變異掃描 **0 存活者**,無豁免;`test_mutation_coverage` 涵蓋清單已加入
+  - [x] `python -m unittest discover -s tests` → **`Ran 1539 tests` / `OK`**;
+        `verify-bridges` 13 bridges 0 failures(已 restore 安裝)
+  - [x] 真實 session 跑過(31 turn / 130KB,足以跨過 20KB 門檻六次),bridge 未報錯。
+        **但 notify 不進 session log,所以「掃了幾次、通知幾次」在 live 上看不到** ——
+        這一條的證據是可驅動的單元測試,不是 log。
+        advisory 在該 session 是 0 次(capture.py 沒找到學習點,合理)
+* **動手時撞到的**:`constructor(private readonly maxRuns = 3)` 這種
+  constructor parameter property **在 Node 的原生型別剝除下會炸**
+  (`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`)—— 剝除只擦掉標註,不做轉換。
+  改成一般欄位加明確賦值,原因寫進註解:這會同時打死 Pi 的載入與這裡的測試驅動
 
 ### ⚪ T-A18 — 阻擋型 hook 的原文不該走 advisory 通道(**家族 C**)
 
@@ -482,6 +518,50 @@ GateGuard 的文字是對的,送給成功的結果就變成 28 次無用呼叫;
         第一版用原始碼字串比對,結果被自己描述舊行為的**註解**判紅 ——
         訊息才是產物,檔案不是
   - [x] `python -m unittest discover -s tests` → **`Ran 1515 tests` / `OK`**(exit 0)
+
+### 🔴 T-A22 — 換模型後第一個探針就跑掉了:遞增計數器迴圈(**2026-08-15 觀察到,n=1**)
+
+* **怎麼發現的**:本來只是要驗 T-A17 的探針。任務是「建立 notes.md,寫三行關於工具呼叫的重點,
+  然後停止」—— 一次 `write` 就該結束。實際跑出 **31 個 turn / 31 次呼叫 / 130KB transcript**,
+  而且**一個字都沒寫進檔案**
+* **序列**(前 4 個之後):
+
+  ```
+  5  web_search {"query": "notes.md"}
+  7  web_search {"query": "test tool call"}
+  8  web_search {"query": "probe"}
+  9  web_search {"query": "probe2"}
+  … probe3, probe4, … probe23
+  ```
+
+  模型把查詢當成計數器往上加。與任務完全無關
+* **為什麼沒有守衛擋下來**:
+  * `CycleDetector`(`SAME_QUERY_LIMIT`)鍵在**重複的相同查詢**上。這裡每個查詢都**不同**,
+    所以它一次也沒響。loop-detect.ts 的註解記的是「598 次搜尋、43 個相異查詢各重複約 44 次」——
+    **這次是相反的形狀:全部相異,一次都沒重複**
+  * 深度守衛與驗收物守衛**有響**,而且是本次量測第一次看得見它們
+    (`research depth` 的 marker 原本是死的、`artifact gate` 原本根本沒有 marker,
+    兩者都在 T-A12 修好)。各響 3 次:
+
+    ```
+    Depth guard: 9 searches, 0 pages opened. …
+    Depth guard: 10 searches, 0 pages opened. …
+    Depth guard: 11 searches, 0 pages opened. …
+    Artifact guard: 13 searches and nothing written to disk. …
+    Artifact guard: 14 / 15 …
+    ```
+  * **六次拒絕之後,模型又發了 20 次搜尋。** 拒絕文字除了計數器以外**逐字相同** ——
+    這正是 `mine-session.py` 那條「every refusal was the same text」在講的形狀
+* **所以這一條不是「加一個守衛」那麼簡單**:已經有兩個守衛在對的時間說了對的話,
+  而它們**改變不了這個模型的下一步**。要先想清楚「拒絕之後還是繼續」該怎麼收 ——
+  硬停(交還使用者)是 loop guard 已有的做法,但它的觸發條件看不見這個形狀
+* **n=1,而且是探針**。依本 repo 的規矩:**先量頻率再決定做不做**。
+  換模型當天的第一個探針,不足以說這是常態
+* **Local DoD**:
+  - [ ] 先查頻率:新模型累積 ≥5 個真實 session,統計「相異但無意義的連續查詢」出現幾次
+  - [ ] 若確實常見,設計一個看得見這個形狀的訊號(遞增後綴、共同前綴 + 數字),
+        並且**先寫下拒絕之後模型還是繼續時要怎麼收**
+  - [ ] 不要只加第三個會說同樣話的守衛 —— 已經有兩個說了六次
 
 ### ⚪ T-A21 — 「叫得出的名字必須載得到」擴到指示文字(**家族 C,自 T-A16 拆出**)
 

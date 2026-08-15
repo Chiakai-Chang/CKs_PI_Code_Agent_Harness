@@ -75,6 +75,11 @@ GUARD_MODULES = {
     # quietly stops stripping, or starts stripping honest markup out of files
     # the agent writes. Both directions are asserted in test_dialect_residue.
     "pi-extensions/yes-hooks-bridge/dialect-residue.ts": ["test_dialect_residue"],
+    # Bounds how often the learning-point scan runs and speaks. Weakening either
+    # bound restores the failure the owner reported — a notice on every one of
+    # 122 turns — and nothing else in the suite can reach it, because
+    # ecc-hooks-bridge is not importable under bare node.
+    "pi-extensions/ecc-hooks-bridge/reflect-budget.ts": ["test_reflect_budget"],
     "pi-extensions/task-shape-bridge/goal-restate.ts": ["test_goal_restate"],
     "pi-extensions/case-bridge/task-context.ts": ["test_task_context"],
     # Added 2026-08-10 after measuring coverage: 33 of 48 pure modules were

@@ -10,9 +10,13 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 
 import { join, dirname } from "node:path";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+// `readdirSync` went with the recursive ~/.pi/agent/sessions walk that used to
+// guess which session this was; the session file now comes from
+// ctx.sessionManager.getSessionFile().
+import { existsSync, readFileSync, statSync } from "node:fs";
 
 import { AdvisoryQueue, advisoryResult, hookAdvisoriesEnabled } from "./advisory.ts";
+import { ReflectBudget } from "./reflect-budget.ts";
 import { toHookInput, parseHookOutput, gateGuardBlocksEnabled } from "./ecc-payload.ts";
 import { hasAnyPlan, isGitCommit } from "./plan.ts";
 
@@ -122,6 +126,12 @@ export default function (pi: ExtensionAPI) {
   // `enableHookAdvisories: false` in pi-config/harness-config.json switches every
   // producer off at once, without editing source and reinstalling.
   const advisories = new AdvisoryQueue({ enabled: hookAdvisoriesEnabled(HARNESS_ROOT) });
+
+  // hello-reflect scan budget. Calibration, not protocol: it bounds a cost (one
+  // python process and one file read per scan) against a benefit (noticing a
+  // learning late in a long session). Measured session 019ffbdd ran 122 turns —
+  // the old code scanned on every one of them. See reflect-budget.ts.
+  const reflect = new ReflectBudget();
   // Off unless the operator says otherwise — see gateGuardBlocksEnabled.
   const gateGuardBlocks = gateGuardBlocksEnabled(HARNESS_ROOT);
 
@@ -413,48 +423,78 @@ export default function (pi: ExtensionAPI) {
     } catch {}
 
     // hello-reflect: auto-detect learnings (distilled from claude-reflect)
+    //
+    // Rewritten 2026-08-15 after the owner reported the symptom directly:
+    // 「📝 偵測到新學習點 (1)。這個一直出現,只有提示沒有意義。」 Three defects,
+    // measured on session 019ffbdd (122 turns, 6.5 hours):
+    //
+    //   1. `ctx.ui.notify` had no dedupe while the advisory beside it was
+    //      already "once", so the notice fired on EVERY turn_end — 122 times —
+    //      and `notify` reaches only the TUI, never the model. By the third one
+    //      it meant nothing, which is the same failure this repo has written up
+    //      as "a guard that removes an option must be paired with something that
+    //      speaks": a channel that never stops speaking stops being heard.
+    //
+    //   2. It spawned a python process and walked the WHOLE of
+    //      ~/.pi/agent/sessions — 20 workspace directories on this machine — on
+    //      every turn_end. 122 process launches and 122 full-tree scans, to
+    //      produce a line nobody could act on.
+    //
+    //   3. It then picked the globally newest .jsonl by mtime, which is not
+    //      necessarily this session. Two Pi instances at once and it reads the
+    //      other project's transcript. `ctx.sessionManager.getSessionFile()`
+    //      answers exactly this question and was there the whole time.
+    //
+    // What replaces it: the real session file, at most REFLECT_MAX_RUNS scans a
+    // session, only after the transcript has grown by REFLECT_GROWTH_BYTES since
+    // the last one, and one notice per session. The growth gate is why this is
+    // not simply "run once": a scan on turn 2 sees a session with nothing in it
+    // yet, and the reason the original ran every turn was to eventually see a
+    // long one. Three bounded scans keep that without the 122.
     try {
-      const { execSync } = await import("node:child_process");
-      const python = process.platform === "win32" ? "python" : "python3";
-      const captureScript = join(PROJECT_ROOT, "pi-skills/core/hello-reflect/scripts/capture.py");
-      
-      const homeDir = process.env.HOME || process.env.USERPROFILE || "";
-      const sessionsDir = join(homeDir, ".pi/agent/sessions");
-      
-      if (existsSync(sessionsDir)) {
-        // Recursively find the newest modified .jsonl file in the sessions directory
-        let latestFile: string | null = null;
-        let latestTime = 0;
-        
-        const traverse = (currentDir: string) => {
-          if (!existsSync(currentDir)) return;
-          const entries = readdirSync(currentDir, { withFileTypes: true });
-          for (const entry of entries) {
-            const fullPath = join(currentDir, entry.name);
-            if (entry.isDirectory()) {
-              traverse(fullPath);
-            } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
-              try {
-                const mtime = statSync(fullPath).mtime.getTime();
-                if (mtime > latestTime) {
-                  latestTime = mtime;
-                  latestFile = fullPath;
-                }
-              } catch {}
-            }
-          }
-        };
-        
-        traverse(sessionsDir);
-        
-        if (latestFile) {
-          const result = execSync(`"${python}" "${captureScript}" "${latestFile}"`, { encoding: "utf-8" });
+      const sessionFile = (() => {
+        try {
+          const f = (ctx.sessionManager as { getSessionFile?: () => unknown })
+            ?.getSessionFile?.();
+          return typeof f === "string" && f ? f : null;
+        } catch {
+          return null;
+        }
+      })();
+      // No file, no guess. The mtime scan this replaces is the attribution
+      // defect itself, so falling back to it would reintroduce the bug on
+      // exactly the runtimes that cannot answer.
+      if (sessionFile && existsSync(sessionFile)
+          && reflect.claimScan(statSync(sessionFile).size)) {
+        const { execSync } = await import("node:child_process");
+          const python = process.platform === "win32" ? "python" : "python3";
+          const captureScript = join(PROJECT_ROOT, "pi-skills/core/hello-reflect/scripts/capture.py");
+          const result = execSync(`"${python}" "${captureScript}" "${sessionFile}"`,
+                                  { encoding: "utf-8" });
           if (result.trim() && result.startsWith("[")) {
             const learnings = JSON.parse(result);
             if (learnings.length > 0) {
+              // The notice and the advisory are gated separately on purpose.
+              //
+              // `notify` is the one the owner reported — TUI only, reaching no
+              // model, and repeated on all 122 turn_ends until it meant nothing.
+              // It speaks once.
+              //
+              // The advisory is the only half that reaches the model at all, and
+              // its "once" is per drain cycle, not per session — it arrived five
+              // times in 019ffbdd. That is left alone: cutting a model-facing
+              // channel to a single early mention is a different decision from
+              // the one being asked for here, and this repo's standing problem
+              // is that nothing restates anything mid-run. The scan cap bounds
+              // it to at most three by itself.
+              if (reflect.claimNotice()) {
+                ctx.ui.notify(`📝 偵測到新學習點 (${learnings.length})。`, "info");
+              }
               // Was "執行 /hello-reflect": no such command, and the skill is
-              // reachable only by name. Naming the skill keeps the advice valid.
-              ctx.ui.notify(`📝 偵測到新學習點 (${learnings.length})。`, "info");
+              // reachable only by name. Naming the skill keeps the advice valid
+              // — and as of 2026-08-14 the skill is reachable at all: it was
+              // absent from every registration route on this machine while this
+              // line told the model to use it five times a session.
               advisories.push(
                 "hello-reflect",
                 `${learnings.length} new learning(s) were detected in this session. ` +
@@ -462,7 +502,6 @@ export default function (pi: ExtensionAPI) {
                 "once",
               );
             }
-          }
         }
       }
     } catch {}
