@@ -940,8 +940,20 @@ def main():
     # Evict deprecated residue packages (deep_merge never prunes list entries).
     prune_deprecated_packages(settings)
 
-    if "env" not in settings: settings["env"] = {}
-    settings["env"]["PI_HARNESS_ROOT"] = REPO_ROOT.replace("\\", "/")
+    # `settings.env` was a zombie: written here, read by nobody.
+    #
+    # Pi's `Settings` interface (installed core/settings-manager.d.ts, lines
+    # 66-116) has no `env` field and the runtime never consults one, so
+    # PI_HARNESS_ROOT was empty in every shell the model opened — while ten
+    # instruction files told it to run `$PI_HARNESS_ROOT/...`. Measured on
+    # session 01a004bc: the model echoed the variable, got `[]`, and spent 41 of
+    # 224 calls hunting for this repo from inside somebody else's project.
+    #
+    # skill-namespace-guard now sets `process.env.PI_HARNESS_ROOT` at
+    # registration, which the bash tool picks up because it rebuilds its
+    # environment from `process.env` on every call. Any existing block is pruned
+    # so an installed copy stops looking like a working configuration.
+    settings.pop("env", None)
 
     # 2. Dynamic Submodule Paths Resolution
     ext_root = os.path.join(REPO_ROOT, "external").replace("\\", "/")

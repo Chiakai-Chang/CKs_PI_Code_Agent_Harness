@@ -18,7 +18,7 @@ Even though the operating system is Windows (e.g., CWD/paths look like `C:/...` 
 *   **Chaining Commands**: Use `&&`, `||`, and `;` to chain commands instead of PowerShell's `;` or CMD's `&`.
 
 ## 2. Agent Orchestration Routing
-For complex tasks, delegate to the specialised ECC agent personas bundled with this harness under `$PI_HARNESS_ROOT/external/ecc/agents` (the `PI_HARNESS_ROOT` env var is injected by `scripts/restore.py`):
+For complex tasks, delegate to the specialised ECC agent personas bundled with this harness under `$PI_HARNESS_ROOT/external/ecc/agents` (the `PI_HARNESS_ROOT` env var is exported by the `skill-namespace-guard` extension when Pi starts; **if it is ever empty, stop and say so — do not go looking for the harness by guessing paths, and do not leave the project you were asked to work in**):
 *   Use `planner` for implementation planning.
 *   Use `architect` for system design.
 *   Use `tdd-guide` for new features or bug fixes.

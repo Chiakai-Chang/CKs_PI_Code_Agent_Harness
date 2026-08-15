@@ -55,6 +55,58 @@ function harnessRoot(): string {
   return join(here, "../..");
 }
 
+/**
+ * Put PI_HARNESS_ROOT where the model's shell can actually see it.
+ *
+ * `restore.py:944` writes `settings.env.PI_HARNESS_ROOT` into
+ * ~/.pi/agent/settings.json, and `pi-rules/AGENTS.md:21` tells the reader "the
+ * PI_HARNESS_ROOT env var is injected by scripts/restore.py". Neither is true:
+ * Pi's `Settings` interface (installed `core/settings-manager.d.ts`, lines
+ * 66-116) has no `env` field, nothing in the runtime reads one, and the block is
+ * a zombie config of exactly the kind this repo forbids.
+ *
+ * The cost is not theoretical. Measured on session 01a004bc (2026-08-15), a
+ * `/case` run in an unrelated project: the command's own text says to run
+ * `$PI_HARNESS_ROOT/external/Local-Agent-Workspace/scripts/bootstrap.py` and to
+ * read `$PI_HARNESS_ROOT/.../SKILL.md`. The model echoed the variable, got `[]`,
+ * and went hunting for the harness by guessing absolute paths — 41 of its 224
+ * calls (18%) ended up inside this repo instead of the user's project. Across
+ * all 53 real sessions in other projects the same pattern accounts for 218 of
+ * 2832 calls (7%). Ten instruction files depend on this variable.
+ *
+ * Why this works where the settings block does not: the bash tool builds its
+ * environment per call from `getShellEnv()`, which spreads `process.env`
+ * (installed `utils/shell.js:103`, called from `resolveSpawnContext` in
+ * `core/tools/bash.js:119`). Extensions run inside that same process, so an
+ * assignment here reaches every shell the model opens afterwards.
+ *
+ * Set at registration rather than in `session_start`, so no ordering between
+ * handlers can leave a command running before it. Never overwrites an operator's
+ * own value: someone who exported it deliberately outranks us.
+ */
+function exportHarnessRoot(): void {
+  if (process.env.PI_HARNESS_ROOT) return;
+  // Validated, not just non-empty. `package.json` ships `"root":
+  // "TODO_SET_BY_RESTORE"` and restore.py patches it on install, so an
+  // unpatched copy would otherwise export the placeholder — and a wrong path is
+  // worse than an empty one, because the model will act on it. Caught by
+  // test_it_points_at_a_real_harness_checkout on the repo copy.
+  //
+  // Leaving it unset when nothing checks out is the honest failure: AGENTS.md
+  // tells the model that an empty value means stop and say so, not go hunting.
+  for (const candidate of [harnessRoot(), join(dirname(fileURLToPath(import.meta.url)), "../..")]) {
+    if (!candidate) continue;
+    try {
+      if (!existsSync(join(candidate, "pi-extensions"))) continue;
+      if (!existsSync(join(candidate, "pi-skills"))) continue;
+    } catch {
+      continue;
+    }
+    process.env.PI_HARNESS_ROOT = candidate.replace(/\\/g, "/");
+    return;
+  }
+}
+
 function readManifest(ctx?: { ui?: { notify?: (msg: string, level: string) => void } }): ManifestEntry[] {
   const manifestPath = join(harnessRoot(), "pi-config", "external-skills-manifest.json");
   if (!existsSync(manifestPath)) return [];
@@ -291,6 +343,11 @@ function writeConflictReport(report: ConflictReport) {
 }
 
 export default function (pi: ExtensionAPI) {
+  // First statement in the extension, before any handler is registered: ten
+  // instruction files tell the model to run `$PI_HARNESS_ROOT/...` in bash, and
+  // until 2026-08-16 that variable was empty in every shell it opened.
+  exportHarnessRoot();
+
   pi.on("resources_discover", async (_event, ctx) => {
     const manifest = readManifest(ctx);
     const skillPaths: string[] = [];
