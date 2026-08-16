@@ -178,9 +178,18 @@ class TestItReportsRatherThanJudges(unittest.TestCase):
             # Comments describe guards; only emitted strings need a marker.
             src = re.sub(r"/\*[\s\S]*?\*/", "", src)
             src = re.sub(r"(?m)^\s*//.*$", "", src)
+            lines = src.splitlines()
             for hit in pat.finditer(src):
                 name = hit.group(0)
                 if any(mk in name or name in mk for mk in markers):
+                    continue
+                # `ctx.ui.notify` paints the TUI and reaches no session log, so
+                # a marker for it would report 0 forever and read as a dead
+                # guard. Requiring one is how "Repeat-call breaker:" was nearly
+                # counted as a guard that never fires -- and then nearly deleted.
+                ln = src[:hit.start()].count(chr(10))
+                window = chr(10).join(lines[max(0, ln - 3):ln + 1])
+                if "ui.notify(" in window:
                     continue
                 uncovered.setdefault(name, p.name)
         self.assertEqual(

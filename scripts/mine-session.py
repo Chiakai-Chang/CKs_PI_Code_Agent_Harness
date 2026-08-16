@@ -116,6 +116,16 @@ REFUSALS = [
     # marker, so no report has ever shown them firing.
     ("discarded call", "撞到輸出上限"),
     ("fake-tool strike", "沒有呼叫真正的工具"),
+    # WITHDRAWN the same day, after they were used to justify a deletion:
+    #   "Repeat-call breaker:" is `ctx.ui.notify` — TUI only, structurally
+    #       incapable of appearing in a session log, so it would report 0 forever
+    #       and read as a dead guard.
+    #   "Turn-end context guard:" is a COMMENT in stealth-web-bridge, not a
+    #       refusal at all. The exploratory scan that found it did not strip
+    #       comments; the test that now enforces coverage does.
+    # Both were about to be counted as "never fires, delete it". A marker that
+    # cannot fire is not evidence about the guard, it is evidence about the
+    # marker.
     # Found mechanically on 2026-08-16, not by memory: a scan for
     # `X guard:` / `X breaker:` string literals across pi-extensions turned up
     # four refusal texts with no marker at all. `Repeat-lookup guard` had just
@@ -127,8 +137,6 @@ REFUSALS = [
     # bridge, never whether a bridge's guard has a marker.
     ("repeat-lookup", "Repeat-lookup guard:"),
     ("repeat-call", "Repeat-call guard:"),
-    ("repeat-call breaker", "Repeat-call breaker:"),
-    ("turn-end context", "Turn-end context guard:"),
     ("ECC GateGuard", "ECC GateGuard"),
 ]
 

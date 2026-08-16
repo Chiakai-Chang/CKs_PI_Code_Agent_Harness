@@ -9,6 +9,37 @@
 
 ---
 
+## ⚠️ 2026-08-16:我叫你刪的「14 個守衛」,正確數字是 4,而且一個都不該刪
+
+完整查證:[docs/measurements/2026-08-16-fourteen-dead-guards-that-were-not.md](docs/measurements/2026-08-16-fourteen-dead-guards-that-were-not.md)
+
+那個數字是我給的,而它**錯了三次**,三次都出在量測儀器:
+
+```
+14  最初回報
+13  ← harness-status.py 漏算 sendMessage 通道(blocked-claim 走 custom_message)
+ 7  ← 「排除探針」濾掉了唯一證明三個守衛會動的資料
+      (harness-root hint 4 次、artifact gate 2 次、repeat-lookup 一個 run 內 18 次)
+ 4  ← 撤掉兩個「不可能出現在 session 裡」的 marker:
+      Turn-end context guard 是一句**註解**;Repeat-call breaker 是 ctx.ui.notify
+```
+
+**剩下 4 個沒有一個是接錯了:**
+
+| 守衛 | 為什麼沒觸發 | 刪掉會失去 |
+|---|---|---|
+| `loop guard` | **升級層** —— `repeat-call` 有觸發,但沒累積到三振 | **停止鍵**;觀察到的迴圈跑了 70 分鐘無人叫停 |
+| `discarded call` | **罕見條件** —— 輸出上限截斷呼叫,尚未發生 | 安靜失敗的唯一解釋 |
+| `status value` / `one-at-a-time` | C.A.S.E. 專屬,而真實工作幾乎不走 C.A.S.E. | 應隨 C.A.S.E. 拆分移走,不是刪 |
+
+**「從未觸發」與「該刪除」中間有三種可能:接錯了、升級層還沒被觸及、罕見但嚴重。
+只有第一種該刪,而這 4 個全部落在後兩種。**
+
+**共同形狀:我用一個剛做好、沒有被質疑過的量測工具,產出了一個要刪東西的建議。**
+這個 repo 的規矩是「先證明檢查會失敗」,而我對 `harness-status.py` 只證明了它會跑。
+
+---
+
 ## 六十秒看懂現況
 
 ```bash

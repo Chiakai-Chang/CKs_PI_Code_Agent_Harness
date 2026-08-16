@@ -72,6 +72,14 @@ def scan(files):
         for r in rows:
             m = r.get("message")
             if not isinstance(m, dict):
+                # `pi.sendMessage` records are `type: "custom_message"` with the
+                # text at the top level, not under `message`. Skipping them here
+                # made every guard that speaks through that channel — blocked-claim,
+                # the loop guard, the compaction kit — read as never fired. The
+                # session miner had this exact bug and was fixed for it; this
+                # script reintroduced it by only walking `message`.
+                if r.get("type") == "custom_message":
+                    blob += json.dumps(r.get("content"), ensure_ascii=False)
                 continue
             if m.get("role") == "assistant":
                 for b in (m.get("content") or []):
