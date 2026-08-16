@@ -80,6 +80,11 @@ GUARD_MODULES = {
     # 122 turns — and nothing else in the suite can reach it, because
     # ecc-hooks-bridge is not importable under bare node.
     "pi-extensions/ecc-hooks-bridge/reflect-budget.ts": ["test_reflect_budget"],
+    # The only mechanism aimed at the owner's stated complaint. A weakened
+    # threshold or a widened exemption turns it back into what the rest of the
+    # planning bridge already was: something that only helps sessions that
+    # already plan.
+    "pi-extensions/planning-with-files-bridge/no-plan-gate.ts": ["test_no_plan_gate"],
     "pi-extensions/task-shape-bridge/goal-restate.ts": ["test_goal_restate"],
     "pi-extensions/case-bridge/task-context.ts": ["test_task_context"],
     # Added 2026-08-10 after measuring coverage: 33 of 48 pure modules were

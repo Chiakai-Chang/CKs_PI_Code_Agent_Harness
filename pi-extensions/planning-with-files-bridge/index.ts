@@ -11,6 +11,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { spawn } from "node:child_process";
+import { NoPlanGate } from "./no-plan-gate.ts";
 
 const PLANNING_FILES = ["task_plan.md", "findings.md", "progress.md"];
 const MAX_INJECT_CHARS = 2600;
@@ -217,6 +218,32 @@ function planningBridgeEnabled(): boolean {
 }
 
 export default function (pi: ExtensionAPI) {
+  // The case this bridge is named after and never handled.
+  //
+  // Every other handler below opens with `if (!hasActivePlan && !hasPlanningDir)
+  // return;` or `if (!hasAnyPlan) return;`, so this bridge only ever helped
+  // sessions that ALREADY plan. Measured 2026-08-16: of 41 real sessions that
+  // searched at least once, 82.9% had no plan, and 11 of the 18 sessions with
+  // 20+ tool calls had none. Nobody noticed because every check asked whether
+  // the injection was delivered, never whether it reached the case the bridge
+  // exists for. See no-plan-gate.ts for why this is a refusal on a write rather
+  // than advice or a block on searching.
+  const noPlanGate = new NoPlanGate();
+  pi.on("tool_call", async (event, ctx) => {
+    if (!planningBridgeEnabled()) return;
+    noPlanGate.observe();
+    const input = event.input as { path?: unknown; file_path?: unknown };
+    const target = typeof input?.path === "string" ? input.path
+      : typeof input?.file_path === "string" ? input.file_path : undefined;
+    const refusal = noPlanGate.check(event.toolName, target, hasAnyPlan(ctx.cwd));
+    if (!refusal) return;
+    ctx.ui.notify(
+      `🗒️ 已擋下第一份產出:${noPlanGate.stats().calls} 次呼叫還沒有 task_plan.md`,
+      "warning",
+    );
+    return refusal;
+  });
+
   // On session start: detect active plan
   pi.on("session_start", async (_event, ctx) => {
     if (!hasActivePlan(ctx.cwd) && !hasPlanningDir(ctx.cwd)) return;
