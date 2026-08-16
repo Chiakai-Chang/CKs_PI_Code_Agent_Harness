@@ -69,5 +69,6 @@
       "writing-skills",
       "yes"
     ]
-  }
+  },
+  "enableNoPlanGate": true
 }

@@ -40,8 +40,26 @@ Scored on two independent axes in both scenarios, and never collapsed into one:
 a run can answer the request AND break the constraint, and one number would hide
 exactly that.
 
-A/B on `enableGoalRestate` alone. Switching `enableTaskShapeRouter` would move
-the routing note as well and attribute two effects to one cause.
+A/B on ONE flag, chosen with `--flag`. Switching two would move two mechanisms
+and attribute their sum to one cause.
+
+`--flag` was added 2026-08-16 in answer to the owner's question, 「怎麼證明會有
+幫助?」. Until then this was the only outcome-scoring harness in the repo and it
+was hardwired to `enableGoalRestate`, so every other mechanism — nineteen refusal
+guards, ten of which have never fired in 125 real sessions — had no way of being
+asked whether it helps. Every measurement the repo had asked whether a mechanism
+FIRED, never whether the session came out better. That is why nothing felt like
+it was improving: the numbers were about the plumbing.
+
+    python scripts/measure-drift.py --runs 3 --flag enableNoPlanGate
+    python scripts/measure-drift.py --runs 3 --flag enableHookAdvisories
+
+Read the result honestly. `owners_found` / `found` is a binary-ish outcome with a
+precomputed ground truth, and the 2026-08-12 noise floor says that kind of score
+is what survives run-to-run variance (status REVIEW 5/5, deliverable list
+identical 5/5) while call counts do not (sd 26.91, CV 42%). A difference of one
+or two on a handful of runs is still noise; the sample size a given delta needs
+comes from `measure-advancer.py --variance`.
 
     python scripts/measure-drift.py --runs 3                  # audit, both arms
     python scripts/measure-drift.py --runs 3 --arm on
@@ -244,11 +262,43 @@ def assert_flag_is_live() -> None:
             "Reinstall so the two agree, or the A/B measures nothing.")
 
 
-def set_flag(value: bool) -> bool:
-    """Flip `enableGoalRestate`, returning the previous value."""
+DEFAULT_FLAG = "enableGoalRestate"
+
+# Flags this harness can A/B, and what each one turns off. Declared rather than
+# accepted freely: a typo in a flag name flips nothing, both arms then run the
+# same configuration, and the result reads as "no effect" — which is the most
+# expensive wrong answer this script can give.
+#
+# The point of naming more than one: until 2026-08-16 this harness could only
+# ever answer "does goal restatement help". Every other mechanism — nineteen
+# refusal guards, ten of which have never fired in 125 real sessions — had no
+# way to be asked the question at all. The owner's 「怎麼證明會有幫助?」 has no
+# answer while the only outcome-scoring harness in the repo is wired to one flag.
+KNOWN_FLAGS = {
+    "enableGoalRestate": "task-shape-bridge restating the goal mid-run",
+    "enableNoPlanGate": "planning-with-files-bridge refusing a first artifact "
+                        "when no task_plan.md exists",
+    "enableTaskShapeRouter": "task-shape-bridge naming skills by request shape",
+    "enableHookAdvisories": "ecc-hooks-bridge appending hook output to results",
+    "enablePlanningBridge": "the whole planning bridge",
+}
+
+
+def set_flag(value: bool, flag: str = DEFAULT_FLAG) -> bool:
+    """Flip one config flag, returning the previous value.
+
+    Only the arm under test is touched. Flipping two at once measures their sum
+    and this repo has already spent seven runs learning that a comparison whose
+    arms differ in more than one way concludes nothing.
+    """
+    if flag not in KNOWN_FLAGS:
+        raise SystemExit(
+            f"unknown flag {flag!r}. A misspelled flag flips nothing, both arms "
+            f"run identically, and the result reads as 'no effect'.\n"
+            "known: " + ", ".join(sorted(KNOWN_FLAGS)))
     data = json.loads(CONFIG.read_text(encoding="utf-8"))
-    before = data.get("enableGoalRestate", True)
-    data["enableGoalRestate"] = value
+    before = data.get(flag, True)
+    data[flag] = value
     CONFIG.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n",
                       encoding="utf-8")
     return bool(before)
@@ -497,6 +547,9 @@ def main() -> int:
                     help="audit = a constraint stated once (default); "
                          "bait = the side quest that could not produce drift")
     ap.add_argument("--runs", type=int, default=1, help="runs per arm")
+    ap.add_argument("--flag", default=DEFAULT_FLAG, choices=sorted(KNOWN_FLAGS),
+                    help="which mechanism to A/B. One flag, never two: arms that "
+                         "differ in more than one way conclude nothing.")
     ap.add_argument("--arm", choices=["on", "off", "both"], default="both")
     ap.add_argument("--limit", type=int, default=2400, help="seconds per run")
     ap.add_argument("--workspace-root", default=None,
@@ -519,10 +572,10 @@ def main() -> int:
     arms = ["on", "off"] if args.arm == "both" else [args.arm]
     rows: list[dict] = []
     restore_to = json.loads(CONFIG.read_text(encoding="utf-8")).get(
-        "enableGoalRestate", True)
+        args.flag, True)
     try:
         for arm in arms:
-            set_flag(arm == "on")
+            set_flag(arm == "on", args.flag)
             for i in range(args.runs):
                 # A fresh workspace per run. Sharing one made four of five runs
                 # measure something else on 2026-08-07.
@@ -533,18 +586,19 @@ def main() -> int:
                     json.dumps(fingerprint(ws), indent=2), encoding="utf-8")
                 meta = run_once(ws, args.limit, request)
                 s = score_for(args.scenario, ws)
-                rows.append({"arm": arm, "run": i, **meta, "score": s})
+                rows.append({"arm": arm, "flag": args.flag, "run": i, **meta, "score": s})
                 summary = "  ".join(f"{c}={s.get(c)}"
                                     for c in SCENARIOS[args.scenario][3])
                 print(f"[{arm} {i}] {meta['seconds']}s  {summary}"
                       + ("  TIMEOUT" if meta["timed_out"] else ""))
     finally:
-        set_flag(restore_to)
+        set_flag(restore_to, args.flag)
 
     report(rows, args.scenario)
     if args.out:
         Path(args.out).write_text(
             json.dumps({"scenario": args.scenario, "request": request,
+                        "flag": args.flag,
                         "rows": rows}, ensure_ascii=False, indent=2),
             encoding="utf-8")
         print(f"wrote {args.out}")

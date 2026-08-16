@@ -11,6 +11,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { NoPlanGate } from "./no-plan-gate.ts";
 
 const PLANNING_FILES = ["task_plan.md", "findings.md", "progress.md"];
@@ -203,18 +204,51 @@ function runCheckComplete(cwd: string): Promise<void> {
 }
 
 // Mirrors the enablePlanningBridge check in before_agent_start, so the status
-// line cannot claim an active plan while the injection is switched off.
-function planningBridgeEnabled(): boolean {
+
+/** Where this module lives, without `require`.
+ *
+ * `require.resolve("./package.json")` is what every config reader in this bridge
+ * used, and Pi shims `require` so it works there — but under bare node it throws
+ * and each of those readers has a `catch { return true; }`. Every switch in this
+ * file therefore reported ON regardless of the config whenever it was driven
+ * outside Pi, which is how the A/B flag added on 2026-08-16 appeared to do
+ * nothing in both arms. The bug was in the harness around the code, not the
+ * code — the same shape as the 2026-07 scar of proving a root cause in the wrong
+ * runtime. `import.meta.url` is ESM-native and behaves identically in both.
+ */
+function moduleDir(): string {
+  return dirname(fileURLToPath(import.meta.url));
+}
+
+function harnessConfig(): Record<string, unknown> | null {
   try {
-    const here = dirname(require.resolve("./package.json"));
+    const here = moduleDir();
     const pkg = JSON.parse(readFileSync(join(here, "package.json"), "utf-8"));
     const root = pkg["pi-harness"]?.root || join(here, "../..");
     const cfgPath = join(root, "pi-config", "harness-config.json");
-    if (!existsSync(cfgPath)) return true;
-    return JSON.parse(readFileSync(cfgPath, "utf8")).enablePlanningBridge !== false;
+    if (!existsSync(cfgPath)) return null;
+    return JSON.parse(readFileSync(cfgPath, "utf8"));
   } catch {
-    return true;
+    return null;
   }
+}
+
+// line cannot claim an active plan while the injection is switched off.
+function planningBridgeEnabled(): boolean {
+  return harnessConfig()?.enablePlanningBridge !== false;
+}
+
+/** The no-plan gate's own switch, separate from the bridge's.
+ *
+ * It needs one so `scripts/measure-drift.py --flag enableNoPlanGate` can A/B it
+ * alone. Sharing `enablePlanningBridge` would turn the plan-context injection
+ * off in the same arm and attribute two effects to one cause — the mistake that
+ * script's own docstring warns about.
+ *
+ * Defaults to on, and an unreadable config leaves it on: a gate that vanishes
+ * when a file is missing is a gate nobody can rely on. */
+function noPlanGateEnabled(): boolean {
+  return harnessConfig()?.enableNoPlanGate !== false;
 }
 
 export default function (pi: ExtensionAPI) {
@@ -230,7 +264,7 @@ export default function (pi: ExtensionAPI) {
   // than advice or a block on searching.
   const noPlanGate = new NoPlanGate();
   pi.on("tool_call", async (event, ctx) => {
-    if (!planningBridgeEnabled()) return;
+    if (!planningBridgeEnabled() || !noPlanGateEnabled()) return;
     noPlanGate.observe();
     const input = event.input as { path?: unknown; file_path?: unknown };
     const target = typeof input?.path === "string" ? input.path
