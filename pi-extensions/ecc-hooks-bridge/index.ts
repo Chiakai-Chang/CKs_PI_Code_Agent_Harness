@@ -10,6 +10,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { isToolCallEventType } from "@earendil-works/pi-coding-agent";
 
 import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 // `readdirSync` went with the recursive ~/.pi/agent/sessions walk that used to
 // guess which session this was; the session file now comes from
 // ctx.sessionManager.getSessionFile().
@@ -20,9 +21,19 @@ import { ReflectBudget } from "./reflect-budget.ts";
 import { toHookInput, parseHookOutput, gateGuardBlocksEnabled } from "./ecc-payload.ts";
 import { hasAnyPlan, isGitCommit } from "./plan.ts";
 
+
+// import.meta.url, not require.resolve: Pi's loader shims `require`, but bare
+// node does not, and the `catch` around every config read here then returns the
+// DEFAULT — so each switch reported ON regardless of harness-config.json in any
+// runtime that is not Pi. That invalidated the first A/B run on 2026-08-16 (both
+// arms identical) and is enforced from 2026-08-16 by tests/test_bridge_config_readers.py.
+function moduleSelfPath(): string {
+  return join(dirname(fileURLToPath(import.meta.url)), "package.json");
+}
+
 // Dynamic path resolution
 // Read from our own package.json which restore.py will patch
-const pkgPath = require.resolve("./package.json");
+const pkgPath = moduleSelfPath();
 const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
 const HARNESS_ROOT = pkg["pi-harness"]?.root || join(dirname(pkgPath), "../..");
 const PROJECT_ROOT = HARNESS_ROOT;

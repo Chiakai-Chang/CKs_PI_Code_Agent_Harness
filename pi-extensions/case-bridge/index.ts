@@ -10,6 +10,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 
+import { fileURLToPath } from "node:url";
 import { TaskQueueGuard } from "./task-queue-guard.ts";
 import { ActionLogger } from "./action-log.ts";
 import { QueueAdvancer } from "./queue-advancer.ts";
@@ -18,6 +19,16 @@ import { ScopeSnapshot } from "./harness-scope.ts";
 import { PhaseNotice, claimedTaskDir } from "./phase-notice.ts";
 import { TaskGoalRestate, localConstitution } from "./task-context.ts";
 import { calibratedNumber } from "./calibration.ts";
+
+
+// import.meta.url, not require.resolve: Pi's loader shims `require`, but bare
+// node does not, and the `catch` around every config read here then returns the
+// DEFAULT — so each switch reported ON regardless of harness-config.json in any
+// runtime that is not Pi. That invalidated the first A/B run on 2026-08-16 (both
+// arms identical) and is enforced from 2026-08-16 by tests/test_bridge_config_readers.py.
+function moduleSelfPath(): string {
+  return join(dirname(fileURLToPath(import.meta.url)), "package.json");
+}
 
 const MAX_INJECT_CHARS = 3000;
 
@@ -54,7 +65,7 @@ function isCaseProject(cwd: string): boolean {
  */
 function harnessRoot(): string | null {
   try {
-    const here = dirname(require.resolve("./package.json"));
+    const here = dirname(moduleSelfPath());
     const pkg = JSON.parse(readFileSync(join(here, "package.json"), "utf-8"));
     return pkg["pi-harness"]?.root || join(here, "../..");
   } catch {
@@ -84,17 +95,25 @@ function caseAdvancerEnabled(_harnessRoot: string, _cwd?: string): boolean {
   }
 }
 
-function caseBridgeEnabled(): boolean {
+/** One place that reads harness-config.json, so a fix cannot land on one copy
+ * and miss the other — which is exactly what happened in this file and in
+ * planning-with-files-bridge on 2026-08-16. Enforced by
+ * tests/test_bridge_config_readers.py. */
+function harnessConfig(): Record<string, unknown> | null {
   try {
-    const here = dirname(require.resolve("./package.json"));
+    const here = dirname(moduleSelfPath());
     const pkg = JSON.parse(readFileSync(join(here, "package.json"), "utf-8"));
     const root = pkg["pi-harness"]?.root || join(here, "../..");
     const cfgPath = join(root, "pi-config", "harness-config.json");
-    if (!existsSync(cfgPath)) return true;
-    return JSON.parse(readFileSync(cfgPath, "utf8")).enableCaseBridge !== false;
+    if (!existsSync(cfgPath)) return null;
+    return JSON.parse(readFileSync(cfgPath, "utf8"));
   } catch {
-    return true;
+    return null;
   }
+}
+
+function caseBridgeEnabled(): boolean {
+  return harnessConfig()?.enableCaseBridge !== false;
 }
 
 /** The assistant text of a turn, if it said anything at all. */
@@ -339,24 +358,18 @@ export default function (pi: ExtensionAPI) {
   // Before each agent turn: inject C.A.S.E. rules and file-based state context
   pi.on("before_agent_start", (event, ctx) => {
     // Dynamic path resolution for harness root
-    const __dirname = dirname(require.resolve("./package.json"));
+    const __dirname = dirname(moduleSelfPath());
     const pkg = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf-8"));
     const HARNESS_ROOT = pkg["pi-harness"]?.root || join(__dirname, "../..");
 
+    const cfg = harnessConfig() ?? {};
+    if (cfg.enableCaseBridge === false) return;
     let isSlim = false;
     let maxChars = MAX_INJECT_CHARS;
-
-    try {
-      const cfgPath = join(HARNESS_ROOT, "pi-config", "harness-config.json");
-      if (existsSync(cfgPath)) {
-        const cfg = JSON.parse(readFileSync(cfgPath, "utf8"));
-        if (cfg.enableCaseBridge === false) return;
-        if (cfg.promptProfile === "slim") {
-          isSlim = true;
-          maxChars = cfg.caseBridgeMaxChars || 600;
-        }
-      }
-    } catch {}
+    if (cfg.promptProfile === "slim") {
+      isSlim = true;
+      maxChars = (cfg.caseBridgeMaxChars as number) || 600;
+    }
 
     const BOOTSTRAP_SCRIPT = join(HARNESS_ROOT, "external/Local-Agent-Workspace/scripts/bootstrap.py").replace(/\\/g, "/");
     const VERIFIER_SCRIPT = join(HARNESS_ROOT, "external/Local-Agent-Workspace/verifiers/verify.py").replace(/\\/g, "/");

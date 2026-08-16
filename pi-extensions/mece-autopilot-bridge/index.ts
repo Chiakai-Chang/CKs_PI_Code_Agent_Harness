@@ -8,7 +8,18 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { buildNotice } from "./notice.ts";
+
+
+// import.meta.url, not require.resolve: Pi's loader shims `require`, but bare
+// node does not, and the `catch` around every config read here then returns the
+// DEFAULT — so each switch reported ON regardless of harness-config.json in any
+// runtime that is not Pi. That invalidated the first A/B run on 2026-08-16 (both
+// arms identical) and is enforced from 2026-08-16 by tests/test_bridge_config_readers.py.
+function moduleSelfPath(): string {
+  return join(dirname(fileURLToPath(import.meta.url)), "package.json");
+}
 
 function fileExists(dir: string, name: string): boolean {
   return existsSync(join(dir, name));
@@ -28,7 +39,7 @@ export default function (pi: ExtensionAPI) {
   // Before each agent turn: inject MECE-Autopilot absolute paths and guidance
   pi.on("before_agent_start", (event, _ctx) => {
     // Dynamic path resolution for harness root
-    const __dirname = dirname(require.resolve("./package.json"));
+    const __dirname = dirname(moduleSelfPath());
     const pkg = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf-8"));
     const HARNESS_ROOT = pkg["pi-harness"]?.root || join(__dirname, "../..");
 

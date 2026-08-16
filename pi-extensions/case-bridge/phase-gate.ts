@@ -29,8 +29,19 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 
+import { fileURLToPath } from "node:url";
 import { bashWriteTargets } from "./task-queue-guard.ts";
 import { ScopeSnapshot, resolveFlag } from "./harness-scope.ts";
+
+
+// import.meta.url, not require.resolve: Pi's loader shims `require`, but bare
+// node does not, and the `catch` around every config read here then returns the
+// DEFAULT — so each switch reported ON regardless of harness-config.json in any
+// runtime that is not Pi. That invalidated the first A/B run on 2026-08-16 (both
+// arms identical) and is enforced from 2026-08-16 by tests/test_bridge_config_readers.py.
+function moduleSelfPath(): string {
+  return join(dirname(fileURLToPath(import.meta.url)), "package.json");
+}
 
 /** Tools that reach the network for research. */
 const RESEARCH_TOOLS = new Set(["web_search", "web_open", "web_snapshot", "deep_research"]);
@@ -104,7 +115,7 @@ export function useHarnessRoot(root: string | null): void {
 function harnessRootOf(): string {
   if (rootOverride !== null) return rootOverride;
   try {
-    const here = dirname(require.resolve("./package.json"));
+    const here = dirname(moduleSelfPath());
     const pkg = JSON.parse(readFileSync(join(here, "package.json"), "utf-8"));
     return pkg["pi-harness"]?.root || join(here, "../..");
   } catch {

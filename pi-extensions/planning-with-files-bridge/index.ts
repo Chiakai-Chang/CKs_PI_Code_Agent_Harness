@@ -14,6 +14,16 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { NoPlanGate } from "./no-plan-gate.ts";
 
+
+// import.meta.url, not require.resolve: Pi's loader shims `require`, but bare
+// node does not, and the `catch` around every config read here then returns the
+// DEFAULT — so each switch reported ON regardless of harness-config.json in any
+// runtime that is not Pi. That invalidated the first A/B run on 2026-08-16 (both
+// arms identical) and is enforced from 2026-08-16 by tests/test_bridge_config_readers.py.
+function moduleSelfPath(): string {
+  return join(dirname(fileURLToPath(import.meta.url)), "package.json");
+}
+
 const PLANNING_FILES = ["task_plan.md", "findings.md", "progress.md"];
 const MAX_INJECT_CHARS = 2600;
 
@@ -145,7 +155,7 @@ function runCheckComplete(cwd: string): Promise<void> {
     if (!existsSync(planFile)) return resolve();
 
     // Dynamic path resolution for portability
-    const __dirname = dirname(require.resolve("./package.json"));
+    const __dirname = dirname(moduleSelfPath());
     const pkg = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf-8"));
     const HARNESS_ROOT = pkg["pi-harness"]?.root || join(__dirname, "../..");
     
@@ -207,7 +217,7 @@ function runCheckComplete(cwd: string): Promise<void> {
 
 /** Where this module lives, without `require`.
  *
- * `require.resolve("./package.json")` is what every config reader in this bridge
+ * `moduleSelfPath()` is what every config reader in this bridge
  * used, and Pi shims `require` so it works there — but under bare node it throws
  * and each of those readers has a `catch { return true; }`. Every switch in this
  * file therefore reported ON regardless of the config whenever it was driven
@@ -289,24 +299,19 @@ export default function (pi: ExtensionAPI) {
   pi.on("before_agent_start", (event, ctx) => {
     if (!hasActivePlan(ctx.cwd) && !hasPlanningDir(ctx.cwd)) return;
 
-    const __dirname = dirname(require.resolve("./package.json"));
-    const pkg = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf-8"));
-    const HARNESS_ROOT = pkg["pi-harness"]?.root || join(__dirname, "../..");
-
+    // One reader, not a second copy. This block used to locate the config for
+    // itself, which is how `planningBridgeEnabled()` could be fixed on
+    // 2026-08-16 while this one stayed broken — the same file, the same bug,
+    // twice. tests/test_bridge_config_readers.py now fails on a bridge that
+    // reads harness-config.json in more than one place.
+    const cfg = harnessConfig() ?? {};
+    if (cfg.enablePlanningBridge === false) return;
     let isSlim = false;
     let maxChars = MAX_INJECT_CHARS;
-
-    try {
-      const cfgPath = join(HARNESS_ROOT, "pi-config", "harness-config.json");
-      if (existsSync(cfgPath)) {
-        const cfg = JSON.parse(readFileSync(cfgPath, "utf8"));
-        if (cfg.enablePlanningBridge === false) return;
-        if (cfg.promptProfile === "slim") {
-          isSlim = true;
-          maxChars = cfg.planningBridgeMaxChars || 600;
-        }
-      }
-    } catch {}
+    if (cfg.promptProfile === "slim") {
+      isSlim = true;
+      maxChars = (cfg.planningBridgeMaxChars as number) || 600;
+    }
 
     const planContext = injectPlanContext(ctx.cwd, maxChars, isSlim);
     if (!planContext) return;

@@ -838,7 +838,8 @@ node 本來就在 runner 上。**釘住它移除的是潛在風險,不是修好�
   - [ ] **效果未定,而且這個情境量不了它** —— 見下
   - [ ] **若最終證明無效,就刪掉它**,不要留著當裝飾
 
-> **A/B 結果(n=3,`audit` 情境):**
+> **A/B 結果(n=3,`audit` 情境)** —— 完整脈絡見
+> [docs/measurements/2026-08-16-noplan-gate-ab.md](docs/measurements/2026-08-16-noplan-gate-ab.md):
 >
 > ```
 > arm  n   found  false_pos  files_modified  write_attempts  tool_calls

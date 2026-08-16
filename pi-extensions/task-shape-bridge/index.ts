@@ -30,12 +30,17 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 
+import { fileURLToPath } from "node:url";
 import { classifyRequest, buildRoutine, buildSystemPromptNote, buildKindNote, isBroadTool } from "./shape.ts";
 import { hasAnyPlan, isCaseProject } from "./plan.ts";
 import { GoalRestate, MAX_RESTATEMENTS, RESTATE_THRESHOLD } from "./goal-restate.ts";
 import { calibrated } from "./calibration.ts";
 
-const pkgPath = require.resolve("./package.json");
+// import.meta.url, not require.resolve: Pi shims `require`, bare node does not,
+// and every config read here is wrapped in a catch that returns the DEFAULT — so
+// each switch reported ON regardless of harness-config.json outside Pi. That
+// invalidated the first A/B on 2026-08-16 (both arms identical).
+const pkgPath = join(dirname(fileURLToPath(import.meta.url)), "package.json");
 const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
 const HARNESS_ROOT = pkg["pi-harness"]?.root || join(dirname(pkgPath), "../..");
 
