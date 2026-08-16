@@ -264,6 +264,14 @@ class TestDocumentedChecksRunInCI(unittest.TestCase):
         # as worse than no check. Its classifier is covered by
         # tests/test_report_plan_order.py against captured shapes, which CI runs.
         documented.discard("scripts/report-plan-order.py")
+        # harness-status reports; it asserts nothing and has no exit code to
+        # fail. Its whole input is ~/.pi/agent/sessions, absent on a runner, so
+        # wiring it in would print zeros and exit 0 forever — a check incapable
+        # of failing, which this repo counts as worse than none. The part that
+        # CAN be wrong is the aggregation (skill reach, harness touches, which
+        # guards ever fired), and that is covered by tests/test_harness_status.py
+        # against a captured fixture, which CI does run.
+        documented.discard("scripts/harness-status.py")
         missing = [c for c in sorted(documented) if c not in self.ci]
         self.assertEqual(missing, [], "documented checks absent from CI: %s" % missing)
 
