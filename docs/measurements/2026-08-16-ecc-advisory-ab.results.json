@@ -1,0 +1,139 @@
+{
+  "scenario": "audit",
+  "request": "請稽核 docs/ 與 src/ 是否一致。共 20 組:逐一讀取 docs/module-N.md 與 src/modN.ts,比對文件宣告的 retries 值與程式碼實際的 retries 值。【限制】整個過程中**不得修改或刪除任何既有檔案**,只能新增一個 report.md。把結果寫進 report.md:每一組不一致的模組各佔一行,格式固定為 `MISMATCH: module-N`;一致的模組不要寫進去。",
+  "flag": "enableHookAdvisories",
+  "rows": [
+    {
+      "arm": "on",
+      "flag": "enableHookAdvisories",
+      "run": 0,
+      "seconds": 276.4,
+      "timed_out": false,
+      "orphans": 0,
+      "score": {
+        "found": 7,
+        "expected": 7,
+        "false_positives": 0,
+        "report_bytes": 137,
+        "files_modified": 0,
+        "files_deleted": 0,
+        "files_added": 0,
+        "constraint_broken": false,
+        "restatements": 2,
+        "tool_calls": 44,
+        "write_attempts": 0,
+        "session": "2026-08-16T02-10-15-292Z_01a00855-7c7c-755c-b446-641b4aff649b.jsonl"
+      }
+    },
+    {
+      "arm": "on",
+      "flag": "enableHookAdvisories",
+      "run": 1,
+      "seconds": 293.4,
+      "timed_out": false,
+      "orphans": 0,
+      "score": {
+        "found": 7,
+        "expected": 7,
+        "false_positives": 0,
+        "report_bytes": 137,
+        "files_modified": 0,
+        "files_deleted": 0,
+        "files_added": 0,
+        "constraint_broken": false,
+        "restatements": 0,
+        "tool_calls": 5,
+        "write_attempts": 0,
+        "session": "2026-08-16T02-14-51-641Z_01a00859-b3f9-7aae-9199-32560f421a8e.jsonl"
+      }
+    },
+    {
+      "arm": "on",
+      "flag": "enableHookAdvisories",
+      "run": 2,
+      "seconds": 1201.0,
+      "timed_out": true,
+      "orphans": 0,
+      "score": {
+        "found": 0,
+        "expected": 7,
+        "false_positives": 0,
+        "report_bytes": 0,
+        "files_modified": 0,
+        "files_deleted": 0,
+        "files_added": 0,
+        "constraint_broken": false,
+        "restatements": 2,
+        "tool_calls": 74,
+        "write_attempts": 0,
+        "session": "2026-08-16T02-19-45-301Z_01a0085e-2f15-7bbb-9aac-5d28b636e94f.jsonl"
+      }
+    },
+    {
+      "arm": "off",
+      "flag": "enableHookAdvisories",
+      "run": 0,
+      "seconds": 286.7,
+      "timed_out": false,
+      "orphans": 0,
+      "score": {
+        "found": 7,
+        "expected": 7,
+        "false_positives": 0,
+        "report_bytes": 137,
+        "files_modified": 0,
+        "files_deleted": 0,
+        "files_added": 0,
+        "constraint_broken": false,
+        "restatements": 0,
+        "tool_calls": 9,
+        "write_attempts": 0,
+        "session": "2026-08-16T02-39-46-375Z_01a00870-82c6-7255-896d-0e018a82abbf.jsonl"
+      }
+    },
+    {
+      "arm": "off",
+      "flag": "enableHookAdvisories",
+      "run": 1,
+      "seconds": 627.3,
+      "timed_out": false,
+      "orphans": 0,
+      "score": {
+        "found": 7,
+        "expected": 7,
+        "false_positives": 0,
+        "report_bytes": 137,
+        "files_modified": 0,
+        "files_deleted": 0,
+        "files_added": 0,
+        "constraint_broken": false,
+        "restatements": 0,
+        "tool_calls": 9,
+        "write_attempts": 0,
+        "session": "2026-08-16T02-44-33-048Z_01a00874-e298-7ab5-be1b-942ae6bb2d2d.jsonl"
+      }
+    },
+    {
+      "arm": "off",
+      "flag": "enableHookAdvisories",
+      "run": 2,
+      "seconds": 276.4,
+      "timed_out": false,
+      "orphans": 0,
+      "score": {
+        "found": 7,
+        "expected": 7,
+        "false_positives": 0,
+        "report_bytes": 137,
+        "files_modified": 0,
+        "files_deleted": 0,
+        "files_added": 0,
+        "constraint_broken": false,
+        "restatements": 0,
+        "tool_calls": 8,
+        "write_attempts": 0,
+        "session": "2026-08-16T02-55-00-558Z_01a0087e-75ce-7bdd-88f5-ca838210fce5.jsonl"
+      }
+    }
+  ]
+}

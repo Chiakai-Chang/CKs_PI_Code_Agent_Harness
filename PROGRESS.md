@@ -711,7 +711,23 @@ node 本來就在 runner 上。**釘住它移除的是潛在風險,不是修好�
   (`ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX`)—— 剝除只擦掉標註,不做轉換。
   改成一般欄位加明確賦值,原因寫進註解:這會同時打死 Pi 的載入與這裡的測試驅動
 
-### ⚪ T-A18 — 阻擋型 hook 的原文不該走 advisory 通道(**家族 C**)
+### 🟡 T-A18 — 阻擋型 hook 的原文不該走 advisory 通道(**已量,建議關通道;等擁有者決定**)
+
+> **2026-08-16 A/B**([量測](docs/measurements/2026-08-16-ecc-advisory-ab.md)):
+> `--flag enableHookAdvisories --runs 3`。**這個實驗不足以支持任何結論**,原因有三:
+> `off` 是 **7/7/7 的滿分**(天花板效應,沒有空間顯示正面效果)、
+> ECC 在整個實驗裡**只說了 2 次話**、
+> 而拉低 `on` 平均的那個 0 是**逾時**,查 session 後 **ECC 在該 run 一次都沒出現**。
+>
+> **支持減法的證據來自別處而且是既有的**:125 個 session 裡 `ECC GateGuard`
+> 觸發 13 次 / 9 個 session,是觸發最多的守衛,而它正是**阻擋型原文貼在成功結果之後**,
+> 在真實 session 裡讓模型誤判 `git init` 失敗、燒掉約 28 次呼叫。
+> `enableEccGateGuard` 出貨值已是 `False`,那條路已關。
+>
+> **建議:關掉 `enableHookAdvisories`,不刪 submodule。** 一行、可逆、不動 65 個已註冊技能。
+> **明講這是證據不足下的保守選擇**,觸發條件:日後有任務需要 ECC hook 輸出就打開重量。
+
+#### (原始條目)⚪ T-A18 — 阻擋型 hook 的原文不該走 advisory 通道(**家族 C**)
 
 * **為什麼**:`external/ecc/scripts/hooks/gateguard-fact-force.js` 是 PreToolUse **阻擋** hook,
   上游語意是「這次不准,先給事實」。我們把原文原封不動貼在**成功的** tool result 後面。

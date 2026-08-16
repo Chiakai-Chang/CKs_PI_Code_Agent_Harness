@@ -153,6 +153,41 @@ class TestItReportsRatherThanJudges(unittest.TestCase):
         self.assertEqual(missing, [],
                          "these markers are emitted by no bridge: %s" % missing)
 
+    def test_every_guard_in_a_bridge_has_a_marker(self):
+        """The other direction, and the one that was missing.
+
+        `test_every_declared_label_still_exists_in_a_bridge` asks whether a
+        marker still matches something. Nothing asked whether a GUARD has a
+        marker, so a refusal text could ship with no way to see it — and four
+        had: Repeat-lookup, Repeat-call, Repeat-call breaker and Turn-end
+        context. On 2026-08-16 `Repeat-lookup guard` refused EIGHTEEN times in a
+        single run while the report showed no loop refusals at all, and that was
+        about to be written up as "the loop guard stayed silent".
+
+        Guards are found by their own naming convention rather than by a list,
+        so a new one cannot arrive unnoticed.
+        """
+        m = load()
+        markers = [mk for _l, mk in m.INJECTIONS + m.REFUSALS]
+        pat = re.compile(r"[A-Z][\w -]{2,28}?(?: guard| gate| breaker| detector):")
+        uncovered = {}
+        for p in (ROOT / "pi-extensions").rglob("*.ts"):
+            if "node_modules" in str(p):
+                continue
+            src = p.read_text(encoding="utf-8", errors="replace")
+            # Comments describe guards; only emitted strings need a marker.
+            src = re.sub(r"/\*[\s\S]*?\*/", "", src)
+            src = re.sub(r"(?m)^\s*//.*$", "", src)
+            for hit in pat.finditer(src):
+                name = hit.group(0)
+                if any(mk in name or name in mk for mk in markers):
+                    continue
+                uncovered.setdefault(name, p.name)
+        self.assertEqual(
+            uncovered, {},
+            "these guards emit a refusal no marker can see, so every report "
+            "shows them as never firing: %s" % uncovered)
+
     def test_no_marker_can_be_swallowed_by_another(self):
         """Two labels cannot share a hit. If one marker contains another, the
         shorter one fires on every message the longer one matches, and the

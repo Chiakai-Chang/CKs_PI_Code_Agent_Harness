@@ -116,6 +116,19 @@ REFUSALS = [
     # marker, so no report has ever shown them firing.
     ("discarded call", "撞到輸出上限"),
     ("fake-tool strike", "沒有呼叫真正的工具"),
+    # Found mechanically on 2026-08-16, not by memory: a scan for
+    # `X guard:` / `X breaker:` string literals across pi-extensions turned up
+    # four refusal texts with no marker at all. `Repeat-lookup guard` had just
+    # fired EIGHTEEN times in one run while the report showed no loop refusals,
+    # and the reading was about to be written up as "the loop guard stayed
+    # silent" — the third wrong conclusion in one session caused by a gap in
+    # this table. `test_mine_session.py` now checks the coverage in BOTH
+    # directions; the old check only asked whether a marker still exists in a
+    # bridge, never whether a bridge's guard has a marker.
+    ("repeat-lookup", "Repeat-lookup guard:"),
+    ("repeat-call", "Repeat-call guard:"),
+    ("repeat-call breaker", "Repeat-call breaker:"),
+    ("turn-end context", "Turn-end context guard:"),
     ("ECC GateGuard", "ECC GateGuard"),
 ]
 
