@@ -57,13 +57,16 @@ DEFAULT_CAP = 14
 # harness-root.ts in its docstring and asserts nothing about it. A mutation
 # scored against the wrong test module is a result with no meaning.
 GUARD_MODULES = {
-    "pi-extensions/case-bridge/task-queue-guard.ts": ["test_case_queue_guard", "test_case_guard_bash"],
-    "pi-extensions/case-bridge/phase-gate.ts": ["test_phase_tool_gate"],
-    "pi-extensions/case-bridge/queue-advancer.ts": ["test_queue_advancer", "test_advancer_settled_loop"],
-    "pi-extensions/case-bridge/action-log.ts": ["test_case_action_log"],
-    "pi-extensions/case-bridge/approval.ts": ["test_human_approval"],
-    "pi-extensions/case-bridge/harness-scope.ts": ["test_harness_scope"],
-    "pi-extensions/case-bridge/phase-notice.ts": ["test_phase_opened_notice"],
+    # The C.A.S.E. adapter's modules are NOT here. They moved to the protocol's
+    # own repository on 2026-08-17 (adapters/pi/case-bridge) together with their
+    # tests and a CI workflow, so C.A.S.E. can be adopted without a harness
+    # owning it. Sweeping them from here would mutate a submodule's source,
+    # which is another repository's working tree.
+    #
+    # OPEN, and recorded rather than assumed away: that repo has no mutation
+    # sweep of its own yet, so those eight modules are currently unswept. Filed
+    # in PROGRESS.md.
+
     "pi-extensions/yes-hooks-bridge/bash-containment.ts": ["test_bash_containment"],
     "pi-extensions/yes-hooks-bridge/blocked-claim.ts": ["test_blocked_claim", "test_blocked_claim_channel", "test_blocked_claim_vocabulary"],
     "pi-extensions/yes-hooks-bridge/research-depth.ts": ["test_research_depth", "test_research_depth_bash"],
@@ -86,7 +89,6 @@ GUARD_MODULES = {
     # already plan.
     "pi-extensions/planning-with-files-bridge/no-plan-gate.ts": ["test_no_plan_gate"],
     "pi-extensions/task-shape-bridge/goal-restate.ts": ["test_goal_restate"],
-    "pi-extensions/case-bridge/task-context.ts": ["test_task_context"],
     # Added 2026-08-10 after measuring coverage: 33 of 48 pure modules were
     # never swept, and these two sit directly in the decision path this week's
     # work depends on — `shape.ts` decides multi-step, `plan.ts` decides whether
@@ -100,7 +102,6 @@ GUARD_MODULES = {
     # and least likely to have been noticed — two of the three exist only because
     # `index.ts` cannot be imported by a test, which is the same reason nothing
     # was covering them yesterday.
-    "pi-extensions/case-bridge/calibration.ts": ["test_calibration_layer"],
     "pi-extensions/task-shape-bridge/calibration.ts": ["test_calibration_layer", "test_goal_restate"],
     "pi-extensions/mece-autopilot-bridge/notice.ts": ["test_mece_notice"],
     # T1b batch 2, added 2026-08-12: every remaining pure module that a python

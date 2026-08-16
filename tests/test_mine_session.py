@@ -129,10 +129,21 @@ class TestItReportsRatherThanJudges(unittest.TestCase):
     @staticmethod
     def _bridge_sources():
         haystack = ""
-        for p in (ROOT / "pi-extensions").rglob("*.ts"):
-            if "node_modules" in str(p):
-                continue
-            haystack += p.read_text(encoding="utf-8", errors="replace")
+        # The C.A.S.E. adapter moved to the protocol's repository on 2026-08-17.
+        # Its guards still refuse inside real sessions, so their markers are not
+        # dead — the source just is not under pi-extensions any more. Scanning
+        # only there would have declared eight live C.A.S.E. markers dead the
+        # day after the split, which is the same class of wrong reading this
+        # check exists to prevent.
+        roots = [ROOT / "pi-extensions",
+                 ROOT / "external" / "Local-Agent-Workspace" / "adapters"]
+        for root in roots:
+            if not root.is_dir():
+                continue  # a clone without submodules is a normal state
+            for p in root.rglob("*.ts"):
+                if "node_modules" in str(p):
+                    continue
+                haystack += p.read_text(encoding="utf-8", errors="replace")
         return haystack
 
     def test_every_declared_label_still_exists_in_a_bridge(self):

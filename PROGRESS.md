@@ -9,6 +9,53 @@
 
 ---
 
+## 2026-08-17:C.A.S.E. 搬出去了
+
+擁有者的決定:「我想要分開,CASE 跟 PI harness 放在一起感覺不會有結果,**CASE 研究成通用的好了**」,
+並且「一定要做到 1(完全移出),不要只做 2(留下但關掉)」。
+
+**協定本體本來就是獨立 repo(`Local-Agent-Workspace`)。綁住兩邊的是那座橋。**
+
+| 搬過去的 | 內容 |
+|---|---|
+| `adapters/pi/case-bridge/` | 10 個模組 —— 佇列守衛、階段閘、推進器、行動日誌、核可、範圍、通知、任務脈絡 |
+| `adapters/pi/rules/` | `case-autonomous-execution.md` —— 那是協定文字,harness 卻一直替它保管在 `pi-rules/` |
+| `tests/adapters-pi/` | **213 個測試,全綠** |
+| `.github/workflows/ci.yml` | **那個 repo 本來沒有 CI** |
+
+**目錄叫 `adapters/pi` 而不是 `pi-bridge`**,因為名字要說出它是什麼:
+**一個給一個 harness 的適配器,而且可以有別的。** 這是「研究成通用的」的實際意思。
+
+**兩個測試沒有跟著走,理由相同:它們是兩個 repo 之間的合約。**
+
+* `TestTheRouterYieldsInCaseProjects` —— harness 的 task-shape 路由器在 C.A.S.E. 專案裡讓位
+* `TestTheTwoExtractorsAgree` —— 適配器的 bash 目標抽取器 vs harness 的 containment 抽取器。
+  兩者不一致代表**一個擋的另一個放行**,而這在 `2>/dev/null` 那次真的發生過
+
+兩者留在 harness(它同時擁有兩邊),並在 submodule 未 checkout 時跳過 ——
+**CI 不 checkout submodule,這個 repo 為此紅過兩次。**
+
+**harness 這邊的連動改動:**
+
+```
+restore.py            從 external/.../adapters/pi/case-bridge 註冊;submodule 不在就不註冊(不留殭屍)
+                      複製迴圈改用註冊路徑本身,不再用 pi-extensions + basename 重組
+bridge-manifest.json  entry 改指新位置,標 optional
+check-prompt-conflicts / test_governance / test_mine_session
+                      掃描範圍加上 adapters/ —— 否則 enableCaseBridge 會被誤判成殭屍鍵、
+                      八個活著的 C.A.S.E. marker 會在拆分隔天被判定為死的
+check-guard-mutations 移除 9 個 case-bridge 條目
+```
+
+**測試數:harness 1583 → 1370,C.A.S.E. repo 17 → 230。** 沒有測試被丟掉,是換了家。
+
+> **⚠️ 明確記下的缺口:那個 repo 還沒有變異掃描**,所以搬過去的 10 個模組**目前無人掃**。
+> harness 這邊的 `test_guard_mutations` 原本要求 3 個 C.A.S.E. 模組必須被涵蓋,
+> 那個要求沒有被刪掉 —— 它變成**別人的要求**了,而這件事必須寫下來,
+> 否則就是「無人看守的清單靜默走樣」。
+
+---
+
 ## ⚠️ 2026-08-16:我叫你刪的「14 個守衛」,正確數字是 4,而且一個都不該刪
 
 完整查證:[docs/measurements/2026-08-16-fourteen-dead-guards-that-were-not.md](docs/measurements/2026-08-16-fourteen-dead-guards-that-were-not.md)

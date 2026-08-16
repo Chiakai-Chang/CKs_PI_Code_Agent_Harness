@@ -157,7 +157,15 @@ class TestMethodologyFirstPrinciple(unittest.TestCase):
         with open(os.path.join(ROOT, "pi-config", "harness-config.json"), encoding="utf-8") as f:
             cfg = _json.load(f)
         sources = []
-        for sub in ("pi-extensions", "scripts", "pi-skills"):
+        # The C.A.S.E. adapter moved to the protocol's own repository on
+        # 2026-08-17 and still reads this file — it adapts THIS harness, so its
+        # switches live here. Without this path enableCaseBridge,
+        # caseBridgeMaxChars and queueListingCap all read as zombies, which is
+        # the opposite of true: they have a consumer, it is just not under
+        # pi-extensions any more. Absent on a clone without submodules, and the
+        # walk simply finds nothing there.
+        for sub in ("pi-extensions", "scripts", "pi-skills",
+                    os.path.join("external", "Local-Agent-Workspace", "adapters")):
             for dp, dn, fn in os.walk(os.path.join(ROOT, sub)):
                 for name in fn:
                     if name.endswith((".ts", ".py", ".js", ".sh")):

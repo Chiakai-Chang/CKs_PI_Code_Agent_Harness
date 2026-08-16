@@ -184,13 +184,16 @@ class TestTheModuleMapIsDeclaredNotDerived(unittest.TestCase):
                     os.path.isfile(os.path.join(ROOT, "tests", t + ".py")), t)
 
     def test_the_measured_effective_guards_are_all_covered(self):
-        """The four guards with live evidence behind them, plus the two that
-        drive the C.A.S.E. loop. If the mechanism does not cover these, it does
-        not cover the code that changes model behaviour."""
-        for module in ("pi-extensions/case-bridge/task-queue-guard.ts",
-                       "pi-extensions/case-bridge/phase-gate.ts",
-                       "pi-extensions/case-bridge/queue-advancer.ts",
-                       "pi-extensions/yes-hooks-bridge/bash-containment.ts",
+        """The guards with live evidence behind them. If the mechanism does not
+        cover these, it does not cover the code that changes model behaviour.
+        The three C.A.S.E. modules that used to be listed here — task-queue-guard,
+        phase-gate and queue-advancer — moved to the protocol's own repository on
+        2026-08-17. They are not dropped from the requirement, they are somebody
+        else's requirement now, and that repo has no mutation sweep yet. Recorded
+        in PROGRESS.md rather than silently forgotten, because an unguarded list
+        drifts.
+        """
+        for module in ("pi-extensions/yes-hooks-bridge/bash-containment.ts",
                        "pi-extensions/yes-hooks-bridge/blocked-claim.ts",
                        "pi-extensions/yes-hooks-bridge/research-depth.ts",
                        "pi-extensions/yes-hooks-bridge/harness-root.ts"):

@@ -1027,7 +1027,27 @@ def main():
         # Extensions
         profile_extensions.append(os.path.join(pi_extensions_root, "ecc-hooks-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "planning-with-files-bridge").replace("\\", "/"))
-        profile_extensions.append(os.path.join(pi_extensions_root, "case-bridge").replace("\\", "/"))
+        # case-bridge lives in the C.A.S.E. repo, not here.
+        #
+        # 2026-08-17: the owner asked for C.A.S.E. and the harness to be
+        # separated — 「CASE 跟 PI harness 放在一起感覺不會有結果,CASE 研究成通用的
+        # 好了」. The protocol was already its own repository; what tied them was
+        # this bridge. It now sits at `adapters/pi/case-bridge` inside that repo,
+        # alongside its 193 tests and its own CI, so C.A.S.E. can be adopted by a
+        # harness without that harness owning the protocol — and so work on one
+        # stops competing with work on the other.
+        #
+        # Registered only when the submodule is actually checked out. A clone
+        # without submodules is a normal state (CI is one), and pointing Pi at a
+        # missing directory would be a zombie registration.
+        case_adapter = os.path.join(
+            ext_root, "Local-Agent-Workspace", "adapters", "pi", "case-bridge"
+        ).replace("\\", "/")
+        if os.path.isdir(case_adapter):
+            profile_extensions.append(case_adapter)
+        else:
+            log("  ! C.A.S.E. adapter not found (submodule not checked out); "
+                "case-bridge is not registered. Run: git submodule update --init")
         profile_extensions.append(os.path.join(pi_extensions_root, "taste-bridge").replace("\\", "/"))
         profile_extensions.append(os.path.join(pi_extensions_root, "mece-autopilot-bridge").replace("\\", "/"))
         # Surfaces the long-tail skills that tiered registration keeps out of
@@ -1315,7 +1335,11 @@ def main():
             
         for ext_path in profile_extensions:
             bridge = os.path.basename(ext_path)
-            src_bridge = os.path.join(ext_src, bridge)
+            # A bridge may live outside pi-extensions/ — the C.A.S.E. adapter is
+            # in the protocol's own repository. Reconstructing the source from
+            # `ext_src + basename` silently produced a missing path for it, so
+            # the registered entry is used directly when it resolves.
+            src_bridge = ext_path if os.path.isdir(ext_path) else os.path.join(ext_src, bridge)
             dst_bridge = os.path.join(ext_dst, bridge)
             if os.path.isdir(src_bridge):
                 shutil.copytree(src_bridge, dst_bridge, dirs_exist_ok=True)

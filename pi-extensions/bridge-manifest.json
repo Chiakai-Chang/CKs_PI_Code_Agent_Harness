@@ -16,9 +16,10 @@
     },
     {
       "name": "case-bridge",
-      "entry": "pi-extensions/case-bridge/index.ts",
+      "entry": "external/Local-Agent-Workspace/adapters/pi/case-bridge/index.ts",
       "version": "1.0.0",
-      "description": "C.A.S.E. framework bridge"
+      "description": "C.A.S.E. protocol adapter — lives in the C.A.S.E. repository, not here, so the protocol can be adopted by any harness. Absent when submodules are not checked out.",
+      "optional": true
     },
     {
       "name": "taste-bridge",

@@ -26,6 +26,18 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+
+# C.A.S.E. moved to its own repository on 2026-08-17, so the adapter this file
+# reads is a submodule. CI's actions/checkout pulls no submodules — the repo has
+# been red twice for exactly that — so every assertion that needs the adapter
+# skips when it is absent. What stays unconditional is the half this repo owns:
+# task-shape-bridge standing down inside a C.A.S.E. project.
+_ADAPTER = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "external", "Local-Agent-Workspace", "adapters", "pi", "case-bridge")
+HAS_ADAPTER = os.path.isdir(_ADAPTER)
+SKIP_NO_ADAPTER = unittest.skipUnless(
+    HAS_ADAPTER, "C.A.S.E. adapter not checked out (git submodule update --init)")
 from pathlib import Path
 
 ROOT = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -34,8 +46,10 @@ import sys as _sys
 _sys.path.insert(0, str(ROOT / "tests"))
 from _scratch import scratch  # per-process temp names; see tests/_scratch.py
 
-MOD = ROOT / "pi-extensions" / "case-bridge" / "task-context.ts"
-INDEX = ROOT / "pi-extensions" / "case-bridge" / "index.ts"
+# The adapter lives in the C.A.S.E. repository since 2026-08-17.
+ADAPTER = ROOT / "external" / "Local-Agent-Workspace" / "adapters" / "pi" / "case-bridge"
+MOD = ADAPTER / "task-context.ts"
+INDEX = ADAPTER / "index.ts"
 
 
 def _node_major():
@@ -86,7 +100,7 @@ def run_js(script):
             driver.unlink()
 
 
-GUARD_MOD = ROOT / "pi-extensions" / "case-bridge" / "task-queue-guard.ts"
+GUARD_MOD = ADAPTER / "task-queue-guard.ts"
 
 
 def run_guard(script):
@@ -121,6 +135,7 @@ def load(task_dir):
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
+@SKIP_NO_ADAPTER
 class TestSectionParsing(unittest.TestCase):
     def test_extracts_a_named_section_without_its_heading(self):
         out = run_js("process.stdout.write(JSON.stringify("
@@ -176,6 +191,7 @@ class TestSectionParsing(unittest.TestCase):
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
+@SKIP_NO_ADAPTER
 class TestLocalConstitution(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -325,6 +341,7 @@ class TestLocalConstitution(unittest.TestCase):
         self.assertIn("實際跑過", load(self.task)["text"])
 
 
+@SKIP_NO_ADAPTER
 class TestWiring(unittest.TestCase):
     """A pure module nobody calls is the defect this repo ships most often —
     an undeclared variable in a bridge handler once passed 774 tests, three
@@ -358,7 +375,7 @@ class TestWiring(unittest.TestCase):
     def test_the_claim_detector_is_not_duplicated(self):
         """One detector for one event. `uninstall.py` managed five bridges while
         `restore.py` managed eleven, and seven kept loading forever."""
-        notice = (ROOT / "pi-extensions" / "case-bridge" /
+        notice = (ADAPTER /
                   "phase-notice.ts").read_text(encoding="utf-8")
         self.assertEqual(notice.count("export function claimedTaskDir"), 1)
         self.assertIn("claimedTaskDir(queueDir, toolName, input, isError)", notice)
@@ -369,6 +386,7 @@ if __name__ == "__main__":
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
+@SKIP_NO_ADAPTER
 class TestTaskLevelMethodology(unittest.TestCase):
     """Global had planning and methodology routing; a claimed task had a form.
 
@@ -452,6 +470,7 @@ class TestTaskLevelMethodology(unittest.TestCase):
         self.assertIn("systematic-debugging", load(task)["text"])
 
 
+@SKIP_NO_ADAPTER
 class TestTheRouterYieldsInCaseProjects(unittest.TestCase):
     """Two planning systems that could not see each other.
 
@@ -497,6 +516,7 @@ class TestTheRouterYieldsInCaseProjects(unittest.TestCase):
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
+@SKIP_NO_ADAPTER
 class TestTheDodArtifactCheck(unittest.TestCase):
     """A task reached REVIEW with nothing in it while every guard passed.
 
@@ -576,6 +596,7 @@ class TestTheDodArtifactCheck(unittest.TestCase):
         self.assertEqual(self.missing(), [])
 
 
+@SKIP_NO_ADAPTER
 class TestTheDodGuardBlocksInPractice(unittest.TestCase):
     """Run 3 of T-A1 (2026-08-11) reached REVIEW with no output.md while 1289
     tests were green. These drive `check()` on a real folder, which is the only
@@ -620,6 +641,7 @@ class TestTheDodGuardBlocksInPractice(unittest.TestCase):
         self.assertIsNone(self.review(str(self.tmp)))
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
+@SKIP_NO_ADAPTER
 class TestTheTaskIsTheGoal(unittest.TestCase):
     """T-A3. The restatement's source, inside a C.A.S.E. project.
 

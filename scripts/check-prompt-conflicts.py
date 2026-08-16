@@ -177,7 +177,10 @@ def main():
 
     # Markdown injected verbatim into the system prompt.
     injected_docs = [
-        os.path.join(root, "pi-rules", "case-autonomous-execution.md"),
+        # Moved with C.A.S.E. on 2026-08-17. Audited only when the submodule
+        # is checked out; a clone without it is a normal state.
+        os.path.join(root, "external", "Local-Agent-Workspace", "adapters",
+                     "pi", "rules", "case-autonomous-execution.md"),
         os.path.join(root, "pi-extensions", "taste-bridge", "GEMINI.md"),
         os.path.join(root, "pi-rules", "AGENTS.md"),
     ]

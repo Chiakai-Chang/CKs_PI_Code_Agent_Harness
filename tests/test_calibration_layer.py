@@ -28,7 +28,7 @@ import sys as _sys
 _sys.path.insert(0, os.path.join(ROOT, "tests"))
 from _scratch import scratch  # per-process temp names; see tests/_scratch.py
 
-GATE = os.path.join(ROOT, "pi-extensions", "case-bridge", "phase-gate.ts")
+GATE = os.path.join(ROOT, "external", "Local-Agent-Workspace", "adapters", "pi", "case-bridge", "phase-gate.ts")
 CONFIG = os.path.join(ROOT, "pi-config", "harness-config.json")
 
 
@@ -146,7 +146,7 @@ class TestTheClaimBudgetReachesTheSessionSnapshot(unittest.TestCase):
     such key, so the snapshot always came back empty and the constant in
     `phase-gate.ts` was the only value that could ever be used."""
 
-    SCOPE = os.path.join(ROOT, "pi-extensions", "case-bridge", "harness-scope.ts")
+    SCOPE = os.path.join(ROOT, "external", "Local-Agent-Workspace", "adapters", "pi", "case-bridge", "harness-scope.ts")
 
     def snapshot(self, cwd, root):
         return run_js(self.SCOPE,
@@ -244,7 +244,7 @@ class TestBothCopiesOfTheReaderAgree(unittest.TestCase):
     COPIES = [
         (os.path.join(ROOT, "pi-extensions", "task-shape-bridge", "calibration.ts"),
          "calibrated"),
-        (os.path.join(ROOT, "pi-extensions", "case-bridge", "calibration.ts"),
+        (os.path.join(ROOT, "external", "Local-Agent-Workspace", "adapters", "pi", "case-bridge", "calibration.ts"),
          "calibratedNumber"),
     ]
 
