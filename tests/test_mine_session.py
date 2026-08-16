@@ -159,8 +159,21 @@ class TestItReportsRatherThanJudges(unittest.TestCase):
         silent about its own guard and loud about everything else."""
         m = load()
         haystack = self._bridge_sources()
+        # Markers whose guard lives in the C.A.S.E. adapter, an optional
+        # submodule since 2026-08-17. Without it checked out they cannot be
+        # found here — and that is not a dead marker: the guard still refuses
+        # inside real sessions, its source is simply in another repository.
+        # Listed by name so a marker that dies in THIS repo still fails while
+        # the adapter is away.
+        adapter = ROOT / "external" / "Local-Agent-Workspace" / "adapters"
+        skip = set() if adapter.is_dir() else {
+            "phase gate", "dod artifacts", "status value", "transition",
+            "one-at-a-time", "retrospective", "dual-track", "boundary",
+            "tool-first", "task constitution", "phase reopened",
+            "task goal restatement",
+        }
         missing = [label for label, marker in m.INJECTIONS + m.REFUSALS
-                   if marker not in haystack]
+                   if label not in skip and marker not in haystack]
         self.assertEqual(missing, [],
                          "these markers are emitted by no bridge: %s" % missing)
 

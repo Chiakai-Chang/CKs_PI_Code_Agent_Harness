@@ -39,6 +39,7 @@ import sys as _sys
 _sys.path.insert(0, str(ROOT / "tests"))
 from _parity_helpers import GUARD, CONTAINMENT, run_js, as_url  # noqa: E402
 
+@unittest.skipUnless(NODE_OK, "node >= 22 and the C.A.S.E. adapter required")
 class TestTheTwoExtractorsAgree(unittest.TestCase):
     """Two copies of the same logic drift. This repo has the scar: uninstall.py
     managed five bridges while restore.py managed eleven.

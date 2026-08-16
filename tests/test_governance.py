@@ -175,6 +175,16 @@ class TestMethodologyFirstPrinciple(unittest.TestCase):
                         except OSError:
                             pass
         blob = "\n".join(sources)
+        # Keys owned by the C.A.S.E. adapter, an optional submodule since
+        # 2026-08-17. When it is not checked out its reader is absent and these
+        # read as zombies — the opposite of true. Named explicitly rather than
+        # skipping the whole check, so a genuinely dead key in THIS repo still
+        # fails while the adapter is away.
+        if not os.path.isdir(os.path.join(ROOT, "external",
+                                          "Local-Agent-Workspace", "adapters")):
+            for owned in ("enableCaseBridge", "caseBridgeMaxChars",
+                          "queueListingCap", "enableCaseAdvancer"):
+                cfg.pop(owned, None)
         # Match an ACCESS shape, not a bare word. A plain substring search
         # passes any key whose name happens to appear anywhere — "description"
         # sailed through because unrelated tool definitions use that word,

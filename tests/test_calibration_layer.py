@@ -73,7 +73,21 @@ def fixture_root(values):
     return tmp
 
 
+
+# C.A.S.E. moved to its own repository on 2026-08-17, so anything here that
+# reads its adapter needs the submodule. CI checks out no submodules and this
+# repo has been red for that twice — including on the split commit itself, where
+# TestBothCopiesOfTheReaderAgree imported calibration.ts straight out of the
+# submodule and CI said ERR_MODULE_NOT_FOUND. Repointing a path is not the whole
+# fix; the guard is the other half.
+_ADAPTER = os.path.join(ROOT, "external", "Local-Agent-Workspace",
+                        "adapters", "pi", "case-bridge")
+HAS_ADAPTER = os.path.isdir(_ADAPTER)
+SKIP_NO_ADAPTER = unittest.skipUnless(
+    HAS_ADAPTER, "C.A.S.E. adapter not checked out (git submodule update --init)")
+
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
+@SKIP_NO_ADAPTER
 class TestTheListingCapComesFromConfig(unittest.TestCase):
     def cap(self, root):
         queue = os.path.join(root, "02_Task_Queue")
@@ -140,6 +154,7 @@ class TestTheShippedConfigDeclaresTheCalibration(unittest.TestCase):
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
+@SKIP_NO_ADAPTER
 class TestTheClaimBudgetReachesTheSessionSnapshot(unittest.TestCase):
     """The gate reads its budget from the session snapshot, and the snapshot is
     taken with the harness root in hand. Before T-A2 the global file carried no
@@ -184,6 +199,7 @@ class TestTheClaimBudgetReachesTheSessionSnapshot(unittest.TestCase):
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
+@SKIP_NO_ADAPTER
 class TestTheListingItselfHonoursTheCap(unittest.TestCase):
     """Through `check()`, not through the helper.
 
@@ -232,6 +248,7 @@ class TestTheListingItselfHonoursTheCap(unittest.TestCase):
 
 
 @unittest.skipUnless(NODE_OK, "node >= 22 required")
+@SKIP_NO_ADAPTER
 class TestBothCopiesOfTheReaderAgree(unittest.TestCase):
     """Two bridges, two copies, one contract.
 
